@@ -1,6 +1,0 @@
-# Request
-string prompt
----
-# Response
-bool success
-string message
