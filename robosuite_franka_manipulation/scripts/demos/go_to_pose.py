@@ -54,12 +54,12 @@ if __name__ == '__main__':
         controller = DualArmPoseController(env)
 
         # Define a safe "home" or "ready" pose for the left arm
-        left_arm_position = [0.8, 0.1, 0.4]
+        left_arm_position = [0.5, -0.3, 0.4]
         # Identity quaternion (no rotation, end-effector points forward)
         left_arm_orientation = [0.0, 0.0, 0.0, 1.0]
 
         # Define a symmetrical pose for the right arm
-        right_arm_position = [0.4, -0.2, 0.4]
+        right_arm_position = [0.4, -0.2, -0.4]
         right_arm_orientation = [0.0, 0.0, 0.0, 1.0]
 
         # --- Send Commands ---
