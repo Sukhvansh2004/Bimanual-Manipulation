@@ -36,7 +36,11 @@ cd ../..
 echo "Installing dual-arm-franka-manipulation..."
 pip install -e .
 
-# Verify installation
+# Note about models
+echo ""
+echo "Note: GraspGenModels (pre-trained models) need to be downloaded separately:"
+echo "  git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels"
+echo "  (or use your own fork if you have custom models)"
 echo "Verifying installation..."
 python -c "import robosuite_franka_manipulation; print('✓ Package imported successfully')"
 

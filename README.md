@@ -25,6 +25,7 @@ This will:
 - Create the `dual_arm_manipulation` conda environment
 - Install all dependencies including GraspGen
 - Install the package in development mode
+- **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
 
 ### Manual Installation
 
@@ -45,7 +46,13 @@ cd deps/GraspGen
 pip install -e .
 ```
 
-4. **Install the Package**:
+4. **Download GraspGen Models**:
+```bash
+# Clone the models repository (or use your own fork)
+git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels
+```
+
+5. **Install the Package**:
 ```bash
 pip install -e .
 ```
