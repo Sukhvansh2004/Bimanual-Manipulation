@@ -2,8 +2,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 
-from ...controllers import RobosuiteArmController
-from ...environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.controllers import RobosuiteArmController
+from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
 
 class DualArmPoseController:
     """

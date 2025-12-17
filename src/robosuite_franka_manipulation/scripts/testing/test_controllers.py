@@ -9,8 +9,8 @@ from scipy.spatial.transform import Rotation as R
 import time
 from typing import Optional, Any
 
-from ...environments import make_dual_arm_handoff_env
-from ...controllers import RobosuiteArmController, RobosuiteGripperController
+from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 
 def test_environment_setup() -> Optional[Any]:
     """Test that the environment can be created and reset."""
@@ -83,7 +83,7 @@ def test_perception(env: Any) -> bool:
     print("\nTesting perception...")
 
     try:
-        from ...perception import ObjectDetector, GraspPredictor
+        from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
 
         detector = ObjectDetector(env)
         predictor = GraspPredictor()

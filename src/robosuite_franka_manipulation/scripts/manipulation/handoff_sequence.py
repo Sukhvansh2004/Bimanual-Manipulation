@@ -3,10 +3,9 @@ from scipy.spatial.transform import Rotation as R
 import time
 from typing import Dict, Any
 
-# Assuming these can be imported successfully in a runnable robosuite environment
-from ...controllers import RobosuiteArmController, RobosuiteGripperController
-from ...environments import make_dual_arm_handoff_env
-from ...perception import ObjectDetector, GraspPredictor
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
 
 def create_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float) -> Dict:
     """
