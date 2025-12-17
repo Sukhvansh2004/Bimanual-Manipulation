@@ -31,9 +31,9 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> None:
     print(f"Starting dual-arm manipulation task: {task}")
 
     # Initialize controllers
-    left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)
+    left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
     right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
-    left_gripper = RobosuiteGripperController(env, arm_id="left", robot_id=0)
+    left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
     # Initialize perception

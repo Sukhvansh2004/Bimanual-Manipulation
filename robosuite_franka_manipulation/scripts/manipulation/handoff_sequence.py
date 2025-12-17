@@ -23,9 +23,9 @@ def run_handoff_sequence(env: Any, visualize: bool = False) -> bool:
     print("Starting handoff sequence...")
 
     # Initialize controllers for both arms
-    left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)  # Assuming robot 0 is left
+    left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)  # Assuming robot 0 is left
     right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
-    left_gripper = RobosuiteGripperController(env, arm_id="left", robot_id=0)
+    left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
     # Initialize perception

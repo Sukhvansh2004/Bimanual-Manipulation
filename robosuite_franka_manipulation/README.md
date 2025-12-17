@@ -30,37 +30,37 @@ This package provides a robosuite-based implementation of dual-arm Franka Panda 
 To test the system:
 
 ```bash
-python -m robosuite_franka_handoff.scripts.testing.test_controllers
+python -m robosuite_franka_manipulation.scripts.testing.test_controllers
 ```
 
 To run dual-arm manipulation with perception:
 
 ```bash
-python -m robosuite_franka_handoff.scripts.manipulation.dual_arm_manipulation --task handoff
+python -m robosuite_franka_manipulation.scripts.manipulation.dual_arm_manipulation --task handoff
 ```
 
 Or for cooperative lifting:
 
 ```bash
-python -m robosuite_franka_handoff.scripts.manipulation.dual_arm_manipulation --task cooperative_lift
+python -m robosuite_franka_manipulation.scripts.manipulation.dual_arm_manipulation --task cooperative_lift
 ```
 
 To run the handoff sequence with perception:
 
 ```bash
-python -m robosuite_franka_handoff.scripts.manipulation.handoff_sequence
+python -m robosuite_franka_manipulation.scripts.manipulation.handoff_sequence
 ```
 
 For teleoperation:
 
 ```bash
-python -m robosuite_franka_handoff.scripts.teleop.teleop_dual_arm
+python -m robosuite_franka_manipulation.scripts.teleop.teleop_dual_arm
 ```
 
 Or from within the package:
 
 ```python
-from robosuite_franka_handoff import make_dual_arm_handoff_env, ObjectDetector, GraspPredictor
+from robosuite_franka_manipulation import make_dual_arm_handoff_env, ObjectDetector, GraspPredictor
 ```
 
 ## Requirements
