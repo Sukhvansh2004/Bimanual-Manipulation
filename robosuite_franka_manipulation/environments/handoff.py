@@ -33,7 +33,7 @@ def make_dual_arm_handoff_env() -> Any:
         gripper_types="default",     # Use default grippers for each robot
         controller_configs=controller_configs,
         env_configuration="opposed", # Robots face each other
-        has_renderer=False,          # Disable rendering for headless
+        has_renderer=True,          # Disable rendering for headless
         has_offscreen_renderer=False, # Disable offscreen rendering
         use_camera_obs=False,        # Disable camera observations
         control_freq=20,             # Control frequency
@@ -55,6 +55,7 @@ if __name__ == '__main__':
             obs, reward, done, info = env.step(action)
             if done:
                 break
+            env.render()
         print(f"Environment stepped for {env.horizon} steps.")
         env.close()
 

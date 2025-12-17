@@ -8,7 +8,7 @@ def test_gripper_sequence(env):
     A test script to open and close both grippers in robosuite.
     """
     print("Initializing gripper controllers...")
-    left_gripper = RobosuiteGripperController(env, arm_id="left", robot_id=0)
+    left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
     print("Starting gripper test sequence.")

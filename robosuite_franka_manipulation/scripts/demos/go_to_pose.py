@@ -15,7 +15,7 @@ class DualArmPoseController:
         Initializes the controller with the environment.
         """
         self.env = env
-        self.left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)
+        self.left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
         self.right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
         print("Dual Arm Pose Controller Initialized.")
 
