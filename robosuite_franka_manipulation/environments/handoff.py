@@ -6,11 +6,12 @@ from typing import Any
 def make_dual_arm_handoff_env() -> Any:
     """
     Creates a robosuite environment configured for a dual-arm Franka handoff task.
-    Rendering is disabled due to EGL issues in the current environment.
     """
     # load the OSC_POSE part controller config
     osc_pose_config = load_part_controller_config(default_controller="OSC_POSE")
     osc_pose_config["gripper"] = {"type": "GRIP"}
+    osc_pose_config["input_ref_frame"] = "base"
+    osc_pose_config["input_type"] = "delta"
 
     # create the composite controller config
     controller_config = {
@@ -33,8 +34,8 @@ def make_dual_arm_handoff_env() -> Any:
         gripper_types="default",     # Use default grippers for each robot
         controller_configs=controller_configs,
         env_configuration="opposed", # Robots face each other
-        has_renderer=True,          # Disable rendering for headless
-        has_offscreen_renderer=False, # Disable offscreen rendering
+        has_renderer=True,          # We need to render for teleoperation
+        has_offscreen_renderer=False, # No offscreen rendering
         use_camera_obs=False,        # Disable camera observations
         control_freq=20,             # Control frequency
         horizon=1000,                # Longer horizon for sequence
