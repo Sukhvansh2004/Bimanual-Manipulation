@@ -26,6 +26,7 @@ This will:
 - Install all dependencies including GraspGen
 - Install the package in development mode
 - **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
+- **Note**: FastSAM model is included in the `models/` folder
 
 ### Manual Installation
 

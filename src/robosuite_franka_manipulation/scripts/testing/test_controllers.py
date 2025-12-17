@@ -40,7 +40,7 @@ def test_controllers(env: Any) -> bool:
     print("Testing arm movements...")
 
     # Define test poses
-    test_pose_left = {"pos": np.array([-0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [0, np.pi/2, 0]).as_quat()}
+    test_pose_left = {"pos": np.array([0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [0, np.pi/2, 0]).as_quat()}
     test_pose_right = {"pos": np.array([0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [-np.pi/2, 0, np.pi/2]).as_quat()}
 
     # Move left arm

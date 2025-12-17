@@ -35,7 +35,7 @@ def make_dual_arm_handoff_env() -> Any:
         controller_configs=controller_configs,
         env_configuration="opposed", # Robots face each other
         has_renderer=True,          # We need to render for teleoperation
-        has_offscreen_renderer=False, # No offscreen rendering
+        has_offscreen_renderer=True, # No offscreen rendering
         use_camera_obs=True,         # Enable camera observations for perception
         control_freq=20,             # Control frequency
         horizon=1000,                # Longer horizon for sequence

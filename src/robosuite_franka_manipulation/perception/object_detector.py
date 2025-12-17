@@ -26,7 +26,10 @@ class ObjectDetector:
         self.prompt_host = prompt_host
         self.prompt_port = prompt_port
         if FastSAM:
-            self.model = FastSAM('FastSAM-x.pt')  # Load model
+            # Load FastSAM model from models folder
+            package_path = pathlib.Path(__file__).parent.parent.parent.parent
+            model_path = package_path / 'models' / 'FastSAM-x.pt'
+            self.model = FastSAM(str(model_path))  # Load model
         else:
             self.model = None
 
