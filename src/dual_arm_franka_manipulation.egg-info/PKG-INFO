@@ -37,6 +37,11 @@ Requires-Dist: gymnasium
 Requires-Dist: h5py
 Requires-Dist: robosuite-models==1.0.0
 Requires-Dist: usd-core
+Requires-Dist: hydra-core
+Requires-Dist: trimesh==4.5.3
+Requires-Dist: addict
+Requires-Dist: torch-geometric
+Requires-Dist: yourdfpy==0.0.56
 
 # Dual-Arm Franka Manipulation
 

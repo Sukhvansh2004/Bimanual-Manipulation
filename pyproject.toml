@@ -44,6 +44,11 @@ dependencies = [
     "h5py",  # For demonstration utils
     "robosuite-models==1.0.0",  # For extra robosuite_models
     "usd-core",  # For USD export and rendering
+    "hydra-core",  # For GraspGen configuration
+    "trimesh==4.5.3",  # For mesh processing
+    "addict",  # For configuration
+    "torch-geometric",  # For graph neural networks
+    "yourdfpy==0.0.56",  # For URDF processing
 ]
 
 [project.urls]
