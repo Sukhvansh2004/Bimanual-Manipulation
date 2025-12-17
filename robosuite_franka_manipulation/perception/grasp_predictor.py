@@ -4,7 +4,7 @@ import os
 from typing import Optional, List, Dict, Any
 
 # Add GraspGen to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../GraspGen'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../GraspGen'))
 
 try:
     from grasp_gen import GraspGenerator
