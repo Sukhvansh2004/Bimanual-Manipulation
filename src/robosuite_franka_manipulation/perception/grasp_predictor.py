@@ -29,8 +29,12 @@ class GraspPredictor:
     """
     def __init__(self, model_path: Optional[str] = None) -> None:
         if GraspGenSampler:
-            # Load GraspGen config
-            cfg = load_grasp_cfg(model_path or 'grasp_gen/cfgs/grasp_generation.yaml')
+            # Load GraspGen config from GraspGenModels
+            if model_path is None:
+                package_path = pathlib.Path(__file__).parent.parent.parent.parent
+                model_path = package_path / 'deps' / 'GraspGenModels' / 'checkpoints' / 'graspgen_franka_panda.yml'
+                model_path = str(model_path)
+            cfg = load_grasp_cfg(model_path)
             self.sampler = GraspGenSampler(cfg)
         else:
             self.sampler = None
