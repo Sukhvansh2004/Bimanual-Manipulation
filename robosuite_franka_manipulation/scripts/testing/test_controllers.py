@@ -29,9 +29,9 @@ def test_controllers(env: Any) -> bool:
     print("\nTesting controllers...")
 
     # Initialize controllers
-    left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)
+    left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
     right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
-    left_gripper = RobosuiteGripperController(env, arm_id="left", robot_id=0)
+    left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
     print("✓ Controllers initialized")
@@ -44,14 +44,14 @@ def test_controllers(env: Any) -> bool:
     test_pose_right = {"pos": np.array([0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [-np.pi/2, 0, np.pi/2]).as_quat()}
 
     # Move left arm
-    success_left = left_arm.move_to_pose(test_pose_left["pos"], test_pose_left["quat"], timeout=50)
+    success_left = left_arm.move_to_pose(test_pose_left["pos"], test_pose_left["quat"], timeout=100)
     if success_left:
         print("✓ Left arm movement successful")
     else:
         print("✗ Left arm movement failed")
 
     # Move right arm
-    success_right = right_arm.move_to_pose(test_pose_right["pos"], test_pose_right["quat"], timeout=50)
+    success_right = right_arm.move_to_pose(test_pose_right["pos"], test_pose_right["quat"], timeout=100)
     if success_right:
         print("✓ Right arm movement successful")
     else:

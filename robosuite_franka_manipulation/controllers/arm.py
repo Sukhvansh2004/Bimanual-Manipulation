@@ -33,8 +33,8 @@ class RobosuiteArmController:
             gripper_action (float): Gripper action to maintain (-1 closed, 1 open).
         """
         for i in range(timeout):
-            current_pos = self.robot.controller_info["ee_pos"]
-            current_ori_mat = self.robot.controller_info["ee_ori_mat"]
+            current_pos = self.robot._hand_pos[self.arm_id]
+            current_ori_mat = self.robot._hand_orn[self.arm_id]
             current_quat = R.from_matrix(current_ori_mat).as_quat()
 
             pos_error = target_pos - current_pos
@@ -47,8 +47,8 @@ class RobosuiteArmController:
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * 10, -0.05, 0.05)  # Position deltas
-            robot_action[3:6] = np.clip(ori_error_vec * 2, -0.05, 0.05)  # Orientation deltas
+            robot_action[:3] = np.clip(pos_error * 10, -1, 1)  # Position deltas
+            robot_action[3:6] = np.clip(ori_error_vec * 2, -1, 1)  # Orientation deltas
             robot_action[6] = gripper_action  # Gripper
 
             # Construct full action
