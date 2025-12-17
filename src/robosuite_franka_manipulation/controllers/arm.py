@@ -1,7 +1,8 @@
 import robosuite as suite
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
+import time
 
 class RobosuiteArmController:
     """
@@ -21,9 +22,108 @@ class RobosuiteArmController:
         self.action_dim_per_robot = 7
         self.total_action_dim = self.env.action_dim
 
+    def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
+                                   target_pos: np.ndarray, target_quat: np.ndarray,
+                                   max_vel: float = 0.05, max_acc: float = 0.02, 
+                                   dt: float = 0.02) -> Tuple[np.ndarray, np.ndarray, float]:
+        """
+        Plan a trapezoidal velocity profile trajectory from start to target pose.
+        
+        Args:
+            start_pos: Starting position
+            start_quat: Starting quaternion
+            target_pos: Target position
+            target_quat: Target quaternion
+            max_vel: Maximum velocity (m/s)
+            max_acc: Maximum acceleration (m/s²)
+            dt: Time step
+            
+        Returns:
+            positions: Array of positions over time (N, 3)
+            quaternions: Array of quaternions over time (N, 4)
+            total_time: Total trajectory time
+        """
+        # Calculate position distance
+        pos_distance = np.linalg.norm(target_pos - start_pos)
+        
+        if pos_distance < 1e-6:
+            # No movement needed
+            return np.array([target_pos]), np.array([target_quat]), 0.0
+        
+        # Calculate orientation distance (angle in radians)
+        ori_diff = R.from_quat(target_quat) * R.from_quat(start_quat).inv()
+        ori_distance = np.linalg.norm(ori_diff.as_rotvec())
+        
+        # Use position distance for timing, add orientation as a fraction
+        total_distance = pos_distance + ori_distance * 0.05  # Small scaling for orientation
+        
+        # Calculate trapezoidal profile timing with more reasonable parameters
+        # Phase 1: Acceleration
+        t_acc = max_vel / max_acc
+        d_acc = 0.5 * max_acc * t_acc**2
+        
+        # Phase 3: Deceleration  
+        t_dec = t_acc
+        d_dec = d_acc
+        
+        # Phase 2: Constant velocity
+        d_const = total_distance - d_acc - d_dec
+        if d_const > 0:
+            t_const = d_const / max_vel
+        else:
+            # Triangle profile
+            t_acc = np.sqrt(total_distance / max_acc)
+            t_const = 0
+            t_dec = t_acc
+        
+        total_time = t_acc + t_const + t_dec
+        n_steps = max(2, int(np.ceil(total_time / dt)))  # At least 2 steps
+        
+        # Generate trajectory
+        positions = []
+        quaternions = []
+        
+        for i in range(n_steps + 1):
+            t = i * dt
+            
+            # Calculate position along trapezoid
+            if t <= t_acc:
+                # Acceleration phase
+                s = 0.5 * max_acc * t**2
+            elif t <= t_acc + t_const:
+                # Constant velocity phase
+                s = d_acc + max_vel * (t - t_acc)
+            else:
+                # Deceleration phase
+                t_dec_elapsed = t - (t_acc + t_const)
+                s = d_acc + d_const + max_vel * t_dec_elapsed - 0.5 * max_acc * t_dec_elapsed**2
+            
+            # Clamp to [0, total_distance]
+            s = np.clip(s, 0, total_distance)
+            
+            # Interpolate position
+            if pos_distance > 0:
+                pos_interp = start_pos + (target_pos - start_pos) * (s / total_distance)
+            else:
+                pos_interp = target_pos
+            
+            # Interpolate orientation (using rotation vector interpolation)
+            if ori_distance > 0:
+                start_rotvec = R.from_quat(start_quat).as_rotvec()
+                target_rotvec = R.from_quat(target_quat).as_rotvec()
+                rotvec_interp = start_rotvec + (target_rotvec - start_rotvec) * (s / total_distance)
+                quat_interp = R.from_rotvec(rotvec_interp).as_quat()
+            else:
+                quat_interp = target_quat
+            
+            positions.append(pos_interp)
+            quaternions.append(quat_interp)
+        
+        return np.array(positions), np.array(quaternions), total_time
+
     def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, threshold: float = 0.01, timeout: int = 100, gripper_action: float = 0.0) -> bool:
         """
-        Moves the robot's end-effector to the target position and orientation.
+        Moves the robot's end-effector to the target position and orientation using simple proportional control.
 
         Args:
             target_pos (np.array): Desired 3D position (x, y, z).
@@ -47,8 +147,8 @@ class RobosuiteArmController:
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * 10, -1, 1)  # Position deltas
-            robot_action[3:6] = np.clip(ori_error_vec * 2, -1, 1)  # Orientation deltas
+            robot_action[:3] = np.clip(pos_error * 5, -1, 1)  # Position deltas - reduced gain
+            robot_action[3:6] = np.clip(ori_error_vec * 1, -1, 1)  # Orientation deltas - reduced gain
             robot_action[6] = gripper_action  # Gripper
 
             # Construct full action

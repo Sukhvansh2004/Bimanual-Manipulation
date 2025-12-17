@@ -39,19 +39,24 @@ def test_controllers(env: Any) -> bool:
     # Test arm movements
     print("Testing arm movements...")
 
-    # Define test poses
-    test_pose_left = {"pos": np.array([0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [0, np.pi/2, 0]).as_quat()}
-    test_pose_right = {"pos": np.array([0.3, 0.3, 0.5]), "quat": R.from_euler('xyz', [-np.pi/2, 0, np.pi/2]).as_quat()}
+    # Get current positions and orientations for test poses
+    left_ori_mat = left_arm.robot._hand_orn["right"]
+    left_current_quat = R.from_matrix(left_ori_mat).as_quat()
+    right_ori_mat = right_arm.robot._hand_orn["right"]
+    right_current_quat = R.from_matrix(right_ori_mat).as_quat()
+
+    test_pose_left = {"pos": np.array([0.3, 0.5, 0.02]), "quat": left_current_quat}
+    test_pose_right = {"pos": np.array([0.3, 0.5, 0.02]), "quat": right_current_quat}
 
     # Move left arm
-    success_left = left_arm.move_to_pose(test_pose_left["pos"], test_pose_left["quat"], timeout=100)
+    success_left = left_arm.move_to_pose(test_pose_left["pos"], test_pose_left["quat"])
     if success_left:
         print("✓ Left arm movement successful")
     else:
         print("✗ Left arm movement failed")
 
     # Move right arm
-    success_right = right_arm.move_to_pose(test_pose_right["pos"], test_pose_right["quat"], timeout=100)
+    success_right = right_arm.move_to_pose(test_pose_right["pos"], test_pose_right["quat"])
     if success_right:
         print("✓ Right arm movement successful")
     else:
