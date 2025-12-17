@@ -158,8 +158,8 @@ If you use this code in your research, please cite:
 ```bibtex
 @software{dual_arm_franka_manipulation,
   title = {Dual-Arm Franka Manipulation},
-  author = {Your Name},
+  author = {Sukhvansh Jain},
   year = {2025},
-  url = {https://github.com/yourusername/dual-arm-franka-control}
+  url = {https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP}
 }
 ```

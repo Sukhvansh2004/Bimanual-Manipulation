@@ -10,10 +10,10 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Sukhvansh Jain", email = "sukhvanshjain@gmail.com"},
 ]
 maintainers = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Sukhvansh Jain", email = "sukhvanshjain@gmail.com"},
 ]
 keywords = ["robotics", "manipulation", "franka", "robosuite", "grasping"]
 classifiers = [
@@ -43,10 +43,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/dual-arm-franka-control"
-Repository = "https://github.com/yourusername/dual-arm-franka-control.git"
-Issues = "https://github.com/yourusername/dual-arm-franka-control/issues"
-Changelog = "https://github.com/yourusername/dual-arm-franka-control/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP"
+Repository = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP.git"
+Issues = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/issues"
+Changelog = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

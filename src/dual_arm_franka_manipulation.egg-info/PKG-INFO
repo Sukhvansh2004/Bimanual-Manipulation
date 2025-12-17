@@ -2,13 +2,13 @@ Metadata-Version: 2.4
 Name: dual-arm-franka-manipulation
 Version: 0.1.0
 Summary: Dual-arm Franka manipulation with perception and teleoperation
-Author-email: Your Name <your.email@example.com>
-Maintainer-email: Your Name <your.email@example.com>
+Author-email: Sukhvansh Jain <sukhvanshjain@gmail.com>
+Maintainer-email: Sukhvansh Jain <sukhvanshjain@gmail.com>
 License: MIT
-Project-URL: Homepage, https://github.com/yourusername/dual-arm-franka-control
-Project-URL: Repository, https://github.com/yourusername/dual-arm-franka-control.git
-Project-URL: Issues, https://github.com/yourusername/dual-arm-franka-control/issues
-Project-URL: Changelog, https://github.com/yourusername/dual-arm-franka-control/blob/main/CHANGELOG.md
+Project-URL: Homepage, https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP
+Project-URL: Repository, https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP.git
+Project-URL: Issues, https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/issues
+Project-URL: Changelog, https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/blob/main/CHANGELOG.md
 Keywords: robotics,manipulation,franka,robosuite,grasping
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Developers
@@ -61,6 +61,7 @@ This will:
 - Create the `dual_arm_manipulation` conda environment
 - Install all dependencies including GraspGen
 - Install the package in development mode
+- **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
 
 ### Manual Installation
 
@@ -81,7 +82,13 @@ cd deps/GraspGen
 pip install -e .
 ```
 
-4. **Install the Package**:
+4. **Download GraspGen Models**:
+```bash
+# Clone the models repository (or use your own fork)
+git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels
+```
+
+5. **Install the Package**:
 ```bash
 pip install -e .
 ```
@@ -148,7 +155,6 @@ echo "SET: red cube" | nc localhost 5557
 ├── deps/                         # Dependencies
 │   ├── GraspGen/                 # Grasp generation framework
 │   └── GraspGenModels/           # Pre-trained models
-├── ros_noetic/                   # Legacy ROS code (reference)
 ├── pyproject.toml                # Package configuration
 ├── install.sh                    # Automated installation
 └── README.md
@@ -188,8 +194,8 @@ If you use this code in your research, please cite:
 ```bibtex
 @software{dual_arm_franka_manipulation,
   title = {Dual-Arm Franka Manipulation},
-  author = {Your Name},
+  author = {Sukhvansh Jain},
   year = {2025},
-  url = {https://github.com/yourusername/dual-arm-franka-control}
+  url = {https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP}
 }
 ```
