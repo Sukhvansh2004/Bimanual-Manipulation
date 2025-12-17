@@ -21,7 +21,7 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
-Requires-Dist: numpy>=1.21.0
+Requires-Dist: numpy<2.0.0,>=1.21.0
 Requires-Dist: scipy>=1.7.0
 Requires-Dist: robosuite>=1.4.0
 Requires-Dist: ultralytics>=8.0.0
@@ -33,6 +33,10 @@ Requires-Dist: matplotlib>=3.5.0
 Requires-Dist: tqdm>=4.62.0
 Requires-Dist: pyyaml>=6.0
 Requires-Dist: pillow>=9.0.0
+Requires-Dist: gymnasium
+Requires-Dist: h5py
+Requires-Dist: robosuite-models==1.0.0
+Requires-Dist: usd-core
 
 # Dual-Arm Franka Manipulation
 
@@ -65,24 +69,32 @@ This will:
 
 ### Manual Installation
 
-1. **Create Conda Environment**:
+1. **Install System Dependencies** (Linux):
+```bash
+sudo apt-get update
+sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-essential cmake
+```
+
+2. **Create Conda Environment**:
 ```bash
 conda create -n dual_arm_manipulation python=3.10
 conda activate dual_arm_manipulation
+export MUJOCO_GL=osmesa  # Set rendering backend
 ```
 
-2. **Install PyTorch** (adjust for your CUDA version):
+3. **Install PyTorch** (adjust for your CUDA version):
 ```bash
 pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
 ```
 
-3. **Install GraspGen** (refer to [GraspGen README](deps/GraspGen/README.md)):
+4. **Install GraspGen** (refer to [GraspGen README](deps/GraspGen/README.md)):
 ```bash
 cd deps/GraspGen
 pip install -e .
 ```
 
-4. **Download GraspGen Models**:
+5. **Download GraspGen Models**:
+```bash
 ```bash
 # Clone the models repository (or use your own fork)
 git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels

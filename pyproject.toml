@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "numpy>=1.21.0",
+    "numpy>=1.21.0,<2.0.0",
     "scipy>=1.7.0",
     "robosuite>=1.4.0",
     "ultralytics>=8.0.0",  # For FastSAM
@@ -40,6 +40,10 @@ dependencies = [
     "tqdm>=4.62.0",
     "pyyaml>=6.0",
     "pillow>=9.0.0",
+    "gymnasium",  # For GymWrapper
+    "h5py",  # For demonstration utils
+    "robosuite-models==1.0.0",  # For extra robosuite_models
+    "usd-core",  # For USD export and rendering
 ]
 
 [project.urls]

@@ -7,6 +7,17 @@ set -e
 echo "=== Dual-Arm Franka Manipulation Installer ==="
 echo ""
 
+# Install system dependencies for rendering
+echo "Installing system dependencies for offscreen rendering..."
+if command -v apt-get &> /dev/null; then
+    sudo apt-get update
+    sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-essential cmake
+elif command -v yum &> /dev/null; then
+    sudo yum install -y mesa-libEGL-devel mesa-libGLES-devel mesa-libOSMesa-devel gcc gcc-c++ make cmake
+else
+    echo "Warning: Could not detect package manager. Please manually install OpenGL development libraries and build tools."
+fi
+
 # Check if conda is available
 if ! command -v conda &> /dev/null; then
     echo "Error: conda is not installed. Please install Miniconda or Anaconda first."
@@ -22,6 +33,11 @@ echo "Activating environment..."
 eval "$(conda shell.bash hook)"
 conda activate dual_arm_manipulation
 
+# Set environment variables for rendering
+echo "Setting environment variables for offscreen rendering..."
+export MUJOCO_GL=osmesa
+echo 'export MUJOCO_GL=osmesa' >> ~/.bashrc
+
 # Install PyTorch (adjust CUDA version as needed)
 echo "Installing PyTorch..."
 pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
@@ -30,6 +46,17 @@ pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.o
 echo "Installing GraspGen..."
 cd deps/GraspGen
 pip install -e .
+
+# Install PointNet dependency
+echo "Installing PointNet++ operations..."
+cd pointnet2_ops
+pip install --no-build-isolation .
+cd ..
+
+# Install additional GraspGen dependencies
+echo "Installing additional GraspGen dependencies..."
+pip install pyrender PyOpenGL==3.1.5 transformers tensordict diffusers==0.11.1 timm huggingface-hub==0.25.2 scene-synthesizer[recommend] hydra-core trimesh addict spconv-cu120 torch-geometric yourdfpy
+
 cd ../..
 
 # Install the main package
