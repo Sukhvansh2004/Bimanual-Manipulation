@@ -4,24 +4,33 @@ import os
 from typing import Optional, List, Dict, Any
 
 # Add GraspGen to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../GraspGen'))
+GRASPGEN_PATH = '/home/sukhvansh/DualArmFranka/GraspGen'
+if GRASPGEN_PATH not in sys.path:
+    sys.path.append(GRASPGEN_PATH)
 
 try:
-    from grasp_gen import GraspGenerator
+    from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
+    from grasp_gen.utils.point_cloud_utils import (
+        depth_and_segmentation_to_point_clouds, 
+        point_cloud_outlier_removal, 
+        filter_colliding_grasps
+    )
+    from grasp_gen.robot import get_gripper_info
 except ImportError:
     print("GraspGen not available, using mock predictor")
-    GraspGenerator = None
+    GraspGenSampler = None
 
 class GraspPredictor:
     """
     Class to predict grasps for objects using GraspGen.
     """
     def __init__(self, model_path: Optional[str] = None) -> None:
-        if GraspGenerator:
-            # Initialize GraspGen
-            self.generator = GraspGenerator(model_path=model_path)
+        if GraspGenSampler:
+            # Load GraspGen config
+            cfg = load_grasp_cfg(model_path or 'grasp_gen/cfgs/grasp_generation.yaml')
+            self.sampler = GraspGenSampler(cfg)
         else:
-            self.generator = None
+            self.sampler = None
 
     def predict_grasps(self, object_pcd: np.ndarray, object_pose: Dict, num_grasps: int = 10) -> List[Dict]:
         """
@@ -35,9 +44,10 @@ class GraspPredictor:
         Returns:
             List of grasp poses (position, quaternion)
         """
-        if self.generator:
+        if self.sampler:
             # Use GraspGen to predict grasps
-            grasps = self.generator.generate_grasps(object_pcd, num_grasps=num_grasps)
+            # Assuming object_pcd is already processed
+            grasps = self.sampler.sample_grasps(object_pcd, num_grasps=num_grasps)
             # Transform to world frame
             world_grasps = []
             for grasp in grasps:
