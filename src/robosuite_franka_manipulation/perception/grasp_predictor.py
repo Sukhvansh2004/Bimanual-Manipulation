@@ -2,11 +2,13 @@ import numpy as np
 import sys
 import os
 from typing import Optional, List, Dict, Any
+import pathlib
 
 # Add GraspGen to path
-GRASPGEN_PATH = '/home/sukhvansh/DualArmFranka/GraspGen'
-if GRASPGEN_PATH not in sys.path:
-    sys.path.append(GRASPGEN_PATH)
+package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
+GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
+if str(GRASPGEN_PATH) not in sys.path:
+    sys.path.append(str(GRASPGEN_PATH))
 
 try:
     from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg

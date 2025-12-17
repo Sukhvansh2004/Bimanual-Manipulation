@@ -3,11 +3,13 @@ from typing import Any, List, Dict
 import sys
 import os
 import socket
+import pathlib
 
 # Add GraspGen to path for FastSAM
-GRASPGEN_PATH = '/home/sukhvansh/DualArmFranka/GraspGen'
-if GRASPGEN_PATH not in sys.path:
-    sys.path.append(GRASPGEN_PATH)
+package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
+GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
+if str(GRASPGEN_PATH) not in sys.path:
+    sys.path.append(str(GRASPGEN_PATH))
 
 try:
     from ultralytics import FastSAM
