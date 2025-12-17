@@ -3,7 +3,7 @@ import sys
 import os
 from typing import Optional, List, Dict, Any
 import pathlib
-
+import traceback
 # Add GraspGen to path
 package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
 GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
@@ -19,6 +19,7 @@ try:
     )
     from grasp_gen.robot import get_gripper_info
 except ImportError:
+    traceback.print_exc()
     print("GraspGen not available, using mock predictor")
     GraspGenSampler = None
 

@@ -42,6 +42,10 @@ echo 'export MUJOCO_GL=osmesa' >> ~/.bashrc
 echo "Installing PyTorch..."
 pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
 
+# Install torch-scatter (CUDA version matching PyTorch)
+echo "Installing torch-scatter..."
+pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
+
 # Install GraspGen
 echo "Installing GraspGen..."
 cd deps/GraspGen
