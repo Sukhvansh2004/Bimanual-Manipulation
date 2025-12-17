@@ -1,7 +1,7 @@
 import time
 
-from ..controllers import RobosuiteGripperController
-from ..environments import make_dual_arm_handoff_env
+from ...controllers import RobosuiteGripperController
+from ...environments import make_dual_arm_handoff_env
 
 def test_gripper_sequence(env):
     """

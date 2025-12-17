@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import os
+from typing import Optional, List, Dict, Any
 
 # Add GraspGen to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../GraspGen'))
@@ -15,14 +16,14 @@ class GraspPredictor:
     """
     Class to predict grasps for objects using GraspGen.
     """
-    def __init__(self, model_path=None):
+    def __init__(self, model_path: Optional[str] = None) -> None:
         if GraspGenerator:
             # Initialize GraspGen
             self.generator = GraspGenerator(model_path=model_path)
         else:
             self.generator = None
 
-    def predict_grasps(self, object_pcd, object_pose, num_grasps=10):
+    def predict_grasps(self, object_pcd: np.ndarray, object_pose: Dict, num_grasps: int = 10) -> List[Dict]:
         """
         Predict grasp poses for an object.
 

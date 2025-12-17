@@ -18,7 +18,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's I/O devices.
     """
-    def __init__(self, env):
+    def __init__(self, env: Any) -> None:
         self.env = env
         self.left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)
         self.right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
@@ -144,7 +144,7 @@ class KeyboardTeleop:
 
         print("Teleoperation ended.")
 
-def main():
+def main() -> None:
     """Main function."""
     try:
         env = make_dual_arm_handoff_env()

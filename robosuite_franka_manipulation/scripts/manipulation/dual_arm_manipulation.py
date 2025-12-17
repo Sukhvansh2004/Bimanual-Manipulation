@@ -7,19 +7,20 @@ This script performs object detection, grasp prediction, and coordinated dual-ar
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
+from typing import Dict, Any, Optional
 
-from ..environments import make_dual_arm_handoff_env
-from ..controllers import RobosuiteArmController, RobosuiteGripperController
-from ..perception import ObjectDetector, GraspPredictor
+from ...environments import make_dual_arm_handoff_env
+from ...controllers import RobosuiteArmController, RobosuiteGripperController
+from ...perception import ObjectDetector, GraspPredictor
 
-def create_pose(x, y, z, roll, pitch, yaw):
+def create_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float) -> Dict:
     """
     Creates a pose dict with position and quaternion.
     """
     quat = R.from_euler('xyz', [roll, pitch, yaw], degrees=False).as_quat()
     return {"pos": np.array([x, y, z]), "quat": quat}
 
-def perform_dual_arm_manipulation(env, task="handoff"):
+def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> None:
     """
     Perform dual-arm manipulation with perception.
 
@@ -177,7 +178,7 @@ def perform_cooperative_lift(left_arm, right_arm, left_gripper, right_gripper,
     print("Cooperative lift task completed successfully!")
     return True
 
-def main():
+def main() -> None:
     """Main function to run dual-arm manipulation."""
     import argparse
 

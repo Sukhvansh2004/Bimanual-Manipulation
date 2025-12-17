@@ -1,8 +1,8 @@
 import robosuite as suite
 import numpy as np
-from robosuite.controllers import load_composite_controller_config
+from typing import Any
 
-def make_dual_arm_handoff_env():
+def make_dual_arm_handoff_env() -> Any:
     """
     Creates a robosuite environment configured for a dual-arm Franka handoff task.
     Rendering is disabled due to EGL issues in the current environment.

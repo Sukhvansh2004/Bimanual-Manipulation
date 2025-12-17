@@ -1,20 +1,21 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
+from typing import Dict, Any
 
 # Assuming these can be imported successfully in a runnable robosuite environment
-from ..controllers import RobosuiteArmController, RobosuiteGripperController
-from ..environments import make_dual_arm_handoff_env
-from ..perception import ObjectDetector, GraspPredictor
+from ...controllers import RobosuiteArmController, RobosuiteGripperController
+from ...environments import make_dual_arm_handoff_env
+from ...perception import ObjectDetector, GraspPredictor
 
-def create_pose(x, y, z, roll, pitch, yaw):
+def create_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float) -> Dict:
     """
     Creates a pose dict with position and quaternion.
     """
     quat = R.from_euler('xyz', [roll, pitch, yaw], degrees=False).as_quat()
     return {"pos": np.array([x, y, z]), "quat": quat}
 
-def run_handoff_sequence(env, visualize=False):
+def run_handoff_sequence(env: Any, visualize: bool = False) -> bool:
     """
     Executes the dual-arm handoff sequence in a robosuite environment.
     Ported from ROS version.

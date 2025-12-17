@@ -1,6 +1,7 @@
 import robosuite as suite
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from typing import Any, Optional
 
 class RobosuiteArmController:
     """
@@ -9,7 +10,7 @@ class RobosuiteArmController:
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
     """
-    def __init__(self, env, arm_id="right", robot_id=0):
+    def __init__(self, env: Any, arm_id: str = "right", robot_id: int = 0) -> None:
         self.env = env
         self.arm_id = arm_id
         self.robot_id = robot_id
@@ -20,7 +21,7 @@ class RobosuiteArmController:
         self.action_dim_per_robot = 7
         self.total_action_dim = self.env.action_dim
 
-    def move_to_pose(self, target_pos, target_quat, threshold=0.01, timeout=100, gripper_action=0.0):
+    def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, threshold: float = 0.01, timeout: int = 100, gripper_action: float = 0.0) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation.
 

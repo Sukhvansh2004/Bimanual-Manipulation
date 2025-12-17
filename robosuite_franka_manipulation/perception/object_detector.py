@@ -1,14 +1,15 @@
 import numpy as np
+from typing import Any, List, Dict
 
 class ObjectDetector:
     """
     Class to detect objects in the scene.
     In simulation, this gets object poses from the environment.
     """
-    def __init__(self, env):
+    def __init__(self, env: Any) -> None:
         self.env = env
 
-    def detect_objects(self):
+    def detect_objects(self) -> List[Dict]:
         """
         Detect objects in the scene.
 

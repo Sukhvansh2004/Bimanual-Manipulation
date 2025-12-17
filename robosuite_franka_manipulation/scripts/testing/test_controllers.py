@@ -7,11 +7,12 @@ This script tests basic operations: environment creation, arm movements, gripper
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
+from typing import Optional, Any
 
 from ...environments import make_dual_arm_handoff_env
 from ...controllers import RobosuiteArmController, RobosuiteGripperController
 
-def test_environment_setup():
+def test_environment_setup() -> Optional[Any]:
     """Test that the environment can be created and reset."""
     print("Testing environment setup...")
     try:
@@ -23,7 +24,7 @@ def test_environment_setup():
         print(f"✗ Environment setup failed: {e}")
         return None
 
-def test_controllers(env):
+def test_controllers(env: Any) -> bool:
     """Test basic controller functionality."""
     print("\nTesting controllers...")
 
@@ -77,7 +78,7 @@ def test_controllers(env):
 
     return True
 
-def test_perception(env):
+def test_perception(env: Any) -> bool:
     """Test perception components."""
     print("\nTesting perception...")
 
@@ -109,7 +110,7 @@ def test_perception(env):
         print(f"✗ Perception test failed: {e}")
         return False
 
-def main():
+def main() -> None:
     """Run all tests."""
     print("=== Controller and Environment Test ===\n")
 
