@@ -1,4 +1,5 @@
 import robosuite as suite
+from robosuite import load_composite_controller_config
 import numpy as np
 from typing import Any
 
