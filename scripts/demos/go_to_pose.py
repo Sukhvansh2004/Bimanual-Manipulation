@@ -3,7 +3,7 @@ from scipy.spatial.transform import Rotation as R
 import time
 
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 class DualArmPoseController:
     """
@@ -47,7 +47,7 @@ class DualArmPoseController:
 
 if __name__ == '__main__':
     try:
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
 
         # Create an instance of our controller

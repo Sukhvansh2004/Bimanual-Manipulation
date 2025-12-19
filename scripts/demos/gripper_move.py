@@ -1,7 +1,7 @@
 import time
 
 from robosuite_franka_manipulation.controllers import RobosuiteGripperController
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 def test_gripper_sequence(env):
     """
@@ -35,7 +35,7 @@ def test_gripper_sequence(env):
 
 if __name__ == '__main__':
     try:
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
         test_gripper_sequence(env)
         env.close()

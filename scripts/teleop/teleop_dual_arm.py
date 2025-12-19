@@ -9,7 +9,7 @@ import robosuite as suite
 from robosuite.wrappers import VisualizationWrapper
 
 # Import the custom environment factory
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 # Import the teleop module
 from robosuite_franka_manipulation.teleop import KeyboardTeleop
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Create environment using the custom factory function
-    env = make_dual_arm_handoff_env()
+    env = make_dual_arm_env()
 
     # Wrap this environment in a visualization wrapper
     env = VisualizationWrapper(env)
