@@ -6,9 +6,10 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 
 - **Dual-Arm Control**: Coordinated manipulation with Franka Panda robots
 - **Advanced Perception**: FastSAM-based object detection with dynamic prompts
-- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction
+- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction (integrated)
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Mode Switching**: Seamless transition between autonomous and manual control
+- **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 - **Modular Architecture**: Clean separation of controllers, perception, and services
 
 ## Installation
@@ -27,6 +28,7 @@ This will:
 - Install the package in development mode
 - **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
 - **Note**: FastSAM model is included in the `models/` folder
+- **Note**: No ROS dependencies required - works standalone
 
 ### Manual Installation
 
@@ -90,7 +92,7 @@ python -m robosuite_franka_manipulation.scripts.teleop.teleop_dual_arm
 
 ### Prompt Service
 
-Start the SAM prompt service:
+Start the SAM prompt service (optional for dynamic prompts):
 
 ```bash
 python -m robosuite_franka_manipulation.services.prompt_service
@@ -100,6 +102,49 @@ Set prompts:
 ```bash
 echo "SET: red cube" | nc localhost 5557
 ```
+
+Get current prompt:
+```bash
+echo "GET" | nc localhost 5557
+```
+
+**Note**: The system works with default prompt "object" without this service.
+
+## Microservices Architecture
+
+The system uses an integrated perception pipeline with optional microservices for advanced functionality:
+
+### Perception Pipeline Flow
+
+```
+1. Teleoperation → Arm positioned for object view
+2. ObjectDetector.detect_objects() → Gets camera images
+3. ObjectDetector → Runs FastSAM segmentation on RGB image
+4. ObjectDetector → Extracts point cloud from depth + mask
+5. ObjectDetector → Runs GraspGen prediction locally
+6. ObjectDetector → Returns objects with grasps
+```
+
+### Optional Services (Development Mode)
+
+For development and testing, optional microservices can be started:
+
+#### Prompt Service (`localhost:5557`)
+- **Purpose**: Manages text prompts for FastSAM object detection
+- **Protocol**: TCP socket with simple text commands
+- **Status**: Currently in development (`scratch/test_prompt_service.py`)
+
+#### Grasp Prediction Service (`localhost:5558`)
+- **Purpose**: Provides grasp prediction using GraspGen
+- **Protocol**: ZMQ REQ/REP with JSON messages
+- **Status**: Currently integrated directly into ObjectDetector
+
+### Default Behavior
+
+The system works out-of-the-box with:
+- **Default prompt**: "object" (no external service needed)
+- **Local grasp prediction**: Integrated GraspGen inference
+- **Fallback handling**: Graceful degradation when services unavailable
 
 ## Controls
 
@@ -118,42 +163,26 @@ echo "SET: red cube" | nc localhost 5557
 
 ```
 ├── src/
-│   └── robosuite_franka_manipulation/
-│       ├── controllers/          # Robot and gripper controllers
-│       ├── environments/         # Robosuite environment configurations
-│       ├── perception/           # Object detection and grasp prediction
-│       ├── teleop/               # Teleoperation modules
-│       ├── services/             # Microservices (prompt service)
-│       └── scripts/              # Executable scripts
-├── deps/                         # Dependencies
-│   ├── GraspGen/                 # Grasp generation framework
-│   └── GraspGenModels/           # Pre-trained models
-├── pyproject.toml                # Package configuration
-├── install.sh                    # Automated installation
-└── README.md
-```
-
-## Dependencies
-
-- **robosuite**: Simulation framework
-- **GraspGen**: Grasp generation
-- **FastSAM** (via ultralytics): Object segmentation
-- **numpy, scipy**: Numerical computing
-- **keyboard**: Input handling
-- **torch**: Deep learning
-
-## Development
-
-### Running Tests
-
-```bash
-python -m pytest
-```
-
-### Building Documentation
-
-```bash
-sphinx-build docs/ docs/_build/
+│   └── robosuite_franka_manipulation/     # Main package
+│       ├── controllers/                   # Arm and gripper controllers
+│       ├── environments/                  # Robosuite environments
+│       ├── perception/                    # Object detection and grasp prediction
+│       └── teleop/                        # Teleoperation interfaces
+├── scripts/                               # Standalone executable scripts
+│   ├── demos/                            # Demonstration scripts
+│   ├── manipulation/                     # Manipulation task scripts
+│   └── teleop/                           # Teleoperation scripts
+├── tests/                                # Test suite (pytest)
+│   ├── test_environments.py              # Environment tests
+│   ├── test_arm_controllers.py           # Controller tests
+│   ├── test_perception.py                # Perception tests
+│   └── test_trajectory_planning.py       # Trajectory planning tests
+├── docs/                                # Documentation
+│   └── perception_architecture.md       # Perception system architecture
+├── scratch/                             # Development helpers and debug scripts
+├── models/                              # Pre-trained models (FastSAM, etc.)
+├── deps/                                # Dependencies (GraspGen, GraspGenModels)
+└── pyproject.toml                       # Package configuration
 ```
 
 ## License

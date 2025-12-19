@@ -1,6 +1,6 @@
 # Robosuite Franka Handoff
 
-This package provides a robosuite-based implementation of dual-arm Franka Panda robot control for handoff tasks, ported from ROS.
+This package provides a robosuite-based implementation of dual-arm Franka Panda robot control for handoff tasks.
 
 ## Structure
 

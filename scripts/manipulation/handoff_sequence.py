@@ -17,7 +17,6 @@ def create_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: fl
 def run_handoff_sequence(env: Any, visualize: bool = False) -> bool:
     """
     Executes the dual-arm handoff sequence in a robosuite environment.
-    Ported from ROS version.
     """
     print("Starting handoff sequence...")
 
@@ -48,7 +47,7 @@ def run_handoff_sequence(env: Any, visualize: bool = False) -> bool:
     # Use the first grasp
     grasp_pose = grasps[0]
 
-    # --- Define Key Poses (adapted from ROS) ---
+    # --- Define Key Poses ---
     PI = np.pi
     ready_pose_left = create_pose(-0.3, 0.3, 0.5, 0, PI/2, 0)
     ready_pose_right = create_pose(0.3, 0.3, 0.5, -PI/2, 0, PI/2)
