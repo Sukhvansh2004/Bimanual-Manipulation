@@ -51,9 +51,10 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 
 - **Dual-Arm Control**: Coordinated manipulation with Franka Panda robots
 - **Advanced Perception**: FastSAM-based object detection with dynamic prompts
-- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction
+- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction (integrated)
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Mode Switching**: Seamless transition between autonomous and manual control
+- **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 - **Modular Architecture**: Clean separation of controllers, perception, and services
 
 ## Installation
@@ -72,6 +73,7 @@ This will:
 - Install the package in development mode
 - **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
 - **Note**: FastSAM model is included in the `models/` folder
+- **Note**: No ROS dependencies required - works standalone
 
 ### Manual Installation
 
@@ -111,6 +113,182 @@ git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModel
 pip install -e .
 ```
 
+## Codebase Structure
+
+```
+├── src/robosuite_franka_manipulation/     # Main package
+│   ├── controllers/                        # Robot control interfaces
+│   │   ├── arm.py                         # Arm movement and trajectory control
+│   │   └── gripper.py                     # Gripper open/close control
+│   ├── environments/                      # Robosuite environment configurations
+│   │   └── handoff.py                     # Dual-arm handoff environment setup
+│   ├── perception/                        # Computer vision and grasp prediction
+│   │   ├── object_detector.py             # FastSAM-based object detection
+│   │   └── grasp_predictor.py             # GraspGen grasp prediction
+│   └── teleop/                           # Teleoperation interfaces
+│       └── teleop.py                      # Keyboard teleoperation
+├── scripts/                               # Executable scripts
+│   ├── manipulation/                      # Autonomous manipulation tasks
+│   │   ├── dual_arm_manipulation.py       # Full manipulation pipeline
+│   │   └── handoff_sequence.py            # Handoff task implementation
+│   ├── teleop/                           # Teleoperation scripts
+│   │   └── teleop_dual_arm.py             # Keyboard teleoperation
+│   └── demos/                            # Demonstration scripts
+├── tests/                                # Test suite (pytest)
+│   ├── test_environments.py              # Environment tests
+│   ├── test_arm_controllers.py           # Controller tests
+│   ├── test_perception.py                # Perception tests
+│   └── test_trajectory_planning.py       # Trajectory planning tests
+├── docs/                                # Documentation
+│   └── perception_architecture.md       # Detailed perception system docs
+├── models/                              # Pre-trained models
+│   └── FastSAM-x.pt                      # FastSAM segmentation model
+├── deps/                                # External dependencies
+│   ├── GraspGen/                        # Grasp generation framework
+│   └── GraspGenModels/                  # Pre-trained grasp models
+└── pyproject.toml                       # Package configuration
+```
+
+## Usage
+
+### Quick Start
+
+1. **Install the package**:
+```bash
+./install.sh
+```
+
+2. **Run teleoperation** to familiarize yourself with the interface:
+```bash
+python scripts/teleop/teleop_dual_arm.py
+```
+
+3. **Run autonomous manipulation**:
+```bash
+python scripts/manipulation/dual_arm_manipulation.py
+```
+
+### Autonomous Manipulation
+
+The system provides autonomous dual-arm manipulation with integrated perception:
+
+```bash
+# Run the full manipulation pipeline
+python scripts/manipulation/dual_arm_manipulation.py --task handoff
+```
+
+**Available Tasks**:
+- `handoff`: Pick object with left arm, transfer to right arm
+- `cooperative_lift`: Both arms coordinate to lift objects
+
+**Pipeline Flow**:
+1. Move arms to ready positions
+2. Detect objects using FastSAM segmentation
+3. Generate grasp poses with GraspGen
+4. Execute coordinated manipulation sequence
+
+### Manual Teleoperation
+
+For manual control and testing:
+
+```bash
+# Start keyboard teleoperation
+python scripts/teleop/teleop_dual_arm.py
+```
+
+**Controls** (Robosuite standard):
+- `w/s/a/d`: Move in X-Y plane
+- `q/e`: Move vertically (Z)
+- `i/k/j/l/u/o`: Rotate (roll/pitch/yaw)
+- `space`: Toggle gripper
+- `r/t`: Switch between arms
+- `x`: Exit
+
+### Perception System
+
+The perception system runs automatically but can be tested independently:
+
+```python
+from robosuite_franka_manipulation.perception import ObjectDetector
+from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+
+# Setup
+env = make_dual_arm_handoff_env()
+detector = ObjectDetector(env)
+
+# Detect objects
+objects = detector.detect_objects()
+
+# Each object contains: pose, point_cloud, mask, grasps
+for obj in objects:
+    print(f"Found object with {len(obj['grasps'])} grasp predictions")
+```
+
+**Architecture Details**: See [docs/perception_architecture.md](docs/perception_architecture.md) for comprehensive perception system documentation.
+
+### Debug & Visualization
+
+Enable debug output and visualization for perception components:
+
+```python
+from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
+
+# Enable debug output and visualization
+detector = ObjectDetector(env, debug=True, visualize=True)
+predictor = GraspPredictor(debug=True, visualize=True)
+
+# This will show:
+# - FastSAM segmentation masks overlaid on RGB images
+# - 3D point clouds of detected objects  
+# - Generated grasp poses with confidence scores
+objects = detector.detect_objects()
+```
+
+**Visualization Features**:
+- **FastSAM**: Mask overlays on camera images with object labels
+- **Point Clouds**: 3D scatter plots of object geometry
+- **Grasps**: 3D visualization of predicted grasp poses colored by confidence
+
+**Requirements**: `matplotlib` and `opencv-python` for visualization.
+
+### Development & Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run specific test categories
+python -m pytest tests/test_perception.py -v
+python -m pytest tests/test_arm_controllers.py -v
+```
+
+### API Usage
+
+**Core Components**:
+
+```python
+# Environment
+from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+env = make_dual_arm_handoff_env()
+
+# Controllers
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
+gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
+
+# Perception
+from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
+detector = ObjectDetector(env)
+predictor = GraspPredictor()
+
+# Teleoperation
+from robosuite_franka_manipulation.teleop import KeyboardTeleop
+teleop = KeyboardTeleop(env)
+teleop.run()
+```
+
 ## Usage
 
 ### Autonomous Manipulation
@@ -135,7 +313,7 @@ python -m robosuite_franka_manipulation.scripts.teleop.teleop_dual_arm
 
 ### Prompt Service
 
-Start the SAM prompt service:
+Start the SAM prompt service (optional for dynamic prompts):
 
 ```bash
 python -m robosuite_franka_manipulation.services.prompt_service
@@ -145,6 +323,56 @@ Set prompts:
 ```bash
 echo "SET: red cube" | nc localhost 5557
 ```
+
+Get current prompt:
+```bash
+echo "GET" | nc localhost 5557
+```
+
+**Note**: The system works with default prompt "object" without this service.
+
+## Microservices Architecture
+
+The system uses an **integrated perception pipeline** with optional microservices for advanced functionality. Currently, the core perception components (`ObjectDetector` and `GraspPredictor`) are implemented as integrated classes rather than separate services.
+
+### Current Implementation Status
+
+- **✅ Object Detection**: Integrated FastSAM-based detection
+- **✅ Grasp Prediction**: Integrated GraspGen-based prediction  
+- **🚧 Prompt Service**: Not implemented (reference code in `scratch/test_prompt_service.py`)
+- **🚧 Grasp Prediction Service**: Not implemented (ROS-based implementation exists in `ros_noetic/` directory)
+
+### Perception Pipeline Flow
+
+```
+1. Teleoperation → Arm positioned for object view
+2. ObjectDetector.detect_objects() → Gets camera images
+3. ObjectDetector → Runs FastSAM segmentation on RGB image
+4. ObjectDetector → Extracts point cloud from depth + mask
+5. ObjectDetector → Runs GraspGen prediction locally
+6. ObjectDetector → Returns objects with grasps
+```
+
+### Optional Services (Future Development)
+
+For distributed deployment, microservices can be implemented:
+
+#### Prompt Service (`localhost:5557`)
+- **Purpose**: Manages text prompts for FastSAM object detection
+- **Protocol**: TCP socket with simple text commands
+- **Status**: Reference implementation in `scratch/test_prompt_service.py`
+
+#### Grasp Prediction Service (`localhost:5558`)
+- **Purpose**: Provides grasp prediction using GraspGen
+- **Protocol**: ZMQ REQ/REP with JSON messages
+- **Status**: ROS-based implementation exists in `ros_noetic/` directory
+
+### Default Behavior
+
+The system works out-of-the-box with:
+- **Default prompt**: "object" (no external service needed)
+- **Local grasp prediction**: Integrated GraspGen inference
+- **Fallback handling**: Graceful degradation when services unavailable
 
 ## Controls
 
@@ -163,42 +391,26 @@ echo "SET: red cube" | nc localhost 5557
 
 ```
 ├── src/
-│   └── robosuite_franka_manipulation/
-│       ├── controllers/          # Robot and gripper controllers
-│       ├── environments/         # Robosuite environment configurations
-│       ├── perception/           # Object detection and grasp prediction
-│       ├── teleop/               # Teleoperation modules
-│       ├── services/             # Microservices (prompt service)
-│       └── scripts/              # Executable scripts
-├── deps/                         # Dependencies
-│   ├── GraspGen/                 # Grasp generation framework
-│   └── GraspGenModels/           # Pre-trained models
-├── pyproject.toml                # Package configuration
-├── install.sh                    # Automated installation
-└── README.md
-```
-
-## Dependencies
-
-- **robosuite**: Simulation framework
-- **GraspGen**: Grasp generation
-- **FastSAM** (via ultralytics): Object segmentation
-- **numpy, scipy**: Numerical computing
-- **keyboard**: Input handling
-- **torch**: Deep learning
-
-## Development
-
-### Running Tests
-
-```bash
-python -m pytest
-```
-
-### Building Documentation
-
-```bash
-sphinx-build docs/ docs/_build/
+│   └── robosuite_franka_manipulation/     # Main package
+│       ├── controllers/                   # Arm and gripper controllers
+│       ├── environments/                  # Robosuite environments
+│       ├── perception/                    # Object detection and grasp prediction
+│       └── teleop/                        # Teleoperation interfaces
+├── scripts/                               # Standalone executable scripts
+│   ├── demos/                            # Demonstration scripts
+│   ├── manipulation/                     # Manipulation task scripts
+│   └── teleop/                           # Teleoperation scripts
+├── tests/                                # Test suite (pytest)
+│   ├── test_environments.py              # Environment tests
+│   ├── test_arm_controllers.py           # Controller tests
+│   ├── test_perception.py                # Perception tests
+│   └── test_trajectory_planning.py       # Trajectory planning tests
+├── docs/                                # Documentation
+│   └── perception_architecture.md       # Perception system architecture
+├── scratch/                             # Development helpers and debug scripts
+├── models/                              # Pre-trained models (FastSAM, etc.)
+├── deps/                                # Dependencies (GraspGen, GraspGenModels)
+└── pyproject.toml                       # Package configuration
 ```
 
 ## License

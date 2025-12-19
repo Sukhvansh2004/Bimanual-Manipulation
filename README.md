@@ -7,9 +7,11 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Dual-Arm Control**: Coordinated manipulation with Franka Panda robots
 - **Advanced Perception**: FastSAM-based object detection with dynamic prompts
 - **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction (integrated)
+- **Microservices**: Distributed perception services (Prompt, Grasp, EEF) with TCP/ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Mode Switching**: Seamless transition between autonomous and manual control
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
+- **Comprehensive Testing**: Full test suite including service integration tests
 - **Modular Architecture**: Clean separation of controllers, perception, and services
 
 ## Installation
@@ -208,7 +210,7 @@ objects = detector.detect_objects()
 
 ### Development & Testing
 
-Run the test suite:
+Run the comprehensive test suite:
 
 ```bash
 # Run all tests
@@ -217,6 +219,7 @@ python -m pytest tests/
 # Run specific test categories
 python -m pytest tests/test_perception.py -v
 python -m pytest tests/test_arm_controllers.py -v
+python -m pytest tests/test_services.py -v
 ```
 
 ### API Usage
@@ -266,6 +269,46 @@ Run teleoperation mode:
 python -m robosuite_franka_manipulation.scripts.teleop.teleop_dual_arm
 ```
 
+### Microservices
+
+Start individual services for distributed perception:
+
+```bash
+# Start all services together
+python scripts/start_services.py
+
+# Or start individual services
+python -c "from robosuite_franka_manipulation.services.prompt_service import PromptService; PromptService().run()"
+python -c "from robosuite_franka_manipulation.services.grasp_service import GraspService; GraspService().run()"
+python -c "from robosuite_franka_manipulation.services.eef_service import EEFService; from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env; env = make_dual_arm_handoff_env(); EEFService(env).run()"
+```
+
+**Service APIs**:
+
+**Prompt Service** (TCP):
+```bash
+# Get current prompts
+echo 'GET' | nc localhost 5557
+
+# Set new prompts
+echo 'SET ["bottle", "cup", "box"]' | nc localhost 5557
+```
+
+**Grasp Service** (ZMQ):
+```python
+import zmq
+# Client code for grasp prediction requests
+```
+
+**EEF Service** (TCP):
+```bash
+# Get left arm coordinates
+echo 'GET left' | nc localhost 5559
+
+# Get right arm coordinates  
+echo 'GET right' | nc localhost 5559
+```
+
 ### Prompt Service
 
 Start the SAM prompt service (optional for dynamic prompts):
@@ -293,9 +336,10 @@ The system uses an **integrated perception pipeline** with optional microservice
 ### Current Implementation Status
 
 - **✅ Object Detection**: Integrated FastSAM-based detection
-- **✅ Grasp Prediction**: Integrated GraspGen-based prediction  
-- **🚧 Prompt Service**: Not implemented (reference code in `scratch/test_prompt_service.py`)
-- **🚧 Grasp Prediction Service**: Not implemented (ROS-based implementation exists in `ros_noetic/` directory)
+- **✅ Grasp Prediction**: Integrated GraspGen-based prediction
+- **✅ Prompt Service**: TCP socket service on port 5557 for dynamic prompts
+- **✅ Grasp Service**: ZMQ REP service on port 5558 for remote grasp prediction
+- **✅ EEF Service**: TCP socket service on port 5559 for end-effector coordinates
 
 ### Perception Pipeline Flow
 
@@ -308,19 +352,27 @@ The system uses an **integrated perception pipeline** with optional microservice
 6. ObjectDetector → Returns objects with grasps
 ```
 
-### Optional Services (Future Development)
+### Available Services
 
-For distributed deployment, microservices can be implemented:
+The system provides three microservices for distributed perception:
 
 #### Prompt Service (`localhost:5557`)
 - **Purpose**: Manages text prompts for FastSAM object detection
-- **Protocol**: TCP socket with simple text commands
-- **Status**: Reference implementation in `scratch/test_prompt_service.py`
+- **Protocol**: TCP socket with JSON commands (GET/SET)
+- **Status**: ✅ Fully implemented and tested
+- **Usage**: Dynamic prompt management for object detection
 
 #### Grasp Prediction Service (`localhost:5558`)
-- **Purpose**: Provides grasp prediction using GraspGen
+- **Purpose**: Provides remote grasp prediction using GraspGen
 - **Protocol**: ZMQ REQ/REP with JSON messages
-- **Status**: ROS-based implementation exists in `ros_noetic/` directory
+- **Status**: ✅ Fully implemented and tested
+- **Usage**: Distributed grasp prediction with numpy array serialization
+
+#### EEF Service (`localhost:5559`)
+- **Purpose**: Real-time end-effector coordinates in world frame
+- **Protocol**: TCP socket with JSON responses
+- **Status**: ✅ Fully implemented and tested
+- **Usage**: Coordinate retrieval for both left and right arms
 
 ### Default Behavior
 
@@ -350,6 +402,7 @@ The system works out-of-the-box with:
 │       ├── controllers/                   # Arm and gripper controllers
 │       ├── environments/                  # Robosuite environments
 │       ├── perception/                    # Object detection and grasp prediction
+│       ├── services/                      # Microservices
 │       └── teleop/                        # Teleoperation interfaces
 ├── scripts/                               # Standalone executable scripts
 │   ├── demos/                            # Demonstration scripts
@@ -359,6 +412,7 @@ The system works out-of-the-box with:
 │   ├── test_environments.py              # Environment tests
 │   ├── test_arm_controllers.py           # Controller tests
 │   ├── test_perception.py                # Perception tests
+│   ├── test_services.py                  # Service functionality tests
 │   └── test_trajectory_planning.py       # Trajectory planning tests
 ├── docs/                                # Documentation
 │   └── perception_architecture.md       # Perception system architecture
