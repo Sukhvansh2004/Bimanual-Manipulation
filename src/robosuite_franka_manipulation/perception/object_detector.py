@@ -3,6 +3,7 @@ from typing import Any, List, Dict, Optional
 import sys
 import os
 import pathlib
+import cv2
 
 # Add GraspGen to path for FastSAM
 package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
@@ -10,12 +11,7 @@ GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
 if str(GRASPGEN_PATH) not in sys.path:
     sys.path.append(str(GRASPGEN_PATH))
 
-try:
-    from ultralytics import FastSAM
-except ImportError:
-    print("FastSAM not available, using mock detector")
-    FastSAM = None
-
+from ultralytics import FastSAM
 from .grasp_predictor import GraspPredictor
 
 class ObjectDetector:
@@ -23,20 +19,19 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, env: Any, default_prompt: str = "object") -> None:
+    def __init__(self, env: Any, default_prompt: str = "object", debug: bool = False, visualize: bool = False) -> None:
         self.env = env
         self.default_prompt = default_prompt
+        self.debug = debug
+        self.visualize = visualize
 
-        if FastSAM:
-            # Load FastSAM model from models folder
-            package_path = pathlib.Path(__file__).parent.parent.parent.parent
-            model_path = package_path / 'models' / 'FastSAM-x.pt'
-            self.model = FastSAM(str(model_path))  # Load model
-        else:
-            self.model = None
+        # Load FastSAM model from models folder
+        package_path = pathlib.Path(__file__).parent.parent.parent.parent
+        model_path = package_path / 'models' / 'FastSAM-x.pt'
+        self.model = FastSAM(str(model_path))  # Load model
 
         # Initialize local grasp predictor
-        self.grasp_predictor = GraspPredictor()
+        self.grasp_predictor = GraspPredictor(debug=debug, visualize=visualize)
 
     def get_current_prompt(self) -> str:
         """Get the current text prompt (returns default prompt)."""
@@ -100,6 +95,12 @@ class ObjectDetector:
             return objects
 
         masks = result.masks.data.cpu().numpy()
+        
+        if self.debug:
+            print(f"FastSAM detected {len(masks)} objects with prompt '{text_prompt}'")
+        
+        if self.visualize:
+            self._visualize_fastsam_results(rgb_image, masks, text_prompt)
 
         # Process each detected object
         for i, mask in enumerate(masks):
@@ -192,9 +193,52 @@ class ObjectDetector:
             print("Grasp predictor not available")
             return []
 
-    def detect_from_teleop(self) -> List[Dict]:
-        """
-        Convenience method to detect objects after teleoperation.
-        Gets current camera images and runs detection pipeline.
-        """
-        return self.detect_objects()
+    def _visualize_fastsam_results(self, rgb_image: np.ndarray, masks: np.ndarray, prompt: str):
+        """Visualize FastSAM detection results."""
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as patches
+            
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+            
+            # Original image
+            ax1.imshow(rgb_image)
+            ax1.set_title(f"Original Image\nPrompt: '{prompt}'")
+            ax1.axis('off')
+            
+            # Overlay masks on image
+            ax2.imshow(rgb_image)
+            ax2.set_title(f"FastSAM Segmentation\nDetected {len(masks)} objects")
+            ax2.axis('off')
+            
+            # Color map for different objects
+            colors = plt.cm.rainbow(np.linspace(0, 1, len(masks)))
+            
+            for i, mask in enumerate(masks):
+                # Create colored overlay
+                color = colors[i]
+                colored_mask = np.zeros_like(rgb_image, dtype=np.uint8)
+                colored_mask[mask > 0] = (color[:3] * 255).astype(np.uint8)
+                
+                # Blend with original image
+                alpha = 0.5
+                overlay = cv2.addWeighted(rgb_image, 1-alpha, colored_mask, alpha, 0)
+                ax2.imshow(overlay)
+                
+                # Add label
+                # Find mask centroid for label placement
+                y_coords, x_coords = np.where(mask > 0)
+                if len(y_coords) > 0 and len(x_coords) > 0:
+                    centroid_y = int(np.mean(y_coords))
+                    centroid_x = int(np.mean(x_coords))
+                    ax2.text(centroid_x, centroid_y, f'Obj {i}', 
+                            color='white', fontsize=12, ha='center', va='center',
+                            bbox=dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.7))
+            
+            plt.tight_layout()
+            plt.show()
+            
+        except ImportError:
+            print("Matplotlib not available for visualization")
+        except Exception as e:
+            print(f"Error in FastSAM visualization: {e}")

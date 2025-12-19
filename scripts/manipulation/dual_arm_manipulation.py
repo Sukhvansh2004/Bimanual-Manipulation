@@ -8,12 +8,10 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 from typing import Dict, Any, Optional
-import threading
 
 from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
-from robosuite_franka_manipulation.teleop import KeyboardTeleop
 
 def create_pose(x: float, y: float, z: float, roll: float, pitch: float, yaw: float) -> Dict:
     """
@@ -34,9 +32,9 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> Optional[b
     print("Note: Manual teleoperation can be started separately using teleop_dual_arm.py")
 
     # Initialize controllers
-    left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
+    left_arm = RobosuiteArmController(env, arm_id="left", robot_id=0)
     right_arm = RobosuiteArmController(env, arm_id="right", robot_id=1)
-    left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
+    left_gripper = RobosuiteGripperController(env, arm_id="left", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
     # Initialize perception
@@ -56,10 +54,10 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> Optional[b
 
         if task == "handoff":
             return perform_handoff_task(left_arm, right_arm, left_gripper, right_gripper,
-                                      ready_pose_left, ready_pose_right, detector, predictor, teleop, mode)
+                                      ready_pose_left, ready_pose_right, detector, predictor)
         elif task == "cooperative_lift":
             return perform_cooperative_lift(left_arm, right_arm, left_gripper, right_gripper,
-                                          ready_pose_left, ready_pose_right, detector, predictor, teleop, mode)
+                                          ready_pose_left, ready_pose_right, detector, predictor)
         else:
             print(f"Unknown task: {task}")
             return False
@@ -69,7 +67,7 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> Optional[b
         return False
 
 def perform_handoff_task(left_arm, right_arm, left_gripper, right_gripper,
-                        ready_left, ready_right, detector, predictor, teleop, mode):
+                        ready_left, ready_right, detector, predictor):
     """Perform handoff task: left arm picks, hands to right arm, right arm places."""
     print("Executing handoff task...")
 
@@ -112,27 +110,19 @@ def perform_handoff_task(left_arm, right_arm, left_gripper, right_gripper,
     print("Left arm approaching object...")
     left_gripper.open()
     left_arm.move_to_pose(pre_grasp["pos"], pre_grasp["quat"])
-    if mode[0] == "manual":
-        teleop.run()
     left_arm.move_to_pose(grasp_pose["pos"], grasp_pose["quat"])
     left_gripper.close()
     time.sleep(0.5)
     left_arm.move_to_pose(post_grasp["pos"], post_grasp["quat"])
-    if mode[0] == "manual":
-        teleop.run()
 
     # 2. Handoff to right arm
     print("Handoff to right arm...")
     right_gripper.open()
     right_arm.move_to_pose(pre_handoff["pos"], pre_handoff["quat"])
-    if mode[0] == "manual":
-        teleop.run()
     right_arm.move_to_pose(handoff["pos"], handoff["quat"])
     right_gripper.close()
     time.sleep(0.5)
     left_gripper.open()
-    if mode[0] == "manual":
-        teleop.run()
 
     # 3. Left arm retract, right arm place
     print("Right arm placing object...")
@@ -141,14 +131,12 @@ def perform_handoff_task(left_arm, right_arm, left_gripper, right_gripper,
     right_gripper.open()
     time.sleep(0.5)
     right_arm.move_to_pose(ready_right["pos"], ready_right["quat"])
-    if mode[0] == "manual":
-        teleop.run()
 
     print("Handoff task completed successfully!")
     return True
 
 def perform_cooperative_lift(left_arm, right_arm, left_gripper, right_gripper,
-                           ready_left, ready_right, detector, predictor, teleop, mode):
+                           ready_left, ready_right, detector, predictor):
     """Perform cooperative lift: both arms grasp and lift together."""
     print("Executing cooperative lift task...")
 
@@ -190,22 +178,16 @@ def perform_cooperative_lift(left_arm, right_arm, left_gripper, right_gripper,
     right_gripper.open()
     left_arm.move_to_pose(left_grasp["pos"], left_grasp["quat"])
     right_arm.move_to_pose(right_grasp["pos"], right_grasp["quat"])
-    if mode[0] == "manual":
-        teleop.run()
 
     # Close grippers
     left_gripper.close()
     right_gripper.close()
     time.sleep(0.5)
-    if mode[0] == "manual":
-        teleop.run()
 
     # Lift together
     print("Lifting object cooperatively...")
     left_arm.move_to_pose(lift_pose["pos"], lift_pose["quat"])
     right_arm.move_to_pose(lift_pose["pos"], lift_pose["quat"])
-    if mode[0] == "manual":
-        teleop.run()
 
     time.sleep(1.0)
 
@@ -217,8 +199,6 @@ def perform_cooperative_lift(left_arm, right_arm, left_gripper, right_gripper,
     # Open grippers
     left_gripper.open()
     right_gripper.open()
-    if mode[0] == "manual":
-        teleop.run()
 
     print("Cooperative lift task completed successfully!")
     return True

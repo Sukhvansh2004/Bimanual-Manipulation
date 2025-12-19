@@ -181,6 +181,31 @@ for obj in objects:
 
 **Architecture Details**: See [docs/perception_architecture.md](docs/perception_architecture.md) for comprehensive perception system documentation.
 
+### Debug & Visualization
+
+Enable debug output and visualization for perception components:
+
+```python
+from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
+
+# Enable debug output and visualization
+detector = ObjectDetector(env, debug=True, visualize=True)
+predictor = GraspPredictor(debug=True, visualize=True)
+
+# This will show:
+# - FastSAM segmentation masks overlaid on RGB images
+# - 3D point clouds of detected objects  
+# - Generated grasp poses with confidence scores
+objects = detector.detect_objects()
+```
+
+**Visualization Features**:
+- **FastSAM**: Mask overlays on camera images with object labels
+- **Point Clouds**: 3D scatter plots of object geometry
+- **Grasps**: 3D visualization of predicted grasp poses colored by confidence
+
+**Requirements**: `matplotlib` and `opencv-python` for visualization.
+
 ### Development & Testing
 
 Run the test suite:
@@ -263,7 +288,14 @@ echo "GET" | nc localhost 5557
 
 ## Microservices Architecture
 
-The system uses an integrated perception pipeline with optional microservices for advanced functionality:
+The system uses an **integrated perception pipeline** with optional microservices for advanced functionality. Currently, the core perception components (`ObjectDetector` and `GraspPredictor`) are implemented as integrated classes rather than separate services.
+
+### Current Implementation Status
+
+- **✅ Object Detection**: Integrated FastSAM-based detection
+- **✅ Grasp Prediction**: Integrated GraspGen-based prediction  
+- **🚧 Prompt Service**: Not implemented (reference code in `scratch/test_prompt_service.py`)
+- **🚧 Grasp Prediction Service**: Not implemented (ROS-based implementation exists in `ros_noetic/` directory)
 
 ### Perception Pipeline Flow
 
@@ -276,19 +308,19 @@ The system uses an integrated perception pipeline with optional microservices fo
 6. ObjectDetector → Returns objects with grasps
 ```
 
-### Optional Services (Development Mode)
+### Optional Services (Future Development)
 
-For development and testing, optional microservices can be started:
+For distributed deployment, microservices can be implemented:
 
 #### Prompt Service (`localhost:5557`)
 - **Purpose**: Manages text prompts for FastSAM object detection
 - **Protocol**: TCP socket with simple text commands
-- **Status**: Currently in development (`scratch/test_prompt_service.py`)
+- **Status**: Reference implementation in `scratch/test_prompt_service.py`
 
 #### Grasp Prediction Service (`localhost:5558`)
 - **Purpose**: Provides grasp prediction using GraspGen
 - **Protocol**: ZMQ REQ/REP with JSON messages
-- **Status**: Currently integrated directly into ObjectDetector
+- **Status**: ROS-based implementation exists in `ros_noetic/` directory
 
 ### Default Behavior
 
