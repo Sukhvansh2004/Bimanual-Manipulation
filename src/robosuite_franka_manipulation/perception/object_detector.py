@@ -19,7 +19,7 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, env: Any, default_prompt: str = "object", debug: bool = False, visualize: bool = False) -> None:
+    def __init__(self, env: Any, default_prompt: str = "object", debug: bool = True, visualize: bool = True) -> None:
         self.env = env
         self.default_prompt = default_prompt
         self.debug = debug
