@@ -12,9 +12,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
-from robosuite_franka_manipulation.perception import ObjectDetector
+from robosuite_franka_manipulation.services import ServiceClient, ServiceManager, UnifiedPerceptionService
 
 
 def teleop_arm_to_viewing_position(env, arm_controller):
@@ -43,14 +43,23 @@ def demonstrate_perception_pipeline():
     """
     print("=== Perception Pipeline Demonstration ===\n")
 
-    # 1. Setup environment
-    print("1. Setting up environment...")
-    env = make_dual_arm_handoff_env()
+    # 1. Start services
+    print("1. Starting services...")
+    manager = ServiceManager()
+    manager.start()
+
+    env = make_dual_arm_env()
     env.reset()
+    
+    perception_service = UnifiedPerceptionService(env, visualize=True)
+    perception_service.start()
+    
+    time.sleep(1) # Wait for services to start
 
     # 2. Setup controllers
-    print("2. Setting up controllers...")
+    print("2. Setting up controllers and service client...")
     arm_controller = RobosuiteArmController(env, arm_id="right", robot_id=0)
+    service_client = ServiceClient()
 
     # 3. Teleop arm to viewing position
     print("3. Moving arm to viewing position...")
@@ -58,22 +67,22 @@ def demonstrate_perception_pipeline():
     if not success:
         print("Warning: Arm movement failed, continuing with current position")
 
-    # 4. Setup perception
-    print("4. Setting up perception...")
-    detector = ObjectDetector(env)
-
-    # 5. Detect objects
-    print("5. Detecting objects...")
-    objects = detector.detect_objects()
+    # 4. Detect objects via service
+    print("4. Detecting objects via perception service...")
+    response = service_client.call("perception_service", {"command": "GET_LATEST_OBJECTS"})
+    if not response or response.get("status") != "success" or not response.get("objects"):
+        print("No objects detected!")
+        objects = []
+    else:
+        objects = response["objects"]
 
     print(f"Detected {len(objects)} object(s)")
 
-    # 6. Process detections
+    # 5. Process detections
     for i, obj in enumerate(objects):
         print(f"\nObject {i}:")
         print(f"  Name: {obj['name']}")
         print(f"  Pose: position={obj['pose']['pos']}, orientation={obj['pose']['quat']}")
-        print(f"  Point cloud: {len(obj['pcd'])} points")
         print(f"  Grasps: {len(obj['grasps'])} predicted")
 
         if obj['grasps']:
@@ -81,8 +90,10 @@ def demonstrate_perception_pipeline():
             for j, grasp in enumerate(obj['grasps'][:3]):  # Show first 3 grasps
                 print(f"    Grasp {j}: pos={grasp.get('pos', 'N/A')}, quat={grasp.get('quat', 'N/A')}")
 
-    # 7. Cleanup
+    # 6. Cleanup
     print("\n6. Cleaning up...")
+    perception_service.stop()
+    manager.stop()
     env.close()
 
     print("\n=== Demonstration Complete ===")
@@ -96,7 +107,7 @@ def test_individual_components():
 
     # Test environment
     print("Testing environment...")
-    env = make_dual_arm_handoff_env()
+    env = make_dual_arm_env()
     env.reset()
     print("✓ Environment OK")
 
@@ -107,8 +118,8 @@ def test_individual_components():
 
     # Test detector initialization
     print("Testing detector...")
-    detector = ObjectDetector(env)
-    print("✓ Detector OK")
+    # This is now part of the unified service
+    print("✓ Detector is now part of the UnifiedPerceptionService")
 
     # Test trajectory planning
     print("Testing trajectory planning...")

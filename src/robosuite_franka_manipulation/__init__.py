@@ -1,8 +1,8 @@
 # robosuite_franka_handoff package
 
-from .controllers import RobosuiteArmController, RobosuiteGripperController
-from .environments.dual_arm import make_dual_arm_env
-from .perception import GraspPredictor, ObjectDetector
-from .teleop import KeyboardTeleop
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env
+from robosuite_franka_manipulation.perception import GraspPredictor, ObjectDetector
+from robosuite_franka_manipulation.teleop import KeyboardTeleop
 
 __all__ = ["RobosuiteArmController", "RobosuiteGripperController", "make_dual_arm_env", "GraspPredictor", "ObjectDetector", "KeyboardTeleop"]

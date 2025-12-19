@@ -2,6 +2,8 @@ import numpy as np
 import sys
 from typing import Optional, List, Dict
 import pathlib
+import open3d as o3d
+from scipy.spatial.transform import Rotation as R
 # Add GraspGen to path
 package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
 GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
@@ -41,8 +43,8 @@ class GraspPredictor:
             print(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
             print(f"Object pose: pos={object_pose['pos']}, quat={object_pose['quat']}")
         
-        if self.visualize:
-            self._visualize_point_cloud(object_pcd, object_pose)
+        # If visualize is true, we will visualize both the point cloud and the grasps in _visualize_grasps
+        # So _visualize_point_cloud is no longer needed separately
         if self.sampler and len(object_pcd) > 0:
             try:
                 # Convert to torch tensor if needed
@@ -76,12 +78,14 @@ class GraspPredictor:
                         rot_matrix = grasps[i][:3, :3].cpu().numpy()
                         quat = self._rotation_matrix_to_quaternion(rot_matrix)
                         
-                        grasp = {
+                        grasp_item = {
                             "pos": pos,
                             "quat": quat,
                             "score": grasp_conf[i].cpu().numpy()
                         }
-                        grasp_list.append(grasp)
+                        # Transform grasp from object frame to world frame
+                        world_grasp = self._transform_grasp_to_world(grasp_item, object_pose)
+                        grasp_list.append(world_grasp)
                 
                 if self.debug:
                     print(f"GraspGen generated {len(grasp_list)} grasps")
@@ -89,7 +93,8 @@ class GraspPredictor:
                         print(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
                 
                 if self.visualize and grasp_list:
-                    self._visualize_grasps(object_pcd, grasp_list, object_pose)
+                    # Pass the original object point cloud (CPU numpy version)
+                    self._visualize_grasps(object_pcd.cpu().numpy(), grasp_list, object_pose)
                 
                 return grasp_list
             except Exception as e:
@@ -99,107 +104,99 @@ class GraspPredictor:
             # Mock grasps if no sampler or empty point cloud
             return self._mock_grasps(object_pose, num_grasps)
 
-    def _transform_grasp_to_world(self, grasp, object_pose):
+    def _transform_grasp_to_world(self, grasp: Dict, object_pose: Dict) -> Dict:
         """
-        Transform grasp from object frame to world frame.
-        """
-        # Assuming grasp is a pose relative to object
-        # Apply transformation
-        # For simplicity, return object_pose + small offset
-        pos_offset = np.array([0, 0, 0.05])  # Above object
-        quat = np.array([0, 0, 0, 1])  # Identity
-        return {"pos": object_pose["pos"] + pos_offset, "quat": quat}
+        Transform grasp from object frame (relative to object_pose) to world frame.
 
-    def _rotation_matrix_to_quaternion(self, R):
+        Args:
+            grasp (Dict): Grasp pose in object's local frame with 'pos' and 'quat'.
+            object_pose (Dict): Object's pose in world frame with 'pos' and 'quat'.
+
+        Returns:
+            Dict: Grasp pose in world frame with 'pos' and 'quat'.
+        """
+        # Convert object pose to a scipy Rotation object
+        object_rot = R.from_quat(object_pose['quat'])
+        
+        # Convert grasp pose (relative to object) to a scipy Rotation object
+        grasp_rot_rel = R.from_quat(grasp['quat'])
+        
+        # Combine rotations
+        world_rot = object_rot * grasp_rot_rel
+        world_quat = world_rot.as_quat()
+        
+        # Combine positions
+        # Rotate the relative grasp position by the object's orientation
+        rotated_grasp_pos_rel = object_rot.apply(grasp['pos'])
+        world_pos = object_pose['pos'] + rotated_grasp_pos_rel
+        
+        return {"pos": world_pos, "quat": world_quat, "score": grasp.get("score", 0.0)}
+
+    def _rotation_matrix_to_quaternion(self, R_matrix: np.ndarray) -> np.ndarray:
         """
         Convert rotation matrix to quaternion.
         """
-        import scipy.spatial.transform as st
-        r = st.Rotation.from_matrix(R)
+        r = R.from_matrix(R_matrix)
         return r.as_quat()
 
-    def _visualize_point_cloud(self, pcd: np.ndarray, pose: Dict):
-        """Visualize the input point cloud."""
-        try:
-            import matplotlib.pyplot as plt
-            from mpl_toolkits.mplot3d import Axes3D
-            
-            fig = plt.figure(figsize=(10, 8))
-            ax = fig.add_subplot(111, projection='3d')
-            
-            ax.scatter(pcd[:, 0], pcd[:, 1], pcd[:, 2], c='blue', alpha=0.6, s=1)
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y') 
-            ax.set_zlabel('Z')
-            ax.set_title(f'Object Point Cloud\n{len(pcd)} points, Pose: {pose["pos"]}')
-            
-            # Set equal aspect ratio
-            max_range = np.ptp(pcd, axis=0).max() / 2.0
-            mid_x = pcd[:, 0].mean()
-            mid_y = pcd[:, 1].mean()
-            mid_z = pcd[:, 2].mean()
-            ax.set_xlim(mid_x - max_range, mid_x + max_range)
-            ax.set_ylim(mid_y - max_range, mid_y + max_range)
-            ax.set_zlim(mid_z - max_range, mid_z + max_range)
-            
-            plt.show()
-            
-        except ImportError:
-            print("Matplotlib not available for point cloud visualization")
-        except Exception as e:
-            print(f"Error in point cloud visualization: {e}")
-
     def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: Dict):
-        """Visualize the generated grasps."""
-        try:
-            import matplotlib.pyplot as plt
-            from mpl_toolkits.mplot3d import Axes3D
+        """
+        Visualize the object point cloud and predicted grasps using Open3D.
+        Each grasp is represented as a coordinate frame.
+        """
+        if not self.visualize:
+            return
+
+        print("Visualizing grasps with Open3D...")
+
+        # Create an Open3D point cloud from the NumPy array
+        o3d_pcd = o3d.geometry.PointCloud()
+        o3d_pcd.points = o3d.utility.Vector3dVector(pcd[:, :3])  # Ensure only 3D points
+        
+        # Color the point cloud (e.g., light gray)
+        o3d_pcd.paint_uniform_color([0.7, 0.7, 0.7])
+
+        geometries = [o3d_pcd]
+
+        # Add object centroid as a sphere (optional)
+        if len(pcd) > 0:
+            centroid = np.mean(pcd[:, :3], axis=0)
+            centroid_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.01)
+            centroid_sphere.translate(centroid)
+            centroid_sphere.paint_uniform_color([1.0, 0, 0]) # Red
+            geometries.append(centroid_sphere)
+
+        # Add coordinate frame for each grasp
+        for i, grasp in enumerate(grasps):
+            pos = grasp['pos']
+            quat = grasp['quat']
             
-            fig = plt.figure(figsize=(12, 8))
-            ax = fig.add_subplot(111, projection='3d')
+            # Create a small coordinate frame (axes) for the grasp
+            grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
             
-            # Plot point cloud
-            ax.scatter(pcd[:, 0], pcd[:, 1], pcd[:, 2], c='blue', alpha=0.3, s=1, label='Object')
+            # Create transformation matrix from position and quaternion
+            rot_matrix = R.from_quat(quat).as_matrix()
+            transform_matrix = np.eye(4)
+            transform_matrix[:3, :3] = rot_matrix
+            transform_matrix[:3, 3] = pos
             
-            # Plot grasps
-            colors = plt.cm.viridis(np.linspace(0, 1, len(grasps)))
-            for i, grasp in enumerate(grasps):
-                pos = grasp['pos']
-                score = grasp['score']
-                
-                # Color by score
-                color = colors[i]
-                size = 50 + score * 50  # Size based on score
-                
-                ax.scatter(pos[0], pos[1], pos[2], c=[color], s=size, alpha=0.8, 
-                          label=f'Grasp {i}' if i < 5 else "")
-                
-                # Draw a small arrow or line to show orientation (simplified)
-                # This would need proper quaternion to direction vector conversion
-                ax.text(pos[0], pos[1], pos[2], '.2f', fontsize=8)
-            
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_zlabel('Z')
-            ax.set_title(f'Generated Grasps\n{len(grasps)} grasps for object at {object_pose["pos"]}')
-            
-            # Set equal aspect ratio
-            all_points = np.vstack([pcd, np.array([g['pos'] for g in grasps])])
-            max_range = np.ptp(all_points, axis=0).max() / 2.0
-            mid_x = all_points[:, 0].mean()
-            mid_y = all_points[:, 1].mean()
-            mid_z = all_points[:, 2].mean()
-            ax.set_xlim(mid_x - max_range, mid_x + max_range)
-            ax.set_ylim(mid_y - max_range, mid_y + max_range)
-            ax.set_zlim(mid_z - max_range, mid_z + max_range)
-            
-            plt.legend()
-            plt.show()
-            
-        except ImportError:
-            print("Matplotlib not available for grasp visualization")
-        except Exception as e:
-            print(f"Error in grasp visualization: {e}")
+            # Apply transformation to the grasp frame
+            grasp_frame.transform(transform_matrix)
+            geometries.append(grasp_frame)
+
+            # Optionally add a text label for the grasp (Open3D doesn't have native text rendering)
+            # This part is more complex and usually requires custom shaders or external libraries.
+            # For a basic RVIZ-like visualization, coordinate frames are usually sufficient.
+
+        # Create a visualizer window
+        o3d.visualization.draw_geometries(geometries, window_name="Grasp Visualization",
+                                          width=800, height=600,
+                                          front=[0.5, -0.8, -0.2],    # Example camera position
+                                          lookat=[0.0, 0.0, 0.0],     # Look at origin
+                                          up=[0.0, 0.0, 1.0],         # Z-axis up
+                                          zoom=0.8)
+
+        print("Open3D grasp visualization closed.")
 
     def _mock_grasps(self, object_pose, num_grasps):
         """
