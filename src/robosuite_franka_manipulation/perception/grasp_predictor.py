@@ -1,9 +1,7 @@
 import numpy as np
 import sys
-import os
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 import pathlib
-import traceback
 # Add GraspGen to path
 package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
 GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
@@ -11,12 +9,6 @@ if str(GRASPGEN_PATH) not in sys.path:
     sys.path.append(str(GRASPGEN_PATH))
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
-from grasp_gen.utils.point_cloud_utils import (
-    depth_and_segmentation_to_point_clouds, 
-    point_cloud_outlier_removal, 
-    filter_colliding_grasps
-)
-from grasp_gen.robot import get_gripper_info
 
 class GraspPredictor:
     """
