@@ -51,19 +51,52 @@ class GraspPredictor:
         Returns:
             List of grasp poses (position, quaternion)
         """
-        if self.sampler:
-            # Use GraspGen to predict grasps
-            # Assuming object_pcd is already processed
-            grasps = self.sampler.sample_grasps(object_pcd, num_grasps=num_grasps)
-            # Transform to world frame
-            world_grasps = []
-            for grasp in grasps:
-                # Apply object pose transformation
-                world_grasp = self._transform_grasp_to_world(grasp, object_pose)
-                world_grasps.append(world_grasp)
-            return world_grasps
+        if self.sampler and len(object_pcd) > 0:
+            try:
+                # Convert to torch tensor if needed
+                import torch
+                if isinstance(object_pcd, np.ndarray):
+                    object_pcd = torch.from_numpy(object_pcd).float()
+                
+                # Move to same device as model
+                device = next(self.sampler.model.parameters()).device
+                object_pcd = object_pcd.to(device)
+                
+                # Use GraspGen to predict grasps
+                # The sample method returns (grasps, grasp_conf, None)
+                # grasps: (N, 4, 4) transformation matrices
+                # grasp_conf: (N,) confidence scores
+                grasps, grasp_conf, _ = self.sampler.sample(
+                    object_pcd, 
+                    threshold=-1.0,  # Use all grasps
+                    num_grasps=num_grasps,
+                    remove_outliers=False  # Don't remove outliers to avoid empty results
+                )
+                
+                # Convert to list of dicts
+                grasp_list = []
+                if len(grasps) > 0:
+                    for i in range(len(grasps)):
+                        # Extract position from translation part of matrix
+                        pos = grasps[i][:3, 3].cpu().numpy()
+                        
+                        # Convert rotation matrix to quaternion
+                        rot_matrix = grasps[i][:3, :3].cpu().numpy()
+                        quat = self._rotation_matrix_to_quaternion(rot_matrix)
+                        
+                        grasp = {
+                            "pos": pos,
+                            "quat": quat,
+                            "score": grasp_conf[i].cpu().numpy()
+                        }
+                        grasp_list.append(grasp)
+                
+                return grasp_list
+            except Exception as e:
+                print(f"Error in GraspGen prediction: {e}")
+                return self._mock_grasps(object_pose, num_grasps)
         else:
-            # Mock grasps
+            # Mock grasps if no sampler or empty point cloud
             return self._mock_grasps(object_pose, num_grasps)
 
     def _transform_grasp_to_world(self, grasp, object_pose):
@@ -76,6 +109,14 @@ class GraspPredictor:
         pos_offset = np.array([0, 0, 0.05])  # Above object
         quat = np.array([0, 0, 0, 1])  # Identity
         return {"pos": object_pose["pos"] + pos_offset, "quat": quat}
+
+    def _rotation_matrix_to_quaternion(self, R):
+        """
+        Convert rotation matrix to quaternion.
+        """
+        import scipy.spatial.transform as st
+        r = st.Rotation.from_matrix(R)
+        return r.as_quat()
 
     def _mock_grasps(self, object_pose, num_grasps):
         """

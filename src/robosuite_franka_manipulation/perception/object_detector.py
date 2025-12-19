@@ -66,21 +66,29 @@ class ObjectDetector:
         # Get camera observations if not provided
         if rgb_image is None or depth_image is None:
             obs = self.env._get_observations()
-            if rgb_image is None and 'image' in obs:
-                rgb_image = obs['image']
-            if depth_image is None and 'depth' in obs:
-                depth_image = obs['depth']
+            if rgb_image is None and 'agentview_image' in obs:
+                rgb_image = obs['agentview_image']
+            if depth_image is None and 'agentview_depth' in obs:
+                depth_image = obs['agentview_depth']
 
         if rgb_image is None:
             print("No RGB image available")
             return objects
+
+        # Note: depth image may not be available in all environments
+        if depth_image is None:
+            print("No depth image available - using fallback point cloud generation")
 
         # Get text prompt
         text_prompt = self.get_current_prompt()
 
         # Run FastSAM with text prompt
         print(f"Running FastSAM with prompt: '{text_prompt}'")
-        results = self.model(rgb_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9)
+        
+        # Convert numpy array to PIL Image for FastSAM
+        from PIL import Image
+        pil_image = Image.fromarray(rgb_image)
+        results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9)
 
         if not results or len(results) == 0:
             print("No FastSAM results")

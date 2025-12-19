@@ -9,7 +9,6 @@ from scipy.spatial.transform import Rotation as R
 import time
 from typing import Dict, Any, Optional
 import threading
-import keyboard
 
 from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
@@ -32,7 +31,7 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> Optional[b
         task: Type of task ("handoff", "cooperative_lift", etc.)
     """
     print(f"Starting dual-arm manipulation task: {task}")
-    print("Controls: Press 'm' to switch to manual teleop, 'a' to switch back to auto")
+    print("Note: Manual teleoperation can be started separately using teleop_dual_arm.py")
 
     # Initialize controllers
     left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
@@ -44,31 +43,10 @@ def perform_dual_arm_manipulation(env: Any, task: str = "handoff") -> Optional[b
     detector = ObjectDetector(env)
     predictor = GraspPredictor()
 
-    # Initialize teleop
-    teleop = KeyboardTeleop(env)
-
     # Define ready poses
     PI = np.pi
     ready_pose_left = create_pose(-0.3, 0.3, 0.5, 0, PI/2, 0)
     ready_pose_right = create_pose(0.3, 0.3, 0.5, -PI/2, 0, PI/2)
-
-    mode = ["auto"]
-
-    def key_monitor(mode):
-        while True:
-            if keyboard.is_pressed('m'):
-                mode[0] = "manual"
-                print("Switched to manual mode")
-                time.sleep(0.2)
-            if keyboard.is_pressed('a'):
-                mode[0] = "auto"
-                print("Switched to auto mode")
-                time.sleep(0.2)
-            time.sleep(0.1)
-
-    thread = threading.Thread(target=key_monitor, args=(mode,))
-    thread.daemon = True
-    thread.start()
 
     try:
         # Move to ready positions
