@@ -5,10 +5,7 @@ import pathlib
 import cv2
 from PIL import Image
 
-from robosuite_franka_manipulation.constants import (
-    FASTSAM_MODEL_PATH, GRASPGEN_DEPS_DIR, DEFAULT_CAMERA_WIDTH, DEFAULT_CAMERA_HEIGHT, DEFAULT_DETECTION_PROMPT,
-    get_project_root
-)
+from robosuite_franka_manipulation import constants
 
 from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
@@ -18,8 +15,15 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = DEFAULT_CAMERA_WIDTH, camera_height: int = DEFAULT_CAMERA_HEIGHT,
-                 prompt: str = DEFAULT_DETECTION_PROMPT, debug: bool = True, visualize: bool = False) -> None:
+    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = None, camera_height: int = None,
+                 prompt: str = None, debug: bool = True, visualize: bool = False) -> None:
+        # Set defaults if not provided
+        if camera_width is None:
+            camera_width = constants.DEFAULT_CAMERA_WIDTH
+        if camera_height is None:
+            camera_height = constants.DEFAULT_CAMERA_HEIGHT
+        if prompt is None:
+            prompt = constants.DEFAULT_DETECTION_PROMPT
         self.camera_intrinsics = camera_intrinsics
         self.camera_width = camera_width
         self.camera_height = camera_height
@@ -28,12 +32,12 @@ class ObjectDetector:
         self.visualize = visualize
 
         # Add GraspGen to path for FastSAM
-        GRASPGEN_PATH = get_project_root() / GRASPGEN_DEPS_DIR
+        GRASPGEN_PATH = constants.get_project_root() / constants.GRASPGEN_DEPS_DIR
         if str(GRASPGEN_PATH) not in sys.path:
             sys.path.append(str(GRASPGEN_PATH))
 
         # Load FastSAM model from models folder
-        model_path = get_project_root() / FASTSAM_MODEL_PATH
+        model_path = constants.get_project_root() / constants.FASTSAM_MODEL_PATH
         self.model = FastSAM(str(model_path))  # Load model
 
     def set_prompt(self, prompt: str) -> None:

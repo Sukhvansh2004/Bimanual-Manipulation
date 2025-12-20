@@ -4,13 +4,7 @@ from scipy.spatial.transform import Rotation as R
 from typing import Any, Optional, Tuple
 import time
 
-from robosuite_franka_manipulation.constants import (
-    DEFAULT_MAX_VELOCITY, DEFAULT_MAX_ACCELERATION, DEFAULT_TIME_STEP,
-    TRAJECTORY_POS_ERROR_SCALE, TRAJECTORY_ORI_ERROR_SCALE,
-    TRAJECTORY_CONVERGENCE_THRESHOLD, TRAJECTORY_MAX_TIMEOUT,
-    TRAJECTORY_ORIENTATION_SCALING, TRAJECTORY_MIN_DISTANCE,
-    TRAJECTORY_MIN_STEPS, TRAJECTORY_SLEEP_TIME
-)
+from robosuite_franka_manipulation import constants
 
 class RobosuiteArmController:
     """
@@ -32,8 +26,8 @@ class RobosuiteArmController:
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
-                                   max_vel: float = DEFAULT_MAX_VELOCITY, max_acc: float = DEFAULT_MAX_ACCELERATION, 
-                                   dt: float = DEFAULT_TIME_STEP) -> Tuple[np.ndarray, np.ndarray, float]:
+                                   max_vel: float = None, max_acc: float = None, 
+                                   dt: float = None) -> Tuple[np.ndarray, np.ndarray, float]:
         """
         Plan a trapezoidal velocity profile trajectory from start to target pose.
         
@@ -51,10 +45,18 @@ class RobosuiteArmController:
             quaternions: Array of quaternions over time (N, 4)
             total_time: Total trajectory time
         """
+        # Set defaults if not provided
+        if max_vel is None:
+            max_vel = constants.DEFAULT_MAX_VELOCITY
+        if max_acc is None:
+            max_acc = constants.DEFAULT_MAX_ACCELERATION
+        if dt is None:
+            dt = constants.DEFAULT_TIME_STEP
+        
         # Calculate position distance
         pos_distance = np.linalg.norm(target_pos - start_pos)
         
-        if pos_distance < TRAJECTORY_MIN_DISTANCE:
+        if pos_distance < constants.TRAJECTORY_MIN_DISTANCE:
             # No movement needed
             return np.array([target_pos]), np.array([target_quat]), 0.0
         
@@ -63,7 +65,7 @@ class RobosuiteArmController:
         ori_distance = np.linalg.norm(ori_diff.as_rotvec())
         
         # Use position distance for timing, add orientation as a fraction
-        total_distance = pos_distance + ori_distance * TRAJECTORY_ORIENTATION_SCALING
+        total_distance = pos_distance + ori_distance * constants.TRAJECTORY_ORIENTATION_SCALING
         
         # Calculate trapezoidal profile timing with more reasonable parameters
         # Phase 1: Acceleration
@@ -85,7 +87,7 @@ class RobosuiteArmController:
             t_dec = t_acc
         
         total_time = t_acc + t_const + t_dec
-        n_steps = max(TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))  # At least 2 steps
+        n_steps = max(constants.TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))  # At least 2 steps
         
         # Generate trajectory
         positions = []
@@ -130,8 +132,8 @@ class RobosuiteArmController:
         return np.array(positions), np.array(quaternions), total_time
 
     def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, 
-                    threshold: float = TRAJECTORY_CONVERGENCE_THRESHOLD, 
-                    timeout: int = TRAJECTORY_MAX_TIMEOUT, 
+                    threshold: float = None, 
+                    timeout: int = None, 
                     gripper_action: float = 0.0) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
@@ -143,6 +145,12 @@ class RobosuiteArmController:
             timeout (int): Maximum number of environment steps to reach the pose.
             gripper_action (float): Gripper action to maintain (-1 closed, 1 open).
         """
+        # Set defaults if not provided
+        if threshold is None:
+            threshold = constants.TRAJECTORY_CONVERGENCE_THRESHOLD
+        if timeout is None:
+            timeout = constants.TRAJECTORY_MAX_TIMEOUT
+        
         current_pos = self.robot._hand_pos[self.arm_id]
         current_ori_mat = self.robot._hand_orn[self.arm_id]
         current_quat = R.from_matrix(current_ori_mat).as_quat()
@@ -168,8 +176,8 @@ class RobosuiteArmController:
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * TRAJECTORY_POS_ERROR_SCALE, -1, 1)  # Position deltas
-            robot_action[3:6] = np.clip(ori_error_vec * TRAJECTORY_ORI_ERROR_SCALE, -1, 1)  # Orientation deltas
+            robot_action[:3] = np.clip(pos_error * constants.TRAJECTORY_POS_ERROR_SCALE, -1, 1)  # Position deltas
+            robot_action[3:6] = np.clip(ori_error_vec * constants.TRAJECTORY_ORI_ERROR_SCALE, -1, 1)  # Orientation deltas
             robot_action[6] = gripper_action  # Gripper
 
             # Construct full action
@@ -188,7 +196,7 @@ class RobosuiteArmController:
         ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
         ori_error_vec = ori_error.as_rotvec()
 
-        time.sleep(TRAJECTORY_SLEEP_TIME)
+        time.sleep(constants.TRAJECTORY_SLEEP_TIME)
         if np.linalg.norm(pos_error) < threshold and np.linalg.norm(ori_error_vec) < threshold:
             return True
 

@@ -20,11 +20,7 @@ import logging
 
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
-from robosuite_franka_manipulation.constants import (
-    DEFAULT_HOST, GRASP_SERVICE_PORT, SERVICE_MANAGER_PORT,
-    GRIPPER_TYPES, DEFAULT_GRIPPER_TYPE, GRIPPER_TYPE_MAPPING,
-    DEFAULT_NUM_GRASPS, MAX_POINTCLOUD_RANGE, ZMQ_POLL_TIMEOUT
-)
+from robosuite_franka_manipulation import constants
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,12 +37,21 @@ class GraspService:
     """
 
     def __init__(self,
-                 host: str = DEFAULT_HOST,
-                 port: int = GRASP_SERVICE_PORT,
-                 manager_host: str = DEFAULT_HOST,
-                 manager_port: int = SERVICE_MANAGER_PORT,
+                 host: str = None,
+                 port: int = None,
+                 manager_host: str = None,
+                 manager_port: int = None,
                  debug: bool = False,
                  visualize: bool = False):
+        # Set defaults if not provided
+        if host is None:
+            host = constants.DEFAULT_HOST
+        if port is None:
+            port = constants.GRASP_SERVICE_PORT
+        if manager_host is None:
+            manager_host = constants.DEFAULT_HOST
+        if manager_port is None:
+            manager_port = constants.SERVICE_MANAGER_PORT
         """
         Initialize Grasp Service.
 
@@ -68,7 +73,7 @@ class GraspService:
 
         # Initialize grasp predictors for different gripper types
         self.grasp_predictors = {}
-        gripper_types = GRIPPER_TYPES
+        gripper_types = constants.GRIPPER_TYPES
         
         for gripper_type in gripper_types:
             try:
@@ -111,7 +116,7 @@ class GraspService:
             return False
 
         # Check for reasonable coordinate ranges
-        if np.any(np.abs(pointcloud) > MAX_POINTCLOUD_RANGE):  # MAX_POINTCLOUD_RANGE meter range
+        if np.any(np.abs(pointcloud) > constants.MAX_POINTCLOUD_RANGE):
             return False
 
         return True
@@ -163,7 +168,7 @@ class GraspService:
 
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
                                      object_pose: Dict[str, np.ndarray],
-                                     num_grasps: int = DEFAULT_NUM_GRASPS,
+                                     num_grasps: int = None,
                                      gripper_type: str = 'finger') -> List[Dict]:
         """
         Predict grasps for a single point cloud.
@@ -177,11 +182,13 @@ class GraspService:
         Returns:
             List of grasp dictionaries
         """
+        if num_grasps is None:
+            num_grasps = constants.DEFAULT_NUM_GRASPS
         # Select predictor based on gripper type
         if gripper_type == 'suction':
-            predictor = self.grasp_predictors[GRIPPER_TYPE_MAPPING['suction']]
+            predictor = self.grasp_predictors[constants.GRIPPER_TYPE_MAPPING['suction']]
         elif gripper_type == 'finger':
-            predictor = self.grasp_predictors[GRIPPER_TYPE_MAPPING['finger']]
+            predictor = self.grasp_predictors[constants.GRIPPER_TYPE_MAPPING['finger']]
         else:
             logger.error(f"Unknown gripper type: {gripper_type}")
             return []
@@ -249,7 +256,7 @@ class GraspService:
             while self.running:
                 try:
                     # Wait for request with timeout
-                    if self.socket.poll(timeout=ZMQ_POLL_TIMEOUT):  # ZMQ_POLL_TIMEOUT millisecond timeout
+                    if self.socket.poll(timeout=constants.ZMQ_POLL_TIMEOUT):
                         message = self.socket.recv_json()
                         response = self._handle_request(message)
                         self.socket.send_json(response)
@@ -280,8 +287,8 @@ class GraspService:
 
             if command == 'GET_GRASPS':
                 # Extract parameters
-                gripper_type = request.get('gripper_type', DEFAULT_GRIPPER_TYPE)
-                num_grasps = request.get('num_grasps', DEFAULT_NUM_GRASPS)
+                gripper_type = request.get('gripper_type', constants.DEFAULT_GRIPPER_TYPE)
+                num_grasps = request.get('num_grasps', constants.DEFAULT_NUM_GRASPS)
                 
                 # Check if pointcloud and pose are provided
                 pointcloud_data = request.get('pointcloud')
@@ -323,9 +330,9 @@ class GraspService:
                     }
 
                 # Map gripper type to simplified type
-                if gripper_type == GRIPPER_TYPE_MAPPING['suction']:
+                if gripper_type == constants.GRIPPER_TYPE_MAPPING['suction']:
                     simplified_type = 'suction'
-                elif gripper_type == GRIPPER_TYPE_MAPPING['finger']:
+                elif gripper_type == constants.GRIPPER_TYPE_MAPPING['finger']:
                     simplified_type = 'finger'
                 else:
                     return {

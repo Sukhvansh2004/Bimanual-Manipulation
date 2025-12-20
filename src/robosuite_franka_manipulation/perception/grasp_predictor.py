@@ -6,10 +6,7 @@ import pathlib
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
-from robosuite_franka_manipulation.constants import (
-    DEFAULT_GRIPPER_TYPE, GRASPGEN_DEPS_DIR, GRASPGEN_MODELS_DIR, GRASPGEN_CONFIG_TEMPLATE,
-    get_project_root, get_graspgen_config_path
-)
+from robosuite_franka_manipulation import constants
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
@@ -19,7 +16,9 @@ class GraspPredictor:
     """
     Class to predict grasps for objects using GraspGen.
     """
-    def __init__(self, gripper_type: str = 'franka_panda', model_path: Optional[str] = None, debug: bool = False, visualize: bool = False) -> None:
+    def __init__(self, gripper_type: str = None, model_path: Optional[str] = None, debug: bool = False, visualize: bool = False) -> None:
+        if gripper_type is None:
+            gripper_type = constants.DEFAULT_GRIPPER_TYPE
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type

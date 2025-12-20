@@ -13,7 +13,7 @@ import time
 import logging
 from typing import Dict, Any, Optional, List
 
-from robosuite_franka_manipulation.constants import DEFAULT_HOST, SERVICE_MANAGER_PORT, ZMQ_MANAGER_TIMEOUT, ZMQ_SERVER_RECV_TIMEOUT, ZMQ_SERVICE_CALL_TIMEOUT
+from robosuite_franka_manipulation import constants
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,9 +25,9 @@ class ServiceClient:
     Client for interacting with registered services through the service manager.
     """
 
-    def __init__(self, manager_host: str = DEFAULT_HOST, manager_port: int = SERVICE_MANAGER_PORT):
-        self.manager_host = manager_host
-        self.manager_port = manager_port
+    def __init__(self, manager_host: str = None, manager_port: int = None):
+        self.manager_host = manager_host or constants.DEFAULT_HOST
+        self.manager_port = manager_port or constants.SERVICE_MANAGER_PORT
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
 
@@ -38,7 +38,7 @@ class ServiceClient:
             self.socket.send_json(request)
 
             # Set timeout
-            if self.socket.poll(timeout=ZMQ_MANAGER_TIMEOUT):  # ZMQ_MANAGER_TIMEOUT millisecond timeout
+            if self.socket.poll(timeout=constants.ZMQ_MANAGER_TIMEOUT):
                 response = self.socket.recv_json()
                 return response
             else:
@@ -89,9 +89,9 @@ class ServiceManager:
     Simple Service Manager for service registration, lookup, and calling.
     """
 
-    def __init__(self, host: str = DEFAULT_HOST, port: int = SERVICE_MANAGER_PORT):
-        self.host = host
-        self.port = port
+    def __init__(self, host: str = None, port: int = None):
+        self.host = host or constants.DEFAULT_HOST
+        self.port = port or constants.SERVICE_MANAGER_PORT
 
         # Service registry
         self.services: Dict[str, Dict[str, Any]] = {}
@@ -150,7 +150,7 @@ class ServiceManager:
 
             while self.running:
                 try:
-                    if self.socket.poll(timeout=ZMQ_SERVER_RECV_TIMEOUT):
+                    if self.socket.poll(timeout=constants.ZMQ_SERVER_RECV_TIMEOUT):
                         message = self.socket.recv_json()
                         response = self._handle_request(message)
                         self.socket.send_json(response)
@@ -258,7 +258,7 @@ class ServiceManager:
 
             socket.send_json(service_request)
 
-            if socket.poll(timeout=ZMQ_SERVICE_CALL_TIMEOUT):
+            if socket.poll(timeout=constants.ZMQ_SERVICE_CALL_TIMEOUT):
                 response = socket.recv_json()
                 socket.close()
                 context.term()
