@@ -4,6 +4,14 @@ from scipy.spatial.transform import Rotation as R
 from typing import Any, Optional, Tuple
 import time
 
+from robosuite_franka_manipulation.constants import (
+    DEFAULT_MAX_VELOCITY, DEFAULT_MAX_ACCELERATION, DEFAULT_TIME_STEP,
+    TRAJECTORY_POS_ERROR_SCALE, TRAJECTORY_ORI_ERROR_SCALE,
+    TRAJECTORY_CONVERGENCE_THRESHOLD, TRAJECTORY_MAX_TIMEOUT,
+    TRAJECTORY_ORIENTATION_SCALING, TRAJECTORY_MIN_DISTANCE,
+    TRAJECTORY_MIN_STEPS, TRAJECTORY_SLEEP_TIME
+)
+
 class RobosuiteArmController:
     """
     A robosuite-equivalent ArmController.
@@ -24,8 +32,8 @@ class RobosuiteArmController:
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
-                                   max_vel: float = 0.5, max_acc: float = 0.1, 
-                                   dt: float = 0.02) -> Tuple[np.ndarray, np.ndarray, float]:
+                                   max_vel: float = DEFAULT_MAX_VELOCITY, max_acc: float = DEFAULT_MAX_ACCELERATION, 
+                                   dt: float = DEFAULT_TIME_STEP) -> Tuple[np.ndarray, np.ndarray, float]:
         """
         Plan a trapezoidal velocity profile trajectory from start to target pose.
         
@@ -46,7 +54,7 @@ class RobosuiteArmController:
         # Calculate position distance
         pos_distance = np.linalg.norm(target_pos - start_pos)
         
-        if pos_distance < 1e-6:
+        if pos_distance < TRAJECTORY_MIN_DISTANCE:
             # No movement needed
             return np.array([target_pos]), np.array([target_quat]), 0.0
         
@@ -55,7 +63,7 @@ class RobosuiteArmController:
         ori_distance = np.linalg.norm(ori_diff.as_rotvec())
         
         # Use position distance for timing, add orientation as a fraction
-        total_distance = pos_distance + ori_distance * 0.05  # Small scaling for orientation
+        total_distance = pos_distance + ori_distance * TRAJECTORY_ORIENTATION_SCALING
         
         # Calculate trapezoidal profile timing with more reasonable parameters
         # Phase 1: Acceleration
@@ -77,7 +85,7 @@ class RobosuiteArmController:
             t_dec = t_acc
         
         total_time = t_acc + t_const + t_dec
-        n_steps = max(2, int(np.ceil(total_time / dt)))  # At least 2 steps
+        n_steps = max(TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))  # At least 2 steps
         
         # Generate trajectory
         positions = []
@@ -121,7 +129,10 @@ class RobosuiteArmController:
         
         return np.array(positions), np.array(quaternions), total_time
 
-    def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, threshold: float = 0.01, timeout: int = 100, gripper_action: float = 0.0) -> bool:
+    def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, 
+                    threshold: float = TRAJECTORY_CONVERGENCE_THRESHOLD, 
+                    timeout: int = TRAJECTORY_MAX_TIMEOUT, 
+                    gripper_action: float = 0.0) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
 
@@ -157,8 +168,8 @@ class RobosuiteArmController:
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * 5, -1, 1)  # Position deltas
-            robot_action[3:6] = np.clip(ori_error_vec * 1, -1, 1)  # Orientation deltas
+            robot_action[:3] = np.clip(pos_error * TRAJECTORY_POS_ERROR_SCALE, -1, 1)  # Position deltas
+            robot_action[3:6] = np.clip(ori_error_vec * TRAJECTORY_ORI_ERROR_SCALE, -1, 1)  # Orientation deltas
             robot_action[6] = gripper_action  # Gripper
 
             # Construct full action
@@ -177,7 +188,7 @@ class RobosuiteArmController:
         ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
         ori_error_vec = ori_error.as_rotvec()
 
-        time.sleep(2)
+        time.sleep(TRAJECTORY_SLEEP_TIME)
         if np.linalg.norm(pos_error) < threshold and np.linalg.norm(ori_error_vec) < threshold:
             return True
 

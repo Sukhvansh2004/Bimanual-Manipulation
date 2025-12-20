@@ -20,6 +20,11 @@ from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.constants import (
+    DEFAULT_HOST, FASTSAM_SERVICE_PORT, SERVICE_MANAGER_PORT,
+    DEFAULT_CAMERA_NAME, DEFAULT_CAMERA_INTRINSICS, DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH,
+    DEFAULT_DETECTION_PROMPT
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,11 +42,11 @@ class FastSAMService:
 
     def __init__(self,
                  env: Any,
-                 host: str = 'localhost',
-                 port: int = 5551,
-                 manager_host: str = 'localhost',
-                 manager_port: int = 5555,
-                 camera_name: str = 'agentview',
+                 host: str = DEFAULT_HOST,
+                 port: int = FASTSAM_SERVICE_PORT,
+                 manager_host: str = DEFAULT_HOST,
+                 manager_port: int = SERVICE_MANAGER_PORT,
+                 camera_name: str = DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
                  debug: bool = False):
         """
@@ -66,7 +71,7 @@ class FastSAMService:
 
         # Service state
         self.running = False
-        self.current_prompt = "object"
+        self.current_prompt = DEFAULT_DETECTION_PROMPT
 
         # Camera and detection state
         self.camera_intrinsics = None
@@ -83,9 +88,9 @@ class FastSAMService:
             camera_height = self.env.camera_heights[camera_id]
         else:
             logger.warning(f"Camera '{self.camera_name}' not found, using defaults")
-            self.camera_intrinsics = np.array([[615.0, 0, 310.0],[0, 615.0, 236.0],[0, 0, 1]])
-            camera_width = 640
-            camera_height = 480
+            self.camera_intrinsics = DEFAULT_CAMERA_INTRINSICS
+            camera_width = DEFAULT_CAMERA_WIDTH
+            camera_height = DEFAULT_CAMERA_HEIGHT
 
         # Initialize perception components
         self.object_detector = ObjectDetector(

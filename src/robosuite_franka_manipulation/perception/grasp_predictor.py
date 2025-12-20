@@ -5,11 +5,11 @@ import torch
 import pathlib
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
-# Add GraspGen to path
-package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
-GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
-if str(GRASPGEN_PATH) not in sys.path:
-    sys.path.append(str(GRASPGEN_PATH))
+
+from robosuite_franka_manipulation.constants import (
+    DEFAULT_GRIPPER_TYPE, GRASPGEN_DEPS_DIR, GRASPGEN_MODELS_DIR, GRASPGEN_CONFIG_TEMPLATE,
+    get_project_root, get_graspgen_config_path
+)
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal

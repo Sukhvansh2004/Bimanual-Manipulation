@@ -5,11 +5,10 @@ import pathlib
 import cv2
 from PIL import Image
 
-# Add GraspGen to path for FastSAM
-package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
-GRASPGEN_PATH = package_path / 'deps' / 'GraspGen'
-if str(GRASPGEN_PATH) not in sys.path:
-    sys.path.append(str(GRASPGEN_PATH))
+from robosuite_franka_manipulation.constants import (
+    FASTSAM_MODEL_PATH, GRASPGEN_DEPS_DIR, DEFAULT_CAMERA_WIDTH, DEFAULT_CAMERA_HEIGHT, DEFAULT_DETECTION_PROMPT,
+    get_project_root
+)
 
 from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
@@ -19,8 +18,8 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = 640, camera_height: int = 480,
-                 prompt: str = "object", debug: bool = True, visualize: bool = False) -> None:
+    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = DEFAULT_CAMERA_WIDTH, camera_height: int = DEFAULT_CAMERA_HEIGHT,
+                 prompt: str = DEFAULT_DETECTION_PROMPT, debug: bool = True, visualize: bool = False) -> None:
         self.camera_intrinsics = camera_intrinsics
         self.camera_width = camera_width
         self.camera_height = camera_height
@@ -28,9 +27,13 @@ class ObjectDetector:
         self.debug = debug
         self.visualize = visualize
 
+        # Add GraspGen to path for FastSAM
+        GRASPGEN_PATH = get_project_root() / GRASPGEN_DEPS_DIR
+        if str(GRASPGEN_PATH) not in sys.path:
+            sys.path.append(str(GRASPGEN_PATH))
+
         # Load FastSAM model from models folder
-        package_path = pathlib.Path(__file__).parent.parent.parent.parent
-        model_path = package_path / 'models' / 'FastSAM-x.pt'
+        model_path = get_project_root() / FASTSAM_MODEL_PATH
         self.model = FastSAM(str(model_path))  # Load model
 
     def set_prompt(self, prompt: str) -> None:

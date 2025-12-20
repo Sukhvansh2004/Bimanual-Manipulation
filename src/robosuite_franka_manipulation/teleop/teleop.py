@@ -11,11 +11,15 @@ import keyboard
 import robosuite as suite
 from robosuite.devices import Keyboard
 
+from robosuite_franka_manipulation.constants import (
+    DEFAULT_POS_SENSITIVITY, DEFAULT_ROT_SENSITIVITY
+)
+
 class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env, pos_sensitivity=1.0, rot_sensitivity=1.0):
+    def __init__(self, env, pos_sensitivity=DEFAULT_POS_SENSITIVITY, rot_sensitivity=DEFAULT_ROT_SENSITIVITY):
         self.env = env
         self.device = Keyboard(
             env=env,

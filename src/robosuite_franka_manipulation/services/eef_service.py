@@ -7,9 +7,9 @@ Provides current end-effector positions and orientations via TCP socket.
 import zmq
 import threading
 import time
-import json
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.constants import DEFAULT_HOST, EEF_SERVICE_PORT, SERVICE_MANAGER_PORT
 
 class EEFService:
     """
@@ -17,8 +17,8 @@ class EEFService:
     Provides current positions and orientations of robot end-effectors.
     """
 
-    def __init__(self, env: Any, host: str = 'localhost', port: int = 5559,
-                 manager_host: str = 'localhost', manager_port: int = 5555):
+    def __init__(self, env: Any, host: str = DEFAULT_HOST, port: int = EEF_SERVICE_PORT,
+                 manager_host: str = DEFAULT_HOST, manager_port: int = SERVICE_MANAGER_PORT):
         self.env = env
         self.host = host
         self.port = port

@@ -20,6 +20,11 @@ import logging
 
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.constants import (
+    DEFAULT_HOST, GRASP_SERVICE_PORT, SERVICE_MANAGER_PORT,
+    GRIPPER_TYPES, DEFAULT_GRIPPER_TYPE, GRIPPER_TYPE_MAPPING,
+    DEFAULT_NUM_GRASPS, MAX_POINTCLOUD_RANGE, ZMQ_POLL_TIMEOUT
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,10 +41,10 @@ class GraspService:
     """
 
     def __init__(self,
-                 host: str = 'localhost',
-                 port: int = 5552,
-                 manager_host: str = 'localhost',
-                 manager_port: int = 5555,
+                 host: str = DEFAULT_HOST,
+                 port: int = GRASP_SERVICE_PORT,
+                 manager_host: str = DEFAULT_HOST,
+                 manager_port: int = SERVICE_MANAGER_PORT,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -63,7 +68,7 @@ class GraspService:
 
         # Initialize grasp predictors for different gripper types
         self.grasp_predictors = {}
-        gripper_types = ['franka_panda', 'single_suction_cup_30mm']
+        gripper_types = GRIPPER_TYPES
         
         for gripper_type in gripper_types:
             try:
@@ -106,7 +111,7 @@ class GraspService:
             return False
 
         # Check for reasonable coordinate ranges
-        if np.any(np.abs(pointcloud) > 10.0):  # 10 meter range
+        if np.any(np.abs(pointcloud) > MAX_POINTCLOUD_RANGE):  # MAX_POINTCLOUD_RANGE meter range
             return False
 
         return True
@@ -158,7 +163,7 @@ class GraspService:
 
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
                                      object_pose: Dict[str, np.ndarray],
-                                     num_grasps: int = 5,
+                                     num_grasps: int = DEFAULT_NUM_GRASPS,
                                      gripper_type: str = 'finger') -> List[Dict]:
         """
         Predict grasps for a single point cloud.
@@ -174,9 +179,9 @@ class GraspService:
         """
         # Select predictor based on gripper type
         if gripper_type == 'suction':
-            predictor = self.grasp_predictors['single_suction_cup_30mm']
+            predictor = self.grasp_predictors[GRIPPER_TYPE_MAPPING['suction']]
         elif gripper_type == 'finger':
-            predictor = self.grasp_predictors['franka_panda']
+            predictor = self.grasp_predictors[GRIPPER_TYPE_MAPPING['finger']]
         else:
             logger.error(f"Unknown gripper type: {gripper_type}")
             return []
@@ -244,7 +249,7 @@ class GraspService:
             while self.running:
                 try:
                     # Wait for request with timeout
-                    if self.socket.poll(timeout=1000):  # 1 second timeout
+                    if self.socket.poll(timeout=ZMQ_POLL_TIMEOUT):  # ZMQ_POLL_TIMEOUT millisecond timeout
                         message = self.socket.recv_json()
                         response = self._handle_request(message)
                         self.socket.send_json(response)
@@ -275,8 +280,8 @@ class GraspService:
 
             if command == 'GET_GRASPS':
                 # Extract parameters
-                gripper_type = request.get('gripper_type', 'franka_panda')
-                num_grasps = request.get('num_grasps', 5)
+                gripper_type = request.get('gripper_type', DEFAULT_GRIPPER_TYPE)
+                num_grasps = request.get('num_grasps', DEFAULT_NUM_GRASPS)
                 
                 # Check if pointcloud and pose are provided
                 pointcloud_data = request.get('pointcloud')
@@ -318,9 +323,9 @@ class GraspService:
                     }
 
                 # Map gripper type to simplified type
-                if gripper_type == 'single_suction_cup_30mm':
+                if gripper_type == GRIPPER_TYPE_MAPPING['suction']:
                     simplified_type = 'suction'
-                elif gripper_type == 'franka_panda':
+                elif gripper_type == GRIPPER_TYPE_MAPPING['finger']:
                     simplified_type = 'finger'
                 else:
                     return {
