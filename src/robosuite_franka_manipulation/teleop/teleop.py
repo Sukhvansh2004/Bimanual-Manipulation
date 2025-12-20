@@ -5,7 +5,7 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 
 import numpy as np
 from copy import deepcopy
-import keyboard
+from pynput import keyboard as pynput_keyboard
 
 from robosuite.devices import Keyboard
 
@@ -27,6 +27,22 @@ class KeyboardTeleop:
             rot_sensitivity=rot_sensitivity,
         )
         self.running = False
+        self.exit_pressed = False
+        
+        # Setup keyboard listener for exit key
+        self.listener = pynput_keyboard.Listener(on_press=self._on_key_press)
+        self.listener.start()
+
+    def _on_key_press(self, key):
+        """
+        Callback for keyboard listener to detect exit key.
+        """
+        try:
+            if hasattr(key, 'char') and key.char == 'a':
+                self.exit_pressed = True
+                self.running = False
+        except AttributeError:
+            pass
 
     def run(self):
         """
@@ -35,7 +51,7 @@ class KeyboardTeleop:
         self.running = True
         print("Starting teleoperation with robosuite Keyboard device.")
         print("Controls: Follow robosuite's keyboard controls.")
-        print("Press 'reset' or appropriate key to exit teleop.")
+        print("Press 'a' key to exit teleoperation.")
 
         while self.running:
             # Reset the environment
@@ -86,9 +102,11 @@ class KeyboardTeleop:
                 self.env.step(env_action)
                 self.env.render()
 
-                # Check for switch back to auto
-                if keyboard.is_pressed('a'):
+                # Check for exit key press
+                if self.exit_pressed:
                     self.running = False
                     break
 
+        # Stop the keyboard listener
+        self.listener.stop()
         print("Teleoperation ended.")
