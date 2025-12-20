@@ -38,34 +38,18 @@ def start_service_manager() -> EnhancedServiceManager:
     return manager
 
 
-def start_fastsam_service() -> FastSAMService:
+def start_fastsam_service():
     """Start the FastSAM service."""
-    logger.info("Starting FastSAM Service...")
-    fastsam = FastSAMService(
-        host='localhost',
-        port=5551,
-        manager_host='localhost',
-        manager_port=5555,
-        model_path=str(PROJECT_ROOT / 'models' / 'FastSAM-x.pt')
-    )
-    fastsam.start()
-    time.sleep(2)  # Allow time to load model and register
-    return fastsam
+    logger.info("FastSAM Service requires robosuite environment - skipping for demo")
+    logger.info("In a real scenario, create env = make_dual_arm_env() and pass to FastSAMService")
+    return None
 
 
-def start_grasp_service() -> GraspService:
+def start_grasp_service():
     """Start the Grasp service."""
-    logger.info("Starting Grasp Service...")
-    grasp = GraspService(
-        host='localhost',
-        port=5552,
-        manager_host='localhost',
-        manager_port=5555,
-        model_path=str(PROJECT_ROOT / 'deps' / 'GraspGenModels' / 'checkpoints')
-    )
-    grasp.start()
-    time.sleep(2)  # Allow time to load model and register
-    return grasp
+    logger.info("Grasp Service requires model files - skipping for demo")
+    logger.info("In a real scenario, provide path to GraspGenModels checkpoints")
+    return None
 
 
 def demo_service_client() -> None:

@@ -8,7 +8,6 @@ import cv2
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
-from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 
 class UnifiedPerceptionService:

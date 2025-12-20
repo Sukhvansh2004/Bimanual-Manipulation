@@ -8,18 +8,18 @@ import pytest
 import numpy as np
 import time
 from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.services import ServiceManager, UnifiedPerceptionService, ServiceClient
+from robosuite_franka_manipulation.services import EnhancedServiceManager, UnifiedPerceptionService, ServiceClient
 
 @pytest.fixture(scope="class")
 def perception_services(request):
     """Fixture to provide a running ServiceManager and UnifiedPerceptionService."""
-    manager = ServiceManager()
+    manager = EnhancedServiceManager()
     manager.start()
     
     env = make_dual_arm_env()
     env.reset()
     
-    perception_service = UnifiedPerceptionService(env, visualize=False) # Disable visualization for tests
+    perception_service = UnifiedPerceptionService(env, manager_host='localhost', manager_port=5555, visualize=False) # Disable visualization for tests
     perception_service.start()
     
     time.sleep(2) # Allow services to start

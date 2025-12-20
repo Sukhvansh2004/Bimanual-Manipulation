@@ -1,6 +1,6 @@
 # Distributed Perception Services
 
-This directory contains a distributed microservices architecture for robotic perception and grasp planning. The system is designed for the Dual-Arm Franka manipulation setup with continuous camera processing, real-time visualization, and orchestrated grasp prediction.
+Services contains a distributed microservices architecture for robotic perception and grasp planning. The system is designed for the Dual-Arm Franka manipulation setup with continuous camera processing, real-time visualization, and orchestrated grasp prediction.
 
 ## Architecture Overview
 
@@ -35,8 +35,7 @@ python setup.py install
 ### 2. Start Services
 
 ```python
-from services.demo_services import main
-main()  # Starts all services and runs demo
+python scripts/demo_services.py
 ```
 
 Or start services individually:
