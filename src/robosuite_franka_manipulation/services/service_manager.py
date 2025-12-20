@@ -11,13 +11,11 @@ This service manager provides:
 """
 
 import zmq
-import json
 import threading
 import time
 import logging
 from typing import Dict, Any, Optional, List
 from collections import defaultdict
-import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +40,7 @@ class ServiceClient:
             self.socket.send_json(request)
 
             # Set timeout
-            if self.socket.poll(timeout=5000):  # 5 second timeout
+            if self.socket.poll(timeout=15000):  # 15 second timeout
                 response = self.socket.recv_json()
                 return response
             else:

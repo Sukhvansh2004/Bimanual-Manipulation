@@ -12,7 +12,6 @@ if str(GRASPGEN_PATH) not in sys.path:
     sys.path.append(str(GRASPGEN_PATH))
 
 from ultralytics import FastSAM
-from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from scipy.spatial.transform import Rotation as R
 
 class ObjectDetector:
@@ -44,9 +43,6 @@ class ObjectDetector:
         package_path = pathlib.Path(__file__).parent.parent.parent.parent
         model_path = package_path / 'models' / 'FastSAM-x.pt'
         self.model = FastSAM(str(model_path))  # Load model
-
-        # Initialize local grasp predictor
-        self.grasp_predictor = GraspPredictor(debug=debug, visualize=visualize)
 
 
 
@@ -140,15 +136,12 @@ class ObjectDetector:
             # Estimate pose from point cloud in world frame
             pose = self._estimate_pose_from_point_cloud(pcd_world_frame)
 
-            # Get grasp predictions for this object
-            grasps = self._predict_grasps(pcd_world_frame, pose)
-
             objects.append({
                 'name': f'object_{i}',
                 'pose': pose,
                 'pcd': pcd_world_frame,
+                'pcd_local': self._transform_to_object_frame(pcd_world_frame, pose),
                 'mask': mask,
-                'grasps': grasps,
                 'id': i
             })
 
@@ -186,33 +179,66 @@ class ObjectDetector:
         return np.array(points)
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray) -> Dict:
-        """Estimate object pose from point cloud (centroid and orientation)."""
+        """Estimate object pose from point cloud using PCA for orientation."""
         if len(pcd) == 0:
             return {'pos': np.array([0, 0, 0]), 'quat': np.array([0, 0, 0, 1])}
 
-        # Simple centroid
+        # Centroid
         centroid = np.mean(pcd, axis=0)
 
-        # For orientation, could implement PCA or other methods
-        # For now, use identity orientation
-        quat = np.array([0, 0, 0, 1])
+        # Center the point cloud
+        pcd_centered = pcd - centroid
+
+        # Compute covariance matrix
+        cov_matrix = np.cov(pcd_centered.T)
+
+        # Eigenvalue decomposition
+        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+
+        # Sort eigenvectors by eigenvalues (largest first)
+        sort_indices = np.argsort(eigenvalues)[::-1]
+        eigenvectors = eigenvectors[:, sort_indices]
+
+        # Create rotation matrix from eigenvectors
+        # X axis: direction of maximum variance
+        # Y axis: direction of second maximum variance  
+        # Z axis: up direction (minimum variance, assuming objects rest on surfaces)
+        rot_matrix = eigenvectors.copy()
+        
+        # Ensure right-handed coordinate system
+        if np.linalg.det(rot_matrix) < 0:
+            rot_matrix[:, 2] = -rot_matrix[:, 2]
+
+        # Convert to quaternion
+        quat = R.from_matrix(rot_matrix).as_quat()
 
         return {
             'pos': centroid,
             'quat': quat
         }
 
-    def _predict_grasps(self, pcd: np.ndarray, pose: Dict) -> List[Dict]:
-        """Predict grasps using local GraspPredictor."""
-        if self.grasp_predictor and self.grasp_predictor.sampler:
-            try:
-                return self.grasp_predictor.predict_grasps(pcd, pose, num_grasps=10)
-            except Exception as e:
-                print(f"Error in local grasp prediction: {e}")
-                return []
-        else:
-            print("Grasp predictor not available")
-            return []
+    def _transform_to_object_frame(self, pcd_world: np.ndarray, object_pose: Dict) -> np.ndarray:
+        """
+        Transform point cloud from world frame to object-local frame.
+        
+        Args:
+            pcd_world: Point cloud in world frame
+            object_pose: Object pose in world frame
+            
+        Returns:
+            Point cloud in object-local frame
+        """
+        object_pos = np.array(object_pose['pos'])
+        object_quat = np.array(object_pose['quat'])
+        
+        # Convert quaternion to rotation matrix
+        object_rot = R.from_quat(object_quat).as_matrix()
+        
+        # Transform: translate then rotate
+        pcd_centered = pcd_world - object_pos
+        pcd_local = (object_rot.T @ pcd_centered.T).T  # Inverse rotation
+        
+        return pcd_local
 
     def _visualize_fastsam_results(self, rgb_image: np.ndarray, masks: List[np.ndarray], prompt: str) -> Optional[np.ndarray]:
         """

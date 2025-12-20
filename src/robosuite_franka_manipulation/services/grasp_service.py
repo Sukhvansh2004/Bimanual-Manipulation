@@ -40,6 +40,7 @@ class GraspService:
                  port: int = 5552,
                  manager_host: str = 'localhost',
                  manager_port: int = 5555,
+                 model_path: Optional[str] = None,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -50,6 +51,7 @@ class GraspService:
             port: Service port
             manager_host: Service manager host
             manager_port: Service manager port
+            model_path: Path to GraspGen model config file
             debug: Enable debug logging
             visualize: Enable grasp visualization
         """
@@ -62,7 +64,7 @@ class GraspService:
         self.running = False
 
         # Initialize grasp predictor
-        self.grasp_predictor = GraspPredictor(debug=debug, visualize=visualize)
+        self.grasp_predictor = GraspPredictor(model_path=model_path, debug=debug, visualize=visualize)
 
         # Threading
         self.server_thread: Optional[threading.Thread] = None
@@ -176,19 +178,17 @@ class GraspService:
                 logger.info("No grasps predicted for point cloud")
                 return []
 
-            # Transform to world frame
-            world_grasps = self._transform_grasps_to_world_frame(grasps, object_pose)
-
+            # Grasps are already in world frame from GraspPredictor
             # Add metadata
-            for i, grasp in enumerate(world_grasps):
+            for i, grasp in enumerate(grasps):
                 grasp['id'] = i
                 grasp['pointcloud_size'] = len(pointcloud)
                 grasp['prediction_timestamp'] = time.time()
 
             if self.debug:
-                logger.info(f"Predicted {len(world_grasps)} grasps for point cloud with {len(pointcloud)} points")
+                logger.info(f"Predicted {len(grasps)} grasps for point cloud with {len(pointcloud)} points")
 
-            return world_grasps
+            return grasps
 
         except Exception as e:
             logger.error(f"Grasp prediction failed: {e}")

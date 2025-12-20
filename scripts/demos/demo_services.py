@@ -41,14 +41,30 @@ def start_service_manager() -> EnhancedServiceManager:
 def start_fastsam_service():
     """Start the FastSAM service."""
     logger.info("FastSAM Service requires robosuite environment - skipping for demo")
-    logger.info("In a real scenario, create env = make_dual_arm_env() and pass to FastSAMService")
+    logger.info("In a real scenario, create env = make_dual_arm_env() and pass to FastSAMService(env=env)")
     return None
 
 
 def start_grasp_service():
     """Start the Grasp service."""
-    logger.info("Grasp Service requires model files - skipping for demo")
+    logger.info("Starting Grasp Service...")
+    try:
+        grasp = GraspService(
+            host='localhost',
+            port=5552,
+            manager_host='localhost',
+            manager_port=5555,
+            model_path=str(PROJECT_ROOT / 'deps' / 'GraspGenModels' / 'checkpoints' / 'graspgen_franka_panda.yml')
+        )
+        grasp.start()
+        time.sleep(2)  # Allow time to load model and register
+        logger.info("Grasp Service started successfully")
+        return grasp
+    except Exception as e:
+        logger.error(f"Failed to start Grasp Service: {e}")
+        return None
     logger.info("In a real scenario, provide path to GraspGenModels checkpoints")
+    logger.info("Example: GraspService(model_path='path/to/graspgen_franka_panda.yml')")
     return None
 
 
@@ -79,13 +95,18 @@ def demo_service_client() -> None:
     # Direct service calls
     logger.info("Making direct service calls...")
 
-    # Call FastSAM directly
-    fastsam_result = client.call('fastsam_service', {'command': 'GET_STATUS'})
-    logger.info(f"FastSAM Status: {fastsam_result}")
-
-    # Call Grasp service directly
-    grasp_result = client.call('grasp_service', {'command': 'GET_STATUS'})
-    logger.info(f"Grasp Status: {grasp_result}")
+    # Call Grasp service directly with mock data
+    logger.info("Testing Grasp Service with mock point cloud...")
+    mock_pointcloud = [[0.0, 0.0, 0.0], [0.01, 0.0, 0.0], [0.0, 0.01, 0.0], [-0.01, 0.0, 0.0]]
+    mock_pose = {"pos": [0.5, 0.0, 0.1], "quat": [0, 0, 0, 1]}
+    
+    grasp_result = client.call('grasp_service', {
+        'command': 'PREDICT_GRASPS',
+        'pointcloud': mock_pointcloud,
+        'object_pose': mock_pose,
+        'num_grasps': 2
+    })
+    logger.info(f"Grasp Result: {grasp_result}")
 
 
 def demo_orchestrated_pipeline() -> None:
