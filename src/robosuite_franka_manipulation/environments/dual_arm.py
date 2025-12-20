@@ -1,6 +1,5 @@
 import robosuite as suite
 from robosuite.controllers import load_part_controller_config
-import numpy as np
 from typing import Any
 
 from robosuite_franka_manipulation import constants

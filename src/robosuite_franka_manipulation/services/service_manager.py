@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """
 Service Manager - Central orchestrator for distributed services.
-
-This service manager provides:
-- Service discovery and registration
-- Service lookup and calling
 """
 
 import zmq

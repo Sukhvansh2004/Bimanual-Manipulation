@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 from typing import Optional, List, Dict
 import torch
 import pathlib

@@ -4,11 +4,9 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 """
 
 import numpy as np
-import time
 from copy import deepcopy
 import keyboard
 
-import robosuite as suite
 from robosuite.devices import Keyboard
 
 from robosuite_franka_manipulation import constants

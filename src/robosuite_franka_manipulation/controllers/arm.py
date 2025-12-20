@@ -1,7 +1,6 @@
-import robosuite as suite
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 import time
 
 from robosuite_franka_manipulation import constants

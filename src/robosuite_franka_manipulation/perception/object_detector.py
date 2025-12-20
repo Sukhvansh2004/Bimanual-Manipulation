@@ -1,7 +1,6 @@
 import numpy as np
-from typing import Any, List, Dict, Optional
+from typing import List, Dict, Optional
 import sys
-import pathlib
 import cv2
 from PIL import Image
 

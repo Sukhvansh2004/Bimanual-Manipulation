@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """
 FastSAM Service - Continuous object detection service.
-
-This service provides:
-- Continuous camera feed processing from robosuite environment
-- Real-time FastSAM object detection with configurable prompts
-- Dynamic prompt updates via ZMQ interface
-- Depth camera integration for 3D point cloud generation
 """
 
 import zmq

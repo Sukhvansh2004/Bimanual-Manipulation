@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
 """
 Grasp Service - Grasp prediction service for segmented point clouds.
-
-This service provides:
-- Grasp prediction from 3D point clouds using GraspGen
-- Batch processing of multiple objects
-- Confidence scoring and grasp ranking
-- World frame coordinate transformation
-- ZMQ interface for distributed operation
 """
 
 import zmq
-import json
 import numpy as np
 import threading
 import time
