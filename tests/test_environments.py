@@ -12,6 +12,7 @@ class TestEnvironmentSetup:
     """Test environment creation and basic functionality."""
 
     def test_environment_creation(self):
+        """Test that the environment can be created successfully."""
         env = make_dual_arm_env()
         assert env is not None, "Environment creation failed"
         env.close()
