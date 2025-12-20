@@ -15,7 +15,7 @@ import zmq
 from robosuite_franka_manipulation.services.prompt_service import PromptService
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 
 class TestPromptService:
@@ -241,7 +241,7 @@ class TestEEFService:
     @pytest.fixture(scope="class")
     def env_and_service(self):
         """Fixture to provide environment and running EEFService."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
 
         service = EEFService(env, port=5559)
@@ -256,7 +256,7 @@ class TestEEFService:
 
     def test_eef_service_initialization(self):
         """Test that EEFService can be initialized."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         service = EEFService(env, port=5559)
         assert service is not None
         assert service.port == 5559
@@ -336,7 +336,7 @@ class TestServiceIntegration:
     @pytest.fixture(scope="class")
     def all_services(self):
         """Fixture to provide all services running simultaneously."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
 
         # Start all services

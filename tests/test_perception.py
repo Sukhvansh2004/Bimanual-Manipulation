@@ -7,7 +7,7 @@ Tests object detection, grasp prediction, and perception pipeline.
 import pytest
 import numpy as np
 
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 
 class TestPerception:
@@ -16,7 +16,7 @@ class TestPerception:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for perception tests."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
         yield env
         env.close()

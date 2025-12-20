@@ -9,7 +9,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 
 
@@ -19,7 +19,7 @@ class TestArmControllers:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
         yield env
         env.close()
@@ -93,7 +93,7 @@ class TestGripperControllers:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_handoff_env()
+        env = make_dual_arm_env()
         env.reset()
         yield env
         env.close()
