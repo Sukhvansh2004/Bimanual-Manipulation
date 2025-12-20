@@ -74,10 +74,6 @@ class GraspService:
             except Exception as e:
                 logger.warning(f"Failed to load GraspPredictor for {gripper_type}: {e}")
 
-        # ZMQ context for FastSAM communication
-        self.fastsam_context = zmq.Context()
-        self.fastsam_socket = self.fastsam_context.socket(zmq.REQ)
-
         # Threading
         self.server_thread: Optional[threading.Thread] = None
 
@@ -219,42 +215,24 @@ class GraspService:
 
     def _query_fastsam_service(self) -> Optional[Dict[str, Any]]:
         """
-        Query the FastSAM service for the latest detections.
+        Query the FastSAM service for the latest detections via service manager.
         
         Returns:
             FastSAM response dictionary or None if failed
         """
         try:
-            # Lookup FastSAM service from service manager
-            fastsam_service = self.service_client.lookup('fastsam_service')
-            if not fastsam_service:
-                logger.error("FastSAM service not found in service manager")
-                return None
+            # Query FastSAM service through service manager
+            response = self.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
             
-            fastsam_host = fastsam_service['host']
-            fastsam_port = fastsam_service['port']
-            
-            # Connect to FastSAM service
-            self.fastsam_socket.connect(f"tcp://{fastsam_host}:{fastsam_port}")
-            
-            # Send request
-            request = {'command': 'GET_LATEST_DETECTION'}
-            self.fastsam_socket.send_json(request)
-            
-            # Get response with timeout
-            if self.fastsam_socket.poll(timeout=5000):  # 5 second timeout
-                response = self.fastsam_socket.recv_json()
-                if response.get('status') == 'success':
-                    return response
-                else:
-                    logger.warning(f"FastSAM service error: {response.get('message', 'Unknown error')}")
+            if response.get('status') == 'success':
+                return response
             else:
-                logger.warning("Timeout waiting for FastSAM service response")
+                logger.warning(f"FastSAM service error: {response.get('message', 'Unknown error')}")
+                return None
                 
         except Exception as e:
             logger.error(f"Failed to query FastSAM service: {e}")
-            
-        return None
+            return None
 
     def _server_loop(self) -> None:
         """ZMQ server loop for handling client requests."""
