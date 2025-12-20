@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dual-arm-franka-manipulation"
+name = "robosuite-franka-manipulation"
 version = "0.1.0"
 description = "Dual-arm Franka manipulation with perception and teleoperation"
 readme = "README.md"
