@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """
-FastSAM Service - Continuous object detection service with camera feed visualization.
+FastSAM Service - Continuous object detection service.
 
 This service provides:
 - Continuous camera feed processing from robosuite environment
 - Real-time FastSAM object detection with configurable prompts
-- OpenCV visualization with detection overlays
 - Dynamic prompt updates via ZMQ interface
 - Depth camera integration for 3D point cloud generation
 """
 
 import zmq
-import json
 import numpy as np
 import threading
 import time
-import cv2
 from typing import Dict, Any, List, Optional, Tuple
 import logging
 
+from scipy.spatial.transform import Rotation as R
+
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
-from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 
 # Configure logging
@@ -77,10 +75,24 @@ class FastSAMService:
         self.latest_detections = []
         self.latest_segmented_pointclouds = []
 
+        # Get camera intrinsics
+        if self.camera_name in self.env.camera_names:
+            camera_id = self.env.camera_names.index(self.camera_name)
+            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]
+            camera_width = self.env.camera_widths[camera_id]
+            camera_height = self.env.camera_heights[camera_id]
+        else:
+            logger.warning(f"Camera '{self.camera_name}' not found, using defaults")
+            self.camera_intrinsics = np.array([[615.0, 0, 310.0],[0, 615.0, 236.0],[0, 0, 1]])
+            camera_width = 640
+            camera_height = 480
+
         # Initialize perception components
         self.object_detector = ObjectDetector(
-            env=self.env,
-            default_prompt=self.current_prompt,
+            camera_intrinsics=self.camera_intrinsics,
+            camera_width=camera_width,
+            camera_height=camera_height,
+            prompt=self.current_prompt,
             debug=debug,
             visualize=False  # We handle visualization ourselves
         )
@@ -88,7 +100,6 @@ class FastSAMService:
         # Threading
         self.detection_thread: Optional[threading.Thread] = None
         self.server_thread: Optional[threading.Thread] = None
-        self.visualization_thread: Optional[threading.Thread] = None
 
         # ZMQ setup
         self.context = zmq.Context()
@@ -96,12 +107,6 @@ class FastSAMService:
 
         # Service registration
         self.service_client = ServiceClient(manager_host, manager_port)
-
-        # Visualization
-        self.window_name = "FastSAM Detection Feed"
-        if self.visualize:
-            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(self.window_name, 800, 600)
 
         logger.info(f"FastSAM Service initialized on {host}:{port}")
 
@@ -150,8 +155,13 @@ class FastSAMService:
             List of detection dictionaries with masks, point clouds, etc.
         """
         try:
+            # Get camera pose
+            cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
+            cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
+            cam_rot = R.from_matrix(cam_rot_mat)
+
             # Run object detection
-            detections = self.object_detector.detect_objects_from_image(rgb_image)
+            detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
             # Enhance detections with point clouds if depth is available
             for detection in detections:
@@ -222,50 +232,6 @@ class FastSAMService:
             logger.warning(f"Point cloud extraction failed: {e}")
             return np.array([])
 
-    def _create_visualization_frame(self, rgb_image: np.ndarray,
-                                  detections: List[Dict]) -> np.ndarray:
-        """
-        Create visualization frame with detection overlays.
-
-        Args:
-            rgb_image: Original RGB image
-            detections: List of detection results
-
-        Returns:
-            Image with detection overlays
-        """
-        vis_image = rgb_image.copy()
-
-        for i, detection in enumerate(detections):
-            if 'mask' in detection and 'bbox' in detection:
-                mask = detection['mask']
-                bbox = detection['bbox']
-
-                # Create colored overlay for mask
-                color = np.random.randint(0, 255, 3).tolist()
-                overlay = vis_image.copy()
-                overlay[mask > 0] = color
-
-                # Blend with original image
-                alpha = 0.4
-                vis_image = cv2.addWeighted(vis_image, 1 - alpha, overlay, alpha, 0)
-
-                # Draw bounding box
-                x1, y1, x2, y2 = bbox
-                cv2.rectangle(vis_image, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-
-                # Add label
-                label = f"Obj {i}: {detection.get('class', 'unknown')}"
-                cv2.putText(vis_image, label, (int(x1), int(y1) - 10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-        # Add status text
-        status_text = f"Prompt: '{self.current_prompt}' | Objects: {len(detections)}"
-        cv2.putText(vis_image, status_text, (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
-        return vis_image
-
     def _continuous_detection_loop(self) -> None:
         """Main detection loop that continuously processes camera feed."""
         logger.info("Starting continuous detection loop")
@@ -301,40 +267,6 @@ class FastSAMService:
                 time.sleep(1.0)
 
         logger.info("Detection loop stopped")
-
-    def _visualization_loop(self) -> None:
-        """Visualization loop for displaying detection results."""
-        if not self.visualize:
-            return
-
-        logger.info("Starting visualization loop")
-
-        while self.running:
-            try:
-                if self.latest_rgb_image is not None:
-                    # Create visualization frame
-                    vis_frame = self._create_visualization_frame(
-                        self.latest_rgb_image, self.latest_detections
-                    )
-
-                    # Display
-                    cv2.imshow(self.window_name, vis_frame)
-
-                    # Handle window events
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('q'):
-                        self.running = False
-                        break
-
-                time.sleep(0.033)  # ~30 FPS
-
-            except Exception as e:
-                logger.error(f"Visualization loop error: {e}")
-                time.sleep(1.0)
-
-        if self.visualize:
-            cv2.destroyAllWindows()
-        logger.info("Visualization loop stopped")
 
     def _server_loop(self) -> None:
         """ZMQ server loop for handling client requests."""
@@ -390,41 +322,11 @@ class FastSAMService:
                     'prompt': self.current_prompt
                 }
 
-            elif command == 'GET_DETECTIONS':
+            elif command == 'GET_LATEST_DETECTION':
                 return {
                     'status': 'success',
                     'detections': self.latest_detections,
                     'timestamp': time.time()
-                }
-
-            elif command == 'GET_LATEST_IMAGE':
-                if self.latest_rgb_image is not None:
-                    return {
-                        'status': 'success',
-                        'image_shape': self.latest_rgb_image.shape,
-                        'image_data': self.latest_rgb_image.tolist()
-                    }
-                else:
-                    return {
-                        'status': 'error',
-                        'message': 'No image available'
-                    }
-
-            elif command == 'GET_POINTCLOUDS':
-                return {
-                    'status': 'success',
-                    'pointclouds': [pc.tolist() for pc in self.latest_segmented_pointclouds],
-                    'num_objects': len(self.latest_segmented_pointclouds)
-                }
-
-            elif command == 'GET_STATUS':
-                return {
-                    'status': 'success',
-                    'service': 'FastSAM',
-                    'running': self.running,
-                    'current_prompt': self.current_prompt,
-                    'last_detection_count': len(self.latest_detections),
-                    'visualization_enabled': self.visualize
                 }
 
             else:
@@ -465,12 +367,9 @@ class FastSAMService:
         # Start threads
         self.detection_thread = threading.Thread(target=self._continuous_detection_loop, daemon=True)
         self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-        self.visualization_thread = threading.Thread(target=self._visualization_loop, daemon=True)
 
         self.detection_thread.start()
         self.server_thread.start()
-        if self.visualize:
-            self.visualization_thread.start()
 
         logger.info("FastSAM Service started successfully")
 
@@ -489,18 +388,11 @@ class FastSAMService:
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=2.0)
 
-        if self.visualization_thread and self.visualization_thread.is_alive():
-            self.visualization_thread.join(timeout=2.0)
-
         # Close ZMQ
         if self.socket:
             self.socket.close()
         if self.context:
             self.context.term()
-
-        # Close visualization
-        if self.visualize:
-            cv2.destroyAllWindows()
 
         logger.info("FastSAM Service stopped")
 

@@ -19,13 +19,16 @@ class GraspPredictor:
     """
     Class to predict grasps for objects using GraspGen.
     """
-    def __init__(self, model_path: Optional[str] = None, debug: bool = False, visualize: bool = False) -> None:
+    def __init__(self, gripper_type: str = 'franka_panda', model_path: Optional[str] = None, debug: bool = False, visualize: bool = False) -> None:
         self.debug = debug
         self.visualize = visualize
-        # Load GraspGen config from GraspGenModels
+        self.gripper_type = gripper_type
+        
+        # Load GraspGen config from GraspGenModels based on gripper type
         if model_path is None:
             package_path = pathlib.Path(__file__).parent.parent.parent.parent
-            model_path = package_path / 'deps' / 'GraspGenModels' / 'checkpoints' / 'graspgen_franka_panda.yml'
+            config_name = f'graspgen_{gripper_type}.yml'
+            model_path = package_path / 'deps' / 'GraspGenModels' / 'checkpoints' / config_name
             model_path = str(model_path)
         cfg = load_grasp_cfg(model_path)
         self.sampler = GraspGenSampler(cfg)

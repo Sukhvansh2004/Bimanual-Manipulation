@@ -40,7 +40,6 @@ class GraspService:
                  port: int = 5552,
                  manager_host: str = 'localhost',
                  manager_port: int = 5555,
-                 model_path: Optional[str] = None,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -51,7 +50,6 @@ class GraspService:
             port: Service port
             manager_host: Service manager host
             manager_port: Service manager port
-            model_path: Path to GraspGen model config file
             debug: Enable debug logging
             visualize: Enable grasp visualization
         """
@@ -63,13 +61,27 @@ class GraspService:
         # Service state
         self.running = False
 
-        # Initialize grasp predictor
-        self.grasp_predictor = GraspPredictor(model_path=model_path, debug=debug, visualize=visualize)
+        # Initialize grasp predictors for different gripper types
+        self.grasp_predictors = {}
+        gripper_types = ['franka_panda', 'single_suction_cup_30mm']
+        
+        for gripper_type in gripper_types:
+            try:
+                self.grasp_predictors[gripper_type] = GraspPredictor(
+                    gripper_type=gripper_type, debug=debug, visualize=visualize
+                )
+                logger.info(f"Loaded GraspPredictor for {gripper_type}")
+            except Exception as e:
+                logger.warning(f"Failed to load GraspPredictor for {gripper_type}: {e}")
+
+        # ZMQ context for FastSAM communication
+        self.fastsam_context = zmq.Context()
+        self.fastsam_socket = self.fastsam_context.socket(zmq.REQ)
 
         # Threading
         self.server_thread: Optional[threading.Thread] = None
 
-        # ZMQ setup
+        # ZMQ setup for service
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
 
@@ -150,7 +162,8 @@ class GraspService:
 
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
                                      object_pose: Dict[str, np.ndarray],
-                                     num_grasps: int = 5) -> List[Dict]:
+                                     num_grasps: int = 5,
+                                     gripper_type: str = 'finger') -> List[Dict]:
         """
         Predict grasps for a single point cloud.
 
@@ -158,17 +171,27 @@ class GraspService:
             pointcloud: Nx3 point cloud array
             object_pose: Object pose in world frame
             num_grasps: Number of grasps to predict
+            gripper_type: Type of gripper ('finger' or 'suction')
 
         Returns:
             List of grasp dictionaries
         """
+        # Select predictor based on gripper type
+        if gripper_type == 'suction':
+            predictor = self.grasp_predictors['single_suction_cup_30mm']
+        elif gripper_type == 'finger':
+            predictor = self.grasp_predictors['franka_panda']
+        else:
+            logger.error(f"Unknown gripper type: {gripper_type}")
+            return []
+        
         try:
             if not self._validate_pointcloud(pointcloud):
                 logger.warning("Invalid point cloud provided")
                 return []
 
             # Predict grasps using GraspGen
-            grasps = self.grasp_predictor.predict_grasps(
+            grasps = predictor.predict_grasps(
                 pointcloud=pointcloud,
                 object_pose=object_pose,
                 num_grasps=num_grasps
@@ -193,6 +216,45 @@ class GraspService:
         except Exception as e:
             logger.error(f"Grasp prediction failed: {e}")
             return []
+
+    def _query_fastsam_service(self) -> Optional[Dict[str, Any]]:
+        """
+        Query the FastSAM service for the latest detections.
+        
+        Returns:
+            FastSAM response dictionary or None if failed
+        """
+        try:
+            # Lookup FastSAM service from service manager
+            fastsam_service = self.service_client.lookup('fastsam_service')
+            if not fastsam_service:
+                logger.error("FastSAM service not found in service manager")
+                return None
+            
+            fastsam_host = fastsam_service['host']
+            fastsam_port = fastsam_service['port']
+            
+            # Connect to FastSAM service
+            self.fastsam_socket.connect(f"tcp://{fastsam_host}:{fastsam_port}")
+            
+            # Send request
+            request = {'command': 'GET_LATEST_DETECTION'}
+            self.fastsam_socket.send_json(request)
+            
+            # Get response with timeout
+            if self.fastsam_socket.poll(timeout=5000):  # 5 second timeout
+                response = self.fastsam_socket.recv_json()
+                if response.get('status') == 'success':
+                    return response
+                else:
+                    logger.warning(f"FastSAM service error: {response.get('message', 'Unknown error')}")
+            else:
+                logger.warning("Timeout waiting for FastSAM service response")
+                
+        except Exception as e:
+            logger.error(f"Failed to query FastSAM service: {e}")
+            
+        return None
 
     def _server_loop(self) -> None:
         """ZMQ server loop for handling client requests."""
@@ -233,22 +295,59 @@ class GraspService:
         try:
             command = request.get('command', '').upper()
 
-            if command == 'PREDICT_GRASPS':
+            if command == 'GET_GRASPS':
                 # Extract parameters
-                pointcloud_data = request.get('pointcloud', [])
-                object_pose = request.get('object_pose', {})
+                gripper_type = request.get('gripper_type', 'franka_panda')
                 num_grasps = request.get('num_grasps', 5)
+                
+                # Check if pointcloud and pose are provided
+                pointcloud_data = request.get('pointcloud')
+                object_pose = request.get('object_pose')
+                
+                # If not provided, query FastSAM service
+                if pointcloud_data is None or object_pose is None:
+                    logger.info("No pointcloud/pose provided, querying FastSAM service")
+                    fastsam_data = self._query_fastsam_service()
+                    if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
+                        # Use the first detection
+                        detection = fastsam_data['detections'][0]
+                        pointcloud_data = detection.get('pcd', [])
+                        object_pose = detection.get('pose', {})
+                        logger.info(f"Using detection from FastSAM: {len(pointcloud_data)} points")
+                    else:
+                        return {
+                            'status': 'error',
+                            'message': 'No pointcloud/pose provided and FastSAM service returned no detections'
+                        }
 
                 if not pointcloud_data:
                     return {
                         'status': 'error',
-                        'message': 'No pointcloud data provided'
+                        'message': 'No pointcloud data available'
                     }
 
                 if not object_pose:
                     return {
                         'status': 'error',
-                        'message': 'No object pose provided'
+                        'message': 'No object pose available'
+                    }
+
+                # Check if gripper type is supported
+                if gripper_type not in self.grasp_predictors:
+                    return {
+                        'status': 'error',
+                        'message': f'Unsupported gripper type: {gripper_type}. Supported: {list(self.grasp_predictors.keys())}'
+                    }
+
+                # Map gripper type to simplified type
+                if gripper_type == 'single_suction_cup_30mm':
+                    simplified_type = 'suction'
+                elif gripper_type == 'franka_panda':
+                    simplified_type = 'finger'
+                else:
+                    return {
+                        'status': 'error',
+                        'message': f'Cannot map gripper type {gripper_type} to simplified type'
                     }
 
                 # Convert data
@@ -264,81 +363,17 @@ class GraspService:
                         'message': f'Invalid data format: {e}'
                     }
 
-                # Predict grasps
+                # Predict grasps using the appropriate predictor
                 grasps = self._predict_grasps_for_pointcloud(
-                    pointcloud, object_pose_np, num_grasps
+                    pointcloud, object_pose_np, num_grasps, simplified_type
                 )
 
                 return {
                     'status': 'success',
                     'grasps': grasps,
                     'num_grasps_predicted': len(grasps),
-                    'pointcloud_size': len(pointcloud)
-                }
-
-            elif command == 'PREDICT_BATCH_GRASPS':
-                # Handle batch prediction for multiple objects
-                objects_data = request.get('objects', [])
-                num_grasps = request.get('num_grasps', 5)
-
-                if not objects_data:
-                    return {
-                        'status': 'error',
-                        'message': 'No objects data provided'
-                    }
-
-                batch_results = []
-                total_grasps = 0
-
-                for obj_data in objects_data:
-                    pointcloud_data = obj_data.get('pointcloud', [])
-                    object_pose = obj_data.get('pose', {})
-
-                    if not pointcloud_data or not object_pose:
-                        batch_results.append({
-                            'status': 'error',
-                            'message': 'Missing pointcloud or pose data'
-                        })
-                        continue
-
-                    try:
-                        pointcloud = np.array(pointcloud_data, dtype=np.float32)
-                        object_pose_np = {
-                            'pos': np.array(object_pose['pos']),
-                            'quat': np.array(object_pose['quat'])
-                        }
-
-                        grasps = self._predict_grasps_for_pointcloud(
-                            pointcloud, object_pose_np, num_grasps
-                        )
-
-                        batch_results.append({
-                            'status': 'success',
-                            'grasps': grasps,
-                            'pointcloud_size': len(pointcloud)
-                        })
-
-                        total_grasps += len(grasps)
-
-                    except Exception as e:
-                        batch_results.append({
-                            'status': 'error',
-                            'message': str(e)
-                        })
-
-                return {
-                    'status': 'success',
-                    'batch_results': batch_results,
-                    'total_objects': len(objects_data),
-                    'total_grasps': total_grasps
-                }
-
-            elif command == 'GET_STATUS':
-                return {
-                    'status': 'success',
-                    'service': 'GraspService',
-                    'running': self.running,
-                    'grasp_predictor_loaded': self.grasp_predictor is not None
+                    'pointcloud_size': len(pointcloud),
+                    'gripper_type': gripper_type
                 }
 
             else:

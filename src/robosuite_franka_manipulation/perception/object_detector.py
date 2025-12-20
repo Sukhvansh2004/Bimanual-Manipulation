@@ -1,9 +1,9 @@
 import numpy as np
 from typing import Any, List, Dict, Optional
 import sys
-import os
 import pathlib
 import cv2
+from PIL import Image
 
 # Add GraspGen to path for FastSAM
 package_path = pathlib.Path(__file__).parent.parent.parent.parent  # Up to repo root
@@ -19,42 +19,34 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, env: Any, default_prompt: str = "object", debug: bool = True, visualize: bool = False) -> None:
-        self.env = env
-        self.default_prompt = default_prompt
+    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = 640, camera_height: int = 480,
+                 prompt: str = "object", debug: bool = True, visualize: bool = False) -> None:
+        self.camera_intrinsics = camera_intrinsics
+        self.camera_width = camera_width
+        self.camera_height = camera_height
+        self.prompt = prompt
         self.debug = debug
         self.visualize = visualize
-
-        # Get camera info for agentview
-        self.camera_name = "agentview"
-        if self.camera_name in self.env.camera_names:
-            self.camera_id = self.env.camera_names.index(self.camera_name)
-            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[self.camera_id]
-            self.camera_width = self.env.camera_widths[self.env.camera_names.index(self.camera_name)]
-            self.camera_height = self.env.camera_heights[self.env.camera_names.index(self.camera_name)]
-        else:
-            print(f"Warning: Camera '{self.camera_name}' not found in environment. Perception might fail.")
-            self.camera_id = None
-            self.camera_intrinsics = None
-            self.camera_width = 640  # Default if not found
-            self.camera_height = 480 # Default if not found
 
         # Load FastSAM model from models folder
         package_path = pathlib.Path(__file__).parent.parent.parent.parent
         model_path = package_path / 'models' / 'FastSAM-x.pt'
         self.model = FastSAM(str(model_path))  # Load model
 
+    def set_prompt(self, prompt: str) -> None:
+        """Set the detection prompt."""
+        self.prompt = prompt
 
-
-    def detect_objects(self, rgb_image: Optional[np.ndarray] = None,
-                      depth_image: Optional[np.ndarray] = None) -> List[Dict]:
+    def detect_objects(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray],
+                      camera_pos: np.ndarray, camera_rot: R) -> List[Dict]:
         """
         Detect objects in the scene using FastSAM on camera images.
-        This is called after teleoperating the arm to desired configuration.
 
         Args:
-            rgb_image: RGB image from camera (if None, gets from env)
-            depth_image: Depth image from camera (if None, gets from env)
+            rgb_image: RGB image from camera
+            depth_image: Depth image from camera (optional)
+            camera_pos: Camera position in world frame
+            camera_rot: Camera rotation (scipy Rotation object)
 
         Returns:
             List of detected objects with poses, point clouds, and masks
@@ -65,38 +57,24 @@ class ObjectDetector:
             print("FastSAM model not available")
             return objects
 
-        # Get camera observations if not provided
-        if rgb_image is None or depth_image is None:
-            obs = self.env._get_observations()
-            if rgb_image is None and f'{self.camera_name}_image' in obs:
-                rgb_image = obs[f'{self.camera_name}_image']
-            if depth_image is None and f'{self.camera_name}_depth' in obs:
-                depth_image = obs[f'{self.camera_name}_depth']
-
         if rgb_image is None:
-            print("No RGB image available from specified camera")
+            print("No RGB image available")
             return objects
 
         # Note: depth image may not be available in all environments
         if depth_image is None:
             print("No depth image available - using fallback point cloud generation")
         
-        # Check if intrinsics are available
-        if self.camera_intrinsics is None:
-            print("Camera intrinsics not available - cannot create accurate point cloud")
-            # Fallback to default if no intrinsics are found
-            intrinsics = np.array([[615.0, 0, 310.0],[0, 615.0, 236.0],[0, 0, 1]])
-        else:
-            intrinsics = self.camera_intrinsics
+        # Use provided camera intrinsics
+        intrinsics = self.camera_intrinsics
 
         # Get text prompt
-        text_prompt = self.default_prompt
+        text_prompt = self.prompt
 
         # Run FastSAM with text prompt
         print(f"Running FastSAM with prompt: '{text_prompt}'")
         
         # Convert numpy array to PIL Image for FastSAM
-        from PIL import Image
         pil_image = Image.fromarray(rgb_image)
         results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9)
 
@@ -117,11 +95,6 @@ class ObjectDetector:
         if self.visualize:
             self._visualize_fastsam_results(rgb_image, list(masks), text_prompt)
 
-        # Get camera pose in world frame
-        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
-        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
-        cam_rot = R.from_matrix(cam_rot_mat)
-
         # Process each detected object
         for i, mask in enumerate(masks):
             # Create point cloud from mask and depth in camera frame
@@ -131,7 +104,7 @@ class ObjectDetector:
                 continue
 
             # Transform point cloud to world frame
-            pcd_world_frame = cam_rot.apply(pcd_camera_frame) + cam_pos
+            pcd_world_frame = camera_rot.apply(pcd_camera_frame) + camera_pos
             
             # Estimate pose from point cloud in world frame
             pose = self._estimate_pose_from_point_cloud(pcd_world_frame)
