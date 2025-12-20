@@ -77,14 +77,14 @@ class TestArmControllers:
         current_quat = R.from_matrix(current_ori_mat).as_quat()
 
         # Create a slightly offset target pose
-        target_pos = current_pos + np.array([0.05, 0.05, 0.05])
+        target_pos = current_pos + np.array([0.3, 0.4, 0.2])
         target_quat = current_quat  # Keep same orientation
 
         # Attempt movement
-        success = arm.move_to_pose(target_pos, target_quat, timeout=50)
+        success = arm.move_to_pose(target_pos, target_quat, timeout=200, threshold=0.05)
 
         # Note: Movement may fail due to control tuning, but the method should not crash
-        assert isinstance(success, bool)
+        assert success == True
 
 
 class TestGripperControllers:

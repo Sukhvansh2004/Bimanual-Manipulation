@@ -24,7 +24,7 @@ class RobosuiteArmController:
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
-                                   max_vel: float = 0.05, max_acc: float = 0.02, 
+                                   max_vel: float = 0.5, max_acc: float = 0.1, 
                                    dt: float = 0.02) -> Tuple[np.ndarray, np.ndarray, float]:
         """
         Plan a trapezoidal velocity profile trajectory from start to target pose.
@@ -123,7 +123,7 @@ class RobosuiteArmController:
 
     def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, threshold: float = 0.01, timeout: int = 100, gripper_action: float = 0.0) -> bool:
         """
-        Moves the robot's end-effector to the target position and orientation using simple proportional control.
+        Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
 
         Args:
             target_pos (np.array): Desired 3D position (x, y, z).
@@ -132,23 +132,33 @@ class RobosuiteArmController:
             timeout (int): Maximum number of environment steps to reach the pose.
             gripper_action (float): Gripper action to maintain (-1 closed, 1 open).
         """
-        for i in range(timeout):
+        current_pos = self.robot._hand_pos[self.arm_id]
+        current_ori_mat = self.robot._hand_orn[self.arm_id]
+        current_quat = R.from_matrix(current_ori_mat).as_quat()
+
+        positions, quaternions, total_time = self.plan_trapezoidal_trajectory(
+            current_pos, current_quat, target_pos, target_quat
+        )
+
+        if len(positions) <= 1:
+            return True # Already at target
+
+        for i in range(min(len(positions), timeout)):
+            target_pos_step = positions[i]
+            target_quat_step = quaternions[i]
+
             current_pos = self.robot._hand_pos[self.arm_id]
             current_ori_mat = self.robot._hand_orn[self.arm_id]
             current_quat = R.from_matrix(current_ori_mat).as_quat()
 
-            pos_error = target_pos - current_pos
-            ori_error = R.from_quat(target_quat) * R.from_quat(current_quat).inv()
+            pos_error = target_pos_step - current_pos
+            ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
             ori_error_vec = ori_error.as_rotvec()
-
-            # Check convergence
-            if np.linalg.norm(pos_error) < threshold and np.linalg.norm(ori_error_vec) < threshold:
-                return True
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * 5, -1, 1)  # Position deltas - reduced gain
-            robot_action[3:6] = np.clip(ori_error_vec * 1, -1, 1)  # Orientation deltas - reduced gain
+            robot_action[:3] = np.clip(pos_error * 5, -1, 1)  # Position deltas
+            robot_action[3:6] = np.clip(ori_error_vec * 1, -1, 1)  # Orientation deltas
             robot_action[6] = gripper_action  # Gripper
 
             # Construct full action
@@ -159,5 +169,16 @@ class RobosuiteArmController:
 
             # Step the environment
             self.env.step(full_action)
+
+        final_pos = self.robot._hand_pos[self.arm_id]
+        final_ori_mat = self.robot._hand_orn[self.arm_id]
+        final_quat = R.from_matrix(final_ori_mat).as_quat()
+        pos_error = target_pos - final_pos
+        ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
+        ori_error_vec = ori_error.as_rotvec()
+
+        time.sleep(2)
+        if np.linalg.norm(pos_error) < threshold and np.linalg.norm(ori_error_vec) < threshold:
+            return True
 
         return False
