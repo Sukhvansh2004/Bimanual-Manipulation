@@ -6,6 +6,7 @@ src/robosuite_franka_manipulation.egg-info/SOURCES.txt
 src/robosuite_franka_manipulation.egg-info/dependency_links.txt
 src/robosuite_franka_manipulation.egg-info/requires.txt
 src/robosuite_franka_manipulation.egg-info/top_level.txt
+src/robosuite_franka_manipulation/constants/__init__.py
 src/robosuite_franka_manipulation/controllers/__init__.py
 src/robosuite_franka_manipulation/controllers/arm.py
 src/robosuite_franka_manipulation/controllers/gripper.py

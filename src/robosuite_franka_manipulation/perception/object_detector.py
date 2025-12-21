@@ -120,7 +120,10 @@ class ObjectDetector:
         
         # Convert numpy array to PIL Image for FastSAM
         pil_image = Image.fromarray(rgb_image)
-        results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9, verbose=False)
+        results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, 
+                           conf=constants.FASTSAM_CONF_THRESHOLD, 
+                           iou=constants.FASTSAM_IOU_THRESHOLD, 
+                           verbose=False)
 
         if not results or len(results) == 0:
             logger.debug("No FastSAM results")

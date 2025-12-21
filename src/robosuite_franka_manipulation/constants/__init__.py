@@ -73,6 +73,10 @@ MAX_POINTCLOUD_RANGE = 10.0  # meters
 # Default detection prompt
 DEFAULT_DETECTION_PROMPT = "object"
 
+# FastSAM detection parameters
+FASTSAM_CONF_THRESHOLD = 0.9  # Confidence threshold for detections
+FASTSAM_IOU_THRESHOLD = 0.4   # IoU threshold for NMS
+
 # =============================================================================
 # Grasp Prediction Configuration
 # =============================================================================
