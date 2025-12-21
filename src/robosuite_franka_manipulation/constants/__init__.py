@@ -143,8 +143,17 @@ DEFAULT_USE_CAMERA_OBS = True
 DEFAULT_CONTROLLER_TYPE = 'BASIC'
 DEFAULT_CONTROLLER_NAME = 'OSC_POSE'
 DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
-DEFAULT_INPUT_REF_FRAME = 'base'
+DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
 DEFAULT_INPUT_TYPE = 'delta'
+
+# =============================================================================
+# Coordinate Frame Names
+# =============================================================================
+
+# Standard frame names used throughout the codebase
+WORLD_FRAME = 'world'           # Global world frame (simulation origin)
+BASE_FRAME = 'base'             # Robot base frame (usually same as world in robosuite)
+EEF_FRAME_TEMPLATE = 'robot{robot_id}_{arm}_eef'  # End-effector frame template
 
 # Reward and episode settings
 DEFAULT_REWARD_SHAPING = False

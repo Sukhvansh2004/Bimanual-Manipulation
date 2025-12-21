@@ -12,6 +12,7 @@ import logging
 import time
 from collections import deque
 
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose, Transform
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,6 @@ class TransformManager:
     """
     Central manager for coordinate frame transformations.
     
-    Similar to tf2_ros in ROS, this class:
     - Maintains a tree of static transforms
     - Queries dynamic transforms from the simulation
     - Provides transform_pose() to convert between any two connected frames
@@ -52,8 +52,9 @@ class TransformManager:
         tf_manager.add_static_transform(...)
     """
     
-    # Standard frame names
-    WORLD_FRAME = "world"
+    # Standard frame names (from constants)
+    WORLD_FRAME = constants.WORLD_FRAME
+    DEFAULT_CAMERA_FRAME = constants.DEFAULT_CAMERA_NAME
     
     def __init__(self, env: Any = None, auto_discover: bool = True):
         """
