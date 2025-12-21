@@ -155,24 +155,36 @@ Press any key to continue when visualization windows are active.
 
 ## Point Cloud Processing
 
+Point cloud processing is handled by utilities in `utils/pointcloud.py`:
+
 ### Depth to 3D Projection
 
 ```python
-# Vectorized depth deprojection
-z = depth_values                    # Depth at each pixel
-x = (x_coords - cx) * z / fx        # X coordinate
-y = (y_coords - cy) * z / fy        # Y coordinate
-points_3d = np.column_stack([x, y, z])
+from robosuite_franka_manipulation.utils import deproject_depth_to_point_cloud
+
+# Deproject depth image to 3D points
+pcd = deproject_depth_to_point_cloud(
+    depth,           # HxW depth image (meters)
+    mask,            # Optional binary mask
+    fx, fy, cx, cy,  # Camera intrinsics
+    max_depth=10.0
+)
+```
+
+The deprojection uses standard pinhole camera model:
+```
+Z = depth[y, x]
+X = (x - cx) * Z / fx
+Y = (y - cy) * Z / fy
 ```
 
 ### Frame Transformations
 
 ```python
-# Camera frame to world frame
-pcd_world = camera_rot.apply(pcd_camera) + camera_pos
+from robosuite_franka_manipulation.utils import transform_point_cloud
 
-# World frame to object-local frame
-pcd_local = R.from_quat(pose['quat']).inv().apply(pcd_world - pose['pos'])
+# Camera frame to world frame
+pcd_world = transform_point_cloud(pcd_camera, camera_to_world_matrix)
 ```
 
 ## Integration with Services

@@ -7,9 +7,12 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Dual-Arm Control**: Coordinated manipulation with two Franka Panda robots
 - **Advanced Perception**: FastSAM-based object segmentation with text prompts (GPU-accelerated)
 - **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction
+- **SE(3) Trajectory Planning**: Proper Lie algebra-based trajectory interpolation for smooth robot motion
+- **Transforms Module**: ROS tf/tf2-like coordinate frame management
 - **Microservices Architecture**: Distributed services (FastSAM, Grasp, EEF) with ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
+- **Comprehensive Test Suite**: 96 pytest tests covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
@@ -69,19 +72,31 @@ pip install -e .
 ├── src/robosuite_franka_manipulation/    # Main package
 │   ├── constants/                        # Configuration constants
 │   ├── controllers/                      # Arm and gripper controllers
+│   │   ├── arm.py                       # SE(3) trajectory planning with Lie algebra
+│   │   └── gripper.py                   # Gripper open/close control
 │   ├── environments/                     # Robosuite environment factory
 │   ├── perception/                       # Object detection and grasp prediction
+│   │   ├── object_detector.py           # FastSAM-based detection
+│   │   └── grasp_predictor.py           # GraspGen wrapper
 │   ├── services/                         # Microservices
 │   │   ├── service_manager.py           # Service discovery (port 5555)
 │   │   ├── fastsam_service.py           # FastSAM detection (port 5551)
 │   │   ├── grasp_service.py             # GraspGen prediction (port 5552)
 │   │   └── eef_service.py               # End-effector coordinates (port 5559)
+│   ├── transforms/                       # Coordinate frame management (tf-like)
+│   │   ├── stamped_pose.py              # StampedPose and Transform classes
+│   │   ├── transform_manager.py         # Frame tree and transform lookup
+│   │   └── frame_utils.py               # Helper utilities
+│   ├── utils/                            # Shared utilities
+│   │   ├── se3.py                       # SE(3) Lie algebra utilities
+│   │   ├── pointcloud.py                # Point cloud processing
+│   │   └── serialization.py             # JSON/numpy serialization
 │   └── teleop/                           # Keyboard teleoperation
 ├── scripts/
 │   ├── demos/                            # Demo scripts (go_to_pose, gripper_move)
 │   ├── manipulation/                     # Main manipulation script
 │   └── teleop/                           # Standalone teleoperation
-├── tests/                                # Pytest test suite
+├── tests/                                # Pytest test suite (96 tests)
 ├── docs/                                 # Documentation
 ├── models/                               # Pre-trained models (FastSAM-x.pt)
 └── deps/                                 # Dependencies (GraspGen, GraspGenModels)
@@ -247,6 +262,41 @@ predictor = GraspPredictor(gripper_type='franka_panda')
 grasps = predictor.predict_grasps(object_pcd, object_pose, num_grasps=5)
 ```
 
+### Transforms (tf-like API)
+
+```python
+from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+
+# Create transform manager with environment
+tf_manager = TransformManager(env)
+
+# Create a pose in camera frame
+camera_pose = StampedPose(
+    position=[0.5, 0.0, 0.3],
+    quaternion=[0, 0, 0, 1],  # (x, y, z, w)
+    frame_id="agentview"
+)
+
+# Transform to world frame
+world_pose = tf_manager.transform_pose(camera_pose, "world")
+
+# Get current EEF pose
+eef_pose = tf_manager.get_frame_pose("robot0_right_eef", "world")
+```
+
+### Utilities
+
+```python
+from robosuite_franka_manipulation.utils import (
+    # SE(3) Lie algebra
+    pose_to_SE3, SE3_to_pose, SE3_log, SE3_exp, interpolate_SE3,
+    # Point cloud processing
+    downsample_point_cloud, transform_point_cloud, validate_point_cloud,
+    # Serialization
+    convert_grasps_to_json, convert_detections_to_json,
+)
+```
+
 ### Services
 
 ```python
@@ -264,14 +314,24 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests
+# Run all tests (96 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules
 python -m pytest tests/test_perception.py -v
 python -m pytest tests/test_services.py -v
 python -m pytest tests/test_arm_controllers.py -v
+python -m pytest tests/test_transforms.py -v
+python -m pytest tests/test_trajectory_planning.py -v
+python -m pytest tests/test_grasps.py -v
 ```
+
+## Documentation
+
+- [Microservices Architecture](docs/services.md) - Service APIs and usage
+- [Perception Architecture](docs/perception_architecture.md) - Detection and grasp prediction
+- [Transforms Module](docs/transforms.md) - Coordinate frame management
+- [Utilities Module](docs/utilities.md) - SE(3), point cloud, and serialization utilities
 
 ## License
 

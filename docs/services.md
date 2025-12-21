@@ -11,6 +11,25 @@ The system uses a distributed microservices architecture for robotic perception 
 | Grasp Service | 5552 | 6-DOF grasp prediction |
 | EEF Service | 5559 | End-effector coordinates |
 
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Service Manager (5555)                      │
+│                   Service Discovery & Registry                   │
+└─────────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ FastSAM Service │  │  Grasp Service  │  │   EEF Service   │
+│     (5551)      │  │     (5552)      │  │     (5559)      │
+│                 │  │                 │  │                 │
+│ - Detection     │  │ - GraspGen      │  │ - Robot EEF     │
+│ - Segmentation  │  │ - 6-DOF poses   │  │   coordinates   │
+│ - Point clouds  │  │ - Scoring       │  │ - Both arms     │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
 ## Quick Start
 
 The easiest way to start all services is via the main manipulation script:

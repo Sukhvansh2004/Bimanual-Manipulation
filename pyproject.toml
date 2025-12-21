@@ -32,7 +32,7 @@ dependencies = [
     "scipy>=1.7.0",
     "robosuite>=1.4.0",
     "ultralytics>=8.0.0",  # For FastSAM
-    "keyboard>=0.13.5",
+    "pynput>=1.7.0",  # For keyboard teleoperation
     "torch>=2.1.0",
     "torchvision>=0.16.0",
     "open3d>=0.16.0",
@@ -40,6 +40,8 @@ dependencies = [
     "tqdm>=4.62.0",
     "pyyaml>=6.0",
     "pillow>=9.0.0",
+    "pyzmq>=25.0.0",  # For ZMQ services
+    "opencv-python>=4.5.0",  # For visualization
     "gymnasium",  # For GymWrapper
     "h5py",  # For demonstration utils
     "robosuite-models==1.0.0",  # For extra robosuite_models
@@ -57,6 +59,12 @@ Repository = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP.git"
 Issues = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/issues"
 Changelog = "https://github.com/Sukhvansh2004/Dual-Arm-Franka-Control-MTP/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -65,3 +73,14 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "robosuite_franka_manipulation" = ["*.yaml", "*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+]
