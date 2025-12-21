@@ -15,6 +15,7 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.utils.serialization import convert_detections_to_json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -381,8 +382,8 @@ class FastSAMService:
             }
 
         elif command == 'GET_LATEST_DETECTION':
-            # Convert detections to JSON-serializable format
-            json_detections = self._convert_detections_to_json(self.latest_detections)
+            # Convert detections to JSON-serializable format using utility
+            json_detections = convert_detections_to_json(self.latest_detections)
             return {
                 'status': 'success',
                 'detections': json_detections,
@@ -394,25 +395,6 @@ class FastSAMService:
                 'status': 'error',
                 'message': f'Unknown command: {command}'
             }
-
-    def _convert_detections_to_json(self, detections: List[Dict]) -> List[Dict]:
-        """
-        Convert detection dictionaries to JSON-serializable format.
-        Converts numpy arrays to lists.
-        """
-        json_detections = []
-        for detection in detections:
-            json_det = {}
-            for key, value in detection.items():
-                if isinstance(value, np.ndarray):
-                    json_det[key] = value.tolist()
-                elif isinstance(value, dict):
-                    # Handle nested dicts (like pose)
-                    json_det[key] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in value.items()}
-                else:
-                    json_det[key] = value
-            json_detections.append(json_det)
-        return json_detections
 
     def start(self) -> None:
         """Start the FastSAM service."""

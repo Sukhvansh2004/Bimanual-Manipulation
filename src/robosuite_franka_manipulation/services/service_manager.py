@@ -125,15 +125,16 @@ class ServiceManager:
         logger.info("Stopping Service Manager...")
         self.running = False
 
-        # Wait for thread
+        # Wait for thread to exit first (it will stop when self.running = False)
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2.0)
 
-        # Close ZMQ
-        if self.socket:
-            self.socket.close()
+        # Socket is closed in _server_loop finally block, but close context here
         if self.context:
-            self.context.term()
+            try:
+                self.context.term()
+            except Exception:
+                pass
 
         logger.info("Service Manager stopped")
 
@@ -152,13 +153,18 @@ class ServiceManager:
                         self.socket.send_json(response)
 
                 except zmq.ZMQError as e:
-                    if self.running:
-                        logger.error(f"ZMQ error: {e}")
+                    if e.errno == zmq.ETERM or not self.running:
+                        break
+                    logger.error(f"ZMQ error: {e}")
 
         except Exception as e:
-            logger.error(f"Server loop error: {e}")
+            if self.running:
+                logger.error(f"Server loop error: {e}")
         finally:
-            self.socket.close()
+            try:
+                self.socket.close(linger=0)
+            except Exception:
+                pass
 
         logger.info("Server loop stopped")
 

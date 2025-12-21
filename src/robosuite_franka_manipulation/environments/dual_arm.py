@@ -1,9 +1,13 @@
+import logging
+import numpy as np
+from typing import Any
+
 import robosuite as suite
 from robosuite.controllers import load_part_controller_config
-from typing import Any
-import numpy as np
 
 from robosuite_franka_manipulation import constants
+
+logger = logging.getLogger(__name__)
 
 
 class DualArmEnvironmentWrapper:
@@ -103,7 +107,7 @@ def make_dual_arm_env() -> Any:
 if __name__ == '__main__':
     try:
         env = make_dual_arm_env()
-        print("Dual-arm handoff environment created successfully (headless).")
+        logger.info("Dual-arm handoff environment created successfully (headless).")
 
         # Reset and step through a few times to test
         env.reset()
@@ -113,8 +117,8 @@ if __name__ == '__main__':
             if done:
                 break
             env.render()
-        print(f"Environment stepped for {env.horizon} steps.")
+        logger.info(f"Environment stepped for {env.horizon} steps.")
         env.close()
 
     except Exception as e:
-        print(f"Failed to create or step dual-arm handoff environment: {e}")
+        logger.error(f"Failed to create or step dual-arm handoff environment: {e}")

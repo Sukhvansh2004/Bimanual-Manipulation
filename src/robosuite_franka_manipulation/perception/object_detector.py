@@ -7,6 +7,11 @@ from PIL import Image
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
+from robosuite_franka_manipulation.utils.pointcloud import (
+    estimate_pose_from_point_cloud,
+    transform_point_cloud,
+    deproject_depth_to_point_cloud,
+)
 
 from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
@@ -220,68 +225,17 @@ class ObjectDetector:
 
         fx, fy, cx, cy = self._get_intrinsic_params()
 
-        # Vectorized point cloud extraction (much faster than nested loops)
-        mask_indices = np.where(mask > 0)
-        if len(mask_indices[0]) == 0:
-            return np.array([])
-
-        y_coords, x_coords = mask_indices
-        depth_values = depth[y_coords, x_coords]
-
-        # Filter valid depth values
-        valid_mask = (depth_values > 0) & (depth_values < constants.MAX_POINTCLOUD_RANGE)
-        x_coords = x_coords[valid_mask]
-        y_coords = y_coords[valid_mask]
-        depth_values = depth_values[valid_mask]
-
-        if len(depth_values) == 0:
-            return np.array([])
-
-        # Deproject to 3D
-        z = depth_values
-        x = (x_coords - cx) * z / fx
-        y = (y_coords - cy) * z / fy
-
-        return np.column_stack([x, y, z]).astype(np.float32)
+        # Use utility function for deprojection
+        return deproject_depth_to_point_cloud(
+            depth, mask, fx, fy, cx, cy, 
+            max_depth=constants.MAX_POINTCLOUD_RANGE
+        )
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray) -> Dict:
         """Estimate object pose from point cloud using PCA for orientation."""
-        if len(pcd) == 0:
-            return {'pos': np.array([0, 0, 0]), 'quat': np.array([0, 0, 0, 1])}
-
-        # Centroid
-        centroid = np.mean(pcd, axis=0)
-
-        # Center the point cloud
-        pcd_centered = pcd - centroid
-
-        # Compute covariance matrix
-        cov_matrix = np.cov(pcd_centered.T)
-
-        # Eigenvalue decomposition
-        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-
-        # Sort eigenvectors by eigenvalues (largest first)
-        sort_indices = np.argsort(eigenvalues)[::-1]
-        eigenvectors = eigenvectors[:, sort_indices]
-
-        # Create rotation matrix from eigenvectors
-        # X axis: direction of maximum variance
-        # Y axis: direction of second maximum variance  
-        # Z axis: up direction (minimum variance, assuming objects rest on surfaces)
-        rot_matrix = eigenvectors.copy()
-        
-        # Ensure right-handed coordinate system
-        if np.linalg.det(rot_matrix) < 0:
-            rot_matrix[:, 2] = -rot_matrix[:, 2]
-
-        # Convert to quaternion
-        quat = R.from_matrix(rot_matrix).as_quat()
-
-        return {
-            'pos': centroid,
-            'quat': quat
-        }
+        # Use utility function
+        pos, quat = estimate_pose_from_point_cloud(pcd)
+        return {'pos': pos, 'quat': quat}
 
     def _transform_to_object_frame(self, pcd_world: np.ndarray, object_pose: Dict) -> np.ndarray:
         """
@@ -302,13 +256,8 @@ class ObjectDetector:
             child_frame="object_local"
         ).inverse()  # We want world -> object_local
         
-        # Apply transform using matrix for efficiency
-        transform_matrix = world_to_object.to_matrix()
-        ones = np.ones((len(pcd_world), 1))
-        pcd_homogeneous = np.hstack([pcd_world, ones])
-        pcd_local = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
-        
-        return pcd_local
+        # Use utility function for transformation
+        return transform_point_cloud(pcd_world, world_to_object.to_matrix())
 
     def _visualize_fastsam_results(self, result, rgb_image: np.ndarray) -> None:
         """

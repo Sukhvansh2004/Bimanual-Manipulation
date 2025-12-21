@@ -7,9 +7,12 @@ Provides current end-effector positions and orientations via TCP socket.
 import zmq
 import threading
 import time
+import logging
 from typing import Dict, Any, Optional
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
+
+logger = logging.getLogger(__name__)
 
 class EEFService:
     """
@@ -44,7 +47,7 @@ class EEFService:
     def start(self) -> None:
         """Start the EEF coordinates service."""
         if self.running:
-            print("EEF service already running")
+            logger.warning("EEF service already running")
             return
 
         self.running = True
@@ -58,22 +61,32 @@ class EEFService:
             "End-effector coordinates service"
         )
         if not registration_success:
-            print("Warning: Failed to register EEF service with Service Manager.")
+            logger.warning("Failed to register EEF service with Service Manager.")
 
         self.thread = threading.Thread(target=self._run_server, daemon=True)
         self.thread.start()
-        print(f"EEF service started on tcp://{self.host}:{self.port}")
+        logger.info(f"EEF service started on tcp://{self.host}:{self.port}")
 
     def stop(self) -> None:
         """Stop the EEF coordinates service."""
         self.running = False
+        
+        # Wait for thread to exit first (it will stop when self.running = False)
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=2.0)
+        
+        # Now safe to close socket and context
         if self.socket:
-            self.socket.close()
+            try:
+                self.socket.close(linger=0)
+            except Exception:
+                pass
         if self.context:
-            self.context.term()
-        if self.thread:
-            self.thread.join(timeout=1.0)
-        print("EEF service stopped")
+            try:
+                self.context.term()
+            except Exception:
+                pass
+        logger.info("EEF service stopped")
 
     def get_eef_coordinates(self) -> Dict[str, Any]:
         """
@@ -136,16 +149,23 @@ class EEFService:
         self.socket.bind(f"tcp://{self.host}:{self.port}")
         while self.running:
             try:
-                message = self.socket.recv_json()
-                response = self._handle_request(message)
-                self.socket.send_json(response)
+                # Use poll with timeout to allow checking self.running flag
+                if self.socket.poll(timeout=100):  # 100ms timeout
+                    message = self.socket.recv_json()
+                    response = self._handle_request(message)
+                    self.socket.send_json(response)
             except zmq.ZMQError as e:
-                if e.errno == zmq.ETERM:
+                if e.errno == zmq.ETERM or not self.running:
                     break
-                print(f"ZMQ error in EEF service: {e}")
+                logger.error(f"ZMQ error in EEF service: {e}")
             except Exception as e:
-                print(f"Error in EEF service server: {e}")
-                self.socket.send_json({"success": False, "error": str(e)})
+                if not self.running:
+                    break
+                logger.error(f"Error in EEF service server: {e}")
+                try:
+                    self.socket.send_json({"success": False, "error": str(e)})
+                except Exception:
+                    pass
 
     def _handle_request(self, request: Dict) -> Dict:
         """Handle a client request."""

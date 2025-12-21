@@ -1,12 +1,16 @@
 import numpy as np
+import logging
 from typing import Optional, List, Dict
 import torch
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
+
+logger = logging.getLogger(__name__)
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
+from robosuite_franka_manipulation.utils import downsample_point_cloud
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
@@ -41,8 +45,8 @@ class GraspPredictor:
             List of grasp poses (position, quaternion)
         """
         if self.debug:
-            print(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
-            print(f"Object pose: pos={object_pose['pos']}, quat={object_pose['quat']}")
+            logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
+            logger.debug(f"Object pose: pos={object_pose['pos']}, quat={object_pose['quat']}")
         
         # Validate inputs
         if self.sampler is None:
@@ -91,9 +95,9 @@ class GraspPredictor:
                 # Extract position from translation part of matrix
                 pos = grasps[i][:3, 3].cpu().numpy()
                 
-                # Convert rotation matrix to quaternion
+                # Convert rotation matrix to quaternion using scipy directly
                 rot_matrix = grasps[i][:3, :3].cpu().numpy()
-                quat = self._rotation_matrix_to_quaternion(rot_matrix)
+                quat = R.from_matrix(rot_matrix).as_quat()  # Returns (x, y, z, w)
                 
                 # Create grasp as StampedPose in object-local frame
                 grasp_local = StampedPose(
@@ -113,9 +117,9 @@ class GraspPredictor:
                 })
         
         if self.debug:
-            print(f"GraspGen generated {len(grasp_list)} grasps")
+            logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
             if grasp_list:
-                print(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
+                logger.debug(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
         
         if self.visualize and grasp_list:
             # Pass the original object point cloud (ensure it's numpy)
@@ -147,23 +151,6 @@ class GraspPredictor:
         # Apply transform to get grasp in world frame
         return object_to_world.apply_to_pose(grasp_local)
 
-    def _rotation_matrix_to_quaternion(self, R_matrix: np.ndarray) -> np.ndarray:
-        """
-        Convert rotation matrix to quaternion.
-        
-        Note: GraspGen's matrix_to_quaternion returns (w, x, y, z) format,
-        but scipy expects (x, y, z, w). We use scipy directly for consistency
-        with the rest of the codebase.
-        
-        Args:
-            R_matrix: 3x3 rotation matrix
-            
-        Returns:
-            Quaternion in (x, y, z, w) format (scipy convention)
-        """
-        # Use scipy for consistent quaternion format throughout the codebase
-        return R.from_matrix(R_matrix).as_quat()
-
     def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: Dict):
         """
         Visualize the object point cloud and predicted grasps using Open3D.
@@ -172,7 +159,7 @@ class GraspPredictor:
         if not self.visualize:
             return
 
-        print("Visualizing grasps with Open3D...")
+        logger.info("Visualizing grasps with Open3D...")
 
         # Create an Open3D point cloud from the NumPy array
         o3d_pcd = o3d.geometry.PointCloud()
@@ -221,7 +208,7 @@ class GraspPredictor:
                                           up=[0.0, 0.0, 1.0],         # Z-axis up
                                           zoom=0.8)
 
-        print("Open3D grasp visualization closed.")
+        logger.info("Open3D grasp visualization closed.")
 
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: Dict) -> np.ndarray:
         """
@@ -257,8 +244,8 @@ class GraspPredictor:
         # Remove outliers
         pcd_filtered = self._remove_outliers(pcd_local)
         
-        # Downsample to ~2048 points (GraspGen standard)
-        pcd_downsampled = self._downsample_point_cloud(pcd_filtered, target_points=2048)
+        # Downsample to ~2048 points (GraspGen standard) using utility function
+        pcd_downsampled = downsample_point_cloud(pcd_filtered, target_points=2048, method='random')
         
         return pcd_downsampled
     
@@ -278,12 +265,3 @@ class GraspPredictor:
             filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.1, K=20)
         
         return filtered_pcd.cpu().numpy()
-    
-    def _downsample_point_cloud(self, pcd: np.ndarray, target_points: int = 2048) -> np.ndarray:
-        """Downsample point cloud to target number of points."""
-        if len(pcd) <= target_points:
-            return pcd
-        
-        # Random downsampling
-        indices = np.random.choice(len(pcd), target_points, replace=False)
-        return pcd[indices]

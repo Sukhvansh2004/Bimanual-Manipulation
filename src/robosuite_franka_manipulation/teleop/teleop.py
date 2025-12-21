@@ -4,12 +4,15 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 """
 
 import numpy as np
+import logging
 from copy import deepcopy
 from pynput import keyboard as pynput_keyboard
 
 from robosuite.devices import Keyboard
 
 from robosuite_franka_manipulation import constants
+
+logger = logging.getLogger(__name__)
 
 class KeyboardTeleop:
     """
@@ -47,9 +50,9 @@ class KeyboardTeleop:
     def run(self, env_lock=None):
         """Run teleoperation loop. If env_lock is provided, guard env access with it."""
         self.running = True
-        print("Starting teleoperation with robosuite Keyboard device.")
-        print("Controls: Follow robosuite's keyboard controls.")
-        print("Press 'q' key to exit teleoperation.")
+        logger.info("Starting teleoperation with robosuite Keyboard device.")
+        logger.info("Controls: Follow robosuite's keyboard controls.")
+        logger.info("Press 'q' key to exit teleoperation.")
 
         while self.running:
             if env_lock:
@@ -104,4 +107,4 @@ class KeyboardTeleop:
                     break
 
         self.listener.stop()
-        print("Teleoperation ended.")
+        logger.info("Teleoperation ended.")

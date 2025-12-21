@@ -1,0 +1,77 @@
+"""
+Utilities module for robosuite_franka_manipulation.
+
+This module contains reusable utility functions organized by domain:
+- se3: SE(3) Lie algebra utilities for trajectory planning
+- pointcloud: Point cloud processing utilities
+- serialization: JSON/numpy serialization utilities
+"""
+
+from robosuite_franka_manipulation.utils.se3 import (
+    # Skew-symmetric utilities
+    skew,
+    unskew,
+    # se(3) Lie algebra utilities  
+    se3_to_matrix,
+    matrix_to_se3,
+    # SE(3) Lie group utilities
+    SE3_log,
+    SE3_exp,
+    # Pose conversions
+    pose_to_SE3,
+    SE3_to_pose,
+    # Distance metrics
+    compute_se3_distance,
+    # Interpolation
+    interpolate_SE3,
+)
+
+from robosuite_franka_manipulation.utils.pointcloud import (
+    downsample_point_cloud,
+    estimate_pose_from_point_cloud,
+    transform_point_cloud,
+    compute_point_cloud_bounds,
+    filter_point_cloud_by_range,
+    validate_point_cloud,
+    deproject_depth_to_point_cloud,
+)
+
+from robosuite_franka_manipulation.utils.serialization import (
+    to_json_serializable,
+    from_json_to_numpy,
+    convert_grasps_to_json,
+    convert_detections_to_json,
+    convert_pose_to_json,
+    numpy_to_list,
+    ensure_numpy,
+)
+
+__all__ = [
+    # SE(3) utilities
+    'skew',
+    'unskew',
+    'se3_to_matrix',
+    'matrix_to_se3',
+    'SE3_log',
+    'SE3_exp',
+    'pose_to_SE3',
+    'SE3_to_pose',
+    'compute_se3_distance',
+    'interpolate_SE3',
+    # Point cloud utilities
+    'downsample_point_cloud',
+    'estimate_pose_from_point_cloud',
+    'transform_point_cloud',
+    'compute_point_cloud_bounds',
+    'filter_point_cloud_by_range',
+    'validate_point_cloud',
+    'deproject_depth_to_point_cloud',
+    # Serialization utilities
+    'to_json_serializable',
+    'from_json_to_numpy',
+    'convert_grasps_to_json',
+    'convert_detections_to_json',
+    'convert_pose_to_json',
+    'numpy_to_list',
+    'ensure_numpy',
+]
