@@ -20,10 +20,6 @@ class ObjectDetector:
     def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = None, camera_height: int = None,
                  prompt: str = None, debug: bool = True, visualize: bool = False) -> None:
         # Set defaults if not provided
-        if camera_width is None:
-            camera_width = constants.DEFAULT_CAMERA_WIDTH
-        if camera_height is None:
-            camera_height = constants.DEFAULT_CAMERA_HEIGHT
         if prompt is None:
             prompt = constants.DEFAULT_DETECTION_PROMPT
         self.camera_intrinsics = camera_intrinsics
@@ -38,6 +34,10 @@ class ObjectDetector:
         if str(GRASPGEN_PATH) not in sys.path:
             sys.path.append(str(GRASPGEN_PATH))
 
+        # Elevate logger level if debug enabled
+        if self.debug:
+            logger.setLevel(logging.DEBUG)
+
         # Load FastSAM model from models folder
         model_path = constants.get_project_root() / constants.FASTSAM_MODEL_PATH
         self.model = FastSAM(str(model_path))  # Load model
@@ -46,15 +46,42 @@ class ObjectDetector:
         """Set the detection prompt."""
         self.prompt = prompt
 
-    def _ensure_depth_2d(self, depth_image: Optional[np.ndarray]) -> Optional[np.ndarray]:
-        """Return a 2D depth array or None if the input is unusable."""
+    def _get_intrinsic_params(self) -> tuple:
+        """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
+        if self.camera_intrinsics is None:
+            raise ValueError("Camera intrinsics not available")
+        
+        I = np.asarray(self.camera_intrinsics)
+        
+        # Handle 1D array: [fx, fy, cx, cy]
+        if I.ndim == 1:
+            if I.shape[0] != 4:
+                raise ValueError(f"1D intrinsics array has invalid length {I.shape[0]}, expected 4 [fx, fy, cx, cy]")
+            fx, fy, cx, cy = float(I[0]), float(I[1]), float(I[2]), float(I[3])
+        # Handle 2D matrix: standard 3x3 or 4x4
+        elif I.ndim == 2:
+            if I.shape[0] < 2 or I.shape[1] < 3:
+                raise ValueError(f"Invalid intrinsics matrix shape {I.shape}, expected at least (2, 3)")
+            fx, fy, cx, cy = float(I[0, 0]), float(I[1, 1]), float(I[0, 2]), float(I[1, 2])
+        else:
+            raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
+        
+        if self.debug:
+            logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
+        return fx, fy, cx, cy
+
+    def _ensure_depth_2d(self, depth_image: np.ndarray) -> np.ndarray:
+        """Convert depth array to 2D. Raises error if malformed."""
         if depth_image is None:
-            return None
+            raise ValueError("Depth image is None")
+        
         depth = depth_image
         if depth.ndim == 3 and depth.shape[-1] == 1:
             depth = depth[..., 0]
+        
         if depth.ndim != 2:
-            return None
+            raise ValueError(f"Depth image has invalid shape {depth.shape}, expected 2D")
+        
         return depth
 
     def detect_objects(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray],
@@ -64,37 +91,32 @@ class ObjectDetector:
 
         Args:
             rgb_image: RGB image from camera
-            depth_image: Depth image from camera (optional)
+            depth_image: Depth image from camera (required for point clouds)
             camera_pos: Camera position in world frame
             camera_rot: Camera rotation (scipy Rotation object)
 
         Returns:
             List of detected objects with poses, point clouds, and masks
         """
+        if depth_image is None:
+            raise ValueError("Depth image is required for object detection and point cloud extraction")
+        
         objects = []
 
         if not self.model:
-            print("FastSAM model not available")
+            logger.error("FastSAM model not available")
             return objects
 
         if rgb_image is None:
-            print("No RGB image available")
+            logger.error("No RGB image available")
             return objects
 
-        # Normalize depth
+        # Normalize depth to 2D
         depth_image = self._ensure_depth_2d(depth_image)
-        if depth_image is None and self.debug:
-            logger.debug("No usable depth image - using fallback point cloud generation")
-        
-        # Use provided camera intrinsics
-        intrinsics = self.camera_intrinsics
-
-        # Get text prompt
-        text_prompt = self.prompt
 
         # Run FastSAM with text prompt
         if self.debug:
-            logger.debug(f"Running FastSAM with prompt: '{text_prompt}'")
+            logger.debug(f"Running FastSAM with prompt: '{self.prompt}'")
         
         # Convert numpy array to PIL Image for FastSAM
         pil_image = Image.fromarray(rgb_image)
@@ -112,15 +134,15 @@ class ObjectDetector:
         masks = result.masks.data.cpu().numpy()
         
         if self.debug:
-            logger.debug(f"FastSAM detected {len(masks)} objects with prompt '{text_prompt}'")
+            logger.debug(f"FastSAM detected {len(masks)} objects with prompt '{self.prompt}'")
         
         if self.visualize:
-            self._visualize_fastsam_results(rgb_image, list(masks), text_prompt)
+            self._visualize_fastsam_results(result)
 
         # Process each detected object
         for i, mask in enumerate(masks):
             # Create point cloud from mask and depth in camera frame
-            pcd_camera_frame = self._mask_to_point_cloud(mask, depth_image, rgb_image, intrinsics)
+            pcd_camera_frame = self._mask_to_point_cloud(mask, depth_image)
             
             if pcd_camera_frame.size == 0:
                 continue
@@ -142,21 +164,25 @@ class ObjectDetector:
 
         return objects
 
-    def _mask_to_point_cloud(self, mask: np.ndarray, depth: Optional[np.ndarray],
-                           rgb: Optional[np.ndarray], intrinsics: np.ndarray) -> np.ndarray:
-        """Convert mask to point cloud using depth and camera intrinsics."""
-        depth = self._ensure_depth_2d(depth)
+    def _mask_to_point_cloud(self, mask: np.ndarray, depth: Optional[np.ndarray]) -> np.ndarray:
+        """Convert mask to point cloud using depth and camera intrinsics. Requires valid depth."""
         if depth is None:
-            # Fallback to simple normalized coordinates
-            points = []
-            h, w = mask.shape
-            for y in range(h):
-                for x in range(w):
-                    if mask[y, x] > 0:
-                        points.append([x / w, y / h, 0.5])  # Default depth
-            return np.array(points)
+            raise ValueError("Depth image required for point cloud extraction")
+        
+        # Ensure depth is 2D; reshape flat buffers when dimensions are known
+        depth = np.asarray(depth)
+        if depth.ndim == 1:
+            expected = self.camera_height * self.camera_width
+            if depth.size != expected:
+                raise ValueError(f"Flat depth buffer size {depth.size} != expected {expected}")
+            depth = depth.reshape(self.camera_height, self.camera_width)
 
-        fx, fy, cx, cy = intrinsics[0,0], intrinsics[1,1], intrinsics[0,2], intrinsics[1,2]
+        depth = self._ensure_depth_2d(depth)
+        
+        if self.debug:
+            logger.debug(f"mask_to_point_cloud depth shape={depth.shape}, ndim={depth.ndim}")
+
+        fx, fy, cx, cy = self._get_intrinsic_params()
 
         points = []
         h, w = mask.shape
@@ -236,49 +262,19 @@ class ObjectDetector:
         
         return pcd_local
 
-    def _visualize_fastsam_results(self, rgb_image: np.ndarray, masks: List[np.ndarray], prompt: str) -> Optional[np.ndarray]:
+    def _visualize_fastsam_results(self, result) -> None:
         """
-        Visualize FastSAM detection results using OpenCV for a video feed.
+        Visualize FastSAM detection results using Ultralytics built-in plot function.
 
         Args:
-            rgb_image: Original RGB image.
-            masks: Detected segmentation masks.
-            prompt: The prompt used for detection.
-
-        Returns:
-            The overlaid image (segmented mask on RGB) or None if visualization is disabled.
+            result: FastSAM result object from model inference
         """
-        if not self.visualize:
-            return None
+        if not self.visualize or result is None:
+            return
 
-        overlaid_image = rgb_image.copy()
+        # Use Ultralytics built-in plot function for visualization
+        annotated_image = result.plot()
         
-        # Color map for different objects
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255)] # BGR colors
-        
-        for i, mask in enumerate(masks):
-            color = colors[i % len(colors)]
-            
-            # Create a colored mask overlay
-            mask_rgb = np.zeros_like(overlaid_image)
-            mask_rgb[mask > 0] = color
-            
-            # Blend with original image
-            alpha = 0.5
-            cv2.addWeighted(mask_rgb, alpha, overlaid_image, 1 - alpha, 0, overlaid_image)
-            
-            # Add label
-            y_coords, x_coords = np.where(mask > 0)
-            if len(y_coords) > 0 and len(x_coords) > 0:
-                centroid_y = int(np.mean(y_coords))
-                centroid_x = int(np.mean(x_coords))
-                
-                label = f'Obj {i}'
-                cv2.putText(overlaid_image, label, (centroid_x, centroid_y), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-
-        window_name = f"FastSAM Segmentation: {prompt}"
-        cv2.imshow(window_name, overlaid_image)
-        cv2.waitKey(1) # Refresh window
-
-        return overlaid_image
+        window_name = f"FastSAM Segmentation: {self.prompt}"
+        cv2.imshow(window_name, annotated_image)
+        cv2.waitKey(1)  # Refresh window
