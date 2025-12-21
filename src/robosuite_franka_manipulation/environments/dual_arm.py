@@ -1,12 +1,65 @@
 import robosuite as suite
 from robosuite.controllers import load_part_controller_config
 from typing import Any
+import numpy as np
 
 from robosuite_franka_manipulation import constants
+
+
+class DualArmEnvironmentWrapper:
+    """
+    Wrapper for robosuite dual-arm environment with realistic camera intrinsics.
+    Automatically sets camera intrinsics on creation and after reset.
+    """
+    
+    def __init__(self, env: Any):
+        self._env = env
+        self._set_intrinsics()
+    
+    def _set_intrinsics(self) -> None:
+        """Set realistic camera intrinsics for all cameras."""
+        for i in range(len(self._env.camera_names)):
+            cam_width = self._env.camera_widths[i]
+            cam_height = self._env.camera_heights[i]
+            # Standard pinhole model with focal length = width/2
+            fx = float(cam_width) / 2.0
+            fy = float(cam_height) / 2.0
+            cx = float(cam_width) / 2.0
+            cy = float(cam_height) / 2.0
+            self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
+    
+    def reset(self):
+        """Reset environment and restore intrinsics."""
+        obs = self._env.reset()
+        self._set_intrinsics()
+        return obs
+    
+    def step(self, action):
+        """Step the environment."""
+        return self._env.step(action)
+    
+    def render(self):
+        """Render the environment."""
+        return self._env.render()
+    
+    def close(self):
+        """Close the environment."""
+        return self._env.close()
+    
+    # Delegate attribute access to wrapped environment
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+    
+    def __setattr__(self, name, value):
+        if name == '_env':
+            super().__setattr__(name, value)
+        else:
+            setattr(self._env, name, value)
 
 def make_dual_arm_env() -> Any:
     """
     Creates a robosuite environment configured for a dual-arm Franka handoff task.
+    Automatically sets realistic camera intrinsics.
     """
     # load the OSC_POSE part controller config
     osc_pose_config = load_part_controller_config(default_controller=constants.DEFAULT_CONTROLLER_NAME)
@@ -46,7 +99,9 @@ def make_dual_arm_env() -> Any:
         ignore_done=constants.DEFAULT_IGNORE_DONE,
         reward_shaping=constants.DEFAULT_REWARD_SHAPING,
     )
-    return env
+    
+    # Wrap environment to handle camera intrinsics automatically
+    return DualArmEnvironmentWrapper(env)
 
 if __name__ == '__main__':
     try:
