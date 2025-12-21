@@ -19,13 +19,10 @@ class DualArmEnvironmentWrapper:
     def _set_intrinsics(self) -> None:
         """Set realistic camera intrinsics for all cameras."""
         for i in range(len(self._env.camera_names)):
-            cam_width = self._env.camera_widths[i]
-            cam_height = self._env.camera_heights[i]
-            # Standard pinhole model with focal length = width/2
-            fx = float(cam_width) / 2.0
-            fy = float(cam_height) / 2.0
-            cx = float(cam_width) / 2.0
-            cy = float(cam_height) / 2.0
+            fx = constants.DEFAULT_CAMERA_INTRINSICS[0, 0]
+            fy = constants.DEFAULT_CAMERA_INTRINSICS[1, 1]
+            cx = constants.DEFAULT_CAMERA_INTRINSICS[0, 2]
+            cy = constants.DEFAULT_CAMERA_INTRINSICS[1, 2]
             self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
     
     def reset(self):

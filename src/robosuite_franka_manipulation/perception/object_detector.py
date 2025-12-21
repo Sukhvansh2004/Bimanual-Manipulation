@@ -137,7 +137,7 @@ class ObjectDetector:
             logger.debug(f"FastSAM detected {len(masks)} objects with prompt '{self.prompt}'")
         
         if self.visualize:
-            self._visualize_fastsam_results(result)
+            self._visualize_fastsam_results(result, rgb_image)
 
         # Process each detected object
         for i, mask in enumerate(masks):
@@ -262,19 +262,23 @@ class ObjectDetector:
         
         return pcd_local
 
-    def _visualize_fastsam_results(self, result) -> None:
+    def _visualize_fastsam_results(self, result, rgb_image: np.ndarray) -> None:
         """
         Visualize FastSAM detection results using Ultralytics built-in plot function.
+        Shows both raw camera image and annotated segmentation results.
 
         Args:
             result: FastSAM result object from model inference
+            rgb_image: Original RGB image from camera
         """
         if not self.visualize or result is None:
             return
-
-        # Use Ultralytics built-in plot function for visualization
-        annotated_image = result.plot()
         
-        window_name = f"FastSAM Segmentation: {self.prompt}"
-        cv2.imshow(window_name, annotated_image)
-        cv2.waitKey(1)  # Refresh window
+        # Show raw camera image
+        cv2.imshow(f"Camera View: {self.prompt}", rgb_image)
+        
+        # Show annotated segmentation results
+        annotated_image = result.plot()
+        cv2.imshow(f"FastSAM Segmentation: {self.prompt}", annotated_image)
+        
+        cv2.waitKey(1)  # Refresh windows
