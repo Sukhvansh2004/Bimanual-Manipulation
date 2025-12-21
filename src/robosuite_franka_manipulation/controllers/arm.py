@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional, Union, Dict
 import time
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
 class RobosuiteArmController:
     """
@@ -12,16 +13,25 @@ class RobosuiteArmController:
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
     """
-    def __init__(self, env: Any, arm_id: str = "right", robot_id: int = 0) -> None:
+    def __init__(self, env: Any, arm_id: str = "right", robot_id: int = 0, 
+                 transform_manager: Optional[TransformManager] = None) -> None:
         self.env = env
         self.arm_id = arm_id
         self.robot_id = robot_id
         self.robot = self.env.robots[self.robot_id]
         self.dof = self.robot.dof
+        
+        # Robot base frame name for transforms
+        robot_name = getattr(self.robot, 'name', f'robot{robot_id}')
+        self.base_frame = f"{robot_name}_base"
 
         # Action space: 6 pose + 1 gripper
         self.action_dim_per_robot = 7
         self.total_action_dim = self.env.action_dim
+        
+        # Transform manager for frame conversions
+        # If not provided, create one (will be shared if passed from DualArmController)
+        self.transform_manager = transform_manager or TransformManager(env)
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
@@ -130,25 +140,44 @@ class RobosuiteArmController:
         
         return np.array(positions), np.array(quaternions), total_time
 
-    def move_to_pose(self, target_pos: np.ndarray, target_quat: np.ndarray, 
+    def move_to_pose(self, target_pos: Union[np.ndarray, StampedPose, Dict], 
+                    target_quat: Optional[np.ndarray] = None, 
                     threshold: float = None, 
                     timeout: int = None, 
-                    gripper_action: float = 0.0) -> bool:
+                    gripper_action: float = 0.0,
+                    frame_id: str = None) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
+        
+        If frame_id is provided or target_pos is a StampedPose/dict with frame info,
+        the pose will be transformed to the robot's base frame before execution.
 
         Args:
-            target_pos (np.array): Desired 3D position (x, y, z).
-            target_quat (np.array): Desired quaternion (x, y, z, w) for orientation.
+            target_pos: Desired 3D position (x, y, z), or StampedPose, or dict with 'pos', 'quat', 'frame_id'.
+            target_quat: Desired quaternion (x, y, z, w) for orientation. Ignored if target_pos is StampedPose/dict.
             threshold (float): Position error threshold for convergence.
             timeout (int): Maximum number of environment steps to reach the pose.
             gripper_action (float): Gripper action to maintain (-1 closed, 1 open).
+            frame_id (str): Frame of the target pose. If not robot base frame, will be transformed.
+                           Defaults to robot base frame (no transform needed).
+        
+        Returns:
+            bool: True if pose was reached within threshold, False otherwise.
         """
         # Set defaults if not provided
         if threshold is None:
             threshold = constants.TRAJECTORY_CONVERGENCE_THRESHOLD
         if timeout is None:
             timeout = constants.TRAJECTORY_MAX_TIMEOUT
+        
+        # Handle different input formats
+        target_pos, target_quat, frame_id = self._parse_pose_input(target_pos, target_quat, frame_id)
+        
+        # Transform to robot base frame if needed
+        # Note: In robosuite, world frame and robot base frame are typically coincident,
+        # so we only transform if frame_id is something other than world or base_frame
+        if frame_id is not None and frame_id not in (self.base_frame, constants.WORLD_FRAME):
+            target_pos, target_quat = self._transform_to_base_frame(target_pos, target_quat, frame_id)
         
         current_pos = self.robot._hand_pos[self.arm_id]
         current_ori_mat = self.robot._hand_orn[self.arm_id]
@@ -200,3 +229,56 @@ class RobosuiteArmController:
             return True
 
         return False
+
+    def _parse_pose_input(self, target_pos: Union[np.ndarray, StampedPose, Dict], 
+                          target_quat: Optional[np.ndarray], 
+                          frame_id: Optional[str]) -> Tuple[np.ndarray, np.ndarray, Optional[str]]:
+        """
+        Parse different pose input formats into consistent position, quaternion, frame_id.
+        
+        Args:
+            target_pos: Position array, StampedPose, or dict with pose info
+            target_quat: Quaternion (if target_pos is array)
+            frame_id: Frame ID (if not embedded in target_pos)
+            
+        Returns:
+            Tuple of (position, quaternion, frame_id)
+        """
+        if isinstance(target_pos, StampedPose):
+            return target_pos.position, target_pos.quaternion, target_pos.frame_id
+        
+        if isinstance(target_pos, dict):
+            pos = np.asarray(target_pos['pos'])
+            quat = np.asarray(target_pos['quat'])
+            fid = target_pos.get('frame_id', frame_id)
+            return pos, quat, fid
+        
+        # target_pos is already an array
+        pos = np.asarray(target_pos)
+        quat = np.asarray(target_quat) if target_quat is not None else np.array([0, 0, 0, 1])
+        return pos, quat, frame_id
+
+    def _transform_to_base_frame(self, position: np.ndarray, quaternion: np.ndarray, 
+                                  source_frame: str) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Transform a pose from source_frame to the robot's base frame.
+        
+        Args:
+            position: Position in source_frame
+            quaternion: Quaternion (x, y, z, w) in source_frame
+            source_frame: The frame the pose is currently in
+            
+        Returns:
+            Tuple of (position, quaternion) in robot base frame
+        """
+        # Create StampedPose for the input
+        pose = StampedPose(
+            position=position,
+            quaternion=quaternion,
+            frame_id=source_frame
+        )
+        
+        # Transform to robot base frame
+        transformed = self.transform_manager.transform_pose(pose, self.base_frame)
+        
+        return transformed.position, transformed.quaternion
