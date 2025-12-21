@@ -145,7 +145,7 @@ class DualArmManipulationSystem:
         logger.info("  Arrow keys, .-;, o-p, y-h, e-r - Move robot")
         logger.info("  spacebar                       - Toggle gripper")
         logger.info("  s                              - Switch active arm")
-        logger.info("  a                              - Exit teleoperation")
+        logger.info("  q                              - Exit teleoperation")
         logger.info("\nAvailable Controllers (in interactive shell):")
         logger.info("  system.left_arm                - RobosuiteArmController for left arm")
         logger.info("  system.right_arm               - RobosuiteArmController for right arm")

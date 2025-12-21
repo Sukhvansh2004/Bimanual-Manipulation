@@ -123,6 +123,7 @@ class ObjectDetector:
         results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, 
                            conf=constants.FASTSAM_CONF_THRESHOLD, 
                            iou=constants.FASTSAM_IOU_THRESHOLD, 
+                           texts=self.prompt,
                            verbose=False)
 
         if not results or len(results) == 0:

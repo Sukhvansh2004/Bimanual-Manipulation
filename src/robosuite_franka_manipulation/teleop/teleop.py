@@ -38,7 +38,7 @@ class KeyboardTeleop:
         Callback for keyboard listener to detect exit key.
         """
         try:
-            if hasattr(key, 'char') and key.char == 'a':
+            if hasattr(key, 'char') and key.char == 'q':
                 self.exit_pressed = True
                 self.running = False
         except AttributeError:
@@ -49,7 +49,7 @@ class KeyboardTeleop:
         self.running = True
         print("Starting teleoperation with robosuite Keyboard device.")
         print("Controls: Follow robosuite's keyboard controls.")
-        print("Press 'a' key to exit teleoperation.")
+        print("Press 'q' key to exit teleoperation.")
 
         while self.running:
             if env_lock:

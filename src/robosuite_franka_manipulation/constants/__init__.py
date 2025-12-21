@@ -71,7 +71,7 @@ DEFAULT_CAMERA_INTRINSICS = np.array([
 MAX_POINTCLOUD_RANGE = 10.0  # meters
 
 # Default detection prompt
-DEFAULT_DETECTION_PROMPT = "object"
+DEFAULT_DETECTION_PROMPT = ""
 
 # FastSAM detection parameters
 FASTSAM_CONF_THRESHOLD = 0.9  # Confidence threshold for detections
