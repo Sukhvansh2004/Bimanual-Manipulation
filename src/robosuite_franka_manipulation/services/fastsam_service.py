@@ -221,6 +221,30 @@ class FastSAMService:
 
         return detections
 
+    def _get_intrinsic_params(self) -> Tuple[float, float, float, float]:
+        """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
+        if self.camera_intrinsics is None:
+            raise ValueError("Camera intrinsics not available")
+
+        I = np.asarray(self.camera_intrinsics)
+
+        # Handle 1D array: [fx, fy, cx, cy]
+        if I.ndim == 1:
+            if I.shape[0] != 4:
+                raise ValueError(f"1D intrinsics array has invalid length {I.shape[0]}, expected 4 [fx, fy, cx, cy]")
+            fx, fy, cx, cy = float(I[0]), float(I[1]), float(I[2]), float(I[3])
+        # Handle 2D matrix: standard 3x3 or 4x4
+        elif I.ndim == 2:
+            if I.shape[0] < 2 or I.shape[1] < 3:
+                raise ValueError(f"Invalid intrinsics matrix shape {I.shape}, expected at least (2, 3)")
+            fx, fy, cx, cy = float(I[0, 0]), float(I[1, 1]), float(I[0, 2]), float(I[1, 2])
+        else:
+            raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
+
+        if self.debug:
+            logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
+        return fx, fy, cx, cy
+
     def _extract_pointcloud_from_depth(self, depth_image: np.ndarray,
                                      mask: np.ndarray,
                                      image_shape: Tuple[int, int]) -> np.ndarray:
@@ -249,10 +273,8 @@ class FastSAMService:
         if self.debug:
             logger.debug(f"Pointcloud extraction depth shape={depth.shape}, mask shape={mask.shape}")
 
-        # Get camera intrinsics (simplified pinhole model)
-        height, width = image_shape
-        fx, fy = width / 2, height / 2  # Approximate focal lengths
-        cx, cy = width / 2, height / 2
+        # Get camera intrinsics from environment
+        fx, fy, cx, cy = self._get_intrinsic_params()
 
         # Find masked pixels
         mask_indices = np.where(mask > 0)

@@ -4,6 +4,7 @@ Constants file for robosuite_franka_manipulation package.
 """
 
 import numpy as np
+import torch
 from pathlib import Path
 
 # =============================================================================
@@ -76,6 +77,9 @@ DEFAULT_DETECTION_PROMPT = ""
 # FastSAM detection parameters
 FASTSAM_CONF_THRESHOLD = 0.9  # Confidence threshold for detections
 FASTSAM_IOU_THRESHOLD = 0.4   # IoU threshold for NMS
+
+# Compute device
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # =============================================================================
 # Grasp Prediction Configuration
