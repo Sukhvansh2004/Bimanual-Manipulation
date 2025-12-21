@@ -45,8 +45,8 @@ def eef_service_fixture(request, service_manager):
     return eef_service
 
 
-class TestEnhancedServiceManager:
-    """Test cases for the EnhancedServiceManager."""
+class TestServiceManager:
+    """Test cases for the ServiceManager."""
 
     def test_service_registration_and_lookup(self, service_manager, eef_service_fixture):
         """Test that services can register and be looked up."""
