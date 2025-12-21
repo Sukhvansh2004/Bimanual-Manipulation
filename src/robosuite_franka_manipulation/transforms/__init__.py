@@ -1,5 +1,5 @@
 """
-Transforms Module - Coordinate frame management similar to ROS tf/tf2.
+Transforms Module - Coordinate frame management.
 
 This module provides tools for managing coordinate frames and transforming
 poses between different reference frames in the robosuite simulation.
