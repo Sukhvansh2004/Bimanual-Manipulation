@@ -28,6 +28,9 @@ class ObjectDetector:
         self.prompt = prompt
         self.debug = debug
         self.visualize = visualize
+        
+        # Track visualization window names for cleanup when prompt changes
+        self._current_window_names: List[str] = []
 
         # Add GraspGen to path for FastSAM
         GRASPGEN_PATH = constants.get_project_root() / constants.GRASPGEN_DEPS_DIR
@@ -43,8 +46,20 @@ class ObjectDetector:
         self.model = FastSAM(str(model_path))  # Load model
 
     def set_prompt(self, prompt: str) -> None:
-        """Set the detection prompt."""
+        """Set the detection prompt and close old visualization windows."""
+        if prompt != self.prompt:
+            # Close old visualization windows before changing prompt
+            self._close_visualization_windows()
         self.prompt = prompt
+    
+    def _close_visualization_windows(self) -> None:
+        """Close all tracked visualization windows."""
+        for window_name in self._current_window_names:
+            try:
+                cv2.destroyWindow(window_name)
+            except Exception:
+                pass  # Window may already be closed
+        self._current_window_names = []
 
     def _get_intrinsic_params(self) -> tuple:
         """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
@@ -291,11 +306,21 @@ class ObjectDetector:
         if not self.visualize or result is None:
             return
         
+        # Define window names
+        camera_window = f"Camera View: {self.prompt}"
+        segmentation_window = f"FastSAM Segmentation: {self.prompt}"
+        
+        # Track current window names for cleanup
+        new_window_names = [camera_window, segmentation_window]
+        if self._current_window_names != new_window_names:
+            self._close_visualization_windows()
+            self._current_window_names = new_window_names
+        
         # Show raw camera image
-        cv2.imshow(f"Camera View: {self.prompt}", rgb_image)
+        cv2.imshow(camera_window, rgb_image)
         
         # Show annotated segmentation results
         annotated_image = result.plot()
-        cv2.imshow(f"FastSAM Segmentation: {self.prompt}", annotated_image)
+        cv2.imshow(segmentation_window, annotated_image)
         
         cv2.waitKey(1)  # Refresh windows

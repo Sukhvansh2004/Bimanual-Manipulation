@@ -89,6 +89,30 @@ class GraspService:
 
         logger.info(f"Grasp Service initialized on {host}:{port}")
 
+    def _convert_grasps_to_json(self, grasps: List[Dict]) -> List[Dict]:
+        """
+        Convert grasp dictionaries to JSON-serializable format.
+        Converts numpy arrays to lists.
+        
+        Args:
+            grasps: List of grasp dictionaries with numpy arrays
+            
+        Returns:
+            List of grasp dictionaries with JSON-serializable values
+        """
+        json_grasps = []
+        for grasp in grasps:
+            json_grasp = {}
+            for key, value in grasp.items():
+                if isinstance(value, np.ndarray):
+                    json_grasp[key] = value.tolist()
+                elif hasattr(value, 'item'):  # Handle numpy scalars
+                    json_grasp[key] = value.item()
+                else:
+                    json_grasp[key] = value
+            json_grasps.append(json_grasp)
+        return json_grasps
+
     def _validate_pointcloud(self, pointcloud: np.ndarray) -> bool:
         """
         Validate point cloud data.
@@ -306,9 +330,12 @@ class GraspService:
                     pointcloud, object_pose_np, num_grasps, simplified_type
                 )
 
+                # Convert grasps to JSON-serializable format
+                json_grasps = self._convert_grasps_to_json(grasps)
+
                 return {
                     'status': 'success',
-                    'grasps': grasps,
+                    'grasps': json_grasps,
                     'num_grasps_predicted': len(grasps),
                     'pointcloud_size': len(pointcloud),
                     'gripper_type': gripper_type
