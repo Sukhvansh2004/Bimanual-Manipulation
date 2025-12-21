@@ -1,7 +1,7 @@
 """
 TransformManager - Central class for managing coordinate frame transformations.
 
-Similar to tf2 in ROS, this class maintains a tree of coordinate frames and
+This class maintains a tree of coordinate frames and
 provides methods for transforming poses between frames.
 """
 
@@ -151,16 +151,9 @@ class TransformManager:
                 rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             except (AttributeError, KeyError):
-                # Fallback: try common naming conventions
-                try:
-                    pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                    rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
-                    quat = R.from_matrix(rot_mat).as_quat()
-                except KeyError:
-                    # Last resort: assume identity (but log warning)
-                    logger.warning(f"Could not find base body for robot {robot_idx}, assuming identity transform")
-                    pos = np.zeros(3)
-                    quat = np.array([0, 0, 0, 1])
+                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
                 translation=pos,

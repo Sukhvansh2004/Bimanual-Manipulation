@@ -1,11 +1,11 @@
 import numpy as np
 from typing import Optional, List, Dict
 import torch
-import pathlib
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.constants import get_graspgen_config_path
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
@@ -24,10 +24,7 @@ class GraspPredictor:
         
         # Load GraspGen config from GraspGenModels based on gripper type
         if model_path is None:
-            package_path = pathlib.Path(__file__).parent.parent.parent.parent
-            config_name = f'graspgen_{gripper_type}.yml'
-            model_path = package_path / 'deps' / 'GraspGenModels' / 'checkpoints' / config_name
-            model_path = str(model_path)
+            model_path = str(get_graspgen_config_path(gripper_type))
         cfg = load_grasp_cfg(model_path)
         self.sampler = GraspGenSampler(cfg)
 

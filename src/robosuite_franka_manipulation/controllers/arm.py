@@ -6,6 +6,230 @@ import time
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
+
+# ============================================================================
+# SE(3) Lie Algebra Utilities for Trajectory Planning
+# ============================================================================
+
+def skew(v: np.ndarray) -> np.ndarray:
+    """
+    Create skew-symmetric matrix from 3D vector.
+    
+    For vector v = [v1, v2, v3], returns:
+        [[ 0, -v3,  v2],
+         [ v3,  0, -v1],
+         [-v2,  v1,  0]]
+    """
+    return np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])
+
+
+def unskew(S: np.ndarray) -> np.ndarray:
+    """Extract 3D vector from skew-symmetric matrix."""
+    return np.array([S[2, 1], S[0, 2], S[1, 0]])
+
+
+def se3_to_matrix(twist: np.ndarray) -> np.ndarray:
+    """
+    Convert 6D twist vector to 4x4 se(3) matrix.
+    
+    Twist format: [omega (3), v (3)] where omega is angular velocity
+    and v is linear velocity.
+    
+    Returns:
+        4x4 matrix: [[skew(omega), v],
+                     [0, 0, 0,     0]]
+    """
+    omega = twist[:3]
+    v = twist[3:]
+    mat = np.zeros((4, 4))
+    mat[:3, :3] = skew(omega)
+    mat[:3, 3] = v
+    return mat
+
+
+def matrix_to_se3(mat: np.ndarray) -> np.ndarray:
+    """Convert 4x4 se(3) matrix to 6D twist vector."""
+    omega = unskew(mat[:3, :3])
+    v = mat[:3, 3]
+    return np.concatenate([omega, v])
+
+
+def SE3_log(T: np.ndarray) -> np.ndarray:
+    """
+    Compute the matrix logarithm of an SE(3) transformation matrix.
+    
+    Maps SE(3) -> se(3) (Lie group to Lie algebra).
+    Uses closed-form solution for numerical stability.
+    
+    Args:
+        T: 4x4 homogeneous transformation matrix
+        
+    Returns:
+        6D twist vector [omega, v] in se(3)
+    """
+    R_mat = T[:3, :3]
+    p = T[:3, 3]
+    
+    # Compute rotation angle
+    cos_theta = (np.trace(R_mat) - 1) / 2
+    cos_theta = np.clip(cos_theta, -1, 1)
+    theta = np.arccos(cos_theta)
+    
+    if theta < 1e-8:
+        # Near identity: use first-order approximation
+        omega = np.zeros(3)
+        v = p
+    elif np.abs(theta - np.pi) < 1e-8:
+        # Near 180 degrees: special handling
+        # Find axis from diagonal elements
+        diag = np.diag(R_mat)
+        idx = np.argmax(diag)
+        axis = np.zeros(3)
+        axis[idx] = 1.0
+        
+        # Reconstruct axis more carefully
+        r_vec = np.sqrt((diag + 1) / 2)
+        r_vec[idx] = np.sqrt((diag[idx] + 1) / 2)
+        
+        # Determine signs from off-diagonal elements
+        if idx == 0:
+            r_vec[1] = np.sign(R_mat[0, 1]) * r_vec[1] if R_mat[0, 1] != 0 else r_vec[1]
+            r_vec[2] = np.sign(R_mat[0, 2]) * r_vec[2] if R_mat[0, 2] != 0 else r_vec[2]
+        elif idx == 1:
+            r_vec[0] = np.sign(R_mat[0, 1]) * r_vec[0] if R_mat[0, 1] != 0 else r_vec[0]
+            r_vec[2] = np.sign(R_mat[1, 2]) * r_vec[2] if R_mat[1, 2] != 0 else r_vec[2]
+        else:
+            r_vec[0] = np.sign(R_mat[0, 2]) * r_vec[0] if R_mat[0, 2] != 0 else r_vec[0]
+            r_vec[1] = np.sign(R_mat[1, 2]) * r_vec[1] if R_mat[1, 2] != 0 else r_vec[1]
+        
+        omega = theta * r_vec / (np.linalg.norm(r_vec) + 1e-10)
+        
+        # V_inv for theta = pi
+        omega_hat = skew(omega)
+        omega_norm = np.linalg.norm(omega)
+        if omega_norm > 1e-10:
+            V_inv = np.eye(3) - 0.5 * omega_hat + (1 / omega_norm**2) * (1 - omega_norm * np.sin(omega_norm) / (2 * (1 - np.cos(omega_norm)))) * omega_hat @ omega_hat
+        else:
+            V_inv = np.eye(3)
+        v = V_inv @ p
+    else:
+        # General case
+        omega_hat = (theta / (2 * np.sin(theta))) * (R_mat - R_mat.T)
+        omega = unskew(omega_hat)
+        
+        # Compute V_inv analytically
+        omega_norm = np.linalg.norm(omega)
+        omega_hat_normalized = omega_hat / (omega_norm + 1e-10)
+        V_inv = np.eye(3) - 0.5 * omega_hat + (1 / theta**2) * (1 - theta * np.sin(theta) / (2 * (1 - np.cos(theta)))) * omega_hat @ omega_hat
+        v = V_inv @ p
+    
+    return np.concatenate([omega, v])
+
+
+def SE3_exp(twist: np.ndarray) -> np.ndarray:
+    """
+    Compute the matrix exponential of an se(3) twist vector.
+    
+    Maps se(3) -> SE(3) (Lie algebra to Lie group).
+    Uses closed-form Rodriguez formula.
+    
+    Args:
+        twist: 6D vector [omega, v] in se(3)
+        
+    Returns:
+        4x4 homogeneous transformation matrix in SE(3)
+    """
+    omega = twist[:3]
+    v = twist[3:]
+    theta = np.linalg.norm(omega)
+    
+    T = np.eye(4)
+    
+    if theta < 1e-8:
+        # Near zero rotation: use first-order approximation
+        T[:3, :3] = np.eye(3) + skew(omega)
+        T[:3, 3] = v
+    else:
+        # Rodriguez formula for rotation
+        omega_hat = skew(omega)
+        omega_hat_normalized = omega_hat / theta
+        
+        R_mat = np.eye(3) + np.sin(theta) * omega_hat_normalized + (1 - np.cos(theta)) * omega_hat_normalized @ omega_hat_normalized
+        
+        # V matrix for translation
+        V = np.eye(3) + ((1 - np.cos(theta)) / theta**2) * omega_hat + ((theta - np.sin(theta)) / theta**3) * omega_hat @ omega_hat
+        
+        T[:3, :3] = R_mat
+        T[:3, 3] = V @ v
+    
+    return T
+
+
+def pose_to_SE3(pos: np.ndarray, quat: np.ndarray) -> np.ndarray:
+    """
+    Convert position and quaternion to SE(3) matrix.
+    
+    Args:
+        pos: 3D position [x, y, z]
+        quat: Quaternion [x, y, z, w] (scipy convention)
+        
+    Returns:
+        4x4 homogeneous transformation matrix
+    """
+    T = np.eye(4)
+    T[:3, :3] = R.from_quat(quat).as_matrix()
+    T[:3, 3] = pos
+    return T
+
+
+def SE3_to_pose(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Convert SE(3) matrix to position and quaternion.
+    
+    Args:
+        T: 4x4 homogeneous transformation matrix
+        
+    Returns:
+        (position, quaternion) where quaternion is [x, y, z, w]
+    """
+    pos = T[:3, 3]
+    quat = R.from_matrix(T[:3, :3]).as_quat()
+    return pos, quat
+
+
+def compute_se3_distance(twist: np.ndarray, translation_weight: float = 1.0, 
+                         rotation_weight: float = 1.0) -> float:
+    """
+    Compute a weighted distance metric from an se(3) twist.
+    
+    This gives a measure of "how far" the transformation is,
+    combining rotation and translation appropriately.
+    
+    Args:
+        twist: 6D twist [omega, v]
+        translation_weight: Weight for translation component
+        rotation_weight: Weight for rotation component
+        
+    Returns:
+        Weighted distance metric
+    """
+    omega = twist[:3]
+    v = twist[3:]
+    
+    rot_dist = np.linalg.norm(omega)  # Rotation angle
+    trans_dist = np.linalg.norm(v)
+    
+    return translation_weight * trans_dist + rotation_weight * rot_dist
+
+
+# ============================================================================
+# Arm Controller Class
+# ============================================================================
+
 class RobosuiteArmController:
     """
     A robosuite-equivalent ArmController.
@@ -38,21 +262,29 @@ class RobosuiteArmController:
                                    max_vel: float = None, max_acc: float = None, 
                                    dt: float = None) -> Tuple[np.ndarray, np.ndarray, float]:
         """
-        Plan a trapezoidal velocity profile trajectory from start to target pose.
+        Plan a trapezoidal velocity profile trajectory from start to target pose in SE(3) space.
+        
+        Uses Lie algebra se(3) for proper coupled rotation-translation interpolation.
+        This ensures smooth geodesic motion on the SE(3) manifold.
+        
+        The trajectory is computed as:
+            T(s) = T_start @ exp(s * log(T_start^-1 @ T_target))
+        
+        where s follows a trapezoidal velocity profile from 0 to 1.
         
         Args:
-            start_pos: Starting position
-            start_quat: Starting quaternion
-            target_pos: Target position
-            target_quat: Target quaternion
-            max_vel: Maximum velocity (m/s)
+            start_pos: Starting position [x, y, z]
+            start_quat: Starting quaternion [x, y, z, w]
+            target_pos: Target position [x, y, z]
+            target_quat: Target quaternion [x, y, z, w]
+            max_vel: Maximum velocity (m/s) - controls linear component
             max_acc: Maximum acceleration (m/s²)
-            dt: Time step
+            dt: Time step (s)
             
         Returns:
             positions: Array of positions over time (N, 3)
             quaternions: Array of quaternions over time (N, 4)
-            total_time: Total trajectory time
+            total_time: Total trajectory time (s)
         """
         # Set defaults if not provided
         if max_vel is None:
@@ -62,81 +294,97 @@ class RobosuiteArmController:
         if dt is None:
             dt = constants.DEFAULT_TIME_STEP
         
-        # Calculate position distance
-        pos_distance = np.linalg.norm(target_pos - start_pos)
+        # Convert to SE(3) matrices
+        T_start = pose_to_SE3(start_pos, start_quat)
+        T_target = pose_to_SE3(target_pos, target_quat)
         
-        if pos_distance < constants.TRAJECTORY_MIN_DISTANCE:
-            # No movement needed
+        # Compute relative transformation in the tangent space (Lie algebra)
+        # T_rel = T_start^-1 @ T_target, so T_target = T_start @ T_rel
+        T_start_inv = np.eye(4)
+        T_start_inv[:3, :3] = T_start[:3, :3].T
+        T_start_inv[:3, 3] = -T_start[:3, :3].T @ T_start[:3, 3]
+        
+        T_rel = T_start_inv @ T_target
+        
+        # Map to Lie algebra se(3) - this is the "velocity" that takes us from start to target
+        twist = SE3_log(T_rel)
+        
+        # Compute distance metrics for timing
+        # Use translation component for velocity limiting, rotation for additional time if needed
+        omega = twist[:3]  # Rotation vector
+        v = twist[3:]      # Translation vector (in body frame)
+        
+        # Check if movement is needed
+        total_se3_distance = compute_se3_distance(
+            twist, 
+            translation_weight=1.0, 
+            rotation_weight=constants.TRAJECTORY_ORIENTATION_SCALING
+        )
+        
+        if total_se3_distance < constants.TRAJECTORY_MIN_DISTANCE:
             return np.array([target_pos]), np.array([target_quat]), 0.0
         
-        # Calculate orientation distance (angle in radians)
-        ori_diff = R.from_quat(target_quat) * R.from_quat(start_quat).inv()
-        ori_distance = np.linalg.norm(ori_diff.as_rotvec())
+        # Use weighted se(3) distance for velocity timing
+        # This properly accounts for coupled rotation-translation motion
+        effective_distance = total_se3_distance
         
-        # Use position distance for timing, add orientation as a fraction
-        total_distance = pos_distance + ori_distance * constants.TRAJECTORY_ORIENTATION_SCALING
-        
-        # Calculate trapezoidal profile timing with more reasonable parameters
-        # Phase 1: Acceleration
+        # Compute trapezoidal profile timing
+        # Phase 1: Acceleration from 0 to max_vel
         t_acc = max_vel / max_acc
         d_acc = 0.5 * max_acc * t_acc**2
         
-        # Phase 3: Deceleration  
+        # Phase 3: Deceleration from max_vel to 0
         t_dec = t_acc
         d_dec = d_acc
         
         # Phase 2: Constant velocity
-        d_const = total_distance - d_acc - d_dec
+        d_const = effective_distance - d_acc - d_dec
+        
         if d_const > 0:
+            # Full trapezoidal profile
             t_const = d_const / max_vel
         else:
-            # Triangle profile
-            t_acc = np.sqrt(total_distance / max_acc)
+            # Triangle profile (distance too short for constant velocity phase)
+            t_acc = np.sqrt(effective_distance / max_acc)
             t_const = 0
             t_dec = t_acc
+            d_acc = 0.5 * effective_distance
+            d_dec = d_acc
+            d_const = 0
         
         total_time = t_acc + t_const + t_dec
-        n_steps = max(constants.TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))  # At least 2 steps
+        n_steps = max(constants.TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))
         
-        # Generate trajectory
+        # Generate trajectory waypoints
         positions = []
         quaternions = []
         
         for i in range(n_steps + 1):
-            t = i * dt
+            t = i * total_time / n_steps if n_steps > 0 else 0
             
-            # Calculate position along trapezoid
+            # Compute position along trapezoid (distance traveled at time t)
             if t <= t_acc:
                 # Acceleration phase
-                s = 0.5 * max_acc * t**2
+                d = 0.5 * max_acc * t**2
             elif t <= t_acc + t_const:
                 # Constant velocity phase
-                s = d_acc + max_vel * (t - t_acc)
+                d = d_acc + max_vel * (t - t_acc)
             else:
                 # Deceleration phase
-                t_dec_elapsed = t - (t_acc + t_const)
-                s = d_acc + d_const + max_vel * t_dec_elapsed - 0.5 * max_acc * t_dec_elapsed**2
+                t_in_dec = t - (t_acc + t_const)
+                d = d_acc + d_const + max_vel * t_in_dec - 0.5 * max_acc * t_in_dec**2
             
-            # Clamp to [0, total_distance]
-            s = np.clip(s, 0, total_distance)
+            # Normalize to [0, 1] interpolation parameter
+            s = np.clip(d / effective_distance, 0, 1) if effective_distance > 0 else 1.0
             
-            # Interpolate position
-            if pos_distance > 0:
-                pos_interp = start_pos + (target_pos - start_pos) * (s / total_distance)
-            else:
-                pos_interp = target_pos
+            # Interpolate in SE(3) using the exponential map
+            # T(s) = T_start @ exp(s * twist)
+            T_interp = T_start @ SE3_exp(s * twist)
             
-            # Interpolate orientation (using rotation vector interpolation)
-            if ori_distance > 0:
-                start_rotvec = R.from_quat(start_quat).as_rotvec()
-                target_rotvec = R.from_quat(target_quat).as_rotvec()
-                rotvec_interp = start_rotvec + (target_rotvec - start_rotvec) * (s / total_distance)
-                quat_interp = R.from_rotvec(rotvec_interp).as_quat()
-            else:
-                quat_interp = target_quat
-            
-            positions.append(pos_interp)
-            quaternions.append(quat_interp)
+            # Extract position and quaternion
+            pos, quat = SE3_to_pose(T_interp)
+            positions.append(pos)
+            quaternions.append(quat)
         
         return np.array(positions), np.array(quaternions), total_time
 
