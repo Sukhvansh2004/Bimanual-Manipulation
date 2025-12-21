@@ -373,7 +373,16 @@ Press Ctrl+D or type exit() to quit
 
         def shell_thread():
             try:
-                code.interact(banner=banner, local=locals())
+                # Create namespace with system objects and helper functions
+                namespace = {
+                    'client': client,
+                    'system': system,
+                    'detect': detect,
+                    'get_grasps': get_grasps,
+                    'get_eef': get_eef,
+                    'set_prompt': set_prompt,
+                }
+                code.interact(banner=banner, local=namespace)
             except SystemExit:
                 pass
 
