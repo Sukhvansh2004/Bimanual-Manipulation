@@ -1,118 +1,224 @@
-# Perception Pipeline Architecture
+# Perception Architecture
 
-This document explains the perception pipeline architecture used in the Dual-Arm Franka Manipulation system.
+The perception system provides real-time object detection, segmentation, and 3D point cloud extraction for robotic manipulation.
 
 ## Overview
 
-The perception system follows a modular microservices architecture with the following components:
-
-1. **Object Detection** (FastSAM) - Segments objects from RGB images
-2. **Point Cloud Generation** - Creates 3D point clouds from depth images
-3. **Grasp Prediction** (GraspGen) - Predicts 6-DOF grasps from point clouds
-
-## Architecture Flow
-
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Teleoperation │───▶│  ObjectDetector  │───▶│ GraspPredictor  │
-│   (User/Auto)   │    │   (FastSAM)      │    │   (GraspGen)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Camera Images │    │   Point Clouds   │    │   6-DOF Grasps  │
-│   (RGB + Depth) │    │   (Filtered)     │    │   (Scored)      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  RGB-D Camera   │────▶│  FastSAM Service │────▶│  Grasp Service  │
+│  (Robosuite)    │     │  (Detection)     │     │  (GraspGen)     │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+        │                        │                       │
+        ▼                        ▼                       ▼
+   RGB + Depth            Masks + Point           6-DOF Grasp
+     Images               Clouds + Poses             Poses
 ```
 
-## Component Details
+## Components
 
-### 1. ObjectDetector (FastSAM Integration)
+### ObjectDetector
 
-**Location**: `src/robosuite_franka_manipulation/perception/object_detector.py`
+The `ObjectDetector` class handles FastSAM inference and point cloud extraction.
 
-**Functionality**:
-- Loads FastSAM model from `models/FastSAM-x.pt`
-- Uses default text prompt "object" (configurable)
-- Runs FastSAM inference on RGB images
-- Extracts segmentation masks
-- Converts masks to 3D point clouds using depth images
-- Calls local GraspGen predictor for grasp generation
-
-**Key Methods**:
-- `detect_objects()` - Main detection pipeline
-- `_mask_to_point_cloud()` - Depth-based point cloud generation
-- `_predict_grasps()` - Local grasp prediction using GraspGen
-
-### 2. GraspPredictor (GraspGen Integration)
-
-**Location**: `src/robosuite_franka_manipulation/perception/grasp_predictor.py`
-
-**Functionality**:
-- Loads GraspGen models from `deps/GraspGenModels/`
-- Processes point clouds for grasp prediction
-- Filters grasps for collision avoidance
-- Returns scored 6-DOF grasp poses
-
-### 3. Microservices
-
-#### Prompt Service (Port 5557)
-- **Protocol**: TCP socket
-- **Commands**:
-  - `SET: <prompt>` - Set detection prompt (e.g., "SET: red cube")
-  - `GET` - Retrieve current prompt
-- **Fallback**: Returns "object" if service unavailable
-
-#### Grasp Prediction Service (Port 5558)
-- **Protocol**: ZMQ REQ/REP
-- **Input**: JSON with point cloud, object pose, grasp parameters
-- **Output**: JSON with grasp poses and confidence scores
-
-## Usage Examples
-
-### Basic Pipeline Usage
 ```python
 from robosuite_franka_manipulation.perception import ObjectDetector
 
-# Setup
-detector = ObjectDetector(env)
+detector = ObjectDetector(
+    camera_intrinsics=intrinsics,  # [fx, fy, cx, cy] or 3x3 matrix
+    camera_width=640,
+    camera_height=480,
+    prompt="object",
+    debug=True,
+    visualize=True
+)
 
-# Detect objects
-objects = detector.detect_objects()
-
-# Each object contains: pose, point_cloud, mask, grasps
-for obj in objects:
-    print(f"Found object with {len(obj['grasps'])} grasp predictions")
+# Run detection
+detections = detector.detect_objects(
+    rgb_image,       # HxWx3 uint8 array
+    depth_image,     # HxW float32 array (meters)
+    camera_pos,      # [x, y, z] camera position
+    camera_rot       # scipy.spatial.transform.Rotation
+)
 ```
 
-## Configuration
+#### Detection Pipeline
 
-### FastSAM Parameters
-- Model: `FastSAM-x.pt`
-- Confidence threshold: 0.4
-- IoU threshold: 0.9
-- Image size: 1024x1024
+1. **FastSAM Inference**: Runs on GPU (if available) with text prompt
+2. **Mask Extraction**: Gets binary masks for each detected object
+3. **Point Cloud Extraction**: Vectorized depth deprojection using camera intrinsics
+4. **Pose Estimation**: PCA-based 6-DOF pose from point cloud
+5. **Visualization**: Optional OpenCV windows showing results
 
-### GraspGen Parameters
-- Number of grasps: 10 (default)
-- Grasp threshold: Model-dependent
-- Collision checking: Enabled
-- Gripper type: Franka Panda
+#### Output Format
 
-### Camera Parameters
-- Default intrinsics: fx=615, fy=615, cx=310, cy=236
-- Depth scale: Automatic from sensor
+```python
+detection = {
+    'name': 'object_0',
+    'pose': {
+        'pos': np.array([x, y, z]),      # World frame position
+        'quat': np.array([qx, qy, qz, qw])  # Quaternion orientation
+    },
+    'pcd': np.array([[x1,y1,z1], ...]),   # World frame point cloud
+    'pcd_local': np.array([[...], ...]),  # Object-local point cloud
+    'mask': np.array([[0,1,...], ...]),   # Binary segmentation mask
+    'id': 0
+}
+```
+
+### GraspPredictor
+
+The `GraspPredictor` class wraps GraspGen for 6-DOF grasp prediction.
+
+```python
+from robosuite_franka_manipulation.perception import GraspPredictor
+
+predictor = GraspPredictor(
+    gripper_type='franka_panda',  # or 'single_suction_cup_30mm'
+    debug=True,
+    visualize=True
+)
+
+# Predict grasps
+grasps = predictor.predict_grasps(
+    object_pcd=point_cloud,    # Nx3 array
+    object_pose=pose_dict,     # {'pos': [...], 'quat': [...]}
+    num_grasps=5
+)
+```
+
+#### Grasp Output Format
+
+```python
+grasp = {
+    'pos': np.array([x, y, z]),         # Grasp position in world frame
+    'quat': np.array([qx, qy, qz, qw]), # Grasp orientation
+    'score': 0.95                        # Confidence score [0, 1]
+}
+```
+
+## Camera Intrinsics
+
+The system supports two intrinsics formats:
+
+### 1D Array Format (Robosuite default)
+```python
+intrinsics = [fx, fy, cx, cy]  # e.g., [320, 320, 320, 240]
+```
+
+### 3x3 Matrix Format
+```python
+intrinsics = np.array([
+    [fx,  0, cx],
+    [ 0, fy, cy],
+    [ 0,  0,  1]
+])
+```
+
+The `DualArmEnvironmentWrapper` automatically sets realistic intrinsics:
+- `fx = width / 2`
+- `fy = height / 2`
+- `cx = width / 2`
+- `cy = height / 2`
+
+## GPU Acceleration
+
+The system automatically uses CUDA if available:
+
+```python
+from robosuite_franka_manipulation import constants
+
+print(constants.DEVICE)  # 'cuda' or 'cpu'
+```
+
+FastSAM and GraspGen both run on the detected device.
+
+## Detection Parameters
+
+Key parameters in `constants/__init__.py`:
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `FASTSAM_CONF_THRESHOLD` | 0.9 | Minimum detection confidence |
+| `FASTSAM_IOU_THRESHOLD` | 0.4 | NMS IoU threshold |
+| `MAX_POINTCLOUD_RANGE` | 10.0 | Maximum depth for valid points (m) |
+| `DEFAULT_DETECTION_PROMPT` | "" | Empty string detects all objects |
+
+## Visualization
+
+When `visualize=True`, the system shows:
+
+1. **Raw Camera View**: Unprocessed RGB image
+2. **FastSAM Segmentation**: Annotated image with masks, bounding boxes, and confidence scores
+
+Press any key to continue when visualization windows are active.
+
+## Point Cloud Processing
+
+### Depth to 3D Projection
+
+```python
+# Vectorized depth deprojection
+z = depth_values                    # Depth at each pixel
+x = (x_coords - cx) * z / fx        # X coordinate
+y = (y_coords - cy) * z / fy        # Y coordinate
+points_3d = np.column_stack([x, y, z])
+```
+
+### Frame Transformations
+
+```python
+# Camera frame to world frame
+pcd_world = camera_rot.apply(pcd_camera) + camera_pos
+
+# World frame to object-local frame
+pcd_local = R.from_quat(pose['quat']).inv().apply(pcd_world - pose['pos'])
+```
+
+## Integration with Services
+
+The perception components are wrapped by services for distributed operation:
+
+```python
+# FastSAM Service continuously runs detection
+fastsam_service = FastSAMService(env=env, visualize=True)
+fastsam_service.start()
+
+# Query detections via ServiceClient
+client = ServiceClient()
+response = client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
+detections = response['detections']
+
+# Generate grasps via Grasp Service
+response = client.call('grasp_service', {
+    'command': 'GET_GRASPS',
+    'pointcloud': detections[0]['pointcloud'],
+    'object_pose': detections[0]['pose'],
+    'num_grasps': 5
+})
+grasps = response['grasps']
+```
 
 ## Troubleshooting
 
-1. **No objects detected**: Check that FastSAM model loads correctly
-2. **Empty point clouds**: Verify depth image availability in environment
-3. **No grasps predicted**: Check GraspGen model and dependencies
-4. **Import errors**: Ensure all dependencies are installed
+### Common Issues
 
-## Future Improvements
+1. **No detections**: 
+   - Check prompt matches visible objects
+   - Lower `FASTSAM_CONF_THRESHOLD` if needed
+   - Ensure camera has clear view of objects
 
-1. **Real-time processing**: Optimize for lower latency
-2. **Multi-object handling**: Better segmentation for complex scenes
-3. **Grasp refinement**: Post-processing for grasp quality
-4. **Sensor fusion**: Combine multiple camera views
+2. **Invalid depth**:
+   - Check depth image is 2D array
+   - Verify depth values are in meters (not mm)
+   - Ensure `MAX_POINTCLOUD_RANGE` is appropriate
+
+3. **Empty point clouds**:
+   - Verify camera intrinsics are correct
+   - Check depth alignment with RGB
+   - Ensure objects are within depth range
+
+4. **Slow performance**:
+   - Verify CUDA is being used (`constants.DEVICE == 'cuda'`)
+   - Reduce image resolution if needed
+   - Lower `num_grasps` for faster grasp prediction

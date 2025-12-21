@@ -8,91 +8,84 @@ import pytest
 import numpy as np
 import time
 from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.services import EnhancedServiceManager, UnifiedPerceptionService, ServiceClient
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService
+from robosuite_franka_manipulation import constants
 
 @pytest.fixture(scope="class")
 def perception_services(request):
-    """Fixture to provide a running ServiceManager and UnifiedPerceptionService."""
-    manager = EnhancedServiceManager()
+    """Fixture to provide a running ServiceManager and FastSAMService."""
+    manager = ServiceManager()
     manager.start()
     
     env = make_dual_arm_env()
     env.reset()
     
-    perception_service = UnifiedPerceptionService(env, manager_host='localhost', manager_port=5555, visualize=False) # Disable visualization for tests
-    perception_service.start()
+    fastsam_service = FastSAMService(env, visualize=False)
+    fastsam_service.start()
     
-    time.sleep(2) # Allow services to start
+    time.sleep(2)  # Allow services to start
 
     def teardown():
-        perception_service.stop()
+        fastsam_service.stop()
         manager.stop()
         env.close()
     
     request.addfinalizer(teardown)
     
-    return manager, perception_service
+    return manager, fastsam_service
 
 class TestPerception:
     """Test perception components via service calls."""
 
     def test_object_detection_service(self, perception_services):
-        """Test object detection functionality via the perception service."""
+        """Test object detection functionality via the FastSAM service."""
         manager, service = perception_services
         client = ServiceClient(manager_host=manager.host, manager_port=manager.port)
         
-        response = client.call("perception_service", {"command": "GET_LATEST_OBJECTS"})
+        response = client.call("fastsam_service", {"command": "GET_LATEST_DETECTION"})
         
         assert response is not None
         assert response["status"] == "success"
         
-        objects = response["objects"]
-        assert isinstance(objects, list)
+        detections = response["detections"]
+        assert isinstance(detections, list)
 
-        if objects:
-            for obj in objects:
-                assert 'name' in obj
-                assert 'pose' in obj
-                assert 'grasps' in obj
-                assert 'id' in obj
+        if detections:
+            for det in detections:
+                assert 'name' in det
+                assert 'pose' in det
+                assert 'id' in det
     
     def test_grasp_prediction_in_service(self, perception_services):
-        """Test that the perception service returns grasp predictions."""
+        """Test that the FastSAM service returns detections with pointclouds."""
         manager, service = perception_services
         client = ServiceClient(manager_host=manager.host, manager_port=manager.port)
         
-        # Wait a moment for the perception loop to run
+        # Wait a moment for the detection loop to run
         time.sleep(2)
 
-        response = client.call("perception_service", {"command": "GET_LATEST_OBJECTS"})
+        response = client.call("fastsam_service", {"command": "GET_LATEST_DETECTION"})
 
         assert response is not None
         assert response["status"] == "success"
         
-        objects = response["objects"]
-        if objects:
-            obj = objects[0]
-            grasps = obj.get("grasps", [])
-            assert isinstance(grasps, list)
-            
-            if grasps:
-                for grasp in grasps:
-                    assert 'pos' in grasp
-                    assert 'quat' in grasp
-                    assert isinstance(grasp['pos'], list)
-                    assert isinstance(grasp['quat'], list)
+        detections = response["detections"]
+        if detections:
+            det = detections[0]
+            pointcloud = det.get("pointcloud", [])
+            assert isinstance(pointcloud, list)
 
     def test_prompt_service_integration(self, perception_services):
-        """Test setting and getting prompts via the unified service."""
+        """Test setting and getting prompts via the FastSAM service."""
         manager, service = perception_services
         client = ServiceClient(manager_host=manager.host, manager_port=manager.port)
         
         # Set a new prompt
         new_prompt = "blue cube"
-        set_response = client.call("perception_service", {"command": "SET_PROMPT", "prompt": new_prompt})
+        set_response = client.call("fastsam_service", {"command": "SET_PROMPT", "prompt": new_prompt})
         assert set_response["status"] == "success"
 
         # Get the prompt to verify
-        get_response = client.call("perception_service", {"command": "GET_PROMPT"})
+        get_response = client.call("fastsam_service", {"command": "GET_PROMPT"})
         assert get_response["status"] == "success"
         assert get_response["prompt"] == new_prompt

@@ -193,21 +193,29 @@ class ObjectDetector:
 
         fx, fy, cx, cy = self._get_intrinsic_params()
 
-        points = []
-        h, w = mask.shape
+        # Vectorized point cloud extraction (much faster than nested loops)
+        mask_indices = np.where(mask > 0)
+        if len(mask_indices[0]) == 0:
+            return np.array([])
 
-        for y in range(h):
-            for x in range(w):
-                if mask[y, x] > 0:
-                    z = depth[y, x]
-                    if z > 0:  # Valid depth
-                        # Deproject to 3D
-                        X = (x - cx) * z / fx
-                        Y = (y - cy) * z / fy
-                        Z = z
-                        points.append([X, Y, Z])
+        y_coords, x_coords = mask_indices
+        depth_values = depth[y_coords, x_coords]
 
-        return np.array(points)
+        # Filter valid depth values
+        valid_mask = (depth_values > 0) & (depth_values < constants.MAX_POINTCLOUD_RANGE)
+        x_coords = x_coords[valid_mask]
+        y_coords = y_coords[valid_mask]
+        depth_values = depth_values[valid_mask]
+
+        if len(depth_values) == 0:
+            return np.array([])
+
+        # Deproject to 3D
+        z = depth_values
+        x = (x_coords - cx) * z / fx
+        y = (y_coords - cy) * z / fy
+
+        return np.column_stack([x, y, z]).astype(np.float32)
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray) -> Dict:
         """Estimate object pose from point cloud using PCA for orientation."""

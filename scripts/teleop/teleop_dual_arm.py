@@ -5,7 +5,6 @@ This script uses the modular teleop module from the src code.
 
 import argparse
 
-import robosuite as suite
 from robosuite.wrappers import VisualizationWrapper
 
 # Import the custom environment factory

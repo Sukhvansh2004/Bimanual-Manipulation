@@ -35,15 +35,6 @@ class GraspService:
                  manager_port: int = None,
                  debug: bool = False,
                  visualize: bool = False):
-        # Set defaults if not provided
-        if host is None:
-            host = constants.DEFAULT_HOST
-        if port is None:
-            port = constants.GRASP_SERVICE_PORT
-        if manager_host is None:
-            manager_host = constants.DEFAULT_HOST
-        if manager_port is None:
-            manager_port = constants.SERVICE_MANAGER_PORT
         """
         Initialize Grasp Service.
 
@@ -55,6 +46,16 @@ class GraspService:
             debug: Enable debug logging
             visualize: Enable grasp visualization
         """
+        # Set defaults if not provided
+        if host is None:
+            host = constants.DEFAULT_HOST
+        if port is None:
+            port = constants.GRASP_SERVICE_PORT
+        if manager_host is None:
+            manager_host = constants.DEFAULT_HOST
+        if manager_port is None:
+            manager_port = constants.SERVICE_MANAGER_PORT
+
         self.host = host
         self.port = port
         self.debug = debug
@@ -192,7 +193,7 @@ class GraspService:
 
             # Predict grasps using GraspGen
             grasps = predictor.predict_grasps(
-                pointcloud=pointcloud,
+                object_pcd=pointcloud,
                 object_pose=object_pose,
                 num_grasps=num_grasps
             )

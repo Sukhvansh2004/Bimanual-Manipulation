@@ -43,17 +43,6 @@ class FastSAMService:
                  visualize: bool = True,
                  debug: bool = False,
                  env_lock: Optional[threading.Lock] = None):
-        # Set defaults if not provided
-        if host is None:
-            host = constants.DEFAULT_HOST
-        if port is None:
-            port = constants.FASTSAM_SERVICE_PORT
-        if manager_host is None:
-            manager_host = constants.DEFAULT_HOST
-        if manager_port is None:
-            manager_port = constants.SERVICE_MANAGER_PORT
-        if camera_name is None:
-            camera_name = constants.DEFAULT_CAMERA_NAME
         """
         Initialize FastSAM Service.
 
@@ -66,7 +55,20 @@ class FastSAMService:
             camera_name: Name of camera to use for detection
             visualize: Whether to show OpenCV visualization windows
             debug: Enable debug logging
+            env_lock: Optional threading lock for environment access
         """
+        # Set defaults if not provided
+        if host is None:
+            host = constants.DEFAULT_HOST
+        if port is None:
+            port = constants.FASTSAM_SERVICE_PORT
+        if manager_host is None:
+            manager_host = constants.DEFAULT_HOST
+        if manager_port is None:
+            manager_port = constants.SERVICE_MANAGER_PORT
+        if camera_name is None:
+            camera_name = constants.DEFAULT_CAMERA_NAME
+
         self.env = env
         self.host = host
         self.port = port
@@ -286,7 +288,7 @@ class FastSAMService:
         depth_values = depth[y_coords, x_coords]
 
         # Filter out invalid depth values
-        valid_mask = (depth_values > 0) & (depth_values < 10.0)  # Reasonable depth range
+        valid_mask = (depth_values > 0) & (depth_values < constants.MAX_POINTCLOUD_RANGE)
         x_coords = x_coords[valid_mask]
         y_coords = y_coords[valid_mask]
         depth_values = depth_values[valid_mask]
@@ -343,7 +345,7 @@ class FastSAMService:
 
         while self.running:
             # Wait for request with timeout
-            if self.socket.poll(timeout=1000):  # 1 second timeout
+            if self.socket.poll(timeout=constants.ZMQ_POLL_TIMEOUT):
                 message = self.socket.recv_json()
                 response = self._handle_request(message)
                 self.socket.send_json(response)

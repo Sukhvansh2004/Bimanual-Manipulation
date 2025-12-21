@@ -8,14 +8,15 @@ import pytest
 import time
 import zmq
 
-from robosuite_franka_manipulation.services.service_manager import EnhancedServiceManager, ServiceClient
+from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation import constants
 
 @pytest.fixture(scope="class")
 def service_manager(request):
-    """Fixture to provide a running EnhancedServiceManager."""
-    manager = EnhancedServiceManager()
+    """Fixture to provide a running ServiceManager."""
+    manager = ServiceManager()
     manager.start()
     time.sleep(0.5)  # Allow manager to start
 
@@ -77,7 +78,7 @@ class TestEEFService:
         # Test direct service call (service manager forwarding has issues)
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
-        socket.connect("tcp://localhost:5559")
+        socket.connect(f"tcp://localhost:{constants.EEF_SERVICE_PORT}")
         socket.send_json({"command": "GET"})
         
         if socket.poll(timeout=5000):
