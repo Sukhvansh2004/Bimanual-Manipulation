@@ -52,6 +52,7 @@ from robosuite.wrappers import VisualizationWrapper
 
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.teleop import KeyboardTeleop
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 from robosuite_franka_manipulation.services.fastsam_service import FastSAMService
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
@@ -82,6 +83,12 @@ class DualArmManipulationSystem:
         self.teleop = None
         self.teleop_thread = None
         
+        # Arm and gripper controllers
+        self.left_arm = None
+        self.right_arm = None
+        self.left_gripper = None
+        self.right_gripper = None
+        
         # Services
         self.service_manager = None
         self.fastsam_service = None
@@ -107,6 +114,14 @@ class DualArmManipulationSystem:
         self.env = VisualizationWrapper(self.env)
         logger.info("   ✓ Environment created")
         
+        # Load arm and gripper controllers
+        logger.info("\n1b. Loading arm and gripper controllers...")
+        self.left_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=0)
+        self.right_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=1)
+        self.left_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=0)
+        self.right_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=1)
+        logger.info("   ✓ Controllers loaded")
+        
         # Start services
         logger.info("\n2. Starting services...")
         self._start_services()
@@ -131,6 +146,11 @@ class DualArmManipulationSystem:
         logger.info("  spacebar                       - Toggle gripper")
         logger.info("  s                              - Switch active arm")
         logger.info("  a                              - Exit teleoperation")
+        logger.info("\nAvailable Controllers (in interactive shell):")
+        logger.info("  system.left_arm                - RobosuiteArmController for left arm")
+        logger.info("  system.right_arm               - RobosuiteArmController for right arm")
+        logger.info("  system.left_gripper            - RobosuiteGripperController for left gripper")
+        logger.info("  system.right_gripper           - RobosuiteGripperController for right gripper")
         logger.info("\nInteractive Python Shell Commands:")
         logger.info("  client                         - ServiceClient instance")
         logger.info("  detect()                       - Quick detect objects")
