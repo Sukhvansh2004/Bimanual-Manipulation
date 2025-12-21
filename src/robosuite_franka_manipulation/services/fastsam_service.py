@@ -30,6 +30,9 @@ class FastSAMService:
     Supports dynamic prompt updates and provides segmented point clouds for grasp planning.
     """
 
+    # Optional shared environment lock, set per instance
+    env_lock: Optional[threading.Lock] = None
+
     def __init__(self,
                  env: Any,
                  host: str = None,
@@ -38,7 +41,8 @@ class FastSAMService:
                  manager_port: int = None,
                  camera_name: str = None,
                  visualize: bool = True,
-                 debug: bool = False):
+                 debug: bool = False,
+                 env_lock: Optional[threading.Lock] = None):
         # Set defaults if not provided
         if host is None:
             host = constants.DEFAULT_HOST
@@ -69,6 +73,7 @@ class FastSAMService:
         self.camera_name = camera_name
         self.visualize = visualize
         self.debug = debug
+        self.env_lock = env_lock
 
         # Service state
         self.running = False
@@ -92,6 +97,10 @@ class FastSAMService:
             self.camera_intrinsics = constants.DEFAULT_CAMERA_INTRINSICS
             camera_width = constants.DEFAULT_CAMERA_WIDTH
             camera_height = constants.DEFAULT_CAMERA_HEIGHT
+
+        # Persist camera dims
+        self.camera_width = camera_width
+        self.camera_height = camera_height
 
         # Initialize perception components
         self.object_detector = ObjectDetector(
@@ -124,6 +133,10 @@ class FastSAMService:
             Tuple of (rgb_image, depth_image) or (None, None) if unavailable
         """
         try:
+            # Avoid concurrent access to env if a lock was provided
+            lock = getattr(self, "env_lock", None)
+            if lock:
+                lock.acquire()
             obs = self.env._get_observations()
 
             # Get RGB image
@@ -133,6 +146,13 @@ class FastSAMService:
             # Get depth image
             depth_key = f"{self.camera_name}_depth"
             depth_image = obs.get(depth_key)
+
+            # Reshape flat depth (H*W,) to (H, W) if needed
+            if depth_image is not None and depth_image.ndim == 1:
+                try:
+                    depth_image = depth_image.reshape(self.camera_height, self.camera_width)
+                except Exception:
+                    depth_image = None
 
             if rgb_image is not None:
                 # Convert from (H, W, C) to (H, W, C) if needed
@@ -148,6 +168,9 @@ class FastSAMService:
             if self.debug:
                 logger.warning(f"Failed to get camera data: {e}")
             return None, None
+        finally:
+            if lock:
+                lock.release()
 
     def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[Dict]:
         """
@@ -161,6 +184,13 @@ class FastSAMService:
             List of detection dictionaries with masks, point clouds, etc.
         """
         try:
+            # Normalize depth to 2D if possible
+            if depth_image is not None:
+                if depth_image.ndim == 3 and depth_image.shape[-1] == 1:
+                    depth_image = depth_image[..., 0]
+                if depth_image.ndim != 2:
+                    depth_image = None
+
             # Get camera pose
             cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
             cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)

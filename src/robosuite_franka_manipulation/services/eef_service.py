@@ -17,8 +17,11 @@ class EEFService:
     Provides current positions and orientations of robot end-effectors.
     """
 
+    env_lock: Optional[threading.Lock] = None
+
     def __init__(self, env: Any, host: str = None, port: int = None,
-                 manager_host: str = None, manager_port: int = None):
+                 manager_host: str = None, manager_port: int = None,
+                 env_lock: Optional[threading.Lock] = None):
         # Set defaults if not provided
         if host is None:
             host = constants.DEFAULT_HOST
@@ -31,6 +34,7 @@ class EEFService:
         self.env = env
         self.host = host
         self.port = port
+        self.env_lock = env_lock
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
         self.running = False
@@ -79,6 +83,9 @@ class EEFService:
             Dict with positions and orientations in world frame
         """
         try:
+            lock = getattr(self, "env_lock", None)
+            if lock:
+                lock.acquire()
             # Get current observation
             obs = self.env._get_observations()
 
@@ -120,6 +127,9 @@ class EEFService:
                 "success": False,
                 "error": f"Failed to get EEF coordinates: {str(e)}"
             }
+        finally:
+            if lock:
+                lock.release()
 
     def _run_server(self) -> None:
         """Run the ZMQ server loop."""

@@ -2,12 +2,15 @@ import numpy as np
 from typing import List, Dict, Optional
 import sys
 import cv2
+import logging
 from PIL import Image
 
 from robosuite_franka_manipulation import constants
 
 from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
+
+logger = logging.getLogger(__name__)
 
 class ObjectDetector:
     """
@@ -43,6 +46,17 @@ class ObjectDetector:
         """Set the detection prompt."""
         self.prompt = prompt
 
+    def _ensure_depth_2d(self, depth_image: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        """Return a 2D depth array or None if the input is unusable."""
+        if depth_image is None:
+            return None
+        depth = depth_image
+        if depth.ndim == 3 and depth.shape[-1] == 1:
+            depth = depth[..., 0]
+        if depth.ndim != 2:
+            return None
+        return depth
+
     def detect_objects(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray],
                       camera_pos: np.ndarray, camera_rot: R) -> List[Dict]:
         """
@@ -67,9 +81,10 @@ class ObjectDetector:
             print("No RGB image available")
             return objects
 
-        # Note: depth image may not be available in all environments
-        if depth_image is None:
-            print("No depth image available - using fallback point cloud generation")
+        # Normalize depth
+        depth_image = self._ensure_depth_2d(depth_image)
+        if depth_image is None and self.debug:
+            logger.debug("No usable depth image - using fallback point cloud generation")
         
         # Use provided camera intrinsics
         intrinsics = self.camera_intrinsics
@@ -78,25 +93,26 @@ class ObjectDetector:
         text_prompt = self.prompt
 
         # Run FastSAM with text prompt
-        print(f"Running FastSAM with prompt: '{text_prompt}'")
+        if self.debug:
+            logger.debug(f"Running FastSAM with prompt: '{text_prompt}'")
         
         # Convert numpy array to PIL Image for FastSAM
         pil_image = Image.fromarray(rgb_image)
-        results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9)
+        results = self.model(pil_image, device='cpu', retina_masks=True, imgsz=1024, conf=0.4, iou=0.9, verbose=False)
 
         if not results or len(results) == 0:
-            print("No FastSAM results")
+            logger.debug("No FastSAM results")
             return objects
 
         result = results[0]
         if result.masks is None or len(result.masks) == 0:
-            print("No masks detected")
+            logger.debug("No masks detected")
             return objects
 
         masks = result.masks.data.cpu().numpy()
         
         if self.debug:
-            print(f"FastSAM detected {len(masks)} objects with prompt '{text_prompt}'")
+            logger.debug(f"FastSAM detected {len(masks)} objects with prompt '{text_prompt}'")
         
         if self.visualize:
             self._visualize_fastsam_results(rgb_image, list(masks), text_prompt)
@@ -129,6 +145,7 @@ class ObjectDetector:
     def _mask_to_point_cloud(self, mask: np.ndarray, depth: Optional[np.ndarray],
                            rgb: Optional[np.ndarray], intrinsics: np.ndarray) -> np.ndarray:
         """Convert mask to point cloud using depth and camera intrinsics."""
+        depth = self._ensure_depth_2d(depth)
         if depth is None:
             # Fallback to simple normalized coordinates
             points = []
