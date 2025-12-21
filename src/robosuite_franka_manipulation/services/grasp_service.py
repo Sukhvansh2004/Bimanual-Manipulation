@@ -114,51 +114,6 @@ class GraspService:
 
         return True
 
-    def _transform_grasps_to_world_frame(self, grasps: List[Dict],
-                                       object_pose: Dict[str, np.ndarray]) -> List[Dict]:
-        """
-        Transform grasps from object frame to world frame.
-
-        Args:
-            grasps: List of grasp dictionaries with 'pos' and 'quat'
-            object_pose: Object pose with 'pos' and 'quat' in world frame
-
-        Returns:
-            List of grasps transformed to world frame
-        """
-        try:
-            object_pos = object_pose['pos']
-            object_quat = object_pose['quat']
-
-            # Convert quaternion to rotation matrix
-            from scipy.spatial.transform import Rotation as R
-            object_rot = R.from_quat(object_quat).as_matrix()
-
-            transformed_grasps = []
-            for grasp in grasps:
-                # Transform position
-                grasp_pos_local = np.array(grasp['pos'])
-                grasp_pos_world = object_pos + object_rot @ grasp_pos_local
-
-                # Transform orientation (compose rotations)
-                grasp_quat_local = np.array(grasp['quat'])
-                grasp_rot_local = R.from_quat(grasp_quat_local).as_matrix()
-                grasp_rot_world = object_rot @ grasp_rot_local
-                grasp_quat_world = R.from_matrix(grasp_rot_world).as_quat()
-
-                transformed_grasp = grasp.copy()
-                transformed_grasp['pos'] = grasp_pos_world.tolist()
-                transformed_grasp['quat'] = grasp_quat_world.tolist()
-                transformed_grasp['frame'] = 'world'
-
-                transformed_grasps.append(transformed_grasp)
-
-            return transformed_grasps
-
-        except Exception as e:
-            logger.error(f"Grasp transformation failed: {e}")
-            return grasps  # Return original grasps if transformation fails
-
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
                                      object_pose: Dict[str, np.ndarray],
                                      num_grasps: int = None,

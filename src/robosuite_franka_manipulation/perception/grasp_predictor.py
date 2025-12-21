@@ -9,7 +9,6 @@ from robosuite_franka_manipulation import constants
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
-from grasp_gen.utils.rotation_conversions import matrix_to_quaternion
 
 class GraspPredictor:
     """
@@ -105,8 +104,9 @@ class GraspPredictor:
                         print(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
                 
                 if self.visualize and grasp_list:
-                    # Pass the original object point cloud (CPU numpy version)
-                    self._visualize_grasps(object_pcd.cpu().numpy(), grasp_list, object_pose)
+                    # Pass the original object point cloud (ensure it's numpy)
+                    pcd_for_vis = object_pcd.cpu().numpy() if isinstance(object_pcd, torch.Tensor) else object_pcd
+                    self._visualize_grasps(pcd_for_vis, grasp_list, object_pose)
                 
                 return grasp_list
             except Exception as e:
@@ -146,16 +146,20 @@ class GraspPredictor:
 
     def _rotation_matrix_to_quaternion(self, R_matrix: np.ndarray) -> np.ndarray:
         """
-        Convert rotation matrix to quaternion using GraspGen's utility.
+        Convert rotation matrix to quaternion.
+        
+        Note: GraspGen's matrix_to_quaternion returns (w, x, y, z) format,
+        but scipy expects (x, y, z, w). We use scipy directly for consistency
+        with the rest of the codebase.
+        
+        Args:
+            R_matrix: 3x3 rotation matrix
+            
+        Returns:
+            Quaternion in (x, y, z, w) format (scipy convention)
         """
-        # Convert to torch tensor
-        R_tensor = torch.from_numpy(R_matrix).float().unsqueeze(0)  # Add batch dimension
-        
-        # Use GraspGen's matrix_to_quaternion
-        quat_tensor = matrix_to_quaternion(R_tensor)
-        
-        # Remove batch dimension and convert to numpy
-        return quat_tensor.squeeze(0).cpu().numpy()
+        # Use scipy for consistent quaternion format throughout the codebase
+        return R.from_matrix(R_matrix).as_quat()
 
     def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: Dict):
         """

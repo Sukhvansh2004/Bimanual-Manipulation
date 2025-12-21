@@ -49,21 +49,17 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 
 ## Features
 
-- **Dual-Arm Control**: Coordinated manipulation with Franka Panda robots
-- **Advanced Perception**: FastSAM-based object detection with dynamic prompts
-- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction (integrated)
-- **Microservices**: Distributed perception services (Prompt, Grasp, EEF) with TCP/ZMQ interfaces
+- **Dual-Arm Control**: Coordinated manipulation with two Franka Panda robots
+- **Advanced Perception**: FastSAM-based object segmentation with text prompts (GPU-accelerated)
+- **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction
+- **Microservices Architecture**: Distributed services (FastSAM, Grasp, EEF) with ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
-- **Mode Switching**: Seamless transition between autonomous and manual control
+- **Interactive Shell**: Python REPL for real-time service queries and control
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
-- **Comprehensive Testing**: Full test suite including service integration tests
-- **Modular Architecture**: Clean separation of controllers, perception, and services
 
 ## Installation
 
 ### Quick Install
-
-Run the automated installation script:
 
 ```bash
 ./install.sh
@@ -73,9 +69,8 @@ This will:
 - Create the `dual_arm_manipulation` conda environment
 - Install all dependencies including GraspGen
 - Install the package in development mode
-- **Note**: GraspGenModels (pre-trained models) need to be downloaded separately
-- **Note**: FastSAM model is included in the `models/` folder
-- **Note**: No ROS dependencies required - works standalone
+
+**Note**: GraspGenModels (pre-trained models) need to be downloaded separately.
 
 ### Manual Installation
 
@@ -89,7 +84,7 @@ sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-
 ```bash
 conda create -n dual_arm_manipulation python=3.10
 conda activate dual_arm_manipulation
-export MUJOCO_GL=osmesa  # Set rendering backend
+export MUJOCO_GL=osmesa
 ```
 
 3. **Install PyTorch** (adjust for your CUDA version):
@@ -97,7 +92,7 @@ export MUJOCO_GL=osmesa  # Set rendering backend
 pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
 ```
 
-4. **Install GraspGen** (refer to [GraspGen README](deps/GraspGen/README.md)):
+4. **Install GraspGen**:
 ```bash
 cd deps/GraspGen
 pip install -e .
@@ -105,7 +100,6 @@ pip install -e .
 
 5. **Download GraspGen Models**:
 ```bash
-# Clone the models repository (or use your own fork)
 git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels
 ```
 
@@ -117,263 +111,218 @@ pip install -e .
 ## Project Structure
 
 ```
-├── src/
-│   └── robosuite_franka_manipulation/     # Main package
-│       ├── controllers/                   # Arm and gripper controllers
-│       ├── environments/                  # Robosuite environments
-│       ├── perception/                    # Object detection and grasp prediction
-│       ├── services/                      # Microservices
-│       │   ├── service_manager.py        # Service discovery infrastructure
-│       │   ├── unified_perception_service.py # Combined perception service
-│       │   ├── eef_service.py            # End-effector coordinate service
-│       │   └── __init__.py               # Service module exports
-│       └── teleop/                        # Teleoperation interfaces
-├── scripts/                               # Standalone executable scripts
-│   ├── demos/                            # Demonstration scripts
-│   ├── manipulation/                     # Manipulation task scripts
-│   └── teleop/                           # Teleoperation scripts
-├── tests/                                # Test suite (pytest)
-│   ├── test_environments.py              # Environment tests
-│   ├── test_arm_controllers.py           # Controller tests
-│   ├── test_perception.py                # Perception tests
-│   ├── test_services.py                  # Service functionality tests
-│   └── test_trajectory_planning.py       # Trajectory planning tests
-├── docs/                                # Documentation
-│   └── perception_architecture.md       # Perception system architecture
-├── scratch/                             # Development helpers and debug scripts
-├── models/                              # Pre-trained models (FastSAM, etc.)
-├── deps/                                # Dependencies (GraspGen, GraspGenModels)
-└── pyproject.toml                       # Package configuration
+├── src/robosuite_franka_manipulation/    # Main package
+│   ├── constants/                        # Configuration constants
+│   ├── controllers/                      # Arm and gripper controllers
+│   ├── environments/                     # Robosuite environment factory
+│   ├── perception/                       # Object detection and grasp prediction
+│   ├── services/                         # Microservices
+│   │   ├── service_manager.py           # Service discovery (port 5555)
+│   │   ├── fastsam_service.py           # FastSAM detection (port 5551)
+│   │   ├── grasp_service.py             # GraspGen prediction (port 5552)
+│   │   └── eef_service.py               # End-effector coordinates (port 5559)
+│   └── teleop/                           # Keyboard teleoperation
+├── scripts/
+│   ├── demos/                            # Demo scripts (go_to_pose, gripper_move)
+│   ├── manipulation/                     # Main manipulation script
+│   └── teleop/                           # Standalone teleoperation
+├── tests/                                # Pytest test suite
+├── docs/                                 # Documentation
+├── models/                               # Pre-trained models (FastSAM-x.pt)
+└── deps/                                 # Dependencies (GraspGen, GraspGenModels)
 ```
 
 ## Usage
 
-### Quick Start
+### Main Script: Dual-Arm Manipulation System
 
-1. **Install the package**:
+The primary entry point starts all services and provides an interactive shell:
+
 ```bash
-./install.sh
+python scripts/manipulation/dual_arm_manipulation.py --visualize
 ```
 
-2. **Run teleoperation** to familiarize yourself with the interface:
+**Arguments**:
+- `--visualize`: Enable OpenCV visualization of FastSAM detections
+- `--debug`: Enable debug logging
+- `--prompt <text>`: Set initial detection prompt (default: "object")
+
+This starts:
+1. Dual-arm robosuite environment with visualization
+2. Service Manager for service discovery
+3. FastSAM Service for object detection
+4. Grasp Service for grasp prediction
+5. EEF Service for end-effector coordinates
+6. Keyboard teleoperation (main thread)
+7. Interactive Python shell (background thread)
+
+### Interactive Shell Commands
+
+Once the system is running, use these in the interactive shell:
+
+```python
+# Detect objects in the scene
+>>> detections = detect()
+
+# Generate grasps for a detection
+>>> grasps = get_grasps(detections[0])
+
+# Get end-effector coordinates
+>>> get_eef()
+
+# Change detection prompt
+>>> set_prompt('red cup')
+
+# Access controllers directly
+>>> system.left_arm.move_to_pose([0.5, -0.3, 0.4], [0, 0, 0, 1])
+>>> system.left_gripper.open()
+>>> system.right_gripper.close()
+```
+
+### Teleoperation Controls
+
+| Key | Action |
+|-----|--------|
+| Arrow keys | Move in X/Y plane |
+| `.` / `;` | Move up/down (Z) |
+| `o` / `p` | Rotate roll |
+| `y` / `h` | Rotate pitch |
+| `e` / `r` | Rotate yaw |
+| `Space` | Toggle gripper |
+| `s` | Switch active arm |
+| `q` | Exit teleoperation |
+
+### Demo Scripts
+
 ```bash
+# Test arm position control
+python scripts/demos/go_to_pose.py
+
+# Test gripper open/close
+python scripts/demos/gripper_move.py
+
+# Standalone teleoperation
 python scripts/teleop/teleop_dual_arm.py
-```
-
-3. **Run autonomous manipulation**:
-```bash
-python scripts/manipulation/dual_arm_manipulation.py
-```
-
-### Autonomous Manipulation
-
-The system provides autonomous dual-arm manipulation with integrated perception:
-
-```bash
-# Run the full manipulation pipeline
-python scripts/manipulation/dual_arm_manipulation.py --task handoff
-```
-
-**Available Tasks**:
-- `handoff`: Pick object with left arm, transfer to right arm
-- `cooperative_lift`: Both arms coordinate to lift objects
-
-**Pipeline Flow**:
-1. Move arms to ready positions
-2. Detect objects using FastSAM segmentation
-3. Generate grasp poses with GraspGen
-4. Execute coordinated manipulation sequence
-
-### Manual Teleoperation
-
-For manual control and testing:
-
-```bash
-# Start keyboard teleoperation
-python scripts/teleop/teleop_dual_arm.py
-```
-
-### Perception System
-
-The perception system runs automatically but can be tested independently:
-
-```python
-from robosuite_franka_manipulation.perception import ObjectDetector
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
-
-# Setup
-env = make_dual_arm_handoff_env()
-detector = ObjectDetector(env)
-
-# Detect objects
-objects = detector.detect_objects()
-
-# Each object contains: pose, point_cloud, mask, grasps
-for obj in objects:
-    print(f"Found object with {len(obj['grasps'])} grasp predictions")
-```
-
-**Architecture Details**: See [docs/perception_architecture.md](docs/perception_architecture.md) for comprehensive perception system documentation.
-
-### Debug & Visualization
-
-Enable debug output and visualization for perception components:
-
-```python
-from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
-
-# Enable debug output and visualization
-detector = ObjectDetector(env, debug=True, visualize=True)
-predictor = GraspPredictor(debug=True, visualize=True)
-
-# This will show:
-# - FastSAM segmentation masks overlaid on RGB images
-# - 3D point clouds of detected objects  
-# - Generated grasp poses with confidence scores
-objects = detector.detect_objects()
-```
-
-**Visualization Features**:
-- **FastSAM**: Mask overlays on camera images with object labels
-- **Point Clouds**: 3D scatter plots of object geometry
-- **Grasps**: 3D visualization of predicted grasp poses colored by confidence
-
-**Requirements**: `matplotlib` and `opencv-python` for visualization.
-
-### Development & Testing
-
-Run the comprehensive test suite:
-
-```bash
-# Run all tests
-python -m pytest tests/
-
-# Run specific test categories
-python -m pytest tests/test_perception.py -v
-python -m pytest tests/test_arm_controllers.py -v
-python -m pytest tests/test_services.py -v
-```
-
-### API Usage
-
-**Core Components**:
-
-```python
-# Environment
-from robosuite_franka_manipulation.environments import make_dual_arm_handoff_env
-env = make_dual_arm_handoff_env()
-
-# Controllers
-from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
-arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
-gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
-
-# Perception
-from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
-detector = ObjectDetector(env)
-predictor = GraspPredictor()
-
-# Teleoperation
-from robosuite_franka_manipulation.teleop import KeyboardTeleop
-teleop = KeyboardTeleop(env)
-teleop.run()
 ```
 
 ## Microservices Architecture
 
-The system uses an **integrated perception pipeline** with optional microservices for advanced functionality. Currently, the core perception components (`ObjectDetector` and `GraspPredictor`) are implemented as integrated classes rather than separate services.
+All services communicate via ZMQ with JSON messages.
 
-### Current Implementation Status
+### Service Manager (port 5555)
+Service discovery and registration.
 
-- **✅ Object Detection**: Integrated FastSAM-based detection
-- **✅ Grasp Prediction**: Integrated GraspGen-based prediction
-- **✅ Service Manager**: ZMQ-based service discovery on port 5555
-- **✅ Unified Perception Service**: Combined detection/prediction service on port 5550
-- **✅ EEF Service**: TCP socket service on port 5559 for end-effector coordinates
+### FastSAM Service (port 5551)
+Continuous object detection with FastSAM.
 
-### Perception Pipeline Flow
+**Commands**:
+```python
+# Set detection prompt
+client.call('fastsam_service', {'command': 'SET_PROMPT', 'prompt': 'cup'})
 
+# Get current prompt
+client.call('fastsam_service', {'command': 'GET_PROMPT'})
+
+# Get latest detections
+client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
 ```
-1. Teleoperation → Arm positioned for object view
-2. ObjectDetector.detect_objects() → Gets camera images
-3. ObjectDetector → Runs FastSAM segmentation on RGB image
-4. ObjectDetector → Extracts point cloud from depth + mask
-5. ObjectDetector → Runs GraspGen prediction locally
-6. ObjectDetector → Returns objects with grasps
+
+### Grasp Service (port 5552)
+GraspGen-based grasp prediction.
+
+**Commands**:
+```python
+client.call('grasp_service', {
+    'command': 'GET_GRASPS',
+    'pointcloud': detection['pointcloud'],
+    'object_pose': detection['pose'],
+    'num_grasps': 5,
+    'gripper_type': 'finger'  # or 'suction'
+})
 ```
 
-### Available Services
+### EEF Service (port 5559)
+Real-time end-effector coordinates.
 
-Start services for distributed perception:
+**Commands**:
+```python
+client.call('eef_service', {'command': 'GET'})
+```
+
+## Configuration
+
+Key constants are defined in `src/robosuite_franka_manipulation/constants/__init__.py`:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DEVICE` | auto | 'cuda' if available, else 'cpu' |
+| `FASTSAM_CONF_THRESHOLD` | 0.9 | Detection confidence threshold |
+| `FASTSAM_IOU_THRESHOLD` | 0.4 | NMS IoU threshold |
+| `DEFAULT_CAMERA_NAME` | 'agentview' | Camera for perception |
+| `MAX_POINTCLOUD_RANGE` | 10.0 | Maximum depth for point clouds (m) |
+
+## API Reference
+
+### Controllers
+
+```python
+from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+
+# Arm control
+arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
+arm.move_to_pose(position=[x, y, z], orientation=[qx, qy, qz, qw])
+
+# Gripper control
+gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
+gripper.open()
+gripper.close()
+```
+
+### Perception
+
+```python
+from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
+
+# Object detection
+detector = ObjectDetector(camera_intrinsics, camera_width, camera_height)
+objects = detector.detect_objects(rgb_image, depth_image, camera_pos, camera_rot)
+
+# Grasp prediction
+predictor = GraspPredictor(gripper_type='franka_panda')
+grasps = predictor.predict_grasps(object_pcd, object_pose, num_grasps=5)
+```
+
+### Services
+
+```python
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, EEFService
+
+# Start service manager
+manager = ServiceManager()
+manager.start()
+
+# Use service client
+client = ServiceClient()
+response = client.call('service_name', {'command': 'CMD', ...})
+```
+
+## Testing
 
 ```bash
-# Start service manager (required for service discovery)
-python -c "from robosuite_franka_manipulation.services import ServiceManager; manager = ServiceManager(); manager.start(); input('Press Enter to stop...'); manager.stop()"
+# Run all tests
+python -m pytest tests/ -v
 
-# Start unified perception service
-python -c "from robosuite_franka_manipulation.services import UnifiedPerceptionService; from robosuite_franka_manipulation.environments import make_dual_arm_env; env = make_dual_arm_env(); env.reset(); service = UnifiedPerceptionService(env); service.start(); input('Press Enter to stop...'); service.stop()"
-
-# Start EEF coordinate service
-python -c "from robosuite_franka_manipulation.services import EEFService; from robosuite_franka_manipulation.environments import make_dual_arm_env; env = make_dual_arm_env(); env.reset(); service = EEFService(env); service.start(); input('Press Enter to stop...'); service.stop()"
+# Run specific test modules
+python -m pytest tests/test_perception.py -v
+python -m pytest tests/test_services.py -v
+python -m pytest tests/test_arm_controllers.py -v
 ```
-
-#### Service Manager (`localhost:5555`)
-- **Purpose**: Service discovery and registration for distributed components
-- **Protocol**: ZMQ REP for service registration/lookup
-- **Status**: ✅ Core infrastructure service
-- **Usage**: Enables dynamic service discovery in distributed setups
-
-#### Unified Perception Service (`localhost:5550`)
-- **Purpose**: Combined FastSAM object detection, dynamic prompts, and GraspGen grasp prediction
-- **Protocol**: ZMQ REP with JSON commands for perception requests
-- **Status**: ✅ Fully implemented and tested
-- **Features**:
-  - Dynamic prompt management (GET/SET prompts)
-  - Real-time object detection with FastSAM
-  - Integrated grasp prediction with GraspGen
-  - Continuous perception loop with latest results caching
-
-#### EEF Service (`localhost:5559`)
-- **Purpose**: Real-time end-effector coordinates in world frame
-- **Protocol**: TCP socket with JSON responses
-- **Status**: ✅ Fully implemented and tested
-- **Usage**: Coordinate retrieval for both left and right arms
-
-```bash
-# Get left arm coordinates
-echo 'GET left' | nc localhost 5559
-
-# Get right arm coordinates  
-echo 'GET right' | nc localhost 5559
-```
-
-### Default Behavior
-
-The system works out-of-the-box with:
-- **Default prompt**: "object" (no external service needed)
-- **Local grasp prediction**: Integrated GraspGen inference
-- **Fallback handling**: Graceful degradation when services unavailable
-
-## Controls
-
-### Manipulation Mode Switching
-- `m`: Switch to manual teleoperation
-- `a`: Switch back to autonomous mode
-
-### Teleoperation Controls
-- **Movement**: `w/s` (X), `a/d` (Y), `q/e` (Z)
-- **Rotation**: `i/k` (roll), `j/l` (pitch), `u/o` (yaw)
-- **Gripper**: `space` (close)
-- **Arm Switch**: `r` (right), `t` (left)
-- **Exit**: `x` or `a`
 
 ## License
 
 MIT License - see LICENSE file for details.
 
 ## Citation
-
-If you use this code in your research, please cite:
 
 ```bibtex
 @software{dual_arm_franka_manipulation,
