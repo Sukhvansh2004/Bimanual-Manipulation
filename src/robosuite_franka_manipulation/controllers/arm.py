@@ -174,9 +174,8 @@ class RobosuiteArmController:
         target_pos, target_quat, frame_id = self._parse_pose_input(target_pos, target_quat, frame_id)
         
         # Transform to robot base frame if needed
-        # Note: In robosuite, world frame and robot base frame are typically coincident,
-        # so we only transform if frame_id is something other than world or base_frame
-        if frame_id is not None and frame_id not in (self.base_frame, constants.WORLD_FRAME):
+        # Only skip transform if pose is already in the robot's base frame
+        if frame_id is not None and frame_id != self.base_frame:
             target_pos, target_quat = self._transform_to_base_frame(target_pos, target_quat, frame_id)
         
         current_pos = self.robot._hand_pos[self.arm_id]

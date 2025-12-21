@@ -29,7 +29,7 @@ class TransformManager:
     
     Standard frame hierarchy for dual-arm robosuite:
         world (root)
-        ├── robot0_base (usually identity to world)
+        ├── robot0_base (robot's base frame, may have offset from world)
         │   ├── robot0_left_eef
         │   └── robot0_right_eef
         ├── robot1_base (for second robot if present)
@@ -109,11 +109,9 @@ class TransformManager:
             for robot_idx, robot in enumerate(self.env.robots):
                 robot_name = getattr(robot, 'name', f'robot{robot_idx}')
                 
-                # Robot base frame (usually identity to world in robosuite)
+                # Robot base frame - query actual transform from simulation
                 base_frame = f"{robot_name}_base"
-                self.add_static_transform(Transform.identity(
-                    self.WORLD_FRAME, base_frame, is_static=True
-                ))
+                self._register_robot_base_provider(robot_idx, base_frame)
                 
                 # Register EEF frames as dynamic
                 if hasattr(robot, '_hand_pos'):
@@ -135,6 +133,47 @@ class TransformManager:
                     logger.debug(f"Registered camera frame: {cam_name}")
         
         logger.info(f"Discovered frames: {sorted(self._known_frames)}")
+    
+    def _register_robot_base_provider(self, robot_idx: int, frame_id: str) -> None:
+        """Register a dynamic transform provider for a robot's base frame."""
+        def get_base_transform():
+            robot = self.env.robots[robot_idx]
+            
+            # Get robot base position and orientation from simulation
+            # The robot's base body is typically named after the robot
+            robot_name = getattr(robot, 'name', f'robot{robot_idx}')
+            
+            # Try to get base pose from the robot's root body in MuJoCo
+            try:
+                # Get the robot's base body position and orientation
+                base_body_name = robot.robot_model.root_body
+                pos = self.env.sim.data.get_body_xpos(base_body_name)
+                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+                quat = R.from_matrix(rot_mat).as_quat()
+            except (AttributeError, KeyError):
+                # Fallback: try common naming conventions
+                try:
+                    pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                    rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                    quat = R.from_matrix(rot_mat).as_quat()
+                except KeyError:
+                    # Last resort: assume identity (but log warning)
+                    logger.warning(f"Could not find base body for robot {robot_idx}, assuming identity transform")
+                    pos = np.zeros(3)
+                    quat = np.array([0, 0, 0, 1])
+            
+            return Transform(
+                translation=pos,
+                rotation=quat,
+                parent_frame=self.WORLD_FRAME,
+                child_frame=frame_id,
+                is_static=False  # Could change if robot is mobile
+            )
+        
+        self._dynamic_frame_providers[frame_id] = get_base_transform
+        self._frame_parents[frame_id] = self.WORLD_FRAME
+        self._known_frames.add(frame_id)
+        logger.debug(f"Registered robot base frame: {frame_id}")
     
     def _register_eef_provider(self, robot_idx: int, arm_id: str, frame_id: str) -> None:
         """Register a dynamic transform provider for an end-effector."""

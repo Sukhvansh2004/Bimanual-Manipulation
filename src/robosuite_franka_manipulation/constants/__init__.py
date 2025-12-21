@@ -152,7 +152,7 @@ DEFAULT_INPUT_TYPE = 'delta'
 
 # Standard frame names used throughout the codebase
 WORLD_FRAME = 'world'           # Global world frame (simulation origin)
-BASE_FRAME = 'base'             # Robot base frame (usually same as world in robosuite)
+BASE_FRAME = 'base'             # Robot base frame (may have offset from world)
 EEF_FRAME_TEMPLATE = 'robot{robot_id}_{arm}_eef'  # End-effector frame template
 
 # Reward and episode settings
