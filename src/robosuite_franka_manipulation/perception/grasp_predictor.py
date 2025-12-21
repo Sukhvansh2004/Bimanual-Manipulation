@@ -6,6 +6,7 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms import StampedPose, Transform
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
@@ -46,103 +47,108 @@ class GraspPredictor:
             print(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
             print(f"Object pose: pos={object_pose['pos']}, quat={object_pose['quat']}")
         
-        # If visualize is true, we will visualize both the point cloud and the grasps in _visualize_grasps
-        # So _visualize_point_cloud is no longer needed separately
-        if self.sampler and len(object_pcd) > 0:
-            try:
-                # Preprocess point cloud to match GraspGen expectations
-                # GraspGen expects point clouds in object-local frame, centered at origin
-                object_pcd_processed = self._preprocess_point_cloud(object_pcd, object_pose)
+        # Validate inputs
+        if self.sampler is None:
+            raise RuntimeError("GraspGen sampler not initialized")
+        if len(object_pcd) == 0:
+            raise ValueError("Empty point cloud provided")
+        
+        # Preprocess point cloud to match GraspGen expectations
+        # GraspGen expects point clouds in object-local frame, centered at origin
+        object_pcd_processed = self._preprocess_point_cloud(object_pcd, object_pose)
+        
+        # Convert to torch tensor if needed
+        if isinstance(object_pcd_processed, np.ndarray):
+            object_pcd_processed = torch.from_numpy(object_pcd_processed).float()
+        
+        # Move to same device as model
+        device = next(self.sampler.model.parameters()).device
+        object_pcd_processed = object_pcd_processed.to(device)
+        
+        # Use GraspGen to predict grasps
+        # The run_inference method returns (grasps, grasp_conf)
+        # grasps: (N, 4, 4) transformation matrices in object-local frame
+        # grasp_conf: (N,) confidence scores
+        grasps, grasp_conf = GraspGenSampler.run_inference(
+            object_pcd_processed,
+            self.sampler,
+            grasp_threshold=-1.0,  # Use all grasps
+            num_grasps=num_grasps,
+            topk_num_grasps=num_grasps,  # Return top k grasps
+            min_grasps=1,  # Minimum grasps to return
+            max_tries=3,  # Maximum inference attempts
+            remove_outliers=False  # We already did outlier removal in preprocessing
+        )
+        
+        # Convert to list of dicts
+        grasp_list = []
+        if len(grasps) > 0:
+            # Create object pose as StampedPose for transform
+            object_stamped = StampedPose(
+                position=object_pose['pos'],
+                quaternion=object_pose['quat'],
+                frame_id="world"
+            )
+            
+            for i in range(len(grasps)):
+                # Extract position from translation part of matrix
+                pos = grasps[i][:3, 3].cpu().numpy()
                 
-                # Convert to torch tensor if needed
-                if isinstance(object_pcd_processed, np.ndarray):
-                    object_pcd_processed = torch.from_numpy(object_pcd_processed).float()
+                # Convert rotation matrix to quaternion
+                rot_matrix = grasps[i][:3, :3].cpu().numpy()
+                quat = self._rotation_matrix_to_quaternion(rot_matrix)
                 
-                # Move to same device as model
-                device = next(self.sampler.model.parameters()).device
-                object_pcd_processed = object_pcd_processed.to(device)
-                
-                # Use GraspGen to predict grasps
-                # The run_inference method returns (grasps, grasp_conf)
-                # grasps: (N, 4, 4) transformation matrices in object-local frame
-                # grasp_conf: (N,) confidence scores
-                grasps, grasp_conf = GraspGenSampler.run_inference(
-                    object_pcd_processed,
-                    self.sampler,
-                    threshold=-1.0,  # Use all grasps
-                    num_grasps=num_grasps,
-                    topk_num_grasps=num_grasps,  # Return top k grasps
-                    min_grasps=1,  # Minimum grasps to return
-                    max_tries=3,  # Maximum inference attempts
-                    remove_outliers=False  # We already did outlier removal in preprocessing
+                # Create grasp as StampedPose in object-local frame
+                grasp_local = StampedPose(
+                    position=pos,
+                    quaternion=quat,
+                    frame_id="object_local"
                 )
                 
-                # Convert to list of dicts
-                grasp_list = []
-                if len(grasps) > 0:
-                    for i in range(len(grasps)):
-                        # Extract position from translation part of matrix
-                        pos = grasps[i][:3, 3].cpu().numpy()
-                        
-                        # Convert rotation matrix to quaternion
-                        rot_matrix = grasps[i][:3, :3].cpu().numpy()
-                        quat = self._rotation_matrix_to_quaternion(rot_matrix)
-                        
-                        # Since GraspGen returns grasps in object-local frame,
-                        # we need to transform them to world frame using object_pose
-                        grasp_local = {
-                            "pos": pos,
-                            "quat": quat,
-                            "score": grasp_conf[i].cpu().numpy()
-                        }
-                        world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
-                        grasp_list.append(world_grasp)
+                # Transform to world frame using object pose
+                world_grasp = self._transform_grasp_to_world(grasp_local, object_stamped)
                 
-                if self.debug:
-                    print(f"GraspGen generated {len(grasp_list)} grasps")
-                    if grasp_list:
-                        print(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
-                
-                if self.visualize and grasp_list:
-                    # Pass the original object point cloud (ensure it's numpy)
-                    pcd_for_vis = object_pcd.cpu().numpy() if isinstance(object_pcd, torch.Tensor) else object_pcd
-                    self._visualize_grasps(pcd_for_vis, grasp_list, object_pose)
-                
-                return grasp_list
-            except Exception as e:
-                print(f"Error in GraspGen prediction: {e}")
-                return self._mock_grasps(object_pose, num_grasps)
-        else:
-            # Mock grasps if no sampler or empty point cloud
-            return self._mock_grasps(object_pose, num_grasps)
+                grasp_list.append({
+                    "pos": world_grasp.position,
+                    "quat": world_grasp.quaternion,
+                    "score": float(grasp_conf[i].cpu().numpy()),
+                    "frame_id": "world"
+                })
+        
+        if self.debug:
+            print(f"GraspGen generated {len(grasp_list)} grasps")
+            if grasp_list:
+                print(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
+        
+        if self.visualize and grasp_list:
+            # Pass the original object point cloud (ensure it's numpy)
+            pcd_for_vis = object_pcd.cpu().numpy() if isinstance(object_pcd, torch.Tensor) else object_pcd
+            self._visualize_grasps(pcd_for_vis, grasp_list, object_pose)
+        
+        return grasp_list
 
-    def _transform_grasp_to_world(self, grasp: Dict, object_pose: Dict) -> Dict:
+    def _transform_grasp_to_world(self, grasp_local: StampedPose, object_pose: StampedPose) -> StampedPose:
         """
-        Transform grasp from object frame (relative to object_pose) to world frame.
+        Transform grasp from object-local frame to world frame using Transform class.
 
         Args:
-            grasp (Dict): Grasp pose in object's local frame with 'pos' and 'quat'.
-            object_pose (Dict): Object's pose in world frame with 'pos' and 'quat'.
+            grasp_local: Grasp pose in object's local frame
+            object_pose: Object's pose in world frame
 
         Returns:
-            Dict: Grasp pose in world frame with 'pos' and 'quat'.
+            Grasp pose in world frame
         """
-        # Convert object pose to a scipy Rotation object
-        object_rot = R.from_quat(object_pose['quat'])
+        # Create transform from object-local frame to world frame
+        # This transform represents where the object is in the world
+        object_to_world = Transform(
+            translation=object_pose.position,
+            rotation=object_pose.quaternion,
+            parent_frame="world",
+            child_frame="object_local"
+        )
         
-        # Convert grasp pose (relative to object) to a scipy Rotation object
-        grasp_rot_rel = R.from_quat(grasp['quat'])
-        
-        # Combine rotations
-        world_rot = object_rot * grasp_rot_rel
-        world_quat = world_rot.as_quat()
-        
-        # Combine positions
-        # Rotate the relative grasp position by the object's orientation
-        rotated_grasp_pos_rel = object_rot.apply(grasp['pos'])
-        world_pos = object_pose['pos'] + rotated_grasp_pos_rel
-        
-        return {"pos": world_pos, "quat": world_quat, "score": grasp.get("score", 0.0)}
+        # Apply transform to get grasp in world frame
+        return object_to_world.apply_to_pose(grasp_local)
 
     def _rotation_matrix_to_quaternion(self, R_matrix: np.ndarray) -> np.ndarray:
         """
@@ -223,25 +229,33 @@ class GraspPredictor:
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: Dict) -> np.ndarray:
         """
         Preprocess point cloud for GraspGen.
-        Transform from world frame to object-local frame and center at origin.
+        Transform from world frame to object-local frame.
         
         Args:
             pcd: Point cloud in world frame
             object_pose: Object pose in world frame
             
         Returns:
-            Point cloud in object-local frame, centered at origin
+            Point cloud in object-local frame
         """
-        # Transform point cloud from world to object frame
-        object_pos = np.array(object_pose['pos'])
-        object_quat = np.array(object_pose['quat'])
+        # Create transform from world to object-local frame (inverse of object pose)
+        world_to_object = Transform(
+            translation=object_pose['pos'],
+            rotation=object_pose['quat'],
+            parent_frame="world",
+            child_frame="object_local"
+        ).inverse()  # We want world -> object_local, so invert object -> world
         
-        # Convert quaternion to rotation matrix
-        object_rot = R.from_quat(object_quat).as_matrix()
+        # Apply transform to each point
+        # For efficiency, do this with matrix operations
+        transform_matrix = world_to_object.to_matrix()
         
-        # Transform points: first translate, then rotate
-        pcd_centered = pcd - object_pos
-        pcd_local = (object_rot.T @ pcd_centered.T).T  # Inverse rotation
+        # Convert to homogeneous coordinates
+        ones = np.ones((len(pcd), 1))
+        pcd_homogeneous = np.hstack([pcd, ones])
+        
+        # Apply transform
+        pcd_local = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
         
         # Remove outliers
         pcd_filtered = self._remove_outliers(pcd_local)
@@ -276,34 +290,3 @@ class GraspPredictor:
         # Random downsampling
         indices = np.random.choice(len(pcd), target_points, replace=False)
         return pcd[indices]
-    
-    def _mock_grasps(self, object_pose: Dict, num_grasps: int) -> List[Dict]:
-        """
-        Generate mock grasps for testing when GraspGen is not available.
-        
-        Args:
-            object_pose: Object pose in world frame
-            num_grasps: Number of mock grasps to generate
-            
-        Returns:
-            List of mock grasp dictionaries
-        """
-        grasps = []
-        object_pos = np.array(object_pose['pos'])
-        
-        for i in range(num_grasps):
-            # Generate random position near the object
-            offset = np.random.uniform(-0.05, 0.05, 3)
-            pos = object_pos + offset
-            
-            # Generate random orientation
-            quat = np.random.uniform(-1, 1, 4)
-            quat = quat / np.linalg.norm(quat)  # Normalize
-            
-            grasps.append({
-                "pos": pos,
-                "quat": quat,
-                "score": 0.5 + np.random.uniform(-0.2, 0.2)  # Random score around 0.5
-            })
-        
-        return grasps

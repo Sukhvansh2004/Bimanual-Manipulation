@@ -6,6 +6,7 @@ import logging
 from PIL import Image
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms import StampedPose, Transform
 
 from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
@@ -171,8 +172,19 @@ class ObjectDetector:
             if pcd_camera_frame.size == 0:
                 continue
 
-            # Transform point cloud to world frame
-            pcd_world_frame = camera_rot.apply(pcd_camera_frame) + camera_pos
+            # Create transform from camera frame to world frame
+            camera_to_world = Transform(
+                translation=camera_pos,
+                rotation=camera_rot.as_quat(),
+                parent_frame="world",
+                child_frame="camera"
+            )
+            
+            # Transform point cloud to world frame using matrix for efficiency
+            transform_matrix = camera_to_world.to_matrix()
+            ones = np.ones((len(pcd_camera_frame), 1))
+            pcd_homogeneous = np.hstack([pcd_camera_frame, ones])
+            pcd_world_frame = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
             
             # Estimate pose from point cloud in world frame
             pose = self._estimate_pose_from_point_cloud(pcd_world_frame)
@@ -282,15 +294,19 @@ class ObjectDetector:
         Returns:
             Point cloud in object-local frame
         """
-        object_pos = np.array(object_pose['pos'])
-        object_quat = np.array(object_pose['quat'])
+        # Create transform from world to object-local frame (inverse of object pose)
+        world_to_object = Transform(
+            translation=object_pose['pos'],
+            rotation=object_pose['quat'],
+            parent_frame="world",
+            child_frame="object_local"
+        ).inverse()  # We want world -> object_local
         
-        # Convert quaternion to rotation matrix
-        object_rot = R.from_quat(object_quat).as_matrix()
-        
-        # Transform: translate then rotate
-        pcd_centered = pcd_world - object_pos
-        pcd_local = (object_rot.T @ pcd_centered.T).T  # Inverse rotation
+        # Apply transform using matrix for efficiency
+        transform_matrix = world_to_object.to_matrix()
+        ones = np.ones((len(pcd_world), 1))
+        pcd_homogeneous = np.hstack([pcd_world, ones])
+        pcd_local = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
         
         return pcd_local
 
