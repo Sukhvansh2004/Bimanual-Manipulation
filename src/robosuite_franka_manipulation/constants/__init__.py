@@ -98,14 +98,19 @@ DEFAULT_MAX_ACCELERATION = 0.1  # m/s²
 DEFAULT_TIME_STEP = 0.02  # seconds
 
 # Trajectory planning
-TRAJECTORY_POS_ERROR_SCALE = 5  # Scaling factor for position control
-TRAJECTORY_ORI_ERROR_SCALE = 1  # Scaling factor for orientation control
-TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Position convergence threshold
-TRAJECTORY_MAX_TIMEOUT = 100  # Max steps to reach target
+TRAJECTORY_POS_ERROR_SCALE = 10  # Scaling factor for position control (increased for faster response)
+TRAJECTORY_ORI_ERROR_SCALE = 2  # Scaling factor for orientation control
+TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Position convergence threshold (1cm)
+TRAJECTORY_MAX_TIMEOUT = 500  # Max steps to reach target (increased for closed-loop)
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold
 TRAJECTORY_MIN_STEPS = 2  # Minimum trajectory steps
 TRAJECTORY_SLEEP_TIME = 2  # Sleep time after trajectory completion
+
+# Closed-loop trajectory tracking
+TRAJECTORY_STEPS_PER_WAYPOINT = 20  # Max steps to spend at each waypoint before advancing
+TRAJECTORY_WAYPOINT_THRESHOLD = 0.02  # Threshold to consider waypoint reached (2cm, looser than final)
+TRAJECTORY_FINAL_CONVERGENCE_STEPS = 200  # Extra steps for final convergence at target (increased)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

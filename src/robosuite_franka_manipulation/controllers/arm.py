@@ -437,9 +437,15 @@ class RobosuiteArmController:
         if len(positions) <= 1:
             return True # Already at target
 
-        for i in range(min(len(positions), timeout)):
-            target_pos_step = positions[i]
-            target_quat_step = quaternions[i]
+        # Closed-loop trajectory execution with waypoint tracking
+        waypoint_idx = 1  # Start from second waypoint (first is current pos)
+        steps_at_waypoint = 0
+        max_steps_per_waypoint = constants.TRAJECTORY_STEPS_PER_WAYPOINT
+        waypoint_threshold = constants.TRAJECTORY_WAYPOINT_THRESHOLD
+        
+        for step in range(timeout):
+            target_pos_step = positions[waypoint_idx]
+            target_quat_step = quaternions[waypoint_idx]
 
             current_pos = self.robot._hand_pos[self.arm_id]
             current_ori_mat = self.robot._hand_orn[self.arm_id]
@@ -448,6 +454,19 @@ class RobosuiteArmController:
             pos_error = target_pos_step - current_pos
             ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
             ori_error_vec = ori_error.as_rotvec()
+            
+            pos_error_norm = np.linalg.norm(pos_error)
+            ori_error_norm = np.linalg.norm(ori_error_vec)
+            
+            # Check if we've reached the current waypoint or spent enough time
+            steps_at_waypoint += 1
+            if (pos_error_norm < waypoint_threshold and ori_error_norm < waypoint_threshold) or \
+               steps_at_waypoint >= max_steps_per_waypoint:
+                # Move to next waypoint
+                waypoint_idx += 1
+                steps_at_waypoint = 0
+                if waypoint_idx >= len(positions):
+                    break  # Finished all waypoints
 
             # Construct action for this robot
             robot_action = np.zeros(self.action_dim_per_robot)
@@ -462,6 +481,37 @@ class RobosuiteArmController:
             full_action[start_idx:end_idx] = robot_action
 
             # Step the environment
+            self.env.step(full_action)
+        
+        # Final convergence: Keep sending final target until converged or timeout
+        final_convergence_steps = constants.TRAJECTORY_FINAL_CONVERGENCE_STEPS
+        for _ in range(final_convergence_steps):
+            current_pos = self.robot._hand_pos[self.arm_id]
+            current_ori_mat = self.robot._hand_orn[self.arm_id]
+            current_quat = R.from_matrix(current_ori_mat).as_quat()
+            
+            pos_error = target_pos - current_pos
+            ori_error = R.from_quat(target_quat) * R.from_quat(current_quat).inv()
+            ori_error_vec = ori_error.as_rotvec()
+            
+            pos_error_norm = np.linalg.norm(pos_error)
+            ori_error_norm = np.linalg.norm(ori_error_vec)
+            
+            # Check if converged
+            if pos_error_norm < threshold and ori_error_norm < threshold:
+                break
+                
+            # Construct action
+            robot_action = np.zeros(self.action_dim_per_robot)
+            robot_action[:3] = np.clip(pos_error * constants.TRAJECTORY_POS_ERROR_SCALE, -1, 1)
+            robot_action[3:6] = np.clip(ori_error_vec * constants.TRAJECTORY_ORI_ERROR_SCALE, -1, 1)
+            robot_action[6] = gripper_action
+            
+            full_action = np.zeros(self.total_action_dim)
+            start_idx = self.robot_id * self.action_dim_per_robot
+            end_idx = start_idx + self.action_dim_per_robot
+            full_action[start_idx:end_idx] = robot_action
+            
             self.env.step(full_action)
 
         final_pos = self.robot._hand_pos[self.arm_id]
