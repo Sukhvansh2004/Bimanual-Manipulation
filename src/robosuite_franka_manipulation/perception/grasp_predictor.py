@@ -74,7 +74,6 @@ class GraspPredictor:
             object_pcd_processed,
             self.sampler,
             grasp_threshold=-1.0,  # Use all grasps
-            num_grasps=num_grasps,
             topk_num_grasps=num_grasps,  # Return top k grasps
             min_grasps=1,  # Minimum grasps to return
             max_tries=3,  # Maximum inference attempts
@@ -84,13 +83,7 @@ class GraspPredictor:
         # Convert to list of dicts
         grasp_list = []
         if len(grasps) > 0:
-            # Create object pose as StampedPose for transform
-            object_stamped = StampedPose(
-                position=object_pose['pos'],
-                quaternion=object_pose['quat'],
-                frame_id="world"
-            )
-            
+            # object_pose is already a StampedPose, use it directly
             for i in range(len(grasps)):
                 # Extract position from translation part of matrix
                 pos = grasps[i][:3, 3].cpu().numpy()
@@ -107,7 +100,7 @@ class GraspPredictor:
                 )
                 
                 # Transform to world frame using object pose
-                world_grasp = self._transform_grasp_to_world(grasp_local, object_stamped)
+                world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
                 
                 grasp_list.append({
                     "pos": world_grasp.position,
