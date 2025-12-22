@@ -32,7 +32,7 @@ class GraspPredictor:
         cfg = load_grasp_cfg(model_path)
         self.sampler = GraspGenSampler(cfg)
 
-    def predict_grasps(self, object_pcd: np.ndarray, object_pose: Dict, num_grasps: int = 10) -> List[Dict]:
+    def predict_grasps(self, object_pcd: np.ndarray, object_pose: StampedPose, num_grasps: int = 10) -> List[Dict]:
         """
         Predict grasp poses for an object.
 
@@ -46,7 +46,7 @@ class GraspPredictor:
         """
         if self.debug:
             logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
-            logger.debug(f"Object pose: pos={object_pose['pos']}, quat={object_pose['quat']}")
+            logger.debug(f"Object pose: pos={object_pose.position}, quat={object_pose.quaternion}")
         
         # Validate inputs
         if self.sampler is None:
@@ -151,7 +151,7 @@ class GraspPredictor:
         # Apply transform to get grasp in world frame
         return object_to_world.apply_to_pose(grasp_local)
 
-    def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: Dict):
+    def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
         """
         Visualize the object point cloud and predicted grasps using Open3D.
         Each grasp is represented as a coordinate frame.
@@ -210,7 +210,7 @@ class GraspPredictor:
 
         logger.info("Open3D grasp visualization closed.")
 
-    def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: Dict) -> np.ndarray:
+    def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """
         Preprocess point cloud for GraspGen.
         Transform from world frame to object-local frame.
@@ -224,8 +224,8 @@ class GraspPredictor:
         """
         # Create transform from world to object-local frame (inverse of object pose)
         world_to_object = Transform(
-            translation=object_pose['pos'],
-            rotation=object_pose['quat'],
+            translation=object_pose.position,
+            rotation=object_pose.quaternion,
             parent_frame="world",
             child_frame="object_local"
         ).inverse()  # We want world -> object_local, so invert object -> world

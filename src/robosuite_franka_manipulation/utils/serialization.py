@@ -8,6 +8,8 @@ types and JSON-serializable formats.
 import numpy as np
 from typing import Dict, List, Any, Union
 
+from robosuite_franka_manipulation.transforms import StampedPose
+
 
 def to_json_serializable(obj: Any) -> Any:
     """
@@ -96,16 +98,18 @@ def convert_detections_to_json(detections: List[Dict]) -> List[Dict]:
     return [to_json_serializable(detection) for detection in detections]
 
 
-def convert_pose_to_json(pose: Dict) -> Dict:
+def convert_pose_to_json(pose: Union[StampedPose, Dict]) -> Dict:
     """
-    Convert a pose dictionary to JSON-serializable format.
+    Convert a pose (StampedPose or dictionary) to JSON-serializable format.
     
     Args:
-        pose: Pose dictionary with 'pos' and 'quat' keys
+        pose: StampedPose object or pose dictionary with 'pos' and 'quat' keys
         
     Returns:
         JSON-serializable pose dictionary
     """
+    if isinstance(pose, StampedPose):
+        return pose.to_dict()
     return to_json_serializable(pose)
 
 

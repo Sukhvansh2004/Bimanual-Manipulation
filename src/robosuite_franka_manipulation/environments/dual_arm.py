@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from typing import Any
+from typing import Any, Tuple
 
 import robosuite as suite
 from robosuite.controllers import load_part_controller_config
@@ -29,29 +29,29 @@ class DualArmEnvironmentWrapper:
             cy = constants.DEFAULT_CAMERA_INTRINSICS[1, 2]
             self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
     
-    def reset(self):
+    def reset(self) -> np.ndarray:
         """Reset environment and restore intrinsics."""
         obs = self._env.reset()
         self._set_intrinsics()
         return obs
     
-    def step(self, action):
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
         """Step the environment."""
         return self._env.step(action)
     
-    def render(self):
+    def render(self) -> Any:
         """Render the environment."""
         return self._env.render()
     
-    def close(self):
+    def close(self) -> None:
         """Close the environment."""
         return self._env.close()
     
     # Delegate attribute access to wrapped environment
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._env, name)
     
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if name == '_env':
             super().__setattr__(name, value)
         else:

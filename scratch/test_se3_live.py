@@ -88,7 +88,14 @@ def test_trajectory_execution():
     print("\n=== Executing Trajectory (headless) ===")
     t_start = time.time()
     
-    success = controller.move_to_pose(target_pos, target_quat)
+    from robosuite_franka_manipulation.transforms import StampedPose
+    target_pose = StampedPose(
+        position=target_pos,
+        quaternion=target_quat,
+        frame_id=controller.base_frame
+    )
+    
+    success = controller.move_to_pose(target_pose)
     
     t_exec = time.time() - t_start
     print(f"  Execution time: {t_exec:.2f} s")
@@ -142,7 +149,14 @@ def test_multiple_motions():
             target_quat = (R.from_quat(current_quat) * R.from_quat(delta_quat)).as_quat()
         
         print(f"\n{name} motion...")
-        success = controller.move_to_pose(target_pos, target_quat)
+        
+        target_pose = StampedPose(
+            position=target_pos,
+            quaternion=target_quat,
+            frame_id=controller.base_frame
+        )
+        
+        success = controller.move_to_pose(target_pose)
         
         final_pos = env.robots[0]._hand_pos["right"]
         pos_error = np.linalg.norm(final_pos - target_pos) * 1000

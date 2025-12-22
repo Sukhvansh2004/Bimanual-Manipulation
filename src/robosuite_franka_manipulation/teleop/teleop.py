@@ -6,6 +6,8 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 import numpy as np
 import logging
 from copy import deepcopy
+from typing import Any, Optional
+from threading import Lock
 from pynput import keyboard as pynput_keyboard
 
 from robosuite.devices import Keyboard
@@ -18,7 +20,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env, pos_sensitivity=None, rot_sensitivity=None):
+    def __init__(self, env: Any, pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
         if pos_sensitivity is None:
             pos_sensitivity = constants.DEFAULT_POS_SENSITIVITY
         if rot_sensitivity is None:
@@ -36,7 +38,7 @@ class KeyboardTeleop:
         self.listener = pynput_keyboard.Listener(on_press=self._on_key_press)
         self.listener.start()
 
-    def _on_key_press(self, key):
+    def _on_key_press(self, key: Any) -> None:
         """
         Callback for keyboard listener to detect exit key.
         """
@@ -47,7 +49,7 @@ class KeyboardTeleop:
         except AttributeError:
             pass
 
-    def run(self, env_lock=None):
+    def run(self, env_lock: Optional[Lock] = None) -> None:
         """Run teleoperation loop. If env_lock is provided, guard env access with it."""
         self.running = True
         logger.info("Starting teleoperation with robosuite Keyboard device.")

@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TypedDict
 import sys
 import cv2
 import logging
@@ -17,6 +17,16 @@ from ultralytics import FastSAM
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
+
+
+class Detection(TypedDict):
+    """Type definition for detected object."""
+    name: str
+    pose: StampedPose
+    pcd: np.ndarray
+    pcd_local: np.ndarray
+    mask: np.ndarray
+    id: int
 
 class ObjectDetector:
     """
@@ -106,7 +116,7 @@ class ObjectDetector:
         return depth
 
     def detect_objects(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray],
-                      camera_pos: np.ndarray, camera_rot: R) -> List[Dict]:
+                      camera_pos: np.ndarray, camera_rot: R) -> List[Detection]:
         """
         Detect objects in the scene using FastSAM on camera images.
 
@@ -231,13 +241,12 @@ class ObjectDetector:
             max_depth=constants.MAX_POINTCLOUD_RANGE
         )
 
-    def _estimate_pose_from_point_cloud(self, pcd: np.ndarray) -> Dict:
+    def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = "world") -> StampedPose:
         """Estimate object pose from point cloud using PCA for orientation."""
-        # Use utility function
         pos, quat = estimate_pose_from_point_cloud(pcd)
-        return {'pos': pos, 'quat': quat}
+        return StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
 
-    def _transform_to_object_frame(self, pcd_world: np.ndarray, object_pose: Dict) -> np.ndarray:
+    def _transform_to_object_frame(self, pcd_world: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """
         Transform point cloud from world frame to object-local frame.
         
@@ -250,8 +259,8 @@ class ObjectDetector:
         """
         # Create transform from world to object-local frame (inverse of object pose)
         world_to_object = Transform(
-            translation=object_pose['pos'],
-            rotation=object_pose['quat'],
+            translation=object_pose.position,
+            rotation=object_pose.quaternion,
             parent_frame="world",
             child_frame="object_local"
         ).inverse()  # We want world -> object_local

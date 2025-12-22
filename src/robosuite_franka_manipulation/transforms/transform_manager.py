@@ -136,7 +136,7 @@ class TransformManager:
     
     def _register_robot_base_provider(self, robot_idx: int, frame_id: str) -> None:
         """Register a dynamic transform provider for a robot's base frame."""
-        def get_base_transform():
+        def get_base_transform() -> Transform:
             robot = self.env.robots[robot_idx]
             
             # Get robot base position and orientation from simulation
@@ -170,7 +170,7 @@ class TransformManager:
     
     def _register_eef_provider(self, robot_idx: int, arm_id: str, frame_id: str) -> None:
         """Register a dynamic transform provider for an end-effector."""
-        def get_eef_transform():
+        def get_eef_transform() -> Transform:
             robot = self.env.robots[robot_idx]
             pos = robot._hand_pos[arm_id]
             rot_mat = robot._hand_orn[arm_id]
@@ -191,7 +191,7 @@ class TransformManager:
     
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
-        def get_camera_transform():
+        def get_camera_transform() -> Transform:
             pos = self.env.sim.data.get_camera_xpos(camera_name)
             rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
             quat = R.from_matrix(rot_mat).as_quat()
@@ -341,18 +341,18 @@ class TransformManager:
             if to_frame in self._transform_cache:
                 cached_tf, cached_time = self._transform_cache[to_frame]
                 if time.time() - cached_time < self._cache_duration:
-                    if cached_tf.parent_frame == from_frame:
+                    if cached_tf.parent_frame == from_frame and cached_tf.child_frame == to_frame:
                         return cached_tf
-                    elif cached_tf.child_frame == from_frame:
+                    elif cached_tf.parent_frame == to_frame and cached_tf.child_frame == from_frame:
                         return cached_tf.inverse()
             
             # Get fresh transform
             tf = self._dynamic_frame_providers[to_frame]()
             self._transform_cache[to_frame] = (tf, time.time())
             
-            if tf.parent_frame == from_frame:
+            if tf.parent_frame == from_frame and tf.child_frame == to_frame:
                 return tf
-            elif tf.child_frame == from_frame:
+            elif tf.parent_frame == to_frame and tf.child_frame == from_frame:
                 return tf.inverse()
         
         # Check if from_frame is dynamic
@@ -360,18 +360,18 @@ class TransformManager:
             if from_frame in self._transform_cache:
                 cached_tf, cached_time = self._transform_cache[from_frame]
                 if time.time() - cached_time < self._cache_duration:
-                    if cached_tf.child_frame == to_frame:
-                        return cached_tf.inverse()
-                    elif cached_tf.parent_frame == to_frame:
+                    if cached_tf.parent_frame == from_frame and cached_tf.child_frame == to_frame:
                         return cached_tf
+                    elif cached_tf.parent_frame == to_frame and cached_tf.child_frame == from_frame:
+                        return cached_tf.inverse()
             
             tf = self._dynamic_frame_providers[from_frame]()
             self._transform_cache[from_frame] = (tf, time.time())
             
-            if tf.child_frame == to_frame:
-                return tf.inverse()
-            elif tf.parent_frame == to_frame:
+            if tf.parent_frame == from_frame and tf.child_frame == to_frame:
                 return tf
+            elif tf.parent_frame == to_frame and tf.child_frame == from_frame:
+                return tf.inverse()
         
         raise ValueError(f"No direct transform from '{from_frame}' to '{to_frame}'")
     

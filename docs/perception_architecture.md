@@ -115,11 +115,13 @@ intrinsics = np.array([
 ])
 ```
 
-The `DualArmEnvironmentWrapper` automatically sets realistic intrinsics:
-- `fx = width / 2`
-- `fy = height / 2`
-- `cx = width / 2`
-- `cy = height / 2`
+The `DualArmEnvironmentWrapper` automatically sets camera intrinsics from `constants.DEFAULT_CAMERA_INTRINSICS`:
+```python
+fx = 800.0, fy = 800.0  # Focal lengths
+cx = 320.0, cy = 240.0  # Principal point (image center)
+```
+
+These values are configured in `constants/__init__.py` and can be customized for your specific camera setup.
 
 ## GPU Acceleration
 

@@ -67,7 +67,15 @@ class DualArmPoseController:
         print(f"  Initial: {initial_pos}")
         print(f"  Delta:   {pos - initial_pos}")
         
-        success = controller.move_to_pose(pos, quat)
+        # Create StampedPose for the target
+        from robosuite_franka_manipulation.transforms import StampedPose
+        target_pose = StampedPose(
+            position=pos,
+            quaternion=quat,
+            frame_id=controller.base_frame
+        )
+        
+        success = controller.move_to_pose(target_pose)
         
         # Print final position and error
         final_pos = self.env.robots[robot_id]._hand_pos["right"]

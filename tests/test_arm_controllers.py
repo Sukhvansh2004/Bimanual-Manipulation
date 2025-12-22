@@ -86,8 +86,14 @@ class TestArmControllers:
         target_pos = current_pos + np.array([0.05, 0.0, 0.0])
         target_quat = current_quat  # Keep same orientation
 
+        target_pose = StampedPose(
+            position=target_pos,
+            quaternion=target_quat,
+            frame_id=arm.base_frame
+        )
+
         # Attempt movement
-        success = arm.move_to_pose(target_pos, target_quat, timeout=100, threshold=0.05)
+        success = arm.move_to_pose(target_pose, timeout=100, threshold=0.05)
 
         # Movement should complete without crashing
         # Success depends on control tuning but method should work
@@ -110,60 +116,8 @@ class TestArmControllerFrameHandling:
         """Fixture to provide arm controller."""
         return RobosuiteArmController(env, arm_id="right", robot_id=0)
 
-    def test_parse_pose_input_array(self, controller):
-        """Test parsing numpy array pose input."""
-        pos = np.array([1.0, 2.0, 3.0])
-        quat = np.array([0, 0, 0, 1])
-        
-        parsed_pos, parsed_quat, frame_id = controller._parse_pose_input(pos, quat, None)
-        
-        np.testing.assert_array_almost_equal(parsed_pos, pos)
-        np.testing.assert_array_almost_equal(parsed_quat, quat)
-        assert frame_id is None
-
-    def test_parse_pose_input_stamped_pose(self, controller):
-        """Test parsing StampedPose input."""
-        pose = StampedPose(
-            position=[1.0, 2.0, 3.0],
-            quaternion=[0, 0, 0, 1],
-            frame_id="world"
-        )
-        
-        parsed_pos, parsed_quat, frame_id = controller._parse_pose_input(pose, None, None)
-        
-        np.testing.assert_array_almost_equal(parsed_pos, [1.0, 2.0, 3.0])
-        assert frame_id == "world"
-
-    def test_parse_pose_input_dict(self, controller):
-        """Test parsing dictionary pose input."""
-        grasp_dict = {
-            'pos': [1.0, 2.0, 3.0],
-            'quat': [0, 0, 0, 1],
-            'frame_id': 'world',
-            'score': 0.95
-        }
-        
-        parsed_pos, parsed_quat, frame_id = controller._parse_pose_input(grasp_dict, None, None)
-        
-        np.testing.assert_array_almost_equal(parsed_pos, [1.0, 2.0, 3.0])
-        assert frame_id == "world"
-
-    def test_parse_pose_input_dict_frame_override(self, controller):
-        """Test that explicit frame_id parameter overrides dict value."""
-        grasp_dict = {
-            'pos': [1.0, 2.0, 3.0],
-            'quat': [0, 0, 0, 1],
-            # No frame_id in dict
-        }
-        
-        parsed_pos, parsed_quat, frame_id = controller._parse_pose_input(
-            grasp_dict, None, "custom_frame"
-        )
-        
-        assert frame_id == "custom_frame"
-
     def test_move_to_pose_accepts_dict(self, env):
-        """Test that move_to_pose accepts grasp dictionary directly."""
+        """Test that move_to_pose accepts grasp dictionary converted to StampedPose."""
         controller = RobosuiteArmController(env, arm_id="right", robot_id=0)
         
         # Get current pose and create a small offset
@@ -179,8 +133,11 @@ class TestArmControllerFrameHandling:
             'score': 0.95
         }
         
+        # Convert to StampedPose
+        grasp_pose = StampedPose.from_dict(grasp_dict, frame_id=grasp_dict['frame_id'])
+        
         # Should not raise an error
-        success = controller.move_to_pose(grasp_dict, timeout=50)
+        success = controller.move_to_pose(grasp_pose, timeout=50)
         assert isinstance(success, bool)
 
     def test_move_to_pose_accepts_stamped_pose(self, env):

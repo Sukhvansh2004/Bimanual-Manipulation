@@ -21,7 +21,7 @@ class ServiceClient:
     Client for interacting with registered services through the service manager.
     """
 
-    def __init__(self, manager_host: str = None, manager_port: int = None):
+    def __init__(self, manager_host: str = None, manager_port: int = None) -> None:
         self.manager_host = manager_host or constants.DEFAULT_HOST
         self.manager_port = manager_port or constants.SERVICE_MANAGER_PORT
         self.context = zmq.Context()
@@ -85,7 +85,7 @@ class ServiceManager:
     Simple Service Manager for service registration, lookup, and calling.
     """
 
-    def __init__(self, host: str = None, port: int = None):
+    def __init__(self, host: str = None, port: int = None) -> None:
         self.host = host or constants.DEFAULT_HOST
         self.port = port or constants.SERVICE_MANAGER_PORT
 
@@ -279,6 +279,6 @@ class ServiceManager:
                 'message': f'Service call failed: {e}'
             }
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         self.stop()

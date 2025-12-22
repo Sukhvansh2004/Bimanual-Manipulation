@@ -447,6 +447,6 @@ class FastSAMService:
 
         logger.info("FastSAM Service stopped")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         self.stop()

@@ -13,6 +13,7 @@ import logging
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms import StampedPose
 from robosuite_franka_manipulation.utils.serialization import convert_grasps_to_json
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 
@@ -96,7 +97,7 @@ class GraspService:
         return validate_point_cloud(pointcloud, max_range=constants.MAX_POINTCLOUD_RANGE)
 
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
-                                     object_pose: Dict[str, np.ndarray],
+                                     object_pose: StampedPose,
                                      num_grasps: int = None,
                                      gripper_type: str = 'finger') -> List[Dict]:
         """
@@ -272,10 +273,11 @@ class GraspService:
                 # Convert data
                 try:
                     pointcloud = np.array(pointcloud_data, dtype=np.float32)
-                    object_pose_np = {
-                        'pos': np.array(object_pose['pos']),
-                        'quat': np.array(object_pose['quat'])
-                    }
+                    object_pose_stamped = StampedPose(
+                        position=np.array(object_pose['pos']),
+                        quaternion=np.array(object_pose['quat']),
+                        frame_id='world'
+                    )
                 except (KeyError, ValueError) as e:
                     return {
                         'status': 'error',
@@ -284,7 +286,7 @@ class GraspService:
 
                 # Predict grasps using the appropriate predictor
                 grasps = self._predict_grasps_for_pointcloud(
-                    pointcloud, object_pose_np, num_grasps, simplified_type
+                    pointcloud, object_pose_stamped, num_grasps, simplified_type
                 )
 
                 # Convert grasps to JSON-serializable format using utility
@@ -359,6 +361,6 @@ class GraspService:
 
         logger.info("Grasp Service stopped")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         self.stop()
