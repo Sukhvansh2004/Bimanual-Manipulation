@@ -175,11 +175,11 @@ def compute_approach_pose(grasp_pose: StampedPose,
     world_axis = rot.apply(local_axis)
     
     # Compute approach position (offset along negative axis)
-    approach_pos = grasp_pose.position - approach_distance * world_axis
+    approach_pos = np.asarray(grasp_pose.position) - approach_distance * world_axis
     
     return StampedPose(
         position=approach_pos,
-        quaternion=grasp_pose.quaternion.copy(),
+        quaternion=np.asarray(grasp_pose.quaternion).copy(),
         frame_id=grasp_pose.frame_id
     )
 
@@ -263,7 +263,7 @@ class FrameAwareGraspPipeline:
         for grasp in grasps:
             # Transform to same frame as EEF for comparison
             grasp_in_world = self.tf_manager.transform_pose(grasp, "world")
-            distance = np.linalg.norm(grasp_in_world.position - eef_pose.position)
+            distance = np.linalg.norm(np.asarray(grasp_in_world.position) - np.asarray(eef_pose.position))
             scored.append((distance, grasp))
         
         # Sort by distance (closest first)

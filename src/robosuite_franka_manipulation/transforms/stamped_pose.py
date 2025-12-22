@@ -3,10 +3,13 @@ StampedPose and Transform classes for representing poses with frame information.
 """
 
 import numpy as np
-from dataclasses import dataclass, field
-from typing import Optional, Union, List
+from dataclasses import dataclass
+from typing import Optional, Union, List, Sequence
 from scipy.spatial.transform import Rotation as R
 import time
+
+# Type for array-like inputs (lists, tuples, np.ndarray)
+ArrayInput = Union[np.ndarray, Sequence[float]]
 
 
 @dataclass
@@ -21,9 +24,12 @@ class StampedPose:
         quaternion: Orientation as quaternion [x, y, z, w] (scipy convention)
         frame_id: The coordinate frame this pose is expressed in
         timestamp: Optional timestamp for the pose
+        
+    Note: position and quaternion accept lists or arrays but are converted
+    to np.ndarray in __post_init__.
     """
-    position: np.ndarray
-    quaternion: np.ndarray
+    position: ArrayInput
+    quaternion: ArrayInput
     frame_id: str
     timestamp: Optional[float] = None
     
@@ -69,9 +75,11 @@ class StampedPose:
     
     def to_dict(self) -> dict:
         """Convert to dictionary format."""
+        pos = np.asarray(self.position)
+        quat = np.asarray(self.quaternion)
         return {
-            'pos': self.position.tolist(),
-            'quat': self.quaternion.tolist(),
+            'pos': pos.tolist(),
+            'quat': quat.tolist(),
             'frame_id': self.frame_id,
             'timestamp': self.timestamp
         }
@@ -104,27 +112,33 @@ class StampedPose:
         Returns:
             4x4 transformation matrix
         """
+        quat = np.asarray(self.quaternion)
+        pos = np.asarray(self.position)
         matrix = np.eye(4)
-        matrix[:3, :3] = R.from_quat(self.quaternion).as_matrix()
-        matrix[:3, 3] = self.position
+        matrix[:3, :3] = R.from_quat(quat).as_matrix()
+        matrix[:3, 3] = pos
         return matrix
     
     def rotation(self) -> R:
         """Get scipy Rotation object for the orientation."""
-        return R.from_quat(self.quaternion)
+        return R.from_quat(np.asarray(self.quaternion))
     
     def copy(self) -> "StampedPose":
         """Create a deep copy of this pose."""
+        pos = np.asarray(self.position)
+        quat = np.asarray(self.quaternion)
         return StampedPose(
-            position=self.position.copy(),
-            quaternion=self.quaternion.copy(),
+            position=pos.copy(),
+            quaternion=quat.copy(),
             frame_id=self.frame_id,
             timestamp=self.timestamp
         )
     
     def __repr__(self) -> str:
-        return (f"StampedPose(pos={self.position.round(4).tolist()}, "
-                f"quat={self.quaternion.round(4).tolist()}, "
+        pos = np.asarray(self.position)
+        quat = np.asarray(self.quaternion)
+        return (f"StampedPose(pos={pos.round(4).tolist()}, "
+                f"quat={quat.round(4).tolist()}, "
                 f"frame='{self.frame_id}')")
 
 
@@ -142,9 +156,12 @@ class Transform:
         child_frame: The child frame being described relative to parent
         timestamp: Optional timestamp
         is_static: Whether this transform is static (doesn't change over time)
+        
+    Note: translation and rotation accept lists or arrays but are converted
+    to np.ndarray in __post_init__.
     """
-    translation: np.ndarray
-    rotation: np.ndarray
+    translation: ArrayInput
+    rotation: ArrayInput
     parent_frame: str
     child_frame: str
     timestamp: Optional[float] = None
@@ -199,9 +216,11 @@ class Transform:
     
     def to_matrix(self) -> np.ndarray:
         """Convert to 4x4 homogeneous transformation matrix."""
+        rot = np.asarray(self.rotation)
+        trans = np.asarray(self.translation)
         matrix = np.eye(4)
-        matrix[:3, :3] = R.from_quat(self.rotation).as_matrix()
-        matrix[:3, 3] = self.translation
+        matrix[:3, :3] = R.from_quat(rot).as_matrix()
+        matrix[:3, 3] = trans
         return matrix
     
     def inverse(self) -> "Transform":
@@ -211,9 +230,9 @@ class Transform:
         Returns:
             New Transform with frames swapped and inverse transformation
         """
-        rot = R.from_quat(self.rotation)
+        rot = R.from_quat(np.asarray(self.rotation))
         inv_rot = rot.inv()
-        inv_translation = -inv_rot.apply(self.translation)
+        inv_translation = -inv_rot.apply(np.asarray(self.translation))
         
         return Transform(
             translation=inv_translation,
@@ -242,12 +261,12 @@ class Transform:
             )
         
         # Compose rotations
-        self_rot = R.from_quat(self.rotation)
-        other_rot = R.from_quat(other.rotation)
+        self_rot = R.from_quat(np.asarray(self.rotation))
+        other_rot = R.from_quat(np.asarray(other.rotation))
         composed_rot = self_rot * other_rot
         
         # Compose translations: t_composed = t_self + R_self * t_other
-        composed_translation = self.translation + self_rot.apply(other.translation)
+        composed_translation = np.asarray(self.translation) + self_rot.apply(np.asarray(other.translation))
         
         return Transform(
             translation=composed_translation,
@@ -276,11 +295,11 @@ class Transform:
             )
         
         # Transform position: p_parent = t + R * p_child
-        self_rot = R.from_quat(self.rotation)
-        new_position = self.translation + self_rot.apply(pose.position)
+        self_rot = R.from_quat(np.asarray(self.rotation))
+        new_position = np.asarray(self.translation) + self_rot.apply(np.asarray(pose.position))
         
         # Transform orientation: q_parent = q_self * q_pose
-        pose_rot = R.from_quat(pose.quaternion)
+        pose_rot = R.from_quat(np.asarray(pose.quaternion))
         new_rotation = self_rot * pose_rot
         
         return StampedPose(
@@ -290,7 +309,9 @@ class Transform:
         )
     
     def __repr__(self) -> str:
+        trans = np.asarray(self.translation)
+        rot = np.asarray(self.rotation)
         static_str = " (static)" if self.is_static else ""
         return (f"Transform({self.parent_frame} -> {self.child_frame}{static_str}, "
-                f"t={self.translation.round(4).tolist()}, "
-                f"q={self.rotation.round(4).tolist()})")
+                f"t={trans.round(4).tolist()}, "
+                f"q={rot.round(4).tolist()})")

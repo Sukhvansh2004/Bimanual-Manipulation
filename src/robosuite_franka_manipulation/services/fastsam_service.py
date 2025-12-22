@@ -7,10 +7,12 @@ import zmq
 import numpy as np
 import threading
 import time
-from typing import Dict, Any, List, Optional, Tuple, cast
+from typing import Dict, Any, List, Optional, Tuple, cast, Union
 import logging
 
 from scipy.spatial.transform import Rotation as R
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
@@ -35,7 +37,7 @@ class FastSAMService:
     env_lock: Optional[threading.Lock] = None
 
     def __init__(self,
-                 env: Any,
+                 env: Union[MujocoEnv, Wrapper],
                  host: str = constants.DEFAULT_HOST,
                  port: int = constants.FASTSAM_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
@@ -78,12 +80,12 @@ class FastSAMService:
         self.latest_segmented_pointclouds = []
 
         # Get camera intrinsics
-        if self.camera_name in self.env.camera_names:
+        if self.camera_name in self.env.camera_names:  # type: ignore[operator]
             logger.info(f"Using camera '{self.camera_name}' for FastSAM detection")
-            camera_id = self.env.camera_names.index(self.camera_name)
-            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]
-            self.camera_width = self.env.camera_widths[camera_id]
-            self.camera_height = self.env.camera_heights[camera_id]
+            camera_id = self.env.camera_names.index(self.camera_name)  # type: ignore[union-attr]
+            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]  # type: ignore[attr-defined]
+            self.camera_width = self.env.camera_widths[camera_id]  # type: ignore[union-attr, index]
+            self.camera_height = self.env.camera_heights[camera_id]  # type: ignore[union-attr, index]
         else:
             raise(ValueError(f"Camera '{self.camera_name}' not found in environment"))
 
@@ -149,23 +151,23 @@ class FastSAMService:
             self.env_lock.acquire()
         
         try:
-            obs = self.env._get_observations()
+            obs = self.env._get_observations()  # type: ignore[attr-defined]
 
             # Get RGB image
             rgb_key = f"{self.camera_name}_image"
-            rgb_image = obs.get(rgb_key)
+            rgb_image = obs.get(rgb_key)  # type: ignore[union-attr]
 
             # Get depth image and normalize shape
             depth_key = f"{self.camera_name}_depth"
-            depth_image = self._normalize_depth(obs.get(depth_key))
+            depth_image = self._normalize_depth(obs.get(depth_key))  # type: ignore[union-attr]
 
             if rgb_image is not None:
                 # Convert from (H, W, C) to (H, W, C) if needed
-                if rgb_image.shape[-1] == 3:
-                    rgb_image = (rgb_image * 255).astype(np.uint8)
+                if rgb_image.shape[-1] == 3:  # type: ignore[union-attr, index]
+                    rgb_image = (rgb_image * 255).astype(np.uint8)  # type: ignore[operator]
                 else:
-                    rgb_image = np.transpose(rgb_image, (1, 2, 0))
-                    rgb_image = (rgb_image * 255).astype(np.uint8)
+                    rgb_image = np.transpose(rgb_image, (1, 2, 0))  # type: ignore[arg-type]
+                    rgb_image = (rgb_image * 255).astype(np.uint8)  # type: ignore[operator]
 
             return rgb_image, depth_image
         finally:
@@ -192,8 +194,8 @@ class FastSAMService:
             logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
 
         # Get camera pose
-        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
-        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
+        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)  # type: ignore[attr-defined]
+        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)  # type: ignore[attr-defined]
         cam_rot = R.from_matrix(cam_rot_mat)
 
         # Run object detection

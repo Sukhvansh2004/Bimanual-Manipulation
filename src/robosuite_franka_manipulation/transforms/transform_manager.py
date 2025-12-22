@@ -6,11 +6,14 @@ provides methods for transforming poses between frames.
 """
 
 import numpy as np
-from typing import Dict, Optional, List, Any, Set, Tuple
+from typing import Dict, Optional, List, Set, Tuple, Union, Callable
 from scipy.spatial.transform import Rotation as R
 import logging
 import time
 from collections import deque
+
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose, Transform
@@ -56,7 +59,7 @@ class TransformManager:
     WORLD_FRAME = constants.WORLD_FRAME
     DEFAULT_CAMERA_FRAME = constants.DEFAULT_CAMERA_NAME
     
-    def __init__(self, env: Any = None, auto_discover: bool = True):
+    def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True):
         """
         Initialize TransformManager.
         
@@ -73,7 +76,7 @@ class TransformManager:
         self._frame_parents: Dict[str, str] = {}
         
         # Known dynamic frame providers (frame_id -> callable that returns Transform)
-        self._dynamic_frame_providers: Dict[str, callable] = {}
+        self._dynamic_frame_providers: Dict[str, Callable] = {}
         
         # Cache for dynamic transforms with timestamp
         self._transform_cache: Dict[str, Tuple[Transform, float]] = {}
@@ -85,7 +88,7 @@ class TransformManager:
         if env is not None and auto_discover:
             self._discover_frames()
     
-    def set_environment(self, env: Any, auto_discover: bool = True) -> None:
+    def set_environment(self, env: Union[MujocoEnv, Wrapper], auto_discover: bool = True) -> None:
         """
         Set or update the robosuite environment.
         
@@ -106,7 +109,7 @@ class TransformManager:
         
         # Discover robot frames
         if hasattr(self.env, 'robots'):
-            for robot_idx, robot in enumerate(self.env.robots):
+            for robot_idx, robot in enumerate(self.env.robots):  # type: ignore[union-attr]
                 robot_name = getattr(robot, 'name', f'robot{robot_idx}')
                 
                 # Robot base frame - query actual transform from simulation
@@ -124,8 +127,8 @@ class TransformManager:
         
         # Discover camera frames
         if hasattr(self.env, 'sim'):
-            for cam_id in range(self.env.sim.model.ncam):
-                cam_name = self.env.sim.model.camera_id2name(cam_id)
+            for cam_id in range(self.env.sim.model.ncam):  # type: ignore[attr-defined]
+                cam_name = self.env.sim.model.camera_id2name(cam_id)  # type: ignore[attr-defined]
                 if cam_name:
                     self._register_camera_provider(cam_name)
                     self._frame_parents[cam_name] = self.WORLD_FRAME
@@ -137,7 +140,7 @@ class TransformManager:
     def _register_robot_base_provider(self, robot_idx: int, frame_id: str) -> None:
         """Register a dynamic transform provider for a robot's base frame."""
         def get_base_transform() -> Transform:
-            robot = self.env.robots[robot_idx]
+            robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             
             # Get robot base position and orientation from simulation
             # The robot's base body is typically named after the robot
@@ -147,12 +150,12 @@ class TransformManager:
             try:
                 # Get the robot's base body position and orientation
                 base_body_name = robot.robot_model.root_body
-                pos = self.env.sim.data.get_body_xpos(base_body_name)
-                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+                pos = self.env.sim.data.get_body_xpos(base_body_name)  # type: ignore[attr-defined]
+                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)  # type: ignore[attr-defined]
                 quat = R.from_matrix(rot_mat).as_quat()
             except (AttributeError, KeyError):
-                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")  # type: ignore[attr-defined]
+                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)  # type: ignore[attr-defined]
                 quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
@@ -171,7 +174,7 @@ class TransformManager:
     def _register_eef_provider(self, robot_idx: int, arm_id: str, frame_id: str) -> None:
         """Register a dynamic transform provider for an end-effector."""
         def get_eef_transform() -> Transform:
-            robot = self.env.robots[robot_idx]
+            robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             pos = robot._hand_pos[arm_id]
             rot_mat = robot._hand_orn[arm_id]
             quat = R.from_matrix(rot_mat).as_quat()
@@ -192,8 +195,8 @@ class TransformManager:
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
         def get_camera_transform() -> Transform:
-            pos = self.env.sim.data.get_camera_xpos(camera_name)
-            rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+            pos = self.env.sim.data.get_camera_xpos(camera_name)  # type: ignore[attr-defined]
+            rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)  # type: ignore[attr-defined]
             quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
@@ -222,7 +225,7 @@ class TransformManager:
         logger.debug(f"Added static transform: {transform.parent_frame} -> {transform.child_frame}")
     
     def add_object_frame(self, object_id: str, pose: StampedPose, 
-                        parent_frame: str = None) -> str:
+                        parent_frame: Optional[str] = None) -> str:
         """
         Add a frame for a detected object.
         
@@ -471,7 +474,7 @@ class TransformManager:
         
         return result
     
-    def get_frame_pose(self, frame_id: str, reference_frame: str = None) -> StampedPose:
+    def get_frame_pose(self, frame_id: str, reference_frame: Optional[str] = None) -> StampedPose:
         """
         Get the pose of a frame relative to another frame.
         
@@ -509,7 +512,7 @@ class TransformManager:
         """Clear the dynamic transform cache."""
         self._transform_cache.clear()
     
-    def print_frame_tree(self, root: str = None, indent: int = 0) -> None:
+    def print_frame_tree(self, root: Optional[str] = None, indent: int = 0) -> None:
         """Print the frame tree structure."""
         if root is None:
             root = self.WORLD_FRAME

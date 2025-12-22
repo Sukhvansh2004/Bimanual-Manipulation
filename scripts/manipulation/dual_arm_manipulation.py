@@ -47,7 +47,7 @@ import threading
 import time
 import logging
 import code
-from typing import Optional
+from typing import Any, Optional
 
 from robosuite.wrappers import VisualizationWrapper
 
@@ -79,8 +79,7 @@ class DualArmManipulationSystem:
         self.detection_prompt = detection_prompt
         self.env_lock = threading.Lock()
         
-        # Components
-        self.env: Optional[VisualizationWrapper] = None
+        self.env: Any = None
         self.teleop: Optional[KeyboardTeleop] = None
         self.teleop_thread: Optional[threading.Thread] = None
         
@@ -175,6 +174,7 @@ class DualArmManipulationSystem:
             
             # Start FastSAM service
             logger.info("   Starting FastSAM service...")
+            assert self.env is not None
             self.fastsam_service = FastSAMService(
                 env=self.env,
                 visualize=self.visualize,

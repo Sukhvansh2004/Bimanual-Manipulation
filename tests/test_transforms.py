@@ -176,11 +176,11 @@ class TestStampedPose:
         
         copied = original.copy()
         
-        # Modify original
-        original.position[0] = 999
+        # Modify original (position is np.ndarray after __post_init__)
+        original.position[0] = 999  # type: ignore[index]
         
         # Copy should be unchanged
-        assert copied.position[0] == 1.0
+        assert copied.position[0] == 1.0  # type: ignore[index]
 
 
 class TestTransform:

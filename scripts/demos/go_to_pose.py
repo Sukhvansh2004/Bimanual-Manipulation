@@ -90,6 +90,7 @@ class DualArmPoseController:
 
 
 if __name__ == '__main__':
+    env = None
     try:
         print("Creating dual-arm environment...")
         env = make_dual_arm_env()
@@ -136,5 +137,5 @@ if __name__ == '__main__':
         print(f"Error: {e}")
         traceback.print_exc()
     finally:
-        if 'env' in locals():
+        if env is not None:
             env.close()

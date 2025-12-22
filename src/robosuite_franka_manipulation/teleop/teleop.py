@@ -6,11 +6,13 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 import numpy as np
 import logging
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from threading import Lock
 from pynput import keyboard as pynput_keyboard
 
 from robosuite.devices import Keyboard
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 from robosuite_franka_manipulation import constants
 
@@ -20,7 +22,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: Any, pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
+    def __init__(self, env: Union[MujocoEnv, Wrapper], pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
         if pos_sensitivity is None:
             pos_sensitivity = constants.DEFAULT_POS_SENSITIVITY
         if rot_sensitivity is None:
@@ -74,11 +76,11 @@ class KeyboardTeleop:
                     for robot_arm in robot.arms
                     if robot.gripper[robot_arm].dof > 0
                 }
-                for robot in self.env.robots
+                for robot in self.env.robots  # type: ignore[attr-defined]
             ]
 
             while True:
-                active_robot = self.env.robots[self.device.active_robot]
+                active_robot = self.env.robots[self.device.active_robot]  # type: ignore[attr-defined]
                 input_ac_dict = self.device.input2action(mirror_actions=False)
 
                 if input_ac_dict is None:
@@ -88,7 +90,7 @@ class KeyboardTeleop:
                 for arm in active_robot.arms:
                     action_dict[arm] = input_ac_dict[f"{arm}_delta"]
 
-                env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]
+                env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]  # type: ignore[attr-defined]
                 env_action[self.device.active_robot] = active_robot.create_action_vector(action_dict)
                 env_action = np.concatenate(env_action)
 

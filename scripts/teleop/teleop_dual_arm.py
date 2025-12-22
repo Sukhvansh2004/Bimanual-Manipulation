@@ -42,7 +42,7 @@ if __name__ == "__main__":
     )
 
     # Add keypress callback for visualization
-    env.viewer.add_keypress_callback(teleop.device.on_press)
+    env.viewer.add_keypress_callback(teleop.device.on_press)  # type: ignore[attr-defined]
 
     # Run teleoperation
     teleop.run()

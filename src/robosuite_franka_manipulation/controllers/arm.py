@@ -1,7 +1,11 @@
+import time
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from typing import Any, Tuple, Optional
-import time
+from typing import Tuple, Union, Optional
+
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
@@ -21,12 +25,12 @@ class RobosuiteArmController:
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
     """
-    def __init__(self, env: Any, arm_id: str = "right", robot_id: int = 0, 
+    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, 
                  transform_manager: Optional[TransformManager] = None) -> None:
         self.env = env
         self.arm_id = arm_id
         self.robot_id = robot_id
-        self.robot = self.env.robots[self.robot_id]
+        self.robot = self.env.robots[self.robot_id]  # type: ignore[attr-defined]
         self.dof = self.robot.dof
         
         # Robot base frame name for transforms
@@ -43,8 +47,9 @@ class RobosuiteArmController:
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
-                                   max_vel: float = None, max_acc: float = None, 
-                                   dt: float = None) -> Tuple[np.ndarray, np.ndarray, float]:
+                                   max_vel: float = constants.DEFAULT_MAX_VELOCITY,
+                                   max_acc: float = constants.DEFAULT_MAX_ACCELERATION, 
+                                   dt: float = constants.DEFAULT_TIME_STEP) -> Tuple[np.ndarray, np.ndarray, float]:
         """
         Plan a trapezoidal velocity profile trajectory from start to target pose in SE(3) space.
         
@@ -70,14 +75,6 @@ class RobosuiteArmController:
             quaternions: Array of quaternions over time (N, 4)
             total_time: Total trajectory time (s)
         """
-        # Set defaults if not provided
-        if max_vel is None:
-            max_vel = constants.DEFAULT_MAX_VELOCITY
-        if max_acc is None:
-            max_acc = constants.DEFAULT_MAX_ACCELERATION
-        if dt is None:
-            dt = constants.DEFAULT_TIME_STEP
-        
         # Convert to SE(3) matrices
         T_start = pose_to_SE3(start_pos, start_quat)
         T_target = pose_to_SE3(target_pos, target_quat)
@@ -173,8 +170,8 @@ class RobosuiteArmController:
         return np.array(positions), np.array(quaternions), total_time
 
     def move_to_pose(self, target_pose: StampedPose, 
-                    threshold: float = None, 
-                    timeout: int = None, 
+                    threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
+                    timeout: int = constants.TRAJECTORY_MAX_TIMEOUT, 
                     gripper_action: float = 0.0) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
@@ -190,18 +187,12 @@ class RobosuiteArmController:
         Returns:
             bool: True if pose was reached within threshold, False otherwise
         """
-        # Set defaults if not provided
-        if threshold is None:
-            threshold = constants.TRAJECTORY_CONVERGENCE_THRESHOLD
-        if timeout is None:
-            timeout = constants.TRAJECTORY_MAX_TIMEOUT
-        
         # Transform to robot base frame if needed
         if target_pose.frame_id != self.base_frame:
             target_pose = self.transform_manager.transform_pose(target_pose, self.base_frame)
         
-        target_pos = target_pose.position
-        target_quat = target_pose.quaternion
+        target_pos = np.asarray(target_pose.position)
+        target_quat = np.asarray(target_pose.quaternion)
         
         current_pos = self.robot._hand_pos[self.arm_id]
         current_ori_mat = self.robot._hand_orn[self.arm_id]

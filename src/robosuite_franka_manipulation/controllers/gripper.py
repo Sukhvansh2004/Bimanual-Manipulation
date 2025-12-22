@@ -1,12 +1,15 @@
 import numpy as np
-from typing import Any
+from typing import Union
+
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 class RobosuiteGripperController:
     """
     A robosuite-equivalent GripperController.
     This class abstracts the control of a robot gripper in a robosuite environment.
     """
-    def __init__(self, env: Any, arm_id: str = "right", robot_id: int = 0) -> None:
+    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0) -> None:
         self.env = env
         self.arm_id = arm_id
         self.robot_id = robot_id

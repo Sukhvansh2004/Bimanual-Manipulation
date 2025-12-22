@@ -22,7 +22,7 @@ class EEFService:
 
     env_lock: Optional[threading.Lock] = None
 
-    def __init__(self, env: Any, host: str = constants.DEFAULT_HOST,
+    def __init__(self, env: Union[MujocoEnv, Wrapper], host: str = constants.DEFAULT_HOST,
                  port: int = constants.EEF_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
