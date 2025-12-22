@@ -16,6 +16,7 @@ def to_json_serializable(obj: Any) -> Any:
     Recursively convert an object to JSON-serializable format.
     
     Handles:
+    - StampedPose -> dict
     - numpy arrays -> lists
     - numpy scalars -> Python scalars
     - dicts -> recursively converted dicts
@@ -27,7 +28,9 @@ def to_json_serializable(obj: Any) -> Any:
     Returns:
         JSON-serializable version of the object
     """
-    if isinstance(obj, np.ndarray):
+    if isinstance(obj, StampedPose):
+        return obj.to_dict()
+    elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, (np.integer, np.floating)):
         return obj.item()

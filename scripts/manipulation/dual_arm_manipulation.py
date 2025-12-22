@@ -269,7 +269,7 @@ def detect():
         return []
 
 
-def get_grasps(detection, num_grasps=5):
+def get_grasps(detection, num_grasps=5, gripper_type='finger'):
     """Quick helper to generate grasps for a detection."""
     pointcloud = detection.get('pointcloud', [])
     pose = detection.get('pose', {})
@@ -283,7 +283,7 @@ def get_grasps(detection, num_grasps=5):
         'pointcloud': pointcloud,
         'object_pose': pose,
         'num_grasps': num_grasps,
-        'gripper_type': constants.DEFAULT_GRIPPER_TYPE
+        'gripper_type': gripper_type  # Use simplified type: 'finger' or 'suction'
     })
     
     if response.get('status') == 'success':
