@@ -8,7 +8,7 @@ import zmq
 import threading
 import time
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, cast
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 
@@ -22,18 +22,11 @@ class EEFService:
 
     env_lock: Optional[threading.Lock] = None
 
-    def __init__(self, env: Any, host: str = None, port: int = None,
-                 manager_host: str = None, manager_port: int = None,
+    def __init__(self, env: Any, host: str = constants.DEFAULT_HOST,
+                 port: int = constants.EEF_SERVICE_PORT,
+                 manager_host: str = constants.DEFAULT_HOST,
+                 manager_port: int = constants.SERVICE_MANAGER_PORT,
                  env_lock: Optional[threading.Lock] = None):
-        # Set defaults if not provided
-        if host is None:
-            host = constants.DEFAULT_HOST
-        if port is None:
-            port = constants.EEF_SERVICE_PORT
-        if manager_host is None:
-            manager_host = constants.DEFAULT_HOST
-        if manager_port is None:
-            manager_port = constants.SERVICE_MANAGER_PORT
         self.env = env
         self.host = host
         self.port = port
@@ -95,8 +88,8 @@ class EEFService:
         Returns:
             Dict with positions and orientations in world frame
         """
+        lock = self.env_lock
         try:
-            lock = getattr(self, "env_lock", None)
             if lock:
                 lock.acquire()
             # Get current observation
@@ -151,7 +144,7 @@ class EEFService:
             try:
                 # Use poll with timeout to allow checking self.running flag
                 if self.socket.poll(timeout=100):  # 100ms timeout
-                    message = self.socket.recv_json()
+                    message = cast(Dict[str, Any], self.socket.recv_json())
                     response = self._handle_request(message)
                     self.socket.send_json(response)
             except zmq.ZMQError as e:

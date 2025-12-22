@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, Optional, TypedDict
+from typing import List, Dict, TypedDict
 import sys
 import cv2
 import logging
@@ -13,7 +13,7 @@ from robosuite_franka_manipulation.utils.pointcloud import (
     deproject_depth_to_point_cloud,
 )
 
-from ultralytics import FastSAM
+from ultralytics.models.fastsam import FastSAM
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
@@ -33,11 +33,15 @@ class ObjectDetector:
     Class to detect objects in the scene using FastSAM segmentation.
     Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
     """
-    def __init__(self, camera_intrinsics: np.ndarray, camera_width: int = None, camera_height: int = None,
-                 prompt: str = None, debug: bool = True, visualize: bool = False) -> None:
-        # Set defaults if not provided
-        if prompt is None:
-            prompt = constants.DEFAULT_DETECTION_PROMPT
+    def __init__(
+        self,
+        camera_intrinsics: np.ndarray = constants.DEFAULT_CAMERA_INTRINSICS,
+        camera_width: int = constants.DEFAULT_CAMERA_WIDTH,
+        camera_height: int = constants.DEFAULT_CAMERA_HEIGHT,
+        prompt: str = constants.DEFAULT_DETECTION_PROMPT,
+        debug: bool = True,
+        visualize: bool = False
+    ) -> None:
         self.camera_intrinsics = camera_intrinsics
         self.camera_width = camera_width
         self.camera_height = camera_height
@@ -115,7 +119,7 @@ class ObjectDetector:
         
         return depth
 
-    def detect_objects(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray],
+    def detect_objects(self, rgb_image: np.ndarray, depth_image: np.ndarray,
                       camera_pos: np.ndarray, camera_rot: R) -> List[Detection]:
         """
         Detect objects in the scene using FastSAM on camera images.
@@ -129,17 +133,10 @@ class ObjectDetector:
         Returns:
             List of detected objects with poses, point clouds, and masks
         """
-        if depth_image is None:
-            raise ValueError("Depth image is required for object detection and point cloud extraction")
-        
-        objects = []
+        objects: List[Detection] = []
 
         if not self.model:
             logger.error("FastSAM model not available")
-            return objects
-
-        if rgb_image is None:
-            logger.error("No RGB image available")
             return objects
 
         # Normalize depth to 2D
@@ -215,11 +212,8 @@ class ObjectDetector:
 
         return objects
 
-    def _mask_to_point_cloud(self, mask: np.ndarray, depth: Optional[np.ndarray]) -> np.ndarray:
-        """Convert mask to point cloud using depth and camera intrinsics. Requires valid depth."""
-        if depth is None:
-            raise ValueError("Depth image required for point cloud extraction")
-        
+    def _mask_to_point_cloud(self, mask: np.ndarray, depth: np.ndarray) -> np.ndarray:
+        """Convert mask to point cloud using depth and camera intrinsics."""
         # Ensure depth is 2D; reshape flat buffers when dimensions are known
         depth = np.asarray(depth)
         if depth.ndim == 1:

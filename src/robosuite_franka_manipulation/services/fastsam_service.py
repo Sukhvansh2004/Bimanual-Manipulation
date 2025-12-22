@@ -7,7 +7,7 @@ import zmq
 import numpy as np
 import threading
 import time
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, cast
 import logging
 
 from scipy.spatial.transform import Rotation as R
@@ -36,11 +36,11 @@ class FastSAMService:
 
     def __init__(self,
                  env: Any,
-                 host: str = None,
-                 port: int = None,
-                 manager_host: str = None,
-                 manager_port: int = None,
-                 camera_name: str = None,
+                 host: str = constants.DEFAULT_HOST,
+                 port: int = constants.FASTSAM_SERVICE_PORT,
+                 manager_host: str = constants.DEFAULT_HOST,
+                 manager_port: int = constants.SERVICE_MANAGER_PORT,
+                 camera_name: str = constants.DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
                  debug: bool = False,
                  env_lock: Optional[threading.Lock] = None):
@@ -58,18 +58,6 @@ class FastSAMService:
             debug: Enable debug logging
             env_lock: Optional threading lock for environment access
         """
-        # Set defaults if not provided
-        if host is None:
-            host = constants.DEFAULT_HOST
-        if port is None:
-            port = constants.FASTSAM_SERVICE_PORT
-        if manager_host is None:
-            manager_host = constants.DEFAULT_HOST
-        if manager_port is None:
-            manager_port = constants.SERVICE_MANAGER_PORT
-        if camera_name is None:
-            camera_name = constants.DEFAULT_CAMERA_NAME
-
         self.env = env
         self.host = host
         self.port = port
@@ -184,7 +172,7 @@ class FastSAMService:
             if self.env_lock:
                 self.env_lock.release()
 
-    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[Dict]:
+    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[Dict[str, Any]]:
         """
         Process RGB image through FastSAM and extract detections with point clouds.
 
@@ -212,17 +200,21 @@ class FastSAMService:
         detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
         # Enhance detections with point clouds
+        result: List[Dict[str, Any]] = []
         for detection in detections:
-            if 'mask' in detection:
+            det_dict: Dict[str, Any] = dict(detection)  # Convert TypedDict to regular dict
+            if 'mask' in det_dict:
                 # Extract point cloud from depth and mask
+                image_shape: Tuple[int, int] = (rgb_image.shape[0], rgb_image.shape[1])
                 pointcloud = self._extract_pointcloud_from_depth(
-                    depth_image, detection['mask'], rgb_image.shape[:2]
+                    depth_image, det_dict['mask'], image_shape
                 )
-                detection['pointcloud'] = pointcloud
+                det_dict['pointcloud'] = pointcloud
             else:
-                detection['pointcloud'] = np.array([])
+                det_dict['pointcloud'] = np.array([])
+            result.append(det_dict)
 
-        return detections
+        return result
 
     def _get_intrinsic_params(self) -> Tuple[float, float, float, float]:
         """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
@@ -347,7 +339,7 @@ class FastSAMService:
         while self.running:
             # Wait for request with timeout
             if self.socket.poll(timeout=constants.ZMQ_POLL_TIMEOUT):
-                message = self.socket.recv_json()
+                message = cast(Dict[str, Any], self.socket.recv_json())
                 response = self._handle_request(message)
                 self.socket.send_json(response)
 

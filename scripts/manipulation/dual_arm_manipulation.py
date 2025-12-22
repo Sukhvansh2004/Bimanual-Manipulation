@@ -47,6 +47,7 @@ import threading
 import time
 import logging
 import code
+from typing import Optional
 
 from robosuite.wrappers import VisualizationWrapper
 
@@ -79,22 +80,22 @@ class DualArmManipulationSystem:
         self.env_lock = threading.Lock()
         
         # Components
-        self.env = None
-        self.teleop = None
-        self.teleop_thread = None
+        self.env: Optional[VisualizationWrapper] = None
+        self.teleop: Optional[KeyboardTeleop] = None
+        self.teleop_thread: Optional[threading.Thread] = None
         
         # Arm and gripper controllers
-        self.left_arm = None
-        self.right_arm = None
-        self.left_gripper = None
-        self.right_gripper = None
+        self.left_arm: Optional[RobosuiteArmController] = None
+        self.right_arm: Optional[RobosuiteArmController] = None
+        self.left_gripper: Optional[RobosuiteGripperController] = None
+        self.right_gripper: Optional[RobosuiteGripperController] = None
         
         # Services
-        self.service_manager = None
-        self.fastsam_service = None
-        self.grasp_service = None
-        self.eef_service = None
-        self.service_client = None
+        self.service_manager: Optional[ServiceManager] = None
+        self.fastsam_service: Optional[FastSAMService] = None
+        self.grasp_service: Optional[GraspService] = None
+        self.eef_service: Optional[EEFService] = None
+        self.service_client: Optional[ServiceClient] = None
             
         self.running = False
         
@@ -212,7 +213,9 @@ class DualArmManipulationSystem:
         """Run teleoperation in separate thread."""
         try:
             # Add keypress callback
-            self.env.viewer.add_keypress_callback(self.teleop.device.on_press)
+            assert self.env is not None, "Environment not initialized"
+            assert self.teleop is not None, "Teleop not initialized"
+            self.env.viewer.add_keypress_callback(self.teleop.device.on_press)  # type: ignore[union-attr]
             
             # Run teleoperation guarded by env_lock
             with self.env_lock:
@@ -225,7 +228,9 @@ class DualArmManipulationSystem:
     def run_teleop_blocking(self):
         """Run teleoperation in the current (main) thread with env lock."""
         # Add keypress callback
-        self.env.viewer.add_keypress_callback(self.teleop.device.on_press)
+        assert self.env is not None, "Environment not initialized"
+        assert self.teleop is not None, "Teleop not initialized"
+        self.env.viewer.add_keypress_callback(self.teleop.device.on_press)  # type: ignore[union-attr]
         self.teleop.run(env_lock=self.env_lock)
     
     def stop(self):
@@ -255,6 +260,7 @@ class DualArmManipulationSystem:
 
 def detect():
     """Quick helper to detect objects."""
+    assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
     if response.get('status') == 'success':
         detections = response.get('detections', [])
@@ -278,6 +284,7 @@ def get_grasps(detection, num_grasps=5, gripper_type='finger'):
         print("Invalid detection - missing pointcloud or pose")
         return []
     
+    assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('grasp_service', {
         'command': 'GET_GRASPS',
         'pointcloud': pointcloud,
@@ -299,6 +306,7 @@ def get_grasps(detection, num_grasps=5, gripper_type='finger'):
 
 def get_eef():
     """Quick helper to get end-effector coordinates."""
+    assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('eef_service', {'command': 'GET'})
     if response.get('success'):
         eef_data = response.get('eef_coordinates', {})
@@ -314,6 +322,7 @@ def get_eef():
 
 def set_prompt(prompt):
     """Quick helper to change detection prompt."""
+    assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {
         'command': 'SET_PROMPT',
         'prompt': prompt

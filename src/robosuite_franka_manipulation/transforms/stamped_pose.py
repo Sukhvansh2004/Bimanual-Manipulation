@@ -46,7 +46,7 @@ class StampedPose:
             self.timestamp = time.time()
     
     @classmethod
-    def from_dict(cls, data: dict, frame_id: str = None) -> "StampedPose":
+    def from_dict(cls, data: dict, frame_id: Optional[str] = None) -> "StampedPose":
         """
         Create StampedPose from a dictionary with 'pos'/'position' and 'quat'/'quaternion' keys.
         
@@ -59,7 +59,7 @@ class StampedPose:
         """
         pos = data.get('pos', data.get('position'))
         quat = data.get('quat', data.get('quaternion'))
-        fid = frame_id or data.get('frame_id', 'unknown')
+        fid = frame_id if frame_id is not None else data.get('frame_id', 'unknown')
         ts = data.get('timestamp')
         
         if pos is None or quat is None:

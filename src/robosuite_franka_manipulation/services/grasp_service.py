@@ -7,7 +7,7 @@ import zmq
 import numpy as np
 import threading
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 import logging
 
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
@@ -32,10 +32,10 @@ class GraspService:
     """
 
     def __init__(self,
-                 host: str = None,
-                 port: int = None,
-                 manager_host: str = None,
-                 manager_port: int = None,
+                 host: str = constants.DEFAULT_HOST,
+                 port: int = constants.GRASP_SERVICE_PORT,
+                 manager_host: str = constants.DEFAULT_HOST,
+                 manager_port: int = constants.SERVICE_MANAGER_PORT,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -49,16 +49,6 @@ class GraspService:
             debug: Enable debug logging
             visualize: Enable grasp visualization
         """
-        # Set defaults if not provided
-        if host is None:
-            host = constants.DEFAULT_HOST
-        if port is None:
-            port = constants.GRASP_SERVICE_PORT
-        if manager_host is None:
-            manager_host = constants.DEFAULT_HOST
-        if manager_port is None:
-            manager_port = constants.SERVICE_MANAGER_PORT
-
         self.host = host
         self.port = port
         self.debug = debug
@@ -98,7 +88,7 @@ class GraspService:
 
     def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
                                      object_pose: StampedPose,
-                                     num_grasps: int = None,
+                                     num_grasps: int = constants.DEFAULT_NUM_GRASPS,
                                      gripper_type: str = 'finger') -> List[Dict]:
         """
         Predict grasps for a single point cloud.
@@ -112,8 +102,6 @@ class GraspService:
         Returns:
             List of grasp dictionaries
         """
-        if num_grasps is None:
-            num_grasps = constants.DEFAULT_NUM_GRASPS
         # Select predictor based on gripper type
         if gripper_type == 'suction':
             predictor = self.grasp_predictors[constants.GRIPPER_TYPE_MAPPING['suction']]
@@ -187,7 +175,7 @@ class GraspService:
                 try:
                     # Wait for request with timeout
                     if self.socket.poll(timeout=constants.ZMQ_POLL_TIMEOUT):
-                        message = self.socket.recv_json()
+                        message = cast(Dict[str, Any], self.socket.recv_json())
                         response = self._handle_request(message)
                         self.socket.send_json(response)
 

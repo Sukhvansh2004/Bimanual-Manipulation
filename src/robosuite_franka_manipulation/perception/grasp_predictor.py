@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import Optional, List, Dict
+from typing import List, Dict
 import torch
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
@@ -19,15 +19,19 @@ class GraspPredictor:
     """
     Class to predict grasps for objects using GraspGen.
     """
-    def __init__(self, gripper_type: str = None, model_path: Optional[str] = None, debug: bool = False, visualize: bool = False) -> None:
-        if gripper_type is None:
-            gripper_type = constants.DEFAULT_GRIPPER_TYPE
+    def __init__(
+        self,
+        gripper_type: str = constants.DEFAULT_GRIPPER_TYPE,
+        model_path: str = "",
+        debug: bool = False,
+        visualize: bool = False
+    ) -> None:
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type
         
         # Load GraspGen config from GraspGenModels based on gripper type
-        if model_path is None:
+        if not model_path:
             model_path = str(get_graspgen_config_path(gripper_type))
         cfg = load_grasp_cfg(model_path)
         self.sampler = GraspGenSampler(cfg)
@@ -194,12 +198,16 @@ class GraspPredictor:
             # For a basic RVIZ-like visualization, coordinate frames are usually sufficient.
 
         # Create a visualizer window
-        o3d.visualization.draw_geometries(geometries, window_name="Grasp Visualization",
-                                          width=800, height=600,
-                                          front=[0.5, -0.8, -0.2],    # Example camera position
-                                          lookat=[0.0, 0.0, 0.0],     # Look at origin
-                                          up=[0.0, 0.0, 1.0],         # Z-axis up
-                                          zoom=0.8)
+        o3d.visualization.draw_geometries(  # type: ignore[attr-defined]
+            geometries,
+            window_name="Grasp Visualization",
+            width=800,
+            height=600,
+            front=[0.5, -0.8, -0.2],
+            lookat=[0.0, 0.0, 0.0],
+            up=[0.0, 0.0, 1.0],
+            zoom=0.8
+        )
 
         logger.info("Open3D grasp visualization closed.")
 
