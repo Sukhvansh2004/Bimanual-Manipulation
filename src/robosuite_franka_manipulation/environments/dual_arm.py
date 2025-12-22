@@ -25,12 +25,12 @@ class DualArmEnvironmentWrapper:
     def _set_intrinsics(self) -> None:
         """Set realistic camera intrinsics for all cameras."""
         # robosuite dynamic attributes not in type stubs
-        for i in range(len(self._env.camera_names)):  # type: ignore[attr-defined]
+        for i in range(len(self._env.camera_names)):
             fx = constants.DEFAULT_CAMERA_INTRINSICS[0, 0]
             fy = constants.DEFAULT_CAMERA_INTRINSICS[1, 1]
             cx = constants.DEFAULT_CAMERA_INTRINSICS[0, 2]
             cy = constants.DEFAULT_CAMERA_INTRINSICS[1, 2]
-            self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)  # type: ignore[attr-defined]
+            self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
     
     def reset(self) -> Any:
         """Reset environment and restore intrinsics."""
@@ -114,8 +114,8 @@ if __name__ == '__main__':
 
         # Reset and step through a few times to test
         env.reset()
-        for _ in range(env.horizon):  # type: ignore[arg-type]
-            action = env.action_space.sample()  # type: ignore[attr-defined]
+        for _ in range(env.horizon):
+            action = env.action_space.sample()
             obs, reward, done, info = env.step(action)
             if done:
                 break

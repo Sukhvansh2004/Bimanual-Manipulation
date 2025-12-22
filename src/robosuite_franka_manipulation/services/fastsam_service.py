@@ -80,12 +80,12 @@ class FastSAMService:
         self.latest_segmented_pointclouds = []
 
         # Get camera intrinsics
-        if self.camera_name in self.env.camera_names:  # type: ignore[operator]
+        if self.camera_name in self.env.camera_names:
             logger.info(f"Using camera '{self.camera_name}' for FastSAM detection")
-            camera_id = self.env.camera_names.index(self.camera_name)  # type: ignore[union-attr]
-            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]  # type: ignore[attr-defined]
-            self.camera_width = self.env.camera_widths[camera_id]  # type: ignore[union-attr, index]
-            self.camera_height = self.env.camera_heights[camera_id]  # type: ignore[union-attr, index]
+            camera_id = self.env.camera_names.index(self.camera_name)
+            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]
+            self.camera_width = self.env.camera_widths[camera_id]
+            self.camera_height = self.env.camera_heights[camera_id]
         else:
             raise(ValueError(f"Camera '{self.camera_name}' not found in environment"))
 
@@ -151,23 +151,23 @@ class FastSAMService:
             self.env_lock.acquire()
         
         try:
-            obs = self.env._get_observations()  # type: ignore[attr-defined]
+            obs = self.env._get_observations()
 
             # Get RGB image
             rgb_key = f"{self.camera_name}_image"
-            rgb_image = obs.get(rgb_key)  # type: ignore[union-attr]
+            rgb_image = obs.get(rgb_key)
 
             # Get depth image and normalize shape
             depth_key = f"{self.camera_name}_depth"
-            depth_image = self._normalize_depth(obs.get(depth_key))  # type: ignore[union-attr]
+            depth_image = self._normalize_depth(obs.get(depth_key))
 
             if rgb_image is not None:
                 # Convert from (H, W, C) to (H, W, C) if needed
-                if rgb_image.shape[-1] == 3:  # type: ignore[union-attr, index]
-                    rgb_image = (rgb_image * 255).astype(np.uint8)  # type: ignore[operator]
+                if rgb_image.shape[-1] == 3:
+                    rgb_image = (rgb_image * 255).astype(np.uint8)
                 else:
-                    rgb_image = np.transpose(rgb_image, (1, 2, 0))  # type: ignore[arg-type]
-                    rgb_image = (rgb_image * 255).astype(np.uint8)  # type: ignore[operator]
+                    rgb_image = np.transpose(rgb_image, (1, 2, 0))
+                    rgb_image = (rgb_image * 255).astype(np.uint8)
 
             return rgb_image, depth_image
         finally:
@@ -194,8 +194,8 @@ class FastSAMService:
             logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
 
         # Get camera pose
-        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)  # type: ignore[attr-defined]
-        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)  # type: ignore[attr-defined]
+        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
+        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
         cam_rot = R.from_matrix(cam_rot_mat)
 
         # Run object detection

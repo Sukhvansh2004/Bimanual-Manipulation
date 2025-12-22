@@ -127,8 +127,8 @@ class TransformManager:
         
         # Discover camera frames
         if hasattr(self.env, 'sim'):
-            for cam_id in range(self.env.sim.model.ncam):  # type: ignore[attr-defined]
-                cam_name = self.env.sim.model.camera_id2name(cam_id)  # type: ignore[attr-defined]
+            for cam_id in range(self.env.sim.model.ncam):
+                cam_name = self.env.sim.model.camera_id2name(cam_id)
                 if cam_name:
                     self._register_camera_provider(cam_name)
                     self._frame_parents[cam_name] = self.WORLD_FRAME
@@ -150,12 +150,12 @@ class TransformManager:
             try:
                 # Get the robot's base body position and orientation
                 base_body_name = robot.robot_model.root_body
-                pos = self.env.sim.data.get_body_xpos(base_body_name)  # type: ignore[attr-defined]
-                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)  # type: ignore[attr-defined]
+                pos = self.env.sim.data.get_body_xpos(base_body_name)
+                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             except (AttributeError, KeyError):
-                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")  # type: ignore[attr-defined]
-                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)  # type: ignore[attr-defined]
+                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
@@ -195,8 +195,8 @@ class TransformManager:
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
         def get_camera_transform() -> Transform:
-            pos = self.env.sim.data.get_camera_xpos(camera_name)  # type: ignore[attr-defined]
-            rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)  # type: ignore[attr-defined]
+            pos = self.env.sim.data.get_camera_xpos(camera_name)
+            rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
             quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(

@@ -12,9 +12,8 @@ import time
 # Disable rendering BEFORE importing the module
 from robosuite_franka_manipulation import constants
 constants.DEFAULT_HAS_RENDERER = False
-# Note: Keep offscreen renderer on if using camera observations
-# constants.DEFAULT_USE_CAMERA_OBS = False  # Would also disable cameras
 
+from robosuite_franka_manipulation.transforms import StampedPose
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
 

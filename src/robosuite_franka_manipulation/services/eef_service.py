@@ -8,9 +8,11 @@ import zmq
 import threading
 import time
 import logging
-from typing import Dict, Any, Optional, cast
+from typing import Dict, Any, Optional, cast, Union
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
 
 logger = logging.getLogger(__name__)
 

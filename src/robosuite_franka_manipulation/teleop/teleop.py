@@ -76,11 +76,11 @@ class KeyboardTeleop:
                     for robot_arm in robot.arms
                     if robot.gripper[robot_arm].dof > 0
                 }
-                for robot in self.env.robots  # type: ignore[attr-defined]
+                for robot in self.env.robots
             ]
 
             while True:
-                active_robot = self.env.robots[self.device.active_robot]  # type: ignore[attr-defined]
+                active_robot = self.env.robots[self.device.active_robot]
                 input_ac_dict = self.device.input2action(mirror_actions=False)
 
                 if input_ac_dict is None:
@@ -90,7 +90,7 @@ class KeyboardTeleop:
                 for arm in active_robot.arms:
                     action_dict[arm] = input_ac_dict[f"{arm}_delta"]
 
-                env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]  # type: ignore[attr-defined]
+                env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]
                 env_action[self.device.active_robot] = active_robot.create_action_vector(action_dict)
                 env_action = np.concatenate(env_action)
 

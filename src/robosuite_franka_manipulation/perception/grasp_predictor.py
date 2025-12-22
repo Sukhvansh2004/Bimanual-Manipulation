@@ -198,7 +198,7 @@ class GraspPredictor:
             # For a basic RVIZ-like visualization, coordinate frames are usually sufficient.
 
         # Create a visualizer window
-        o3d.visualization.draw_geometries(  # type: ignore[attr-defined]
+        o3d.visualization.draw_geometries(
             geometries,
             window_name="Grasp Visualization",
             width=800,
