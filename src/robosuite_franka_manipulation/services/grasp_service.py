@@ -216,9 +216,29 @@ class GraspService:
             command = request.get('command', '').upper()
 
             if command == 'GET_GRASPS':
-                # Extract parameters
-                gripper_type = request.get('gripper_type', constants.DEFAULT_GRIPPER_TYPE)
+                # Extract parameters - gripper_type should be simplified ('finger' or 'suction')
+                simplified_type = request.get('gripper_type', 'finger')
                 num_grasps = request.get('num_grasps', constants.DEFAULT_NUM_GRASPS)
+                
+                # Validate simplified gripper type
+                if simplified_type not in ['finger', 'suction']:
+                    return {
+                        'status': 'error',
+                        'message': f'Invalid gripper type: {simplified_type}. Use "finger" or "suction"'
+                    }
+                
+                # Map simplified type to full gripper type for predictor lookup
+                if simplified_type == 'suction':
+                    full_gripper_type = constants.GRIPPER_TYPE_MAPPING['suction']
+                else:  # finger
+                    full_gripper_type = constants.GRIPPER_TYPE_MAPPING['finger']
+                
+                # Check if gripper type predictor is loaded
+                if full_gripper_type not in self.grasp_predictors:
+                    return {
+                        'status': 'error',
+                        'message': f'Grasp predictor for {simplified_type} gripper not loaded'
+                    }
                 
                 # Check if pointcloud and pose are provided
                 pointcloud_data = request.get('pointcloud')
@@ -252,24 +272,6 @@ class GraspService:
                         'message': 'No object pose available'
                     }
 
-                # Check if gripper type is supported
-                if gripper_type not in self.grasp_predictors:
-                    return {
-                        'status': 'error',
-                        'message': f'Unsupported gripper type: {gripper_type}. Supported: {list(self.grasp_predictors.keys())}'
-                    }
-
-                # Map gripper type to simplified type
-                if gripper_type == constants.GRIPPER_TYPE_MAPPING['suction']:
-                    simplified_type = 'suction'
-                elif gripper_type == constants.GRIPPER_TYPE_MAPPING['finger']:
-                    simplified_type = 'finger'
-                else:
-                    return {
-                        'status': 'error',
-                        'message': f'Cannot map gripper type {gripper_type} to simplified type'
-                    }
-
                 # Convert data
                 try:
                     pointcloud = np.array(pointcloud_data, dtype=np.float32)
@@ -297,7 +299,7 @@ class GraspService:
                     'grasps': json_grasps,
                     'num_grasps_predicted': len(grasps),
                     'pointcloud_size': len(pointcloud),
-                    'gripper_type': gripper_type
+                    'gripper_type': simplified_type
                 }
 
             else:
