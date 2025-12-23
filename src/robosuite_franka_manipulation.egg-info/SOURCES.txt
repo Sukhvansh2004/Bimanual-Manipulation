@@ -27,6 +27,7 @@ src/robosuite_franka_manipulation/transforms/frame_utils.py
 src/robosuite_franka_manipulation/transforms/stamped_pose.py
 src/robosuite_franka_manipulation/transforms/transform_manager.py
 src/robosuite_franka_manipulation/utils/__init__.py
+src/robosuite_franka_manipulation/utils/env_utils.py
 src/robosuite_franka_manipulation/utils/pointcloud.py
 src/robosuite_franka_manipulation/utils/se3.py
 src/robosuite_franka_manipulation/utils/serialization.py
