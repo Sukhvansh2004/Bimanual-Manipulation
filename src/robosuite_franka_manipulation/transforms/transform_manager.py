@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation as R
 import logging
 import time
 from collections import deque
+import threading
 
 from robosuite.environments.base import MujocoEnv
 from robosuite.wrappers import Wrapper
@@ -59,15 +60,18 @@ class TransformManager:
     WORLD_FRAME = constants.WORLD_FRAME
     DEFAULT_CAMERA_FRAME = constants.DEFAULT_CAMERA_NAME
     
-    def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True):
+    def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
         """
         Initialize TransformManager.
         
         Args:
             env: Robosuite environment instance (optional, can be set later)
             auto_discover: Whether to automatically discover frames from environment
+            env_lock: Optional threading.Lock used to guard access to MuJoCo sim.data
         """
         self.env = env
+        # Optional lock to guard simulation access when multiple threads use the env
+        self._env_lock: Optional[threading.Lock] = env_lock
         
         # Static transforms (don't change over time)
         self._static_transforms: Dict[Tuple[str, str], Transform] = {}
@@ -150,12 +154,22 @@ class TransformManager:
             try:
                 # Get the robot's base body position and orientation
                 base_body_name = robot.robot_model.root_body
-                pos = self.env.sim.data.get_body_xpos(base_body_name)
-                rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+                if self._env_lock:
+                    with self._env_lock:
+                        pos = self.env.sim.data.get_body_xpos(base_body_name)
+                        rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+                else:
+                    pos = self.env.sim.data.get_body_xpos(base_body_name)
+                    rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             except (AttributeError, KeyError):
-                pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                if self._env_lock:
+                    with self._env_lock:
+                        pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                        rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                else:
+                    pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                    rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
@@ -195,8 +209,13 @@ class TransformManager:
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
         def get_camera_transform() -> Transform:
-            pos = self.env.sim.data.get_camera_xpos(camera_name)
-            rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+            if self._env_lock:
+                with self._env_lock:
+                    pos = self.env.sim.data.get_camera_xpos(camera_name)
+                    rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+            else:
+                pos = self.env.sim.data.get_camera_xpos(camera_name)
+                rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
             quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(

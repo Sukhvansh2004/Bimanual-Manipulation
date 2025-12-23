@@ -201,19 +201,22 @@ class GraspPredictor:
             # This part is more complex and usually requires custom shaders or external libraries.
             # For a basic RVIZ-like visualization, coordinate frames are usually sufficient.
 
-        # Create a visualizer window
-        o3d.visualization.draw_geometries(
-            geometries,
-            window_name="Grasp Visualization",
-            width=800,
-            height=600,
-            front=[0.5, -0.8, -0.2],
-            lookat=[0.0, 0.0, 0.0],
-            up=[0.0, 0.0, 1.0],
-            zoom=0.8
-        )
-
-        logger.info("Open3D grasp visualization closed.")
+        # Create a visualizer window. Wrap in try/except because Open3D may not have
+        # a usable EGL/GL context on headless systems and will raise errors (e.g., GLFW/EGL).
+        try:
+            o3d.visualization.draw_geometries(
+                geometries,
+                window_name="Grasp Visualization",
+                width=800,
+                height=600,
+                front=[0.5, -0.8, -0.2],
+                lookat=[0.0, 0.0, 0.0],
+                up=[0.0, 0.0, 1.0],
+                zoom=0.8
+            )
+            logger.info("Open3D grasp visualization closed.")
+        except Exception as e:  # Catch GLFW/EGL/OpenGL errors and continue
+            logger.warning("Open3D visualization unavailable: %s. Skipping visualization.", e)
 
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """

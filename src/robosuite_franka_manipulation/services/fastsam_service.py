@@ -192,9 +192,14 @@ class FastSAMService:
         depth_image = self._normalize_depth(depth_image)
         logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
 
-        # Get camera pose
-        cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
-        cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
+        # Get camera pose (guarded by env_lock to avoid concurrent MuJoCo access)
+        if self.env_lock:
+            with self.env_lock:
+                cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
+                cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
+        else:
+            cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
+            cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
         cam_rot = R.from_matrix(cam_rot_mat)
 
         # Run object detection

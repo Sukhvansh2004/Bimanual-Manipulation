@@ -1,6 +1,7 @@
 import time
 
 import numpy as np
+import threading
 from scipy.spatial.transform import Rotation as R
 from typing import Tuple, Union, Optional
 
@@ -27,8 +28,9 @@ class RobosuiteArmController:
     to move the end-effector to that pose.
     """
     def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, 
-                 transform_manager: Optional[TransformManager] = None) -> None:
+                 transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None) -> None:
         self.env = env
+        self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
         self.robot = self.env.robots[self.robot_id]  # type: ignore[attr-defined]
@@ -44,7 +46,10 @@ class RobosuiteArmController:
         
         # Transform manager for frame conversions
         # If not provided, create one (will be shared if passed from DualArmController)
-        self.transform_manager = transform_manager or TransformManager(env)
+        if transform_manager:
+            self.transform_manager = transform_manager
+        else:
+            self.transform_manager = TransformManager(env, env_lock=self.env_lock)
 
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
