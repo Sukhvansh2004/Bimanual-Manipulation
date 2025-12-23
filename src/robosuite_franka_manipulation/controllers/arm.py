@@ -16,6 +16,7 @@ from robosuite_franka_manipulation.utils.se3 import (
     SE3_exp,
     compute_se3_distance,
 )
+from robosuite_franka_manipulation.utils import safe_env_step
 
 
 class RobosuiteArmController:
@@ -248,8 +249,8 @@ class RobosuiteArmController:
             end_idx = start_idx + self.action_dim_per_robot
             full_action[start_idx:end_idx] = robot_action
 
-            # Step the environment
-            self.env.step(full_action)
+            # Step the environment (use safe wrapper to handle intermittent runtime errors)
+            safe_env_step(self.env, full_action)
         
         # Final convergence: Keep sending final target until converged or timeout
         final_convergence_steps = constants.TRAJECTORY_FINAL_CONVERGENCE_STEPS
@@ -280,11 +281,12 @@ class RobosuiteArmController:
             end_idx = start_idx + self.action_dim_per_robot
             full_action[start_idx:end_idx] = robot_action
             
-            self.env.step(full_action)
+            safe_env_step(self.env, full_action)
 
         final_pos = self.robot._hand_pos[self.arm_id]
         final_ori_mat = self.robot._hand_orn[self.arm_id]
         final_quat = R.from_matrix(final_ori_mat).as_quat()
+
         pos_error = target_pos - final_pos
         ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
         ori_error_vec = ori_error.as_rotvec()

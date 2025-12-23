@@ -15,6 +15,7 @@ from robosuite.environments.base import MujocoEnv
 from robosuite.wrappers import Wrapper
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.utils import safe_env_step
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,8 @@ class KeyboardTeleop:
                 if env_lock:
                     env_lock.acquire()
                 try:
-                    self.env.step(env_action)
+                    # Use safe wrapper to mitigate intermittent RuntimeError from robosuite internals
+                    safe_env_step(self.env, env_action)
                     self.env.render()
                 finally:
                     if env_lock:

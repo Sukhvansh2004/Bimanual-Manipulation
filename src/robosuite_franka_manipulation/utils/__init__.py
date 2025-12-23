@@ -46,6 +46,10 @@ from robosuite_franka_manipulation.utils.serialization import (
     ensure_numpy,
 )
 
+from robosuite_franka_manipulation.utils.env_utils import (
+    safe_env_step,
+)
+
 __all__ = [
     # SE(3) utilities
     'skew',
@@ -74,4 +78,6 @@ __all__ = [
     'convert_pose_to_json',
     'numpy_to_list',
     'ensure_numpy',
+    # Env utils
+    'safe_env_step',
 ]
