@@ -78,7 +78,10 @@ class DualArmManipulationSystem:
         self.debug = debug
         self.detection_prompt = detection_prompt
         self.env_lock = threading.Lock()
-        
+
+        if self.debug:
+            logger.setLevel(logging.DEBUG)
+
         self.env: Any = None
         self.teleop: Optional[KeyboardTeleop] = None
         self.teleop_thread: Optional[threading.Thread] = None
@@ -178,7 +181,7 @@ class DualArmManipulationSystem:
             self.fastsam_service = FastSAMService(
                 env=self.env,
                 visualize=self.visualize,
-                debug=self.debug,
+                debug=False,
                 env_lock=self.env_lock,
             )
             self.fastsam_service.start()
@@ -230,7 +233,7 @@ class DualArmManipulationSystem:
         # Add keypress callback
         assert self.env is not None, "Environment not initialized"
         assert self.teleop is not None, "Teleop not initialized"
-        self.env.viewer.add_keypress_callback(self.teleop.device.on_press)  # type: ignore[union-attr]
+        self.env.viewer.add_keypress_callback(self.teleop.device.on_press)
         self.teleop.run(env_lock=self.env_lock)
     
     def stop(self):
@@ -341,7 +344,7 @@ def main():
     parser.add_argument(
         "--prompt",
         type=str,
-        default="object",
+        default="",
         help="Default detection prompt"
     )
     parser.add_argument(

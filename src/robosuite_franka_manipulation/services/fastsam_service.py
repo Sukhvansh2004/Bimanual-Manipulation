@@ -190,8 +190,7 @@ class FastSAMService:
         
         # Normalize depth to 2D
         depth_image = self._normalize_depth(depth_image)
-        if self.debug:
-            logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
+        logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
 
         # Get camera pose
         cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
@@ -238,8 +237,7 @@ class FastSAMService:
         else:
             raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
 
-        if self.debug:
-            logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
+        logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
         return fx, fy, cx, cy
 
     def _extract_pointcloud_from_depth(self, depth_image: np.ndarray,
@@ -267,8 +265,7 @@ class FastSAMService:
         if depth.ndim != 2:
             raise ValueError(f"Depth has invalid shape {depth.shape}, expected 2D")
 
-        if self.debug:
-            logger.debug(f"Pointcloud extraction depth shape={depth.shape}, mask shape={mask.shape}")
+        logger.debug(f"Pointcloud extraction depth shape={depth.shape}, mask shape={mask.shape}")
 
         # Get camera intrinsics from environment
         fx, fy, cx, cy = self._get_intrinsic_params()
@@ -324,8 +321,7 @@ class FastSAMService:
                     for detection in detections
                 ]
 
-                if self.debug:
-                    logger.debug(f"Processed {len(detections)} detections")
+                logger.debug(f"Processed {len(detections)} detections")
 
             # Small delay to prevent excessive CPU usage
             time.sleep(0.1)
