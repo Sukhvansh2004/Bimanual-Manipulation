@@ -11,9 +11,9 @@ echo ""
 echo "Installing system dependencies for offscreen rendering..."
 if command -v apt-get &> /dev/null; then
     sudo apt-get update
-    sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-essential cmake
+    sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev libglu1-mesa-dev libgl1-mesa-dev freeglut3-dev build-essential cmake
 elif command -v yum &> /dev/null; then
-    sudo yum install -y mesa-libEGL-devel mesa-libGLES-devel mesa-libOSMesa-devel gcc gcc-c++ make cmake
+    sudo yum install -y mesa-libEGL-devel mesa-libGLES-devel mesa-libOSMesa-devel mesa-libGLU-devel freeglut-devel gcc gcc-c++ make cmake
 else
     echo "Warning: Could not detect package manager. Please manually install OpenGL development libraries and build tools."
 fi
