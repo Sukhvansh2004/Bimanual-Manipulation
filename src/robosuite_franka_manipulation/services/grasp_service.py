@@ -82,6 +82,9 @@ class GraspService:
 
         logger.info(f"Grasp Service initialized on {host}:{port}")
 
+        if self.debug:
+            logger.setLevel(logging.DEBUG)
+
     def _validate_pointcloud(self, pointcloud: np.ndarray) -> bool:
         """Validate point cloud data using utility function."""
         return validate_point_cloud(pointcloud, max_range=constants.MAX_POINTCLOUD_RANGE)
@@ -134,8 +137,7 @@ class GraspService:
                 grasp['pointcloud_size'] = len(pointcloud)
                 grasp['prediction_timestamp'] = time.time()
 
-            if self.debug:
-                logger.info(f"Predicted {len(grasps)} grasps for point cloud with {len(pointcloud)} points")
+            logger.debug(f"Predicted {len(grasps)} grasps for point cloud with {len(pointcloud)} points")
 
             return grasps
 

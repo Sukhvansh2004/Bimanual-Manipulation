@@ -7,13 +7,16 @@ from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
 
-logger = logging.getLogger(__name__)
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation.utils import downsample_point_cloud
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class GraspPredictor:
     """
@@ -36,6 +39,9 @@ class GraspPredictor:
         cfg = load_grasp_cfg(model_path)
         self.sampler = GraspGenSampler(cfg)
 
+        if self.debug:
+            logger.setLevel(logging.DEBUG)
+
     def predict_grasps(self, object_pcd: np.ndarray, object_pose: StampedPose, num_grasps: int = 10) -> List[Dict]:
         """
         Predict grasp poses for an object.
@@ -48,9 +54,8 @@ class GraspPredictor:
         Returns:
             List of grasp poses (position, quaternion)
         """
-        if self.debug:
-            logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
-            logger.debug(f"Object pose: pos={object_pose.position}, quat={object_pose.quaternion}")
+        logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
+        logger.debug(f"Object pose: pos={object_pose.position}, quat={object_pose.quaternion}")
         
         # Validate inputs
         if self.sampler is None:
@@ -113,10 +118,9 @@ class GraspPredictor:
                     "frame_id": "world"
                 })
         
-        if self.debug:
-            logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
-            if grasp_list:
-                logger.debug(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
+        logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
+        if grasp_list:
+            logger.debug(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
         
         if self.visualize and grasp_list:
             # Pass the original object point cloud (ensure it's numpy)
