@@ -58,7 +58,6 @@ class TransformManager:
     
     # Standard frame names (from constants)
     WORLD_FRAME = constants.WORLD_FRAME
-    DEFAULT_CAMERA_FRAME = constants.DEFAULT_CAMERA_NAME
     
     def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
         """

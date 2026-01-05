@@ -58,7 +58,6 @@ from robosuite_franka_manipulation.services.fastsam_service import FastSAMServic
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
-from robosuite_franka_manipulation import constants
 
 # Configure logging
 logging.basicConfig(
