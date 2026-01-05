@@ -121,8 +121,8 @@ class DualArmManipulationSystem:
         logger.info("\n1b. Loading arm and gripper controllers...")
         self.left_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=0, env_lock=self.env_lock)
         self.right_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=1, env_lock=self.env_lock)
-        self.left_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=0)
-        self.right_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=1)
+        self.left_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=0, env_lock=self.env_lock)
+        self.right_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=1, env_lock=self.env_lock)
         logger.info("   ✓ Controllers loaded")
         
         # Start services

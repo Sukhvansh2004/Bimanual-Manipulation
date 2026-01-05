@@ -1,16 +1,20 @@
+from contextlib import nullcontext
+import threading
 import numpy as np
-from typing import Union
+from typing import Union, Optional
 
 from robosuite.environments.base import MujocoEnv
 from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.utils import safe_env_step
 
 class RobosuiteGripperController:
     """
     A robosuite-equivalent GripperController.
     This class abstracts the control of a robot gripper in a robosuite environment.
     """
-    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0) -> None:
+    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.Lock] = None) -> None:
         self.env = env
+        self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
         self.action_dim_per_robot = 7
@@ -42,4 +46,5 @@ class RobosuiteGripperController:
         full_action = np.zeros(self.total_action_dim)
         start_idx = self.robot_id * self.action_dim_per_robot + 6
         full_action[start_idx] = gripper_val
-        self.env.step(full_action)
+        with self.env_lock if self.env_lock else nullcontext():
+            safe_env_step(self.env, full_action)

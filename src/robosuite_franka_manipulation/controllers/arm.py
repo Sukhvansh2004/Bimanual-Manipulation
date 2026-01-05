@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import time
 
 import numpy as np
@@ -255,7 +256,8 @@ class RobosuiteArmController:
             full_action[start_idx:end_idx] = robot_action
 
             # Step the environment (use safe wrapper to handle intermittent runtime errors)
-            safe_env_step(self.env, full_action)
+            with self.env_lock if self.env_lock else nullcontext():
+                safe_env_step(self.env, full_action)
         
         # Final convergence: Keep sending final target until converged or timeout
         final_convergence_steps = constants.TRAJECTORY_FINAL_CONVERGENCE_STEPS
@@ -286,7 +288,8 @@ class RobosuiteArmController:
             end_idx = start_idx + self.action_dim_per_robot
             full_action[start_idx:end_idx] = robot_action
             
-            safe_env_step(self.env, full_action)
+            with self.env_lock if self.env_lock else nullcontext():
+                safe_env_step(self.env, full_action)
 
         final_pos = self.robot._hand_pos[self.arm_id]
         final_ori_mat = self.robot._hand_orn[self.arm_id]
