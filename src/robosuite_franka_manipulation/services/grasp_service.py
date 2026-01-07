@@ -10,10 +10,14 @@ import time
 from typing import Dict, Any, List, Optional, cast
 import logging
 
+from robosuite.environments.base import MujocoEnv
+from robosuite.wrappers import Wrapper
+from typing import Union
+
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.transforms import StampedPose
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation.utils.serialization import convert_grasps_to_json
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 
@@ -36,6 +40,8 @@ class GraspService:
                  port: int = constants.GRASP_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
+                 env: Optional[Union[MujocoEnv, Wrapper]] = None,
+                 env_lock: Optional[threading.Lock] = None,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -54,6 +60,14 @@ class GraspService:
         self.debug = debug
         self.visualize = visualize
 
+        # Optional TF manager for visualization of cameras/EEF frames
+        self.tf_manager: Optional[TransformManager] = None
+        if env is not None:
+            try:
+                self.tf_manager = TransformManager(env=env, auto_discover=True, env_lock=env_lock)
+            except Exception as e:
+                logger.warning("Failed to initialize TransformManager for grasp visualization: %s", e)
+
         # Service state
         self.running = False
 
@@ -64,7 +78,7 @@ class GraspService:
         for gripper_type in gripper_types:
             try:
                 self.grasp_predictors[gripper_type] = GraspPredictor(
-                    gripper_type=gripper_type, debug=debug, visualize=visualize
+                    gripper_type=gripper_type, debug=debug, visualize=visualize, transform_manager=self.tf_manager
                 )
                 logger.info(f"Loaded GraspPredictor for {gripper_type}")
             except Exception as e:

@@ -240,7 +240,12 @@ class DualArmManipulationSystem:
             
             # Start Grasp service
             logger.info("   Starting Grasp service...")
-            self.grasp_service = GraspService(debug=self.debug, visualize=self.visualize)
+            self.grasp_service = GraspService(
+                env=self.env,
+                env_lock=self.env_lock,
+                debug=self.debug,
+                visualize=self.visualize,
+            )
             self.grasp_service.start()
             time.sleep(0.5)
             logger.info("   ✓ Grasp service started")

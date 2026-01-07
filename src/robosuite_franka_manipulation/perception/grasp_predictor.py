@@ -1,14 +1,15 @@
 import numpy as np
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
 import torch
 import open3d as o3d
 from scipy.spatial.transform import Rotation as R
+import plotly.graph_objects as go
 
 from robosuite_franka_manipulation import constants
 
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
-from robosuite_franka_manipulation.transforms import StampedPose, Transform
+from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils import downsample_point_cloud
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
@@ -27,11 +28,15 @@ class GraspPredictor:
         gripper_type: str = constants.DEFAULT_GRIPPER_TYPE,
         model_path: str = "",
         debug: bool = False,
-        visualize: bool = False
+        visualize: bool = False,
+        transform_manager: Optional[TransformManager] = None,
     ) -> None:
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type
+
+        # Optional TransformManager for visualizing additional frames (EEF, cameras, etc.)
+        self.tf_manager: Optional[TransformManager] = transform_manager
         
         # Load GraspGen config from GraspGenModels based on gripper type
         if not model_path:
@@ -171,32 +176,7 @@ class GraspPredictor:
             return
         pcd_xyz = pcd_xyz[:, :3]
 
-        try:
-            import plotly.graph_objects as go
-        except Exception as e:
-            logger.warning("Plotly unavailable (%s). Falling back to Open3D window.", e)
-            try:
-                o3d_pcd = o3d.geometry.PointCloud()
-                o3d_pcd.points = o3d.utility.Vector3dVector(pcd_xyz)
-                o3d_pcd.paint_uniform_color([0.7, 0.7, 0.7])
-
-                geometries = [o3d_pcd]
-                for grasp in grasps:
-                    pos = np.asarray(grasp["pos"], dtype=np.float64)
-                    quat = np.asarray(grasp["quat"], dtype=np.float64)
-                    grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
-                    transform_matrix = np.eye(4)
-                    transform_matrix[:3, :3] = R.from_quat(quat).as_matrix()
-                    transform_matrix[:3, 3] = pos
-                    grasp_frame.transform(transform_matrix)
-                    geometries.append(grasp_frame)
-
-                o3d.visualization.draw_geometries(geometries, window_name="Grasp Visualization")
-            except Exception as e2:
-                logger.warning("Open3D visualization unavailable: %s. Skipping visualization.", e2)
-            return
-
-        logger.info("Visualizing grasps with Plotly...")
+        logger.info("Visualizing grasps (and frames) with Plotly...")
 
         fig = go.Figure()
         fig.add_trace(
@@ -210,17 +190,24 @@ class GraspPredictor:
             )
         )
 
-        axis_len = 0.05
-        for i, grasp in enumerate(grasps):
-            pos = np.asarray(grasp["pos"], dtype=np.float64)
-            quat = np.asarray(grasp["quat"], dtype=np.float64)
+        def _add_frame(
+            name: str,
+            pos_in_world: Any,
+            quat_xyzw: Any,
+            axis_len: float,
+            axis_width: int,
+            marker_size: int,
+            marker_color: str,
+        ) -> None:
+            pos = np.asarray(pos_in_world, dtype=np.float64).reshape(3)
+            quat = np.asarray(quat_xyzw, dtype=np.float64).reshape(4)
             rot = R.from_quat(quat)
 
             x_axis = rot.apply([1.0, 0.0, 0.0])
             y_axis = rot.apply([0.0, 1.0, 0.0])
             z_axis = rot.apply([0.0, 0.0, 1.0])
 
-            def _add_axis(vec, color, axis_name: str):
+            def _add_axis(vec, color):
                 end = pos + axis_len * np.asarray(vec)
                 fig.add_trace(
                     go.Scatter3d(
@@ -228,33 +215,93 @@ class GraspPredictor:
                         y=[pos[1], end[1]],
                         z=[pos[2], end[2]],
                         mode="lines",
-                        name=f"grasp_{i}_{axis_name}",
-                        line=dict(color=color, width=6),
+                        line=dict(color=color, width=axis_width),
                         showlegend=False,
                     )
                 )
 
-            _add_axis(x_axis, "rgb(220,60,60)", "x")
-            _add_axis(y_axis, "rgb(60,220,60)", "y")
-            _add_axis(z_axis, "rgb(60,60,220)", "z")
+            # Axis colors follow the standard convention: x=red, y=green, z=blue
+            _add_axis(x_axis, "rgb(220,60,60)")
+            _add_axis(y_axis, "rgb(60,220,60)")
+            _add_axis(z_axis, "rgb(60,60,220)")
 
-            score = grasp.get("score", None)
-            label = f"{i}" if score is None else f"{i} ({float(score):.3f})"
             fig.add_trace(
                 go.Scatter3d(
                     x=[pos[0]],
                     y=[pos[1]],
                     z=[pos[2]],
                     mode="markers+text",
-                    text=[label],
+                    text=[name],
                     textposition="top center",
-                    marker=dict(size=3, color="rgba(40,40,40,0.9)"),
+                    marker=dict(size=marker_size, color=marker_color),
                     showlegend=False,
                 )
             )
 
+        # World frame (origin)
+        _add_frame(
+            name="world",
+            pos_in_world=[0.0, 0.0, 0.0],
+            quat_xyzw=[0.0, 0.0, 0.0, 1.0],
+            axis_len=0.08,
+            axis_width=5,
+            marker_size=4,
+            marker_color="rgba(30,30,30,0.9)",
+        )
+
+        # Object pose (what the point cloud / grasps relate to)
+        _add_frame(
+            name="object_pose",
+            pos_in_world=object_pose.position,
+            quat_xyzw=object_pose.quaternion,
+            axis_len=0.06,
+            axis_width=5,
+            marker_size=4,
+            marker_color="rgba(120,60,20,0.9)",
+        )
+
+        # Predicted grasp frames
+        for i, grasp in enumerate(grasps):
+            pos = grasp.get("pos")
+            quat = grasp.get("quat")
+            label = f"grasp_{i}"
+            if pos is None or quat is None:
+                continue
+            _add_frame(
+                name=label,
+                pos_in_world=pos,
+                quat_xyzw=quat,
+                axis_len=0.05,
+                axis_width=6,
+                marker_size=3,
+                marker_color="rgba(40,40,40,0.9)",
+            )
+
+        # Additional TF frames (EEF, cameras, robot bases, etc.) if available
+        tfm = getattr(self, "tf_manager", None)
+        if tfm is not None:
+            try:
+                for frame_name in tfm.get_known_frames():
+                    if frame_name == "world":
+                        continue
+                    try:
+                        pose = tfm.get_frame_pose(frame_name, reference_frame="world")
+                    except Exception:
+                        continue
+                    _add_frame(
+                        name=frame_name,
+                        pos_in_world=pose.position,
+                        quat_xyzw=pose.quaternion,
+                        axis_len=0.03,
+                        axis_width=3,
+                        marker_size=2,
+                        marker_color="rgba(90,90,90,0.7)",
+                    )
+            except Exception as e:
+                logger.debug("Skipping TF frame visualization: %s", e)
+
         fig.update_layout(
-            title="Grasp Visualization",
+            title="Grasp + Frame Visualization",
             scene=dict(
                 xaxis_title="x",
                 yaxis_title="y",
