@@ -31,6 +31,19 @@ class ServiceClient:
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
 
+    def close(self) -> None:
+        """Close underlying ZMQ resources immediately."""
+        try:
+            if self.socket is not None:
+                self.socket.close(linger=0)
+        except Exception:
+            pass
+        try:
+            if self.context is not None:
+                self.context.term()
+        except Exception:
+            pass
+
     def _call_manager(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Make a call to the service manager."""
         try:

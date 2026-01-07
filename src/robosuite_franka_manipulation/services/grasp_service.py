@@ -188,7 +188,10 @@ class GraspService:
         except Exception as e:
             logger.error(f"Server loop error: {e}")
         finally:
-            self.socket.close()
+            try:
+                self.socket.close(linger=0)
+            except Exception:
+                pass
 
         logger.info("Server loop stopped")
 
@@ -347,9 +350,15 @@ class GraspService:
 
         # Close ZMQ
         if self.socket:
-            self.socket.close()
+            try:
+                self.socket.close(linger=0)
+            except Exception:
+                pass
         if self.context:
-            self.context.term()
+            try:
+                self.context.term()
+            except Exception:
+                pass
 
         logger.info("Grasp Service stopped")
 

@@ -436,9 +436,22 @@ class FastSAMService:
 
         # Close ZMQ
         if self.socket:
-            self.socket.close()
+            try:
+                self.socket.close(linger=0)
+            except Exception:
+                pass
         if self.context:
-            self.context.term()
+            try:
+                self.context.term()
+            except Exception:
+                pass
+
+        # Close any OpenCV visualization windows owned by the detector
+        try:
+            if hasattr(self, "object_detector") and self.object_detector is not None:
+                self.object_detector._close_visualization_windows()
+        except Exception:
+            pass
 
         logger.info("FastSAM Service stopped")
 

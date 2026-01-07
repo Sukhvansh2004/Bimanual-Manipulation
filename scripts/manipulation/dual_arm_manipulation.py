@@ -47,6 +47,10 @@ import threading
 import time
 import logging
 import code
+import atexit
+import os
+import signal
+import sys
 from typing import Any, Optional
 
 from robosuite.wrappers import VisualizationWrapper
@@ -99,6 +103,47 @@ class DualArmManipulationSystem:
         self.service_client: Optional[ServiceClient] = None
             
         self.running = False
+
+        # Shutdown coordination
+        self._stop_lock = threading.Lock()
+        self._shutdown_requested = threading.Event()
+
+    def _is_quit_key(self, key: Any) -> bool:
+        """Best-effort check for 'q' across different key callback signatures."""
+        try:
+            # Common robosuite/glfw patterns: int keycode or single-char string
+            if isinstance(key, str):
+                return key.lower() == 'q'
+            if isinstance(key, int):
+                try:
+                    return chr(key).lower() == 'q'
+                except Exception:
+                    return False
+            # pynput-style key objects
+            if hasattr(key, 'char') and isinstance(key.char, str):
+                return key.char.lower() == 'q'
+        except Exception:
+            return False
+        return False
+
+    def request_shutdown(self, reason: str = "", force_after_s: float = 1.5) -> None:
+        """Request shutdown from callbacks/signals without blocking the caller."""
+        if self._shutdown_requested.is_set():
+            return
+        self._shutdown_requested.set()
+        if reason:
+            logger.info("Shutdown requested: %s", reason)
+
+        def _shutdown_worker() -> None:
+            try:
+                self.stop()
+            finally:
+                # If something is wedged (viewer/render), force an exit after a short grace period.
+                if force_after_s is not None and force_after_s > 0:
+                    time.sleep(force_after_s)
+                os._exit(0)
+
+        threading.Thread(target=_shutdown_worker, daemon=True).start()
         
     def start(self, start_teleop_thread: bool = False):
         """Start the complete system. Optionally start teleop in a separate thread."""
@@ -233,18 +278,38 @@ class DualArmManipulationSystem:
         assert self.env is not None, "Environment not initialized"
         assert self.teleop is not None, "Teleop not initialized"
         self.env.viewer.add_keypress_callback(self.teleop.device.on_press)
+
+        # Also handle quit in the viewer callback so 'q' works reliably when the
+        # mujoco window has focus and we can shut down services immediately.
+        def _on_viewer_keypress(key: Any) -> None:
+            if self._is_quit_key(key):
+                # Stop everything immediately (services + viewer)
+                self.request_shutdown(reason="q pressed")
+
+        try:
+            self.env.viewer.add_keypress_callback(_on_viewer_keypress)
+        except Exception:
+            # Viewer implementations differ; teleop still listens via pynput.
+            pass
         self.teleop.run(env_lock=self.env_lock)
     
     def stop(self):
         """Stop the system."""
-        if not self.running:
-            return
+        with self._stop_lock:
+            if not self.running and not self._shutdown_requested.is_set():
+                return
             
         logger.info("\nStopping system...")
         
         # Stop teleop
         if self.teleop:
-            self.teleop.running = False
+            try:
+                self.teleop.exit_pressed = True
+                self.teleop.running = False
+                if hasattr(self.teleop, "listener") and self.teleop.listener is not None:
+                    self.teleop.listener.stop()
+            except Exception:
+                pass
         
         # Stop services
         if self.eef_service:
@@ -255,6 +320,30 @@ class DualArmManipulationSystem:
             self.grasp_service.stop()
         if self.service_manager:
             self.service_manager.stop()
+
+        # Close service client (ZMQ REQ socket/context)
+        if self.service_client and hasattr(self.service_client, "close"):
+            try:
+                self.service_client.close()
+            except Exception:
+                pass
+
+        # Close viewer/env to release render resources immediately
+        if self.env is not None:
+            try:
+                viewer = getattr(self.env, "viewer", None)
+                if viewer is not None:
+                    if hasattr(viewer, "close"):
+                        viewer.close()
+                    if hasattr(viewer, "finish"):
+                        viewer.finish()
+            except Exception:
+                pass
+            try:
+                if hasattr(self.env, "close"):
+                    self.env.close()
+            except Exception:
+                pass
         
         self.running = False
         logger.info("System stopped")
@@ -367,6 +456,22 @@ def main():
         debug=args.debug,
         detection_prompt=args.prompt
     )
+
+    # Ensure cleanup on normal interpreter shutdown and on SIGINT/SIGTERM
+    atexit.register(lambda: system.stop())
+
+    def _handle_signal(signum: int, _frame: Any) -> None:
+        try:
+            signame = signal.Signals(signum).name
+        except Exception:
+            signame = str(signum)
+        system.request_shutdown(reason=f"signal {signame}")
+
+    try:
+        signal.signal(signal.SIGINT, _handle_signal)
+        signal.signal(signal.SIGTERM, _handle_signal)
+    except Exception:
+        pass
     
     try:
         system.start(start_teleop_thread=False)
@@ -426,7 +531,10 @@ Press Ctrl+D or type exit() to quit
     except KeyboardInterrupt:
         logger.info("\nInterrupted by user")
     finally:
+        # If we reached here, try a graceful stop first.
         system.stop()
+        # Then ensure the process exits promptly.
+        sys.exit(0)
 
 
 if __name__ == "__main__":
