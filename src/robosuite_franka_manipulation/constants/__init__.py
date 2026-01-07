@@ -24,7 +24,7 @@ EEF_SERVICE_PORT = 5559
 ZMQ_POLL_TIMEOUT = 1000  # 1 second for service polling
 ZMQ_MANAGER_TIMEOUT = 15000  # 15 seconds for manager calls
 ZMQ_SERVER_RECV_TIMEOUT = 1000  # 1 second for server receive polling
-ZMQ_SERVICE_CALL_TIMEOUT = 10000  # 10 seconds for service calls
+ZMQ_SERVICE_CALL_TIMEOUT = 20000  # 20 seconds for service calls
 
 # =============================================================================
 # Model and Path Configuration

@@ -188,20 +188,44 @@ class TransformManager:
         """Register a dynamic transform provider for an end-effector."""
         def get_eef_transform() -> Transform:
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
-            pos = robot._hand_pos[arm_id]
-            rot_mat = robot._hand_orn[arm_id]
-            quat = R.from_matrix(rot_mat).as_quat()
-            
+            # robosuite provides hand pose in WORLD coordinates. We need an EEF transform
+            # relative to the robot base frame (base <- eef).
             robot_name = getattr(robot, 'name', f'robot{robot_idx}')
             parent_frame = f"{robot_name}_base"
-            
-            return Transform(
-                translation=pos,
-                rotation=quat,
-                parent_frame=parent_frame,
-                child_frame=frame_id,
-                is_static=False
-            )
+
+            # EEF pose in world
+            pos_w = np.asarray(robot._hand_pos[arm_id], dtype=np.float64)
+            rot_w_e = np.asarray(robot._hand_orn[arm_id], dtype=np.float64)
+            T_w_e = np.eye(4)
+            T_w_e[:3, :3] = rot_w_e
+            T_w_e[:3, 3] = pos_w
+
+            # Base pose in world
+            try:
+                base_body_name = robot.robot_model.root_body
+                if self._env_lock:
+                    with self._env_lock:
+                        pos_b_w = self.env.sim.data.get_body_xpos(base_body_name)
+                        rot_w_b = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+                else:
+                    pos_b_w = self.env.sim.data.get_body_xpos(base_body_name)
+                    rot_w_b = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
+            except Exception:
+                if self._env_lock:
+                    with self._env_lock:
+                        pos_b_w = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                        rot_w_b = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                else:
+                    pos_b_w = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
+                    rot_w_b = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+
+            T_w_b = np.eye(4)
+            T_w_b[:3, :3] = np.asarray(rot_w_b, dtype=np.float64)
+            T_w_b[:3, 3] = np.asarray(pos_b_w, dtype=np.float64)
+
+            # Compute base <- eef: T_b_e = inv(T_w_b) @ T_w_e
+            T_b_e = np.linalg.inv(T_w_b) @ T_w_e
+            return Transform.from_matrix(T_b_e, parent_frame=parent_frame, child_frame=frame_id, is_static=False)
         
         self._dynamic_frame_providers[frame_id] = get_eef_transform
     
@@ -302,10 +326,14 @@ class TransformManager:
     
     def get_transform(self, target_frame: str, source_frame: str) -> Transform:
         """
-        Get the transform from source_frame to target_frame.
-        
-        This is the transform that converts poses from source_frame to target_frame:
-        pose_in_target = transform * pose_in_source
+        Get the transform that maps coordinates from source_frame into target_frame.
+
+        In other words, this returns a Transform with:
+        - parent_frame = target_frame
+        - child_frame  = source_frame
+
+        so that applying it yields:
+        pose_in_target = T(target<-source) * pose_in_source
         
         Args:
             target_frame: The frame to transform TO
@@ -326,22 +354,18 @@ class TransformManager:
         if path is None:
             raise ValueError(f"No transform path from '{source_frame}' to '{target_frame}'")
         
-        # Compose transforms along the path
-        result = Transform.identity(path[0], path[0])
-        
-        for i in range(len(path) - 1):
-            from_frame = path[i]
-            to_frame = path[i + 1]
-            
-            # Get transform from from_frame to to_frame
-            t = self._get_direct_transform(from_frame, to_frame)
-            
-            if result.child_frame == result.parent_frame:
-                # First real transform
-                result = t
-            else:
-                result = result.compose(t)
-        
+        # We need target<-source. _get_direct_transform(parent, child) returns parent<-child.
+        # Therefore we traverse the path backwards (target -> ... -> source) and compose.
+        result: Optional[Transform] = None
+        for i in range(len(path) - 1, 0, -1):
+            parent = path[i]
+            child = path[i - 1]
+            t = self._get_direct_transform(parent, child)  # parent<-child
+            result = t if result is None else result.compose(t)
+
+        if result is None:
+            return Transform.identity(target_frame, source_frame)
+
         return result
     
     def _get_direct_transform(self, from_frame: str, to_frame: str) -> Transform:
@@ -452,44 +476,25 @@ class TransformManager:
         if pose.frame_id == target_frame:
             return pose.copy()
         
-        # Get transform from pose's frame to target frame
+        # Get transform target<-source and apply directly
         transform = self.get_transform(target_frame, pose.frame_id)
-        
-        # Apply transform (note: transform goes from child to parent)
-        # We need to construct a transform that goes from pose.frame_id to target_frame
-        transform_matrix = self._compute_transform_matrix(pose.frame_id, target_frame)
-        
-        # Apply to position
-        pos_homogeneous = np.append(pose.position, 1.0)
-        new_pos = (transform_matrix @ pos_homogeneous)[:3]
-        
-        # Apply to orientation
-        pose_rot = R.from_quat(pose.quaternion)
-        transform_rot = R.from_matrix(transform_matrix[:3, :3])
-        new_rot = transform_rot * pose_rot
-        
-        return StampedPose(
-            position=new_pos,
-            quaternion=new_rot.as_quat(),
-            frame_id=target_frame
-        )
+        return transform.apply_to_pose(pose)
     
     def _compute_transform_matrix(self, source_frame: str, target_frame: str) -> np.ndarray:
-        """Compute the 4x4 transformation matrix from source to target frame."""
+        """Compute the 4x4 matrix that maps source_frame coordinates into target_frame."""
         path = self._find_path(source_frame, target_frame)
         
         if path is None:
             raise ValueError(f"No path from '{source_frame}' to '{target_frame}'")
         
+        # target<-source = (target<-...) @ ... @ (...<-source)
         result = np.eye(4)
-        
-        for i in range(len(path) - 1):
-            from_frame = path[i]
-            to_frame = path[i + 1]
-            
-            t = self._get_direct_transform(from_frame, to_frame)
+        for i in range(len(path) - 1, 0, -1):
+            parent = path[i]
+            child = path[i - 1]
+            t = self._get_direct_transform(parent, child)  # parent<-child
             result = t.to_matrix() @ result
-        
+
         return result
     
     def get_frame_pose(self, frame_id: str, reference_frame: Optional[str] = None) -> StampedPose:
