@@ -154,69 +154,122 @@ class GraspPredictor:
 
     def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
         """
-        Visualize the object point cloud and predicted grasps using Open3D.
-        Each grasp is represented as a coordinate frame.
+        Visualize the object point cloud and predicted grasps.
+
+        Uses Plotly when available (works well on headless machines) and falls back
+        to an Open3D window otherwise.
         """
         if not self.visualize:
             return
 
-        logger.info("Visualizing grasps with Open3D...")
+        # Prefer Plotly for robust headless visualization. Open3D's Plotly wrapper can
+        # render point clouds confusingly (often looking like a sphere). Here we
+        # explicitly plot point markers + grasp axes.
+        pcd_xyz = np.asarray(pcd)
+        if pcd_xyz.ndim != 2 or pcd_xyz.shape[1] < 3:
+            logger.warning("Cannot visualize point cloud: expected Nx3+, got shape %s", getattr(pcd_xyz, "shape", None))
+            return
+        pcd_xyz = pcd_xyz[:, :3]
 
-        # Create an Open3D point cloud from the NumPy array
-        o3d_pcd = o3d.geometry.PointCloud()
-        o3d_pcd.points = o3d.utility.Vector3dVector(pcd[:, :3])  # Ensure only 3D points
-        
-        # Color the point cloud (e.g., light gray)
-        o3d_pcd.paint_uniform_color([0.7, 0.7, 0.7])
-
-        geometries = [o3d_pcd]
-
-        # Add object centroid as a sphere (optional)
-        if len(pcd) > 0:
-            centroid = np.mean(pcd[:, :3], axis=0)
-            centroid_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.01)
-            centroid_sphere.translate(centroid)
-            centroid_sphere.paint_uniform_color([1.0, 0, 0]) # Red
-            geometries.append(centroid_sphere)
-
-        # Add coordinate frame for each grasp
-        for i, grasp in enumerate(grasps):
-            pos = grasp['pos']
-            quat = grasp['quat']
-            
-            # Create a small coordinate frame (axes) for the grasp
-            grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
-            
-            # Create transformation matrix from position and quaternion
-            rot_matrix = R.from_quat(quat).as_matrix()
-            transform_matrix = np.eye(4)
-            transform_matrix[:3, :3] = rot_matrix
-            transform_matrix[:3, 3] = pos
-            
-            # Apply transformation to the grasp frame
-            grasp_frame.transform(transform_matrix)
-            geometries.append(grasp_frame)
-
-            # Optionally add a text label for the grasp (Open3D doesn't have native text rendering)
-            # This part is more complex and usually requires custom shaders or external libraries.
-            # For a basic RVIZ-like visualization, coordinate frames are usually sufficient.
-
-        # Create a visualizer window. Wrap in try/except because Open3D may not have
-        # a usable EGL/GL context on headless systems and will raise errors (e.g., GLFW/EGL).
         try:
-            o3d.visualization.draw_plotly(
-                geometries,
-                window_name="Grasp Visualization",
-                width=800,
-                height=600,
-                front=[0.5, -0.8, -0.2],
-                lookat=[0.0, 0.0, 0.0],
-                up=[0.0, 0.0, 1.0],
-                zoom=0.8
+            import plotly.graph_objects as go
+        except Exception as e:
+            logger.warning("Plotly unavailable (%s). Falling back to Open3D window.", e)
+            try:
+                o3d_pcd = o3d.geometry.PointCloud()
+                o3d_pcd.points = o3d.utility.Vector3dVector(pcd_xyz)
+                o3d_pcd.paint_uniform_color([0.7, 0.7, 0.7])
+
+                geometries = [o3d_pcd]
+                for grasp in grasps:
+                    pos = np.asarray(grasp["pos"], dtype=np.float64)
+                    quat = np.asarray(grasp["quat"], dtype=np.float64)
+                    grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05)
+                    transform_matrix = np.eye(4)
+                    transform_matrix[:3, :3] = R.from_quat(quat).as_matrix()
+                    transform_matrix[:3, 3] = pos
+                    grasp_frame.transform(transform_matrix)
+                    geometries.append(grasp_frame)
+
+                o3d.visualization.draw_geometries(geometries, window_name="Grasp Visualization")
+            except Exception as e2:
+                logger.warning("Open3D visualization unavailable: %s. Skipping visualization.", e2)
+            return
+
+        logger.info("Visualizing grasps with Plotly...")
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter3d(
+                x=pcd_xyz[:, 0],
+                y=pcd_xyz[:, 1],
+                z=pcd_xyz[:, 2],
+                mode="markers",
+                name="object_pcd",
+                marker=dict(size=2, color="rgba(160,160,160,0.7)"),
             )
-            logger.info("Open3D grasp visualization closed.")
-        except Exception as e:  # Catch GLFW/EGL/OpenGL errors and continue
-            logger.warning("Open3D visualization unavailable: %s. Skipping visualization.", e)
+        )
+
+        axis_len = 0.05
+        for i, grasp in enumerate(grasps):
+            pos = np.asarray(grasp["pos"], dtype=np.float64)
+            quat = np.asarray(grasp["quat"], dtype=np.float64)
+            rot = R.from_quat(quat)
+
+            x_axis = rot.apply([1.0, 0.0, 0.0])
+            y_axis = rot.apply([0.0, 1.0, 0.0])
+            z_axis = rot.apply([0.0, 0.0, 1.0])
+
+            def _add_axis(vec, color, axis_name: str):
+                end = pos + axis_len * np.asarray(vec)
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=[pos[0], end[0]],
+                        y=[pos[1], end[1]],
+                        z=[pos[2], end[2]],
+                        mode="lines",
+                        name=f"grasp_{i}_{axis_name}",
+                        line=dict(color=color, width=6),
+                        showlegend=False,
+                    )
+                )
+
+            _add_axis(x_axis, "rgb(220,60,60)", "x")
+            _add_axis(y_axis, "rgb(60,220,60)", "y")
+            _add_axis(z_axis, "rgb(60,60,220)", "z")
+
+            score = grasp.get("score", None)
+            label = f"{i}" if score is None else f"{i} ({float(score):.3f})"
+            fig.add_trace(
+                go.Scatter3d(
+                    x=[pos[0]],
+                    y=[pos[1]],
+                    z=[pos[2]],
+                    mode="markers+text",
+                    text=[label],
+                    textposition="top center",
+                    marker=dict(size=3, color="rgba(40,40,40,0.9)"),
+                    showlegend=False,
+                )
+            )
+
+        fig.update_layout(
+            title="Grasp Visualization",
+            scene=dict(
+                xaxis_title="x",
+                yaxis_title="y",
+                zaxis_title="z",
+                aspectmode="data",
+            ),
+            showlegend=False,
+            margin=dict(l=0, r=0, t=40, b=0),
+        )
+
+        try:
+            fig.show()
+            logger.info("Plotly grasp visualization closed.")
+        except Exception as e:
+            logger.warning("Plotly visualization failed: %s. Skipping visualization.", e)
 
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """
