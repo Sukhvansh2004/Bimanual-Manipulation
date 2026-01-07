@@ -204,7 +204,7 @@ class GraspPredictor:
         # Create a visualizer window. Wrap in try/except because Open3D may not have
         # a usable EGL/GL context on headless systems and will raise errors (e.g., GLFW/EGL).
         try:
-            o3d.visualization.draw_geometries(
+            o3d.visualization.draw_plotly(
                 geometries,
                 window_name="Grasp Visualization",
                 width=800,
