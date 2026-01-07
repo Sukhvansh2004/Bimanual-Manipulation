@@ -35,8 +35,8 @@ conda activate dual_arm_manipulation
 
 # Set environment variables for rendering
 echo "Setting environment variables for offscreen rendering..."
-export MUJOCO_GL=osmesa
-echo 'export MUJOCO_GL=osmesa' >> ~/.bashrc
+export MUJOCO_GL="glx"
+echo 'export MUJOCO_GL="glx"' >> ~/.bashrc
 
 # Install PyTorch (adjust CUDA version as needed)
 echo "Installing PyTorch..."
