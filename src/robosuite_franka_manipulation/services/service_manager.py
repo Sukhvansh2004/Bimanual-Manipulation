@@ -29,15 +29,13 @@ class ServiceClient:
         self.manager_host = manager_host
         self.manager_port = manager_port
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
+        # NOTE: Do not keep a persistent REQ socket here.
+        # If a request times out, a REQ socket is left in an invalid state
+        # (must recv before next send), which causes ZMQ EFSM errors.
+        self.socket = None
 
     def close(self) -> None:
         """Close underlying ZMQ resources immediately."""
-        try:
-            if self.socket is not None:
-                self.socket.close(linger=0)
-        except Exception:
-            pass
         try:
             if self.context is not None:
                 self.context.term()
@@ -46,13 +44,20 @@ class ServiceClient:
 
     def _call_manager(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Make a call to the service manager."""
+        endpoint = f"tcp://{self.manager_host}:{self.manager_port}"
+        socket: Optional[zmq.Socket] = None
+        connected = False
         try:
-            self.socket.connect(f"tcp://{self.manager_host}:{self.manager_port}")
-            self.socket.send_json(request)
+            socket = self.context.socket(zmq.REQ)
+            socket.setsockopt(zmq.LINGER, 0)
+
+            socket.connect(endpoint)
+            connected = True
+            socket.send_json(request)
 
             # Set timeout
-            if self.socket.poll(timeout=constants.ZMQ_MANAGER_TIMEOUT):
-                response = cast(Dict[str, Any], self.socket.recv_json())
+            if socket.poll(timeout=constants.ZMQ_MANAGER_TIMEOUT):
+                response = cast(Dict[str, Any], socket.recv_json())
                 return response
             else:
                 return {'status': 'error', 'message': 'Request timeout'}
@@ -60,7 +65,16 @@ class ServiceClient:
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
         finally:
-            self.socket.disconnect(f"tcp://{self.manager_host}:{self.manager_port}")
+            try:
+                if socket is not None:
+                    if connected:
+                        try:
+                            socket.disconnect(endpoint)
+                        except Exception:
+                            pass
+                    socket.close(linger=0)
+            except Exception:
+                pass
 
     def register(self, name: str, host: str, port: int,
                 service_type: str, description: str = "") -> bool:

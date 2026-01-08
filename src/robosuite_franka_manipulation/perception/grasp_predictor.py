@@ -249,17 +249,6 @@ class GraspPredictor:
             marker_color="rgba(30,30,30,0.9)",
         )
 
-        # Object pose (what the point cloud / grasps relate to)
-        _add_frame(
-            name="object_pose",
-            pos_in_world=object_pose.position,
-            quat_xyzw=object_pose.quaternion,
-            axis_len=0.06,
-            axis_width=5,
-            marker_size=4,
-            marker_color="rgba(120,60,20,0.9)",
-        )
-
         # Predicted grasp frames
         for i, grasp in enumerate(grasps):
             pos = grasp.get("pos")
