@@ -113,7 +113,10 @@ class TransformManager:
         # Discover robot frames
         if hasattr(self.env, 'robots'):
             for robot_idx, robot in enumerate(self.env.robots):  # type: ignore[union-attr]
-                robot_name = getattr(robot, 'name', f'robot{robot_idx}')
+                # NOTE: In robosuite, multiple robots can share the same .name (e.g., both "Panda").
+                # Using robot.name would cause TF frame-id collisions and frames would “disappear”
+                # (last one wins). Use a stable unique prefix by index.
+                robot_name = f"robot{robot_idx}"
                 
                 # Robot base frame - query actual transform from simulation
                 base_frame = f"{robot_name}_base"
@@ -146,7 +149,7 @@ class TransformManager:
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             
             # Get robot base position and orientation from simulation
-            # The robot's base body is typically named after the robot
+            # The robot's base body name varies by robosuite model; try multiple fallbacks.
             robot_name = getattr(robot, 'name', f'robot{robot_idx}')
             
             # Try to get base pose from the robot's root body in MuJoCo
@@ -162,14 +165,23 @@ class TransformManager:
                     rot_mat = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
                 quat = R.from_matrix(rot_mat).as_quat()
             except (AttributeError, KeyError):
-                if self._env_lock:
-                    with self._env_lock:
-                        pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                        rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                body_candidates = [frame_id, f"{robot_name}_base"]
+                last_err: Optional[Exception] = None
+                for body_name in body_candidates:
+                    try:
+                        if self._env_lock:
+                            with self._env_lock:
+                                pos = self.env.sim.data.get_body_xpos(body_name)
+                                rot_mat = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
+                        else:
+                            pos = self.env.sim.data.get_body_xpos(body_name)
+                            rot_mat = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
+                        quat = R.from_matrix(rot_mat).as_quat()
+                        break
+                    except Exception as e:  # pragma: no cover
+                        last_err = e
                 else:
-                    pos = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                    rot_mat = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
-                quat = R.from_matrix(rot_mat).as_quat()
+                    raise last_err if last_err else RuntimeError("Failed to resolve base body name")
             
             return Transform(
                 translation=pos,
@@ -190,8 +202,9 @@ class TransformManager:
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             # robosuite provides hand pose in WORLD coordinates. We need an EEF transform
             # relative to the robot base frame (base <- eef).
-            robot_name = getattr(robot, 'name', f'robot{robot_idx}')
-            parent_frame = f"{robot_name}_base"
+            # Parent frame is derived from the discovered TF naming, not robot.name.
+            # E.g., for frame_id="robot0_right_eef" -> parent_frame="robot0_base".
+            parent_frame = frame_id.replace(f"_{arm_id}_eef", "_base")
 
             # EEF pose in world
             pos_w = np.asarray(robot._hand_pos[arm_id], dtype=np.float64)
@@ -211,13 +224,25 @@ class TransformManager:
                     pos_b_w = self.env.sim.data.get_body_xpos(base_body_name)
                     rot_w_b = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
             except Exception:
-                if self._env_lock:
-                    with self._env_lock:
-                        pos_b_w = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                        rot_w_b = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                # Fallbacks: parent TF name often matches MuJoCo body name (e.g., "robot0_base").
+                # Also try the legacy "{robot.name}_base".
+                robot_name = getattr(robot, 'name', f'robot{robot_idx}')
+                body_candidates = [parent_frame, f"{robot_name}_base"]
+                last_err: Optional[Exception] = None
+                for body_name in body_candidates:
+                    try:
+                        if self._env_lock:
+                            with self._env_lock:
+                                pos_b_w = self.env.sim.data.get_body_xpos(body_name)
+                                rot_w_b = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
+                        else:
+                            pos_b_w = self.env.sim.data.get_body_xpos(body_name)
+                            rot_w_b = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
+                        break
+                    except Exception as e:  # pragma: no cover
+                        last_err = e
                 else:
-                    pos_b_w = self.env.sim.data.get_body_xpos(f"{robot_name}_base")
-                    rot_w_b = self.env.sim.data.get_body_xmat(f"{robot_name}_base").reshape(3, 3)
+                    raise last_err if last_err else RuntimeError("Failed to resolve base body name for EEF")
 
             T_w_b = np.eye(4)
             T_w_b[:3, :3] = np.asarray(rot_w_b, dtype=np.float64)

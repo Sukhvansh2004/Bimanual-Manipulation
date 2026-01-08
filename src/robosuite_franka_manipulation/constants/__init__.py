@@ -3,6 +3,7 @@
 Constants file for robosuite_franka_manipulation package.
 """
 
+import logging
 import numpy as np
 import torch
 from pathlib import Path
@@ -163,6 +164,12 @@ EEF_FRAME_TEMPLATE = 'robot{robot_id}_{arm}_eef'  # End-effector frame template
 # Reward and episode settings
 DEFAULT_REWARD_SHAPING = False
 DEFAULT_IGNORE_DONE = True
+
+# =============================================================================
+# Logger Configuration
+# =============================================================================
+
+LOG_LEVEL = logging.DEBUG  # Default logging level
 
 # =============================================================================
 # Utility Functions

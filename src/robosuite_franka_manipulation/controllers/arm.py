@@ -19,7 +19,10 @@ from robosuite_franka_manipulation.utils.se3 import (
     compute_se3_distance,
 )
 from robosuite_franka_manipulation.utils import safe_env_step
-
+import logging  
+# Configure logging
+logging.basicConfig(level=constants.LOG_LEVEL)
+logger = logging.getLogger(__name__)
 
 class RobosuiteArmController:
     """
@@ -39,6 +42,8 @@ class RobosuiteArmController:
         
         # Robot base frame name for transforms
         robot_name = getattr(self.robot, 'name', f'robot{robot_id}')
+        logger.debug(f"RobosuiteArmController initialized for robot '{robot_name}', arm '{arm_id}'")
+
         self.base_frame = f"{robot_name}_base"
 
         # Action space: 6 pose + 1 gripper

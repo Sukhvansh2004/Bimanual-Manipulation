@@ -54,7 +54,7 @@ import sys
 from typing import Any, Optional
 
 from robosuite.wrappers import VisualizationWrapper
-
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
@@ -66,7 +66,7 @@ from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTF
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=constants.LOG_LEVEL,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)

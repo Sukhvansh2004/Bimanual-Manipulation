@@ -21,7 +21,7 @@ from robosuite_franka_manipulation.utils.serialization import convert_detections
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 
