@@ -15,6 +15,7 @@ import time
 from typing import Optional
 
 import numpy as np
+import io
 
 from robosuite_franka_manipulation.transforms import TransformManager
 import meshcat
@@ -84,7 +85,11 @@ def stream_transforms_to_meshcat(
         draw.rectangle([0, 0, img_w - 1, img_h - 1], fill=(0, 0, 0, 140))
         draw.text((pad, pad), text, font=font, fill=(255, 255, 255, 255))
 
-        texture = g.ImageTexture(image=img)
+        # meshcat expects a meshcat.geometry.Image subclass (e.g., PngImage), not a PIL Image.
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        png = g.PngImage(buf.getvalue())
+        texture = g.ImageTexture(image=png)
         material = g.MeshBasicMaterial(color=0xFFFFFF, map=texture, transparent=True, opacity=1.0)
         return material, img_w, img_h
 
