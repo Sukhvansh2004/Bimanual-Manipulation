@@ -93,10 +93,14 @@ def stream_transforms_to_meshcat(
         return "other"
 
     def _frame_path(frame_id: str) -> str:
+        # Frame root node. Children under this path will toggle together.
         return f"frames/{_group_for_frame(frame_id)}/{frame_id}"
 
+    def _axes_path(frame_id: str) -> str:
+        return f"{_frame_path(frame_id)}/axes"
+
     def _label_path(frame_id: str) -> str:
-        return f"labels/{_group_for_frame(frame_id)}/{frame_id}"
+        return f"{_frame_path(frame_id)}/label"
 
     def _make_label_material(text: str):
         if not config.labels:
@@ -126,7 +130,7 @@ def stream_transforms_to_meshcat(
         return material, img_w, img_h
 
     def _ensure_frame_drawn(frame_id: str, drawn: set[str]) -> None:
-        name = _frame_path(frame_id)
+        name = _axes_path(frame_id)
         if name in drawn:
             return
 
@@ -208,14 +212,18 @@ def stream_transforms_to_meshcat(
                     vis[_frame_path(frame_id)].set_transform(T)
 
                     if config.labels:
-                        Tl = np.eye(4)
-                        Tl[:3, :3] = R_label
+                        # Desired label pose in world.
+                        Tl_world = np.eye(4)
+                        Tl_world[:3, :3] = R_label
                         # Place label below the frame along world -Z.
-                        Tl[:3, 3] = np.asarray(pose_w.position, dtype=float) - np.array(
+                        Tl_world[:3, 3] = np.asarray(pose_w.position, dtype=float) - np.array(
                             [0.0, 0.0, float(config.label_offset)],
                             dtype=float,
                         )
-                        vis[_label_path(frame_id)].set_transform(Tl)
+
+                        # Label is nested under the frame node, so publish a frame-local transform.
+                        Tl_local = np.linalg.inv(T) @ Tl_world
+                        vis[_label_path(frame_id)].set_transform(Tl_local)
                 except Exception:
                     continue
 

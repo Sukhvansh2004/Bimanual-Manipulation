@@ -137,7 +137,12 @@ class TransformManager:
                 cam_name = self.env.sim.model.camera_id2name(cam_id)
                 if cam_name:
                     self._register_camera_provider(cam_name)
-                    self._frame_parents[cam_name] = self.WORLD_FRAME
+                    # Camera provider publishes `{cam}_mj` dynamically as world<-cam_mj,
+                    # and a static `{cam}_mj` -> `{cam}` transform for an optical-style frame.
+                    cam_mj = f"{cam_name}_mj"
+                    self._frame_parents[cam_mj] = self.WORLD_FRAME
+                    self._frame_parents[cam_name] = cam_mj
+                    self._known_frames.add(cam_mj)
                     self._known_frames.add(cam_name)
                     logger.debug(f"Registered camera frame: {cam_name}")
         

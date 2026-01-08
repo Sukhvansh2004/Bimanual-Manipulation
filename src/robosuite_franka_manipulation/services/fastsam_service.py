@@ -10,6 +10,8 @@ import time
 from typing import Dict, Any, List, Optional, Tuple, cast, Union
 import logging
 
+from robosuite.utils.camera_utils import get_real_depth_map
+
 from scipy.spatial.transform import Rotation as R
 from robosuite.environments.base import MujocoEnv
 from robosuite.wrappers import Wrapper
@@ -165,6 +167,13 @@ class FastSAMService:
             # Get depth image and normalize shape
             depth_key = f"{self.camera_name}_depth"
             depth_image = self._normalize_depth(obs.get(depth_key))
+
+            # Robosuite returns OpenGL-style depth buffers (typically near ~1.0).
+            # Convert to real depth in meters for correct 3D geometry.
+            try:
+                depth_image = get_real_depth_map(self.env.sim, depth_image)
+            except Exception as e:
+                logger.debug("Depth conversion via get_real_depth_map failed: %s", e)
 
             if rgb_image is not None:
                 # Convert from (H, W, C) to (H, W, C) if needed
