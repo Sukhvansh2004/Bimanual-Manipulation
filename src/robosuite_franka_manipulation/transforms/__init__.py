@@ -42,6 +42,11 @@ from robosuite_franka_manipulation.transforms.frame_utils import (
     FrameAwareGraspPipeline,
 )
 
+from robosuite_franka_manipulation.transforms.meshcat_tf_visualizer import (
+    MeshcatTFVisualizerConfig,
+    stream_transforms_to_meshcat,
+)
+
 __all__ = [
     "StampedPose",
     "Transform",
@@ -54,4 +59,6 @@ __all__ = [
     "get_eef_pose",
     "compute_approach_pose",
     "FrameAwareGraspPipeline",
+    "MeshcatTFVisualizerConfig",
+    "stream_transforms_to_meshcat",
 ]
