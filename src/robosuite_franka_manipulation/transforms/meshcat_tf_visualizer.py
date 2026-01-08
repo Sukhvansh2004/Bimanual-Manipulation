@@ -69,6 +69,35 @@ def stream_transforms_to_meshcat(
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
 
+    def _group_for_frame(frame_id: str) -> str:
+        if frame_id == "world":
+            return "world"
+        if frame_id.startswith("robot0_"):
+            return "robots/robot0"
+        if frame_id.startswith("robot1_"):
+            return "robots/robot1"
+        if frame_id.startswith("robot") and "_" in frame_id:
+            # Any additional robots
+            return "robots/other"
+        if frame_id.startswith("object"):
+            return "objects"
+        if frame_id.startswith("grasp"):
+            return "grasps"
+        # Heuristic for camera frames in robosuite
+        if frame_id.endswith("_mj"):
+            base = frame_id[:-3]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras/raw"
+        if frame_id.endswith("view") or "eye_in_hand" in frame_id:
+            return "cameras"
+        return "other"
+
+    def _frame_path(frame_id: str) -> str:
+        return f"frames/{_group_for_frame(frame_id)}/{frame_id}"
+
+    def _label_path(frame_id: str) -> str:
+        return f"labels/{_group_for_frame(frame_id)}/{frame_id}"
+
     def _make_label_material(text: str):
         if not config.labels:
             return None
@@ -97,7 +126,7 @@ def stream_transforms_to_meshcat(
         return material, img_w, img_h
 
     def _ensure_frame_drawn(frame_id: str, drawn: set[str]) -> None:
-        name = f"frames/{frame_id}"
+        name = _frame_path(frame_id)
         if name in drawn:
             return
 
@@ -118,7 +147,7 @@ def stream_transforms_to_meshcat(
         if not config.labels:
             return
 
-        name = f"labels/{frame_id}"
+        name = _label_path(frame_id)
         if name in drawn_labels:
             return
 
@@ -176,7 +205,7 @@ def stream_transforms_to_meshcat(
                 try:
                     pose_w = tfm.get_frame_pose(frame_id, reference_frame="world")
                     T = pose_w.to_matrix().astype(float)
-                    vis[f"frames/{frame_id}"].set_transform(T)
+                    vis[_frame_path(frame_id)].set_transform(T)
 
                     if config.labels:
                         Tl = np.eye(4)
@@ -186,7 +215,7 @@ def stream_transforms_to_meshcat(
                             [0.0, 0.0, float(config.label_offset)],
                             dtype=float,
                         )
-                        vis[f"labels/{frame_id}"].set_transform(Tl)
+                        vis[_label_path(frame_id)].set_transform(Tl)
                 except Exception:
                     continue
 

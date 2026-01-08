@@ -200,62 +200,33 @@ class TransformManager:
         """Register a dynamic transform provider for an end-effector."""
         def get_eef_transform() -> Transform:
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
-            # robosuite provides hand pose in WORLD coordinates. We need an EEF transform
-            # relative to the robot base frame (base <- eef).
+            # robosuite provides hand pose in the ROBOT BASE frame.
+            # We therefore publish base <- eef directly.
             # Parent frame is derived from the discovered TF naming, not robot.name.
             # E.g., for frame_id="robot0_right_eef" -> parent_frame="robot0_base".
             parent_frame = frame_id.replace(f"_{arm_id}_eef", "_base")
 
-            # EEF pose in world
-            pos_w = np.asarray(robot._hand_pos[arm_id], dtype=np.float64)
-            rot_w_e = np.asarray(robot._hand_orn[arm_id], dtype=np.float64)
-            T_w_e = np.eye(4)
-            T_w_e[:3, :3] = rot_w_e
-            T_w_e[:3, 3] = pos_w
+            pos_b = np.asarray(robot._hand_pos[arm_id], dtype=np.float64)
+            rot_b_e = np.asarray(robot._hand_orn[arm_id], dtype=np.float64)
+            quat_b_e = R.from_matrix(rot_b_e).as_quat()
 
-            # Base pose in world
-            try:
-                base_body_name = robot.robot_model.root_body
-                if self._env_lock:
-                    with self._env_lock:
-                        pos_b_w = self.env.sim.data.get_body_xpos(base_body_name)
-                        rot_w_b = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
-                else:
-                    pos_b_w = self.env.sim.data.get_body_xpos(base_body_name)
-                    rot_w_b = self.env.sim.data.get_body_xmat(base_body_name).reshape(3, 3)
-            except Exception:
-                # Fallbacks: parent TF name often matches MuJoCo body name (e.g., "robot0_base").
-                # Also try the legacy "{robot.name}_base".
-                robot_name = getattr(robot, 'name', f'robot{robot_idx}')
-                body_candidates = [parent_frame, f"{robot_name}_base"]
-                last_err: Optional[Exception] = None
-                for body_name in body_candidates:
-                    try:
-                        if self._env_lock:
-                            with self._env_lock:
-                                pos_b_w = self.env.sim.data.get_body_xpos(body_name)
-                                rot_w_b = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
-                        else:
-                            pos_b_w = self.env.sim.data.get_body_xpos(body_name)
-                            rot_w_b = self.env.sim.data.get_body_xmat(body_name).reshape(3, 3)
-                        break
-                    except Exception as e:  # pragma: no cover
-                        last_err = e
-                else:
-                    raise last_err if last_err else RuntimeError("Failed to resolve base body name for EEF")
-
-            T_w_b = np.eye(4)
-            T_w_b[:3, :3] = np.asarray(rot_w_b, dtype=np.float64)
-            T_w_b[:3, 3] = np.asarray(pos_b_w, dtype=np.float64)
-
-            # Compute base <- eef: T_b_e = inv(T_w_b) @ T_w_e
-            T_b_e = np.linalg.inv(T_w_b) @ T_w_e
-            return Transform.from_matrix(T_b_e, parent_frame=parent_frame, child_frame=frame_id, is_static=False)
+            return Transform(
+                translation=pos_b,
+                rotation=quat_b_e,
+                parent_frame=parent_frame,
+                child_frame=frame_id,
+                is_static=False,
+            )
         
         self._dynamic_frame_providers[frame_id] = get_eef_transform
     
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
+        # MuJoCo / OpenGL camera frame points down -Z (forward is -Z).
+        # For visualization and user-facing TF, expose an optical frame with +Z forward.
+        # Relationship: camera_mj <- camera_optical is a fixed 180deg rotation about X.
+        R_cam_mj_opt = np.diag([1.0, -1.0, -1.0])
+
         def get_camera_transform() -> Transform:
             if self._env_lock:
                 with self._env_lock:
@@ -264,17 +235,31 @@ class TransformManager:
             else:
                 pos = self.env.sim.data.get_camera_xpos(camera_name)
                 rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+
+            # Publish raw camera frame as `{camera_name}_mj`
             quat = R.from_matrix(rot_mat).as_quat()
             
             return Transform(
                 translation=pos,
                 rotation=quat,
                 parent_frame=self.WORLD_FRAME,
-                child_frame=camera_name,
+                child_frame=f"{camera_name}_mj",
                 is_static=False  # Cameras could potentially move
             )
         
-        self._dynamic_frame_providers[camera_name] = get_camera_transform
+        self._dynamic_frame_providers[f"{camera_name}_mj"] = get_camera_transform
+
+        # Add a fixed static transform from raw MuJoCo camera frame to an optical frame.
+        # world<-camera_optical = (world<-camera_mj) ∘ (camera_mj<-camera_optical)
+        self.add_static_transform(
+            Transform(
+                translation=np.zeros(3),
+                rotation=R.from_matrix(R_cam_mj_opt).as_quat(),
+                parent_frame=f"{camera_name}_mj",
+                child_frame=camera_name,
+                is_static=True,
+            )
+        )
     
     def add_static_transform(self, transform: Transform) -> None:
         """

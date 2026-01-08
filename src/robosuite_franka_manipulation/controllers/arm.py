@@ -44,7 +44,8 @@ class RobosuiteArmController:
         robot_name = getattr(self.robot, 'name', f'robot{robot_id}')
         logger.debug(f"RobosuiteArmController initialized for robot '{robot_name}', arm '{arm_id}'")
 
-        self.base_frame = f"{robot_name}_base"
+        # Use a stable unique TF base frame (robosuite can reuse robot.name across robots)
+        self.base_frame = f"robot{robot_id}_base"
 
         # Action space: 6 pose + 1 gripper
         self.action_dim_per_robot = 7

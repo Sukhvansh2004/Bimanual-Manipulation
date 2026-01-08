@@ -192,7 +192,9 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
                                     mask: Optional[np.ndarray],
                                     fx: float, fy: float,
                                     cx: float, cy: float,
-                                    max_depth: float = 10.0) -> np.ndarray:
+                                    max_depth: float = 10.0,
+                                    *,
+                                    mujoco_convention: bool = True) -> np.ndarray:
     """
     Deproject depth image to 3D point cloud using camera intrinsics.
     
@@ -230,8 +232,18 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
         return np.array([]).reshape(0, 3)
     
     # Deproject to 3D
-    z = depth_values
-    x = (x_coords - cx) * z / fx
-    y = (y_coords - cy) * z / fy
-    
+    # Start from standard pinhole where Z is positive “forward”.
+    Z = depth_values
+    x = (x_coords - cx) * Z / fx
+    y = (y_coords - cy) * Z / fy
+
+    if mujoco_convention:
+        # MuJoCo camera frames (and OpenGL-style rendering) typically use:
+        # - image v increases downward, but camera +Y is up -> flip y
+        # - camera forward direction is -Z -> negate z
+        y = -y
+        z = -Z
+    else:
+        z = Z
+
     return np.column_stack([x, y, z]).astype(np.float32)

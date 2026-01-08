@@ -119,6 +119,8 @@ class FastSAMService:
         # Elevate logger level if debug enabled
         if self.debug:
             logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
 
         logger.info(f"FastSAM Service initialized on {host}:{port}")
 

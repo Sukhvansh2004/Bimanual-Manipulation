@@ -67,7 +67,8 @@ from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTF
 # Configure logging
 logging.basicConfig(
     level=constants.LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True,
 )
 logger = logging.getLogger(__name__)
 
