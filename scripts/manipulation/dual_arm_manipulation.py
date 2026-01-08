@@ -62,6 +62,7 @@ from robosuite_franka_manipulation.services.fastsam_service import FastSAMServic
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
+from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 
 # Configure logging
 logging.basicConfig(
@@ -76,18 +77,21 @@ class DualArmManipulationSystem:
     Complete system for dual-arm manipulation with services.
     """
     
-    def __init__(self, visualize: bool = False, debug: bool = False, detection_prompt: str = "object"):
+    def __init__(self, visualize: bool = False, debug: bool = False, detection_prompt: str = "object", meshcat_tf: bool = False):
         self.visualize = visualize
         self.debug = debug
         self.detection_prompt = detection_prompt
+        self.meshcat_tf = meshcat_tf
         self.env_lock = threading.Lock()
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
         self.env: Any = None
+        self.tf_manager: Optional[TransformManager] = None
         self.teleop: Optional[KeyboardTeleop] = None
         self.teleop_thread: Optional[threading.Thread] = None
+        self._meshcat_thread: Optional[threading.Thread] = None
         
         # Arm and gripper controllers
         self.left_arm: Optional[RobosuiteArmController] = None
@@ -160,13 +164,46 @@ class DualArmManipulationSystem:
         self.env = make_dual_arm_env()
         self.env = VisualizationWrapper(self.env)
         logger.info("   ✓ Environment created")
+
+        # Shared TF manager for the whole system (services + controllers + visualization)
+        logger.info("\n1a. Creating shared TransformManager...")
+        self.tf_manager = TransformManager(env=self.env, auto_discover=True, env_lock=self.env_lock)
+        logger.info("   ✓ TransformManager created")
+
+        # Optional MeshCat TF visualizer streaming the SAME tf_manager/env
+        if self.meshcat_tf:
+            logger.info("   Starting MeshCat TF visualizer (meshcat-server must be running)...")
+
+            def _run_meshcat_tf() -> None:
+                assert self.env is not None
+                assert self.tf_manager is not None
+                cfg = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True)
+                stream_transforms_to_meshcat(
+                    env=self.env,
+                    env_lock=self.env_lock,
+                    tf_manager=self.tf_manager,
+                    auto_discover=True,
+                    config=cfg,
+                    stop_event=self._shutdown_requested,
+                )
+
+            self._meshcat_thread = threading.Thread(target=_run_meshcat_tf, daemon=True)
+            self._meshcat_thread.start()
         
         # Load arm and gripper controllers
         logger.info("\n1b. Loading arm and gripper controllers...")
-        self.left_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=0, env_lock=self.env_lock)
-        self.right_arm = RobosuiteArmController(self.env, arm_id="right", robot_id=1, env_lock=self.env_lock)
-        self.left_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=0, env_lock=self.env_lock)
-        self.right_gripper = RobosuiteGripperController(self.env, arm_id="right", robot_id=1, env_lock=self.env_lock)
+        self.left_arm = RobosuiteArmController(
+            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager
+        )
+        self.right_arm = RobosuiteArmController(
+            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager
+        )
+        self.left_gripper = RobosuiteGripperController(
+            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock
+        )
+        self.right_gripper = RobosuiteGripperController(
+            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock
+        )
         logger.info("   ✓ Controllers loaded")
         
         # Start services
@@ -227,6 +264,7 @@ class DualArmManipulationSystem:
                 visualize=self.visualize,
                 debug=False,
                 env_lock=self.env_lock,
+                tf_manager=self.tf_manager,
             )
             self.fastsam_service.start()
             time.sleep(0.5)
@@ -243,6 +281,7 @@ class DualArmManipulationSystem:
             self.grasp_service = GraspService(
                 env=self.env,
                 env_lock=self.env_lock,
+                tf_manager=self.tf_manager,
                 debug=self.debug,
                 visualize=self.visualize,
             )
@@ -451,6 +490,12 @@ def main():
         action="store_true",
         help="Enable debug logging"
     )
+
+    parser.add_argument(
+        "--meshcat-tf",
+        action="store_true",
+        help="Stream the environment TF tree to MeshCat (requires `meshcat-server`)"
+    )
     
     args = parser.parse_args()
     
@@ -459,7 +504,8 @@ def main():
     system = DualArmManipulationSystem(
         visualize=args.visualize,
         debug=args.debug,
-        detection_prompt=args.prompt
+        detection_prompt=args.prompt,
+        meshcat_tf=args.meshcat_tf,
     )
 
     # Ensure cleanup on normal interpreter shutdown and on SIGINT/SIGTERM

@@ -18,6 +18,7 @@ from robosuite_franka_manipulation.perception.object_detector import ObjectDetec
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.serialization import convert_detections_to_json
+from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +46,8 @@ class FastSAMService:
                  camera_name: str = constants.DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
                  debug: bool = False,
-                 env_lock: Optional[threading.Lock] = None):
+                 env_lock: Optional[threading.Lock] = None,
+                 tf_manager: Optional[TransformManager] = None):
         """
         Initialize FastSAM Service.
 
@@ -67,6 +69,7 @@ class FastSAMService:
         self.visualize = visualize
         self.debug = debug
         self.env_lock = env_lock
+        self.tf_manager = tf_manager
 
         # Service state
         self.running = False
@@ -319,6 +322,26 @@ class FastSAMService:
                 # Process detections
                 detections = self._process_detections(rgb_image, depth_image)
                 self.latest_detections = detections
+
+                # Register/update object frames in the shared TF manager (if provided)
+                if self.tf_manager is not None:
+                    for det in detections:
+                        try:
+                            object_id = str(det.get('id', det.get('name', '0')))
+                            pose = det.get('pose')
+                            if pose is None:
+                                continue
+                            if isinstance(pose, StampedPose):
+                                pose_sp = pose
+                            else:
+                                pose_sp = StampedPose(
+                                    position=np.array(pose['pos']),
+                                    quaternion=np.array(pose['quat']),
+                                    frame_id='world',
+                                )
+                            self.tf_manager.update_object_frame(object_id=object_id, pose=pose_sp)
+                        except Exception:
+                            continue
 
                 # Extract point clouds for all detections
                 self.latest_segmented_pointclouds = [

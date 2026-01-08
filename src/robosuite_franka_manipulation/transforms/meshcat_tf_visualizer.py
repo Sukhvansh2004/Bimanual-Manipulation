@@ -17,10 +17,10 @@ from typing import Optional
 import numpy as np
 
 from robosuite_franka_manipulation.transforms import TransformManager
+import meshcat
 import meshcat.geometry as g
-from PIL import Image, ImageDraw, ImageFont
-
 from grasp_gen.utils.meshcat_utils import create_visualizer, make_frame
+from PIL import Image, ImageDraw, ImageFont
 
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
@@ -55,7 +55,15 @@ def stream_transforms_to_meshcat(
         stop_event: Optional threading.Event-like object; if provided, loop exits when set.
     """
 
-    vis = create_visualizer(clear=bool(config.clear))
+    if create_visualizer is not None:
+        vis = create_visualizer(clear=bool(config.clear))
+    else:
+        vis = meshcat.Visualizer(zmq_url=str(config.zmq_url))
+        if config.clear:
+            vis.delete()
+
+        print("Waiting for meshcat server... start one with: meshcat-server")
+        print("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
 

@@ -17,7 +17,7 @@ from typing import Union
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
+from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils.serialization import convert_grasps_to_json
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 
@@ -42,6 +42,7 @@ class GraspService:
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
                  env: Optional[Union[MujocoEnv, Wrapper]] = None,
                  env_lock: Optional[threading.Lock] = None,
+                 tf_manager: Optional[TransformManager] = None,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -60,9 +61,9 @@ class GraspService:
         self.debug = debug
         self.visualize = visualize
 
-        # Optional TF manager for visualization of cameras/EEF frames
-        self.tf_manager: Optional[TransformManager] = None
-        if env is not None:
+        # Optional shared TF manager (preferred). If not provided, create one when env is available.
+        self.tf_manager: Optional[TransformManager] = tf_manager
+        if self.tf_manager is None and env is not None:
             try:
                 self.tf_manager = TransformManager(env=env, auto_discover=True, env_lock=env_lock)
             except Exception as e:
@@ -251,6 +252,8 @@ class GraspService:
                 pointcloud_data = request.get('pointcloud')
                 object_pose = request.get('object_pose')
                 
+                object_id: Optional[str] = None
+
                 # If not provided, query FastSAM service
                 if pointcloud_data is None or object_pose is None:
                     logger.info("No pointcloud/pose provided, querying FastSAM service")
@@ -258,6 +261,7 @@ class GraspService:
                     if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
                         # Use the first detection
                         detection = fastsam_data['detections'][0]
+                        object_id = str(detection.get('id', detection.get('name', '0')))
                         pointcloud_data = detection.get('pcd', [])
                         object_pose = detection.get('pose', {})
                         logger.info(f"Using detection from FastSAM: {len(pointcloud_data)} points")
@@ -292,6 +296,27 @@ class GraspService:
                         'status': 'error',
                         'message': f'Invalid data format: {e}'
                     }
+
+                # Ensure object frames are registered in the shared TF manager.
+                # This fixes missing `object_local` and keeps TF visualization consistent.
+                if self.tf_manager is not None:
+                    try:
+                        # Register/update object_<id> frame if we know an id
+                        if object_id is not None:
+                            self.tf_manager.update_object_frame(object_id=object_id, pose=object_pose_stamped)
+
+                        # Register/update the canonical object-local frame used by GraspGen
+                        self.tf_manager.add_static_transform(
+                            Transform(
+                                translation=object_pose_stamped.position,
+                                rotation=object_pose_stamped.quaternion,
+                                parent_frame=object_pose_stamped.frame_id,
+                                child_frame="object_local",
+                                is_static=False,
+                            )
+                        )
+                    except Exception as e:
+                        logger.debug("Failed to register object frames in TF manager: %s", e)
 
                 # Predict grasps using the appropriate predictor
                 grasps = self._predict_grasps_for_pointcloud(
