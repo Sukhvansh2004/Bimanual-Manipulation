@@ -33,6 +33,7 @@ class MeshcatTFVisualizerConfig:
     axis_radius: float = 0.008
 
     labels: bool = True
+    # World Z offset (meters) for label placement *below* the frame origin.
     label_offset: float = 0.05
 
 
@@ -72,7 +73,7 @@ def stream_transforms_to_meshcat(
         if not config.labels:
             return None
 
-        pad = 6
+        pad = 2
         font = ImageFont.load_default()
         bbox = font.getbbox(text)
         text_w = max(1, bbox[2] - bbox[0])
@@ -82,7 +83,6 @@ def stream_transforms_to_meshcat(
 
         img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        draw.rectangle([0, 0, img_w - 1, img_h - 1], fill=(0, 0, 0, 140))
         draw.text((pad, pad), text, font=font, fill=(255, 255, 255, 255))
 
         # meshcat expects a meshcat.geometry.Image subclass (e.g., PngImage), not a PIL Image.
@@ -90,7 +90,10 @@ def stream_transforms_to_meshcat(
         img.save(buf, format="PNG")
         png = g.PngImage(buf.getvalue())
         texture = g.ImageTexture(image=png)
-        material = g.MeshBasicMaterial(color=0xFFFFFF, map=texture, transparent=True, opacity=1.0)
+        # Render only the front faces (avoid seeing the texture from both sides,
+        # which can look like doubled / overlaid text).
+        # three.js constants: FrontSide=0, BackSide=1, DoubleSide=2.
+        material = g.MeshBasicMaterial(color=0xFFFFFF, map=texture, side=0, transparent=True, opacity=1.0)
         return material, img_w, img_h
 
     def _ensure_frame_drawn(frame_id: str, drawn: set[str]) -> None:
@@ -143,6 +146,17 @@ def stream_transforms_to_meshcat(
     dt = 1.0 / max(float(config.fps), 1e-6)
     print("Streaming TF frames to MeshCat. Ctrl+C to stop.")
 
+    # Keep labels upright (vertical) for readability.
+    # Rotate +90deg about X so the label plane is not flat on XY.
+    R_label = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 1.0, 0.0],
+        ],
+        dtype=float,
+    )
+
     try:
         while True:
             if stop_event is not None and bool(getattr(stop_event, "is_set")()):
@@ -166,7 +180,9 @@ def stream_transforms_to_meshcat(
 
                     if config.labels:
                         Tl = np.eye(4)
-                        Tl[:3, 3] = np.asarray(pose_w.position, dtype=float) + np.array(
+                        Tl[:3, :3] = R_label
+                        # Place label below the frame along world -Z.
+                        Tl[:3, 3] = np.asarray(pose_w.position, dtype=float) - np.array(
                             [0.0, 0.0, float(config.label_offset)],
                             dtype=float,
                         )
