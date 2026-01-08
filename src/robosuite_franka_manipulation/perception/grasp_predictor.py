@@ -278,7 +278,7 @@ class GraspPredictor:
             )
 
         # Additional TF frames (EEF, cameras, robot bases, etc.) if available
-        tfm = getattr(self, "tf_manager", None)
+        tfm = self.tf_manager
         if tfm is not None:
             try:
                 for frame_name in tfm.get_known_frames():
