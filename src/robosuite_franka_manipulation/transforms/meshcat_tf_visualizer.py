@@ -88,6 +88,10 @@ def stream_transforms_to_meshcat(
             base = frame_id[:-3]
             if base.endswith("view") or "eye_in_hand" in base:
                 return "cameras/raw"
+        if frame_id.endswith("_optical"):
+            base = frame_id[: -len("_optical")]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras"
         if frame_id.endswith("view") or "eye_in_hand" in frame_id:
             return "cameras"
         return "other"

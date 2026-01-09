@@ -138,12 +138,16 @@ class TransformManager:
                 if cam_name:
                     self._register_camera_provider(cam_name)
                     # Camera provider publishes `{cam}_mj` dynamically as world<-cam_mj,
-                    # and a static `{cam}_mj` -> `{cam}` transform for an optical-style frame.
+                    # and static `{cam}_mj` -> `{cam}` / `{cam}_optical` transforms.
                     cam_mj = f"{cam_name}_mj"
                     self._frame_parents[cam_mj] = self.WORLD_FRAME
                     self._frame_parents[cam_name] = cam_mj
                     self._known_frames.add(cam_mj)
                     self._known_frames.add(cam_name)
+
+                    cam_opt = f"{cam_name}_optical"
+                    self._frame_parents[cam_opt] = cam_mj
+                    self._known_frames.add(cam_opt)
                     logger.debug(f"Registered camera frame: {cam_name}")
         
         logger.info(f"Discovered frames: {sorted(self._known_frames)}")
@@ -227,9 +231,31 @@ class TransformManager:
     
     def _register_camera_provider(self, camera_name: str) -> None:
         """Register a dynamic transform provider for a camera."""
-        # MuJoCo / OpenGL camera frame points down -Z (forward is -Z).
-        # For visualization and user-facing TF, expose an optical frame with +Z forward.
-        # Relationship: camera_mj <- camera_optical is a fixed 180deg rotation about X.
+        # MuJoCo / OpenGL camera frame has forward along -Z.
+        # We publish:
+        # - `{camera}_mj`      : raw MuJoCo camera frame (world<-camera_mj)
+        # - `{camera}`         : camera_link-style frame (x forward, y left, z up)
+        # - `{camera}_optical` : ROS optical frame (x right, y down, z forward)
+        #
+        # Static relationships are expressed as parent<-child:
+        #   camera_mj <- camera_link
+        #   camera_mj <- camera_optical
+
+        # camera_link axes expressed in camera_mj coordinates:
+        #   x_link = -z_mj (forward)
+        #   y_link = -x_mj (left)
+        #   z_link =  y_mj (up)
+        R_cam_mj_link = np.array(
+            [
+                [0.0, -1.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [-1.0, 0.0, 0.0],
+            ],
+            dtype=float,
+        )
+
+        # ROS optical relative to camera_mj: x right, y down, z forward.
+        # In MuJoCo/OpenGL terms: y and z flip.
         R_cam_mj_opt = np.diag([1.0, -1.0, -1.0])
 
         def get_camera_transform() -> Transform:
@@ -254,14 +280,24 @@ class TransformManager:
         
         self._dynamic_frame_providers[f"{camera_name}_mj"] = get_camera_transform
 
-        # Add a fixed static transform from raw MuJoCo camera frame to an optical frame.
-        # world<-camera_optical = (world<-camera_mj) ∘ (camera_mj<-camera_optical)
+        # camera_link-style frame at `{camera_name}`
+        self.add_static_transform(
+            Transform(
+                translation=np.zeros(3),
+                rotation=R.from_matrix(R_cam_mj_link).as_quat(),
+                parent_frame=f"{camera_name}_mj",
+                child_frame=camera_name,
+                is_static=True,
+            )
+        )
+
+        # ROS optical frame
         self.add_static_transform(
             Transform(
                 translation=np.zeros(3),
                 rotation=R.from_matrix(R_cam_mj_opt).as_quat(),
                 parent_frame=f"{camera_name}_mj",
-                child_frame=camera_name,
+                child_frame=f"{camera_name}_optical",
                 is_static=True,
             )
         )

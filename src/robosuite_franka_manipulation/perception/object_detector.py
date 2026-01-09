@@ -60,6 +60,8 @@ class ObjectDetector:
         # Elevate logger level if debug enabled
         if self.debug:
             logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
 
         # Load FastSAM model from models folder
         model_path = constants.get_project_root() / constants.FASTSAM_MODEL_PATH
