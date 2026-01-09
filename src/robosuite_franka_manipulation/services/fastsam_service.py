@@ -219,17 +219,18 @@ class FastSAMService:
         # Run object detection
         detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
-        # Enhance detections with point clouds
+        # Ensure the returned point cloud is in the SAME frame as the pose.
+        # ObjectDetector already returns:
+        # - 'pcd'      : point cloud in world frame
+        # - 'pcd_local': point cloud in object-local frame
+        # - 'pose'     : object pose in world frame
+        # For backwards-compatibility with older callers, provide 'pointcloud'
+        # as an alias to the world-frame 'pcd'.
         result: List[Dict[str, Any]] = []
         for detection in detections:
-            det_dict: Dict[str, Any] = dict(detection)  # Convert TypedDict to regular dict
-            if 'mask' in det_dict:
-                # Extract point cloud from depth and mask
-                image_shape: Tuple[int, int] = (rgb_image.shape[0], rgb_image.shape[1])
-                pointcloud = self._extract_pointcloud_from_depth(
-                    depth_image, det_dict['mask'], image_shape
-                )
-                det_dict['pointcloud'] = pointcloud
+            det_dict: Dict[str, Any] = dict(detection)
+            if 'pcd' in det_dict:
+                det_dict['pointcloud'] = det_dict['pcd']
             else:
                 det_dict['pointcloud'] = np.array([])
             result.append(det_dict)

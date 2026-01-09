@@ -73,7 +73,7 @@ class GraspService:
         self.running = False
 
         # Initialize grasp predictors for different gripper types
-        self.grasp_predictors = {}
+        self.grasp_predictors: Dict[str, GraspPredictor] = {}
         gripper_types = constants.GRIPPER_TYPES
         
         for gripper_type in gripper_types:
