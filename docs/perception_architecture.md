@@ -60,7 +60,6 @@ detection = {
         'quat': np.array([qx, qy, qz, qw])  # Quaternion orientation
     },
     'pcd': np.array([[x1,y1,z1], ...]),   # World frame point cloud
-    'pcd_local': np.array([[...], ...]),  # Object-local point cloud
     'mask': np.array([[0,1,...], ...]),   # Binary segmentation mask
     'id': 0
 }
@@ -81,7 +80,7 @@ predictor = GraspPredictor(
 
 # Predict grasps
 grasps = predictor.predict_grasps(
-    object_pcd=point_cloud,    # Nx3 array
+    object_pcd=pcd,            # Nx3 array
     object_pose=pose_dict,     # {'pos': [...], 'quat': [...]}
     num_grasps=5
 )
