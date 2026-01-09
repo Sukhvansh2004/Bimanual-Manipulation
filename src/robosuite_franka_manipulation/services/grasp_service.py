@@ -323,6 +323,27 @@ class GraspService:
                     pointcloud, object_pose_stamped, num_grasps, simplified_type
                 )
 
+                # Publish grasp poses as TF frames for MeshCat / TF debugging.
+                # These frames are in world coordinates (consistent with returned grasp poses).
+                if self.tf_manager is not None:
+                    try:
+                        for i, grasp in enumerate(grasps):
+                            pos = grasp.get("pos")
+                            quat = grasp.get("quat")
+                            if pos is None or quat is None:
+                                continue
+                            self.tf_manager.add_static_transform(
+                                Transform(
+                                    translation=np.asarray(pos, dtype=np.float64),
+                                    rotation=np.asarray(quat, dtype=np.float64),
+                                    parent_frame="world",
+                                    child_frame=f"grasp_{i}",
+                                    is_static=False,
+                                )
+                            )
+                    except Exception as e:
+                        logger.debug("Failed to publish grasp frames to TF manager: %s", e)
+
                 # Convert grasps to JSON-serializable format using utility
                 json_grasps = convert_grasps_to_json(grasps)
 

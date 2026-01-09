@@ -18,15 +18,16 @@ import numpy as np
 import io
 
 from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation import constants
 import meshcat
 import meshcat.geometry as g
-from grasp_gen.utils.meshcat_utils import create_visualizer, make_frame
+from grasp_gen.utils.meshcat_utils import make_frame
 from PIL import Image, ImageDraw, ImageFont
 
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
     fps: float = 20.0
-    zmq_url: str = "tcp://127.0.0.1:6000"
+    zmq_url: str = constants.MESHCAT_ZMQ_URL
     clear: bool = True
 
     axis_length: float = 0.12
@@ -57,15 +58,17 @@ def stream_transforms_to_meshcat(
         stop_event: Optional threading.Event-like object; if provided, loop exits when set.
     """
 
-    if create_visualizer is not None:
-        vis = create_visualizer(clear=bool(config.clear))
-    else:
-        vis = meshcat.Visualizer(zmq_url=str(config.zmq_url))
-        if config.clear:
+    # Always honor config.zmq_url (and therefore constants.MESHCAT_ZMQ_URL).
+    # The helper in grasp_gen hardcodes its own zmq url, so we avoid it here.
+    vis = meshcat.Visualizer(zmq_url=str(config.zmq_url))
+    if config.clear:
+        try:
             vis.delete()
+        except Exception:
+            pass
 
-        print("Waiting for meshcat server... start one with: meshcat-server")
-        print("Then open: http://127.0.0.1:7000")
+    print("Waiting for meshcat server... start one with: meshcat-server")
+    print("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
 

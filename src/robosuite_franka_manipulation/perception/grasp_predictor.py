@@ -2,9 +2,9 @@ import numpy as np
 import logging
 from typing import List, Dict, Optional, Any
 import torch
-import open3d as o3d
 from scipy.spatial.transform import Rotation as R
-import plotly.graph_objects as go
+import meshcat
+import meshcat.geometry as g
 
 from robosuite_franka_manipulation import constants
 
@@ -37,6 +37,9 @@ class GraspPredictor:
 
         # Optional TransformManager for visualizing additional frames (EEF, cameras, etc.)
         self.tf_manager: Optional[TransformManager] = transform_manager
+
+        # Lazy-created MeshCat visualizer (shared across calls)
+        self._meshcat_vis: Optional[meshcat.Visualizer] = None
         
         # Load GraspGen config from GraspGenModels based on gripper type
         if not model_path:
@@ -161,151 +164,59 @@ class GraspPredictor:
         """
         Visualize the object point cloud and predicted grasps.
 
-        Uses Plotly when available (works well on headless machines) and falls back
-        to an Open3D window otherwise.
+        MeshCat-only visualization: publishes into the MeshCat scene tree so it can be
+        toggled alongside TF frames.
         """
         if not self.visualize:
             return
 
-        # Prefer Plotly for robust headless visualization. Open3D's Plotly wrapper can
-        # render point clouds confusingly (often looking like a sphere). Here we
-        # explicitly plot point markers + grasp axes.
         pcd_xyz = np.asarray(pcd)
         if pcd_xyz.ndim != 2 or pcd_xyz.shape[1] < 3:
-            logger.warning("Cannot visualize point cloud: expected Nx3+, got shape %s", getattr(pcd_xyz, "shape", None))
+            logger.warning(
+                "Cannot visualize point cloud: expected Nx3+, got shape %s",
+                getattr(pcd_xyz, "shape", None),
+            )
             return
-        pcd_xyz = pcd_xyz[:, :3]
+        pcd_xyz = pcd_xyz[:, :3].astype(np.float32, copy=False)
 
-        logger.info("Visualizing grasps (and frames) with Plotly...")
+        # Create or reuse the MeshCat visualizer. Do NOT clear the whole scene;
+        # TF streaming and other visuals may be present.
+        if self._meshcat_vis is None:
+            self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
 
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter3d(
-                x=pcd_xyz[:, 0],
-                y=pcd_xyz[:, 1],
-                z=pcd_xyz[:, 2],
-                mode="markers",
-                name="object_pcd",
-                marker=dict(size=2, color="rgba(160,160,160,0.7)"),
-            )
-        )
+        vis = self._meshcat_vis
+        root = vis["perception/grasp_predictor"]
 
-        def _add_frame(
-            name: str,
-            pos_in_world: Any,
-            quat_xyzw: Any,
-            axis_len: float,
-            axis_width: int,
-            marker_size: int,
-            marker_color: str,
-        ) -> None:
-            pos = np.asarray(pos_in_world, dtype=np.float64).reshape(3)
-            quat = np.asarray(quat_xyzw, dtype=np.float64).reshape(4)
-            rot = R.from_quat(quat)
-
-            x_axis = rot.apply([1.0, 0.0, 0.0])
-            y_axis = rot.apply([0.0, 1.0, 0.0])
-            z_axis = rot.apply([0.0, 0.0, 1.0])
-
-            def _add_axis(vec, color):
-                end = pos + axis_len * np.asarray(vec)
-                fig.add_trace(
-                    go.Scatter3d(
-                        x=[pos[0], end[0]],
-                        y=[pos[1], end[1]],
-                        z=[pos[2], end[2]],
-                        mode="lines",
-                        line=dict(color=color, width=axis_width),
-                        showlegend=False,
-                    )
-                )
-
-            # Axis colors follow the standard convention: x=red, y=green, z=blue
-            _add_axis(x_axis, "rgb(220,60,60)")
-            _add_axis(y_axis, "rgb(60,220,60)")
-            _add_axis(z_axis, "rgb(60,60,220)")
-
-            fig.add_trace(
-                go.Scatter3d(
-                    x=[pos[0]],
-                    y=[pos[1]],
-                    z=[pos[2]],
-                    mode="markers+text",
-                    text=[name],
-                    textposition="top center",
-                    marker=dict(size=marker_size, color=marker_color),
-                    showlegend=False,
-                )
-            )
-
-        # World frame (origin)
-        _add_frame(
-            name="world",
-            pos_in_world=[0.0, 0.0, 0.0],
-            quat_xyzw=[0.0, 0.0, 0.0, 1.0],
-            axis_len=0.08,
-            axis_width=5,
-            marker_size=4,
-            marker_color="rgba(30,30,30,0.9)",
-        )
-
-        # Predicted grasp frames
-        for i, grasp in enumerate(grasps):
-            pos = grasp.get("pos")
-            quat = grasp.get("quat")
-            label = f"grasp_{i}"
-            if pos is None or quat is None:
-                continue
-            _add_frame(
-                name=label,
-                pos_in_world=pos,
-                quat_xyzw=quat,
-                axis_len=0.05,
-                axis_width=6,
-                marker_size=3,
-                marker_color="rgba(40,40,40,0.9)",
-            )
-
-        # Additional TF frames (EEF, cameras, robot bases, etc.) if available
-        tfm = self.tf_manager
-        if tfm is not None:
-            try:
-                for frame_name in tfm.get_known_frames():
-                    if frame_name == "world":
-                        continue
-                    try:
-                        pose = tfm.get_frame_pose(frame_name, reference_frame="world")
-                    except Exception:
-                        continue
-                    _add_frame(
-                        name=frame_name,
-                        pos_in_world=pose.position,
-                        quat_xyzw=pose.quaternion,
-                        axis_len=0.03,
-                        axis_width=3,
-                        marker_size=2,
-                        marker_color="rgba(90,90,90,0.7)",
-                    )
-            except Exception as e:
-                logger.debug("Skipping TF frame visualization: %s", e)
-
-        fig.update_layout(
-            title="Grasp + Frame Visualization",
-            scene=dict(
-                xaxis_title="x",
-                yaxis_title="y",
-                zaxis_title="z",
-                aspectmode="data",
-            ),
-            showlegend=False,
-            margin=dict(l=0, r=0, t=40, b=0),
-        )
-
+        # Clear only our subtree so updates don't accumulate.
         try:
-            fig.show()
-            logger.info("Plotly grasp visualization closed.")
-        except Exception as e:
-            logger.warning("Plotly visualization failed: %s. Skipping visualization.", e)
+            root.delete()
+        except Exception:
+            pass
+
+        # Downsample for performance.
+        max_points = 8000
+        if pcd_xyz.shape[0] > max_points:
+            idx = np.random.choice(pcd_xyz.shape[0], size=max_points, replace=False)
+            pcd_vis = pcd_xyz[idx]
+        else:
+            pcd_vis = pcd_xyz
+
+        # MeshCat PointCloud expects 3xN.
+        pts = pcd_vis.T
+        colors = np.tile(np.array([[0.7], [0.7], [0.7]], dtype=np.float32), (1, pts.shape[1]))
+        # g.PointCloud returns a MeshCat Object, so pass it directly.
+        root["object_pcd"].set_object(
+            g.PointCloud(
+                position=pts,
+                color=colors,
+                size=0.002,
+            )
+        )
+
+        # NOTE: We intentionally do NOT draw grasp axes / frames here.
+        # Grasp frames are already published into the shared TransformManager by
+        # GraspService (e.g., grasp_0, grasp_1, ...), and are visualized via the
+        # MeshCat TF streamer. Keeping this view pointcloud-only avoids duplicates.
 
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """
