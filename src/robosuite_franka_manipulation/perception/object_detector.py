@@ -11,6 +11,8 @@ from robosuite_franka_manipulation.utils.pointcloud import (
     estimate_pose_from_point_cloud,
     transform_point_cloud,
     deproject_depth_to_point_cloud,
+    parse_camera_intrinsics,
+    ensure_depth_2d,
 )
 
 from ultralytics.models.fastsam import FastSAM
@@ -24,7 +26,6 @@ class Detection(TypedDict):
     name: str
     pose: StampedPose
     pcd: np.ndarray
-    pcd_local: np.ndarray
     mask: np.ndarray
     id: int
 
@@ -85,41 +86,14 @@ class ObjectDetector:
 
     def _get_intrinsic_params(self) -> tuple:
         """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
-        if self.camera_intrinsics is None:
-            raise ValueError("Camera intrinsics not available")
-        
-        I = np.asarray(self.camera_intrinsics)
-        
-        # Handle 1D array: [fx, fy, cx, cy]
-        if I.ndim == 1:
-            if I.shape[0] != 4:
-                raise ValueError(f"1D intrinsics array has invalid length {I.shape[0]}, expected 4 [fx, fy, cx, cy]")
-            fx, fy, cx, cy = float(I[0]), float(I[1]), float(I[2]), float(I[3])
-        # Handle 2D matrix: standard 3x3 or 4x4
-        elif I.ndim == 2:
-            if I.shape[0] < 2 or I.shape[1] < 3:
-                raise ValueError(f"Invalid intrinsics matrix shape {I.shape}, expected at least (2, 3)")
-            fx, fy, cx, cy = float(I[0, 0]), float(I[1, 1]), float(I[0, 2]), float(I[1, 2])
-        else:
-            raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
-        
+        fx, fy, cx, cy = parse_camera_intrinsics(self.camera_intrinsics)
         if self.debug:
             logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
         return fx, fy, cx, cy
 
     def _ensure_depth_2d(self, depth_image: np.ndarray) -> np.ndarray:
         """Convert depth array to 2D. Raises error if malformed."""
-        if depth_image is None:
-            raise ValueError("Depth image is None")
-        
-        depth = depth_image
-        if depth.ndim == 3 and depth.shape[-1] == 1:
-            depth = depth[..., 0]
-        
-        if depth.ndim != 2:
-            raise ValueError(f"Depth image has invalid shape {depth.shape}, expected 2D")
-        
-        return depth
+        return ensure_depth_2d(depth_image, height=self.camera_height, width=self.camera_width)
 
     def detect_objects(self, rgb_image: np.ndarray, depth_image: np.ndarray,
                       camera_pos: np.ndarray, camera_rot: R) -> List[Detection]:
@@ -196,9 +170,7 @@ class ObjectDetector:
             
             # Transform point cloud to world frame using matrix for efficiency
             transform_matrix = camera_to_world.to_matrix()
-            ones = np.ones((len(pcd_camera_frame), 1))
-            pcd_homogeneous = np.hstack([pcd_camera_frame, ones])
-            pcd_world_frame = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
+            pcd_world_frame = transform_point_cloud(pcd_camera_frame, transform_matrix)
             
             # Estimate pose from point cloud in world frame
             pose = self._estimate_pose_from_point_cloud(pcd_world_frame)
@@ -207,7 +179,6 @@ class ObjectDetector:
                 'name': f'object_{i}',
                 'pose': pose,
                 'pcd': pcd_world_frame,
-                'pcd_local': self._transform_to_object_frame(pcd_world_frame, pose),
                 'mask': mask,
                 'id': i
             })
@@ -241,28 +212,6 @@ class ObjectDetector:
         """Estimate object pose from point cloud using PCA for orientation."""
         pos, quat = estimate_pose_from_point_cloud(pcd)
         return StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
-
-    def _transform_to_object_frame(self, pcd_world: np.ndarray, object_pose: StampedPose) -> np.ndarray:
-        """
-        Transform point cloud from world frame to object-local frame.
-        
-        Args:
-            pcd_world: Point cloud in world frame
-            object_pose: Object pose in world frame
-            
-        Returns:
-            Point cloud in object-local frame
-        """
-        # Create transform from world to object-local frame (inverse of object pose)
-        world_to_object = Transform(
-            translation=object_pose.position,
-            rotation=object_pose.quaternion,
-            parent_frame="world",
-            child_frame="object_local"
-        ).inverse()  # We want world -> object_local
-        
-        # Use utility function for transformation
-        return transform_point_cloud(pcd_world, world_to_object.to_matrix())
 
     def _visualize_fastsam_results(self, result, rgb_image: np.ndarray) -> None:
         """

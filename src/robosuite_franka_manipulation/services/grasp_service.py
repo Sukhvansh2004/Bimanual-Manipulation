@@ -100,11 +100,11 @@ class GraspService:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-    def _validate_pointcloud(self, pointcloud: np.ndarray) -> bool:
+    def _validate_point_cloud(self, pcd: np.ndarray) -> bool:
         """Validate point cloud data using utility function."""
-        return validate_point_cloud(pointcloud, max_range=constants.MAX_POINTCLOUD_RANGE)
+        return validate_point_cloud(pcd, max_range=constants.MAX_POINTCLOUD_RANGE)
 
-    def _predict_grasps_for_pointcloud(self, pointcloud: np.ndarray,
+    def _predict_grasps_for_pointcloud(self, pcd: np.ndarray,
                                      object_pose: StampedPose,
                                      num_grasps: int = constants.DEFAULT_NUM_GRASPS,
                                      gripper_type: str = 'finger') -> List[Dict]:
@@ -112,7 +112,7 @@ class GraspService:
         Predict grasps for a single point cloud.
 
         Args:
-            pointcloud: Nx3 point cloud array
+            pcd: Nx3 point cloud array
             object_pose: Object pose in world frame
             num_grasps: Number of grasps to predict
             gripper_type: Type of gripper ('finger' or 'suction')
@@ -130,13 +130,13 @@ class GraspService:
             return []
         
         try:
-            if not self._validate_pointcloud(pointcloud):
+            if not self._validate_point_cloud(pcd):
                 logger.warning("Invalid point cloud provided")
                 return []
 
             # Predict grasps using GraspGen
             grasps = predictor.predict_grasps(
-                object_pcd=pointcloud,
+                object_pcd=pcd,
                 object_pose=object_pose,
                 num_grasps=num_grasps
             )
@@ -149,10 +149,10 @@ class GraspService:
             # Add metadata
             for i, grasp in enumerate(grasps):
                 grasp['id'] = i
-                grasp['pointcloud_size'] = len(pointcloud)
+                grasp['pcd_size'] = len(pcd)
                 grasp['prediction_timestamp'] = time.time()
 
-            logger.debug(f"Predicted {len(grasps)} grasps for point cloud with {len(pointcloud)} points")
+            logger.debug(f"Predicted {len(grasps)} grasps for point cloud with {len(pcd)} points")
 
             return grasps
 
@@ -248,33 +248,33 @@ class GraspService:
                         'message': f'Grasp predictor for {simplified_type} gripper not loaded'
                     }
                 
-                # Check if pointcloud and pose are provided
-                pointcloud_data = request.get('pointcloud')
+                # Check if pcd and pose are provided
+                pcd_data = request.get('pcd')
                 object_pose = request.get('object_pose')
                 
                 object_id: Optional[str] = None
 
                 # If not provided, query FastSAM service
-                if pointcloud_data is None or object_pose is None:
-                    logger.info("No pointcloud/pose provided, querying FastSAM service")
+                if pcd_data is None or object_pose is None:
+                    logger.info("No pcd/pose provided, querying FastSAM service")
                     fastsam_data = self._query_fastsam_service()
                     if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
                         # Use the first detection
                         detection = fastsam_data['detections'][0]
                         object_id = str(detection.get('id', detection.get('name', '0')))
-                        pointcloud_data = detection.get('pcd', [])
+                        pcd_data = detection.get('pcd', [])
                         object_pose = detection.get('pose', {})
-                        logger.info(f"Using detection from FastSAM: {len(pointcloud_data)} points")
+                        logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
                     else:
                         return {
                             'status': 'error',
-                            'message': 'No pointcloud/pose provided and FastSAM service returned no detections'
+                            'message': 'No pcd/pose provided and FastSAM service returned no detections'
                         }
 
-                if not pointcloud_data:
+                if not pcd_data:
                     return {
                         'status': 'error',
-                        'message': 'No pointcloud data available'
+                        'message': 'No pcd data available'
                     }
 
                 if not object_pose:
@@ -285,7 +285,7 @@ class GraspService:
 
                 # Convert data
                 try:
-                    pointcloud = np.array(pointcloud_data, dtype=np.float32)
+                    pcd = np.array(pcd_data, dtype=np.float32)
                     object_pose_stamped = StampedPose(
                         position=np.array(object_pose['pos']),
                         quaternion=np.array(object_pose['quat']),
@@ -320,7 +320,7 @@ class GraspService:
 
                 # Predict grasps using the appropriate predictor
                 grasps = self._predict_grasps_for_pointcloud(
-                    pointcloud, object_pose_stamped, num_grasps, simplified_type
+                    pcd, object_pose_stamped, num_grasps, simplified_type
                 )
 
                 # Publish grasp poses as TF frames for MeshCat / TF debugging.
@@ -351,7 +351,7 @@ class GraspService:
                     'status': 'success',
                     'grasps': json_grasps,
                     'num_grasps_predicted': len(grasps),
-                    'pointcloud_size': len(pointcloud),
+                    'pcd_size': len(pcd),
                     'gripper_type': simplified_type
                 }
 

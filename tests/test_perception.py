@@ -57,7 +57,7 @@ class TestPerception:
                 assert 'id' in det
     
     def test_grasp_prediction_in_service(self, perception_services):
-        """Test that the FastSAM service returns detections with pointclouds."""
+        """Test that the FastSAM service returns detections with point clouds."""
         manager, service = perception_services
         client = ServiceClient(manager_host=manager.host, manager_port=manager.port)
         
@@ -72,8 +72,8 @@ class TestPerception:
         detections = response["detections"]
         if detections:
             det = detections[0]
-            pointcloud = det.get("pointcloud", [])
-            assert isinstance(pointcloud, list)
+            pcd = det.get("pcd", [])
+            assert isinstance(pcd, list)
 
     def test_prompt_service_integration(self, perception_services):
         """Test setting and getting prompts via the FastSAM service."""

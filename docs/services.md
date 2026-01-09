@@ -124,7 +124,7 @@ response = client.call('fastsam_service', {
 #     {
 #       'name': 'object_0',
 #       'pose': {'pos': [x, y, z], 'quat': [qx, qy, qz, qw]},
-#       'pointcloud': [[x1, y1, z1], ...],
+#       'pcd': [[x1, y1, z1], ...],
 #       'mask': [[0, 1, ...], ...],
 #       'id': 0
 #     },
@@ -133,14 +133,13 @@ response = client.call('fastsam_service', {
 #   'timestamp': 1234567890.123
 # }
 ```
-
+#       'pcd_size': 1024,
 ### Detection Output Format
 
 Each detection contains:
 - `name`: Object identifier (e.g., "object_0")
 - `pose`: Estimated 6-DOF pose with position and quaternion
-- `pointcloud`: Nx3 array of 3D points in world frame
-- `pcd_local`: Point cloud in object-local frame
+- `pcd`: Nx3 array of 3D points in world frame
 - `mask`: Binary segmentation mask
 - `id`: Detection index
 
@@ -154,7 +153,7 @@ GraspGen-based 6-DOF grasp prediction from point clouds.
 ```python
 response = client.call('grasp_service', {
     'command': 'GET_GRASPS',
-    'pointcloud': detection['pointcloud'],  # Nx3 list of points
+    'pcd': detection['pcd'],                 # Nx3 list of points
     'object_pose': detection['pose'],       # {'pos': [...], 'quat': [...]}
     'num_grasps': 5,                         # Number of grasps to generate
     'gripper_type': 'finger'                 # 'finger' or 'suction'
@@ -167,7 +166,7 @@ response = client.call('grasp_service', {
 #       'quat': [qx, qy, qz, qw],
 #       'score': 0.95,
 #       'id': 0,
-#       'pointcloud_size': 1024,
+#       'pcd_size': 1024,
 #       'prediction_timestamp': 1234567890.123
 #     },
 #     ...

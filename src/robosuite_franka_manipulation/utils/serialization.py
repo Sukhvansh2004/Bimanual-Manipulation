@@ -59,7 +59,7 @@ def from_json_to_numpy(obj: Any, convert_lists: bool = False) -> Any:
         result = {}
         for key, value in obj.items():
             # Known keys that should be numpy arrays
-            if key in ('pos', 'position', 'quat', 'quaternion', 'pcd', 'pointcloud'):
+            if key in ('pos', 'position', 'quat', 'quaternion', 'pcd'):
                 if isinstance(value, list):
                     result[key] = np.array(value)
                 else:

@@ -10,6 +10,64 @@ from typing import Tuple, Optional
 from scipy.spatial.transform import Rotation as R
 
 
+def parse_camera_intrinsics(intrinsics: np.ndarray) -> Tuple[float, float, float, float]:
+    """Parse camera intrinsics into (fx, fy, cx, cy).
+
+    Supports:
+    - 1D array: [fx, fy, cx, cy] (robosuite default)
+    - 2D matrix: standard pinhole K (3x3, 4x4, etc)
+    """
+    if intrinsics is None:
+        raise ValueError("Camera intrinsics not available")
+
+    I = np.asarray(intrinsics)
+
+    if I.ndim == 1:
+        if I.shape[0] != 4:
+            raise ValueError(
+                f"1D intrinsics array has invalid length {I.shape[0]}, expected 4 [fx, fy, cx, cy]"
+            )
+        fx, fy, cx, cy = float(I[0]), float(I[1]), float(I[2]), float(I[3])
+    elif I.ndim == 2:
+        if I.shape[0] < 2 or I.shape[1] < 3:
+            raise ValueError(f"Invalid intrinsics matrix shape {I.shape}, expected at least (2, 3)")
+        fx, fy, cx, cy = float(I[0, 0]), float(I[1, 1]), float(I[0, 2]), float(I[1, 2])
+    else:
+        raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
+
+    return fx, fy, cx, cy
+
+
+def ensure_depth_2d(depth_image: np.ndarray, *, height: Optional[int] = None, width: Optional[int] = None) -> np.ndarray:
+    """Ensure depth image is a 2D array.
+
+    - Accepts flat buffers if height/width are provided.
+    - Squeezes trailing singleton channel (H, W, 1) -> (H, W).
+    """
+    if depth_image is None:
+        raise ValueError("Depth image is None")
+
+    depth = np.asarray(depth_image)
+
+    if depth.ndim == 1:
+        if height is None or width is None:
+            raise ValueError(
+                f"Flat depth buffer provided with shape {depth.shape} but height/width not specified"
+            )
+        expected = int(height) * int(width)
+        if depth.size != expected:
+            raise ValueError(f"Flat depth buffer size {depth.size} != expected {expected}")
+        depth = depth.reshape(int(height), int(width))
+
+    if depth.ndim == 3 and depth.shape[-1] == 1:
+        depth = depth[..., 0]
+
+    if depth.ndim != 2:
+        raise ValueError(f"Depth has invalid shape {depth.shape}, expected 2D")
+
+    return depth
+
+
 def downsample_point_cloud(pcd: np.ndarray, target_points: int = 2048, 
                            method: str = 'random') -> np.ndarray:
     """

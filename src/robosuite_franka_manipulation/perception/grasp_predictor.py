@@ -10,7 +10,7 @@ from robosuite_franka_manipulation import constants
 
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
-from robosuite_franka_manipulation.utils import downsample_point_cloud
+from robosuite_franka_manipulation.utils import downsample_point_cloud, transform_point_cloud
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
@@ -238,16 +238,8 @@ class GraspPredictor:
             child_frame="object_local"
         ).inverse()  # We want world -> object_local, so invert object -> world
         
-        # Apply transform to each point
-        # For efficiency, do this with matrix operations
         transform_matrix = world_to_object.to_matrix()
-        
-        # Convert to homogeneous coordinates
-        ones = np.ones((len(pcd), 1))
-        pcd_homogeneous = np.hstack([pcd, ones])
-        
-        # Apply transform
-        pcd_local = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
+        pcd_local = transform_point_cloud(pcd, transform_matrix)
         
         # Remove outliers
         pcd_filtered = self._remove_outliers(pcd_local)

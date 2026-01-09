@@ -15,6 +15,7 @@ import torch
 
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.utils import transform_point_cloud
 
 
 class TestGraspTransformations:
@@ -210,10 +211,8 @@ class TestPointCloudPreprocessing:
         # Test point at object center
         point_world = np.array([1.0, 0.0, 0.5])
         
-        # Transform using matrix
         transform_matrix = world_to_object.to_matrix()
-        point_homogeneous = np.append(point_world, 1.0)
-        point_local = (transform_matrix @ point_homogeneous)[:3]
+        point_local = transform_point_cloud(point_world.reshape(1, 3), transform_matrix)[0]
         
         # Should be at origin in object-local frame
         np.testing.assert_array_almost_equal(point_local, [0, 0, 0], decimal=6)
@@ -243,11 +242,8 @@ class TestPointCloudPreprocessing:
         ).inverse()
         
         transform_matrix = world_to_object.to_matrix()
-        
-        # Batch transform
-        ones = np.ones((len(pcd), 1))
-        pcd_homogeneous = np.hstack([pcd, ones])
-        pcd_local = (transform_matrix @ pcd_homogeneous.T).T[:, :3]
+
+        pcd_local = transform_point_cloud(pcd, transform_matrix)
         
         # Expected results in object-local frame
         expected = np.array([
@@ -280,8 +276,7 @@ class TestPointCloudPreprocessing:
         ).inverse()
         
         transform_matrix = world_to_object.to_matrix()
-        point_homogeneous = np.append(pcd[0], 1.0)
-        point_local = (transform_matrix @ point_homogeneous)[:3]
+        point_local = transform_point_cloud(pcd, transform_matrix)[0]
         
         # World X should become object-local -Y (inverse of 90 deg rotation)
         np.testing.assert_array_almost_equal(point_local, [0, -1, 0], decimal=6)

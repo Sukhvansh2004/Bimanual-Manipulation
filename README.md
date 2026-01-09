@@ -204,7 +204,7 @@ GraspGen-based grasp prediction.
 ```python
 client.call('grasp_service', {
     'command': 'GET_GRASPS',
-    'pointcloud': detection['pointcloud'],
+    'pcd': detection['pcd'],
     'object_pose': detection['pose'],
     'num_grasps': 5,
     'gripper_type': 'finger'  # or 'suction'

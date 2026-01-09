@@ -34,6 +34,8 @@ from robosuite_franka_manipulation.utils.pointcloud import (
     filter_point_cloud_by_range,
     validate_point_cloud,
     deproject_depth_to_point_cloud,
+    parse_camera_intrinsics,
+    ensure_depth_2d,
 )
 
 from robosuite_franka_manipulation.utils.serialization import (
@@ -70,6 +72,8 @@ __all__ = [
     'filter_point_cloud_by_range',
     'validate_point_cloud',
     'deproject_depth_to_point_cloud',
+    'parse_camera_intrinsics',
+    'ensure_depth_2d',
     # Serialization utilities
     'to_json_serializable',
     'from_json_to_numpy',

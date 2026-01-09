@@ -206,7 +206,7 @@ detections = response['detections']
 # Generate grasps via Grasp Service
 response = client.call('grasp_service', {
     'command': 'GET_GRASPS',
-    'pointcloud': detections[0]['pointcloud'],
+    'pcd': detections[0]['pcd'],
     'object_pose': detections[0]['pose'],
     'num_grasps': 5
 })

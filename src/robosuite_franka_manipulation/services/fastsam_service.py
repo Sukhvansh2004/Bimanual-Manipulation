@@ -20,6 +20,7 @@ from robosuite_franka_manipulation.perception.object_detector import ObjectDetec
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.serialization import convert_detections_to_json
+from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
 # Configure logging
@@ -82,7 +83,6 @@ class FastSAMService:
         self.latest_rgb_image = None
         self.latest_depth_image = None
         self.latest_detections = []
-        self.latest_segmented_pointclouds = []
 
         # Get camera intrinsics
         if self.camera_name in self.env.camera_names:
@@ -128,23 +128,7 @@ class FastSAMService:
 
     def _normalize_depth(self, depth_image: np.ndarray) -> np.ndarray:
         """Convert depth to 2D array. Raises error if shape is invalid."""
-        if depth_image is None:
-            raise ValueError("Depth image is None")
-        
-        depth = np.asarray(depth_image)
-        if depth.ndim == 1:
-            expected = self.camera_height * self.camera_width
-            if depth.size != expected:
-                raise ValueError(f"Flat depth buffer size {depth.size} != expected {expected}")
-            depth = depth.reshape(self.camera_height, self.camera_width)
-        
-        if depth.ndim == 3 and depth.shape[-1] == 1:
-            depth = depth[..., 0]
-        
-        if depth.ndim != 2:
-            raise ValueError(f"Depth has invalid shape {depth.shape}, expected 2D")
-        
-        return depth
+        return ensure_depth_2d(depth_image, height=self.camera_height, width=self.camera_width)
 
     def _get_camera_data(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """
@@ -219,104 +203,11 @@ class FastSAMService:
         # Run object detection
         detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
-        # Ensure the returned point cloud is in the SAME frame as the pose.
-        # ObjectDetector already returns:
-        # - 'pcd'      : point cloud in world frame
-        # - 'pcd_local': point cloud in object-local frame
-        # - 'pose'     : object pose in world frame
-        # For backwards-compatibility with older callers, provide 'pointcloud'
-        # as an alias to the world-frame 'pcd'.
-        result: List[Dict[str, Any]] = []
-        for detection in detections:
-            det_dict: Dict[str, Any] = dict(detection)
-            if 'pcd' in det_dict:
-                det_dict['pointcloud'] = det_dict['pcd']
-            else:
-                det_dict['pointcloud'] = np.array([])
-            result.append(det_dict)
-
-        return result
-
-    def _get_intrinsic_params(self) -> Tuple[float, float, float, float]:
-        """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
-        if self.camera_intrinsics is None:
-            raise ValueError("Camera intrinsics not available")
-
-        I = np.asarray(self.camera_intrinsics)
-
-        # Handle 1D array: [fx, fy, cx, cy]
-        if I.ndim == 1:
-            if I.shape[0] != 4:
-                raise ValueError(f"1D intrinsics array has invalid length {I.shape[0]}, expected 4 [fx, fy, cx, cy]")
-            fx, fy, cx, cy = float(I[0]), float(I[1]), float(I[2]), float(I[3])
-        # Handle 2D matrix: standard 3x3 or 4x4
-        elif I.ndim == 2:
-            if I.shape[0] < 2 or I.shape[1] < 3:
-                raise ValueError(f"Invalid intrinsics matrix shape {I.shape}, expected at least (2, 3)")
-            fx, fy, cx, cy = float(I[0, 0]), float(I[1, 1]), float(I[0, 2]), float(I[1, 2])
-        else:
-            raise ValueError(f"Invalid intrinsics shape {I.shape}, expected 1D or 2D array")
-
-        logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
-        return fx, fy, cx, cy
-
-    def _extract_pointcloud_from_depth(self, depth_image: np.ndarray,
-                                     mask: np.ndarray,
-                                     image_shape: Tuple[int, int]) -> np.ndarray:
-        """
-        Extract 3D point cloud from depth image and segmentation mask.
-
-        Args:
-            depth_image: Depth image from camera (must be 2D)
-            mask: Binary segmentation mask
-            image_shape: Shape of RGB image (H, W)
-
-        Returns:
-            Nx3 array of 3D points in camera frame
-        """
-        # Ensure depth is a 2D array
-        depth = np.asarray(depth_image)
-        if depth.ndim == 1:
-            expected = self.camera_height * self.camera_width
-            if depth.size != expected:
-                raise ValueError(f"Flat depth buffer size {depth.size} != expected {expected}")
-            depth = depth.reshape(self.camera_height, self.camera_width)
-        
-        if depth.ndim != 2:
-            raise ValueError(f"Depth has invalid shape {depth.shape}, expected 2D")
-
-        logger.debug(f"Pointcloud extraction depth shape={depth.shape}, mask shape={mask.shape}")
-
-        # Get camera intrinsics from environment
-        fx, fy, cx, cy = self._get_intrinsic_params()
-
-        # Find masked pixels
-        mask_indices = np.where(mask > 0)
-        if len(mask_indices[0]) == 0:
-            return np.array([])
-
-        # Get depth values for masked pixels
-        y_coords, x_coords = mask_indices
-        depth_values = depth[y_coords, x_coords]
-
-        # Filter out invalid depth values
-        valid_mask = (depth_values > 0) & (depth_values < constants.MAX_POINTCLOUD_RANGE)
-        x_coords = x_coords[valid_mask]
-        y_coords = y_coords[valid_mask]
-        depth_values = depth_values[valid_mask]
-
-        if len(depth_values) == 0:
-            return np.array([])
-
-        # Convert to 3D points (camera coordinates)
-        z = depth_values
-        x = (x_coords - cx) * z / fx
-        y = (y_coords - cy) * z / fy
-
-        # Stack into Nx3 array
-        points_3d = np.column_stack([x, y, z])
-
-        return points_3d.astype(np.float32)
+        # ObjectDetector returns detections with:
+        # - 'pcd'  : point cloud in world frame
+        # - 'pose' : object pose in world frame
+        # Keep the service contract consistent: use 'pcd' everywhere.
+        return [dict(detection) for detection in detections]
 
     def _continuous_detection_loop(self) -> None:
         """Main detection loop that continuously processes camera feed."""
@@ -354,12 +245,6 @@ class FastSAMService:
                             self.tf_manager.update_object_frame(object_id=object_id, pose=pose_sp)
                         except Exception:
                             continue
-
-                # Extract point clouds for all detections
-                self.latest_segmented_pointclouds = [
-                    detection.get('pointcloud', np.array([]))
-                    for detection in detections
-                ]
 
                 logger.debug(f"Processed {len(detections)} detections")
 

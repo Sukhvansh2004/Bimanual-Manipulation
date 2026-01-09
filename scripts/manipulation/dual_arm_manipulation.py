@@ -31,11 +31,11 @@ Usage:
     >>> # Generate grasps (after detecting objects)
     >>> detections = response['detections']
     >>> if detections:
-    ...     pc = detections[0]['pointcloud']
+    ...     pc = detections[0]['pcd']
     ...     pose = detections[0]['pose']
     ...     grasps = client.call('grasp_service', {
     ...         'command': 'GET_GRASPS',
-    ...         'pointcloud': pc,
+    ...         'pcd': pc,
     ...         'object_pose': pose,
     ...         'num_grasps': 5
     ...     })
@@ -402,7 +402,7 @@ def detect():
         detections = response.get('detections', [])
         print(f"\nDetected {len(detections)} object(s):")
         for i, det in enumerate(detections):
-            pc_size = len(det.get('pointcloud', []))
+            pc_size = len(det.get('pcd', []))
             pose = det.get('pose', {})
             print(f"  Object {i+1}: {pc_size} points, pos={pose.get('pos', 'N/A')}")
         return detections
@@ -413,17 +413,17 @@ def detect():
 
 def get_grasps(detection, num_grasps=5, gripper_type='finger'):
     """Quick helper to generate grasps for a detection."""
-    pointcloud = detection.get('pointcloud', [])
+    pcd = detection.get('pcd', [])
     pose = detection.get('pose', {})
     
-    if not pointcloud or not pose:
-        print("Invalid detection - missing pointcloud or pose")
+    if not pcd or not pose:
+        print("Invalid detection - missing pcd or pose")
         return []
     
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('grasp_service', {
         'command': 'GET_GRASPS',
-        'pointcloud': pointcloud,
+        'pcd': pcd,
         'object_pose': pose,
         'num_grasps': num_grasps,
         'gripper_type': gripper_type  # Use simplified type: 'finger' or 'suction'
