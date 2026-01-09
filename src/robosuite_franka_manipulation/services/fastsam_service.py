@@ -10,7 +10,11 @@ import time
 from typing import Dict, Any, List, Optional, Tuple, cast, Union
 import logging
 
-from robosuite.utils.camera_utils import get_real_depth_map
+from robosuite.utils.camera_utils import (
+    get_real_depth_map,
+    get_camera_extrinsic_matrix,
+    get_camera_intrinsic_matrix,
+)
 
 from scipy.spatial.transform import Rotation as R
 from robosuite.environments.base import MujocoEnv
@@ -88,11 +92,20 @@ class FastSAMService:
         if self.camera_name in self.env.camera_names:
             logger.info(f"Using camera '{self.camera_name}' for FastSAM detection")
             camera_id = self.env.camera_names.index(self.camera_name)
-            self.camera_intrinsics = self.env.sim.model.cam_intrinsic[camera_id]
             self.camera_width = self.env.camera_widths[camera_id]
             self.camera_height = self.env.camera_heights[camera_id]
         else:
             raise(ValueError(f"Camera '{self.camera_name}' not found in environment"))
+
+        # Prefer robosuite's intrinsic matrix computation (derived from fovy)
+        # to avoid mismatched conventions across MuJoCo versions.
+        K = get_camera_intrinsic_matrix(
+            sim=self.env.sim,
+            camera_name=self.camera_name,
+            camera_height=self.camera_height,
+            camera_width=self.camera_width,
+        )
+        self.camera_intrinsics = np.array([K[0, 0], K[1, 1], K[0, 2], K[1, 2]], dtype=np.float64)
 
         logger.info(f"Camera intrinsics: {self.camera_intrinsics}")
         logger.info(f"Camera resolution: {self.camera_width}x{self.camera_height}")
@@ -191,14 +204,16 @@ class FastSAMService:
         logger.debug(f"Depth shape after normalization: {depth_image.shape}, ndim={depth_image.ndim}")
 
         # Get camera pose (guarded by env_lock to avoid concurrent MuJoCo access)
+        # IMPORTANT: use robosuite's extrinsic matrix helper, which applies
+        # the camera axis correction to match standard pinhole conventions.
         if self.env_lock:
             with self.env_lock:
-                cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
-                cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
+                cam_T_world = get_camera_extrinsic_matrix(self.env.sim, self.camera_name)
         else:
-            cam_pos = self.env.sim.data.get_camera_xpos(self.camera_name)
-            cam_rot_mat = self.env.sim.data.get_camera_xmat(self.camera_name).reshape(3, 3)
-        cam_rot = R.from_matrix(cam_rot_mat)
+            cam_T_world = get_camera_extrinsic_matrix(self.env.sim, self.camera_name)
+
+        cam_pos = cam_T_world[:3, 3]
+        cam_rot = R.from_matrix(cam_T_world[:3, :3])
 
         # Run object detection
         detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)

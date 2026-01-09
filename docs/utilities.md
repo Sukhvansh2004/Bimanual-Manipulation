@@ -110,7 +110,8 @@ pcd = deproject_depth_to_point_cloud(
     depth,           # HxW depth image
     mask,            # Optional binary mask
     fx, fy, cx, cy,  # Camera intrinsics
-    max_depth=10.0
+    max_depth=10.0,
+    mujoco_convention=False  # standard pinhole / optical frame (x right, y down, z forward)
 )
 ```
 

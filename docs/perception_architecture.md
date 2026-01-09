@@ -168,7 +168,8 @@ pcd = deproject_depth_to_point_cloud(
     depth,           # HxW depth image (meters)
     mask,            # Optional binary mask
     fx, fy, cx, cy,  # Camera intrinsics
-    max_depth=10.0
+    max_depth=10.0,
+    mujoco_convention=False  # standard pinhole / optical frame (x right, y down, z forward)
 )
 ```
 
@@ -185,7 +186,7 @@ Y = (y - cy) * Z / fy
 from robosuite_franka_manipulation.utils import transform_point_cloud
 
 # Camera frame to world frame
-pcd_world = transform_point_cloud(pcd_camera, camera_to_world_matrix)
+pcd_world = transform_point_cloud(pcd, camera_to_world_matrix)
 ```
 
 ## Integration with Services

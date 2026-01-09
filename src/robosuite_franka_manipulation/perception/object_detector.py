@@ -205,7 +205,8 @@ class ObjectDetector:
         # Use utility function for deprojection
         return deproject_depth_to_point_cloud(
             depth, mask, fx, fy, cx, cy, 
-            max_depth=constants.MAX_POINTCLOUD_RANGE
+            max_depth=constants.MAX_POINTCLOUD_RANGE,
+            mujoco_convention=False,
         )
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = "world") -> StampedPose:
