@@ -53,9 +53,7 @@ class TestArmControllers:
         robot0_arm, robot1_arm = controllers
 
         # Test robot 0 arm pose access
-        pos0 = robot0_arm.robot._hand_pos["right"]
-        ori_mat0 = robot0_arm.robot._hand_orn["right"]
-        quat0 = R.from_matrix(ori_mat0).as_quat()
+        pos0, quat0 = robot0_arm.get_eef_pose_in_base()
 
         assert isinstance(pos0, np.ndarray)
         assert pos0.shape == (3,)
@@ -63,9 +61,7 @@ class TestArmControllers:
         assert quat0.shape == (4,)
 
         # Test robot 1 arm pose access
-        pos1 = robot1_arm.robot._hand_pos["right"]
-        ori_mat1 = robot1_arm.robot._hand_orn["right"]
-        quat1 = R.from_matrix(ori_mat1).as_quat()
+        pos1, quat1 = robot1_arm.get_eef_pose_in_base()
 
         assert isinstance(pos1, np.ndarray)
         assert pos1.shape == (3,)
@@ -78,9 +74,7 @@ class TestArmControllers:
         arm = RobosuiteArmController(env, arm_id="right", robot_id=robot_id)
 
         # Get current pose
-        current_pos = arm.robot._hand_pos["right"]
-        current_ori_mat = arm.robot._hand_orn["right"]
-        current_quat = R.from_matrix(current_ori_mat).as_quat()
+        current_pos, current_quat = arm.get_eef_pose_in_base()
 
         # Create a slightly offset target pose (small movement for reliability)
         target_pos = current_pos + np.array([0.05, 0.0, 0.0])
@@ -121,9 +115,8 @@ class TestArmControllerFrameHandling:
         controller = RobosuiteArmController(env, arm_id="right", robot_id=0)
         
         # Get current pose and create a small offset
-        current_pos = controller.robot._hand_pos["right"].copy()
-        current_ori_mat = controller.robot._hand_orn["right"]
-        current_quat = R.from_matrix(current_ori_mat).as_quat()
+        current_pos, current_quat = controller.get_eef_pose_in_base()
+        current_pos = current_pos.copy()
         
         # Create grasp dict (simulating GraspPredictor output)
         grasp_dict = {
@@ -144,9 +137,8 @@ class TestArmControllerFrameHandling:
         """Test that move_to_pose accepts StampedPose."""
         controller = RobosuiteArmController(env, arm_id="right", robot_id=0)
         
-        current_pos = controller.robot._hand_pos["right"].copy()
-        current_ori_mat = controller.robot._hand_orn["right"]
-        current_quat = R.from_matrix(current_ori_mat).as_quat()
+        current_pos, current_quat = controller.get_eef_pose_in_base()
+        current_pos = current_pos.copy()
         
         pose = StampedPose(
             position=current_pos + np.array([0.01, 0, 0]),

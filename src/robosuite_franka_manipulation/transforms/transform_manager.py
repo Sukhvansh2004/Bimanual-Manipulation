@@ -123,13 +123,20 @@ class TransformManager:
                 self._register_robot_base_provider(robot_idx, base_frame)
                 
                 # Register EEF frames as dynamic
-                if hasattr(robot, '_hand_pos'):
-                    for arm_id in robot._hand_pos.keys():
-                        eef_frame = f"{robot_name}_{arm_id}_eef"
-                        self._register_eef_provider(robot_idx, arm_id, eef_frame)
-                        self._frame_parents[eef_frame] = base_frame
-                        self._known_frames.add(eef_frame)
-                        logger.debug(f"Registered EEF frame: {eef_frame}")
+                arm_ids: List[str] = []
+                try:
+                    # Preferred: use robosuite model metadata (public)
+                    arm_ids = list(robot.robot_model.eef_name.keys())
+                except Exception:
+                    # Fallback: robot.arms is generally available and public
+                    arm_ids = list(getattr(robot, "arms", []) or [])
+
+                for arm_id in arm_ids:
+                    eef_frame = f"{robot_name}_{arm_id}_eef"
+                    self._register_eef_provider(robot_idx, arm_id, eef_frame)
+                    self._frame_parents[eef_frame] = base_frame
+                    self._known_frames.add(eef_frame)
+                    logger.debug(f"Registered EEF frame: {eef_frame}")
         
         # Discover camera frames
         if hasattr(self.env, 'sim'):
@@ -215,9 +222,15 @@ class TransformManager:
             # E.g., for frame_id="robot0_right_eef" -> parent_frame="robot0_base".
             parent_frame = frame_id.replace(f"_{arm_id}_eef", "_base")
 
-            pos_b = np.asarray(robot._hand_pos[arm_id], dtype=np.float64)
-            rot_b_e = np.asarray(robot._hand_orn[arm_id], dtype=np.float64)
-            quat_b_e = R.from_matrix(rot_b_e).as_quat()
+            # Use robosuite's public API to avoid underscore-prefixed internals.
+            eef_body = robot.robot_model.eef_name[arm_id]
+            if self._env_lock:
+                with self._env_lock:
+                    pose4 = robot.pose_in_base_from_name(eef_body)
+            else:
+                pose4 = robot.pose_in_base_from_name(eef_body)
+            pos_b = np.asarray(pose4[:3, 3], dtype=np.float64)
+            quat_b_e = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
 
             return Transform(
                 translation=pos_b,

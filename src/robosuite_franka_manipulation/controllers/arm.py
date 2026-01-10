@@ -58,6 +58,26 @@ class RobosuiteArmController:
         else:
             self.transform_manager = TransformManager(env, env_lock=self.env_lock)
 
+    def _eef_body_name(self) -> str:
+        return self.robot.robot_model.eef_name[self.arm_id]
+
+    def get_eef_pose_in_base(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Return current end-effector pose expressed in the robot base frame.
+
+        Uses robosuite's public API (`pose_in_base_from_name`) instead of accessing
+        underscore-prefixed internals like `_hand_pos` / `_hand_orn`.
+
+        Returns:
+            (pos, quat): position (3,) and quaternion (x, y, z, w)
+        """
+        eef_body = self._eef_body_name()
+        with self.env_lock if self.env_lock else nullcontext():
+            pose4 = self.robot.pose_in_base_from_name(eef_body)
+
+        pos = np.asarray(pose4[:3, 3], dtype=np.float64).copy()
+        quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
+        return pos, quat
+
     def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                    target_pos: np.ndarray, target_quat: np.ndarray,
                                    max_vel: float = constants.DEFAULT_MAX_VELOCITY,
@@ -102,11 +122,6 @@ class RobosuiteArmController:
         
         # Map to Lie algebra se(3) - this is the "velocity" that takes us from start to target
         twist = SE3_log(T_rel)
-        
-        # Compute distance metrics for timing
-        # Use translation component for velocity limiting, rotation for additional time if needed
-        omega = twist[:3]  # Rotation vector
-        v = twist[3:]      # Translation vector (in body frame)
         
         # Check if movement is needed
         total_se3_distance = compute_se3_distance(
@@ -206,10 +221,8 @@ class RobosuiteArmController:
         
         target_pos = np.asarray(target_pose.position)
         target_quat = np.asarray(target_pose.quaternion)
-        
-        current_pos = self.robot._hand_pos[self.arm_id]
-        current_ori_mat = self.robot._hand_orn[self.arm_id]
-        current_quat = R.from_matrix(current_ori_mat).as_quat()
+
+        current_pos, current_quat = self.get_eef_pose_in_base()
 
         positions, quaternions, total_time = self.plan_trapezoidal_trajectory(
             current_pos, current_quat, target_pos, target_quat
@@ -228,9 +241,7 @@ class RobosuiteArmController:
             target_pos_step = positions[waypoint_idx]
             target_quat_step = quaternions[waypoint_idx]
 
-            current_pos = self.robot._hand_pos[self.arm_id]
-            current_ori_mat = self.robot._hand_orn[self.arm_id]
-            current_quat = R.from_matrix(current_ori_mat).as_quat()
+            current_pos, current_quat = self.get_eef_pose_in_base()
 
             pos_error = target_pos_step - current_pos
             ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
@@ -268,9 +279,7 @@ class RobosuiteArmController:
         # Final convergence: Keep sending final target until converged or timeout
         final_convergence_steps = constants.TRAJECTORY_FINAL_CONVERGENCE_STEPS
         for _ in range(final_convergence_steps):
-            current_pos = self.robot._hand_pos[self.arm_id]
-            current_ori_mat = self.robot._hand_orn[self.arm_id]
-            current_quat = R.from_matrix(current_ori_mat).as_quat()
+            current_pos, current_quat = self.get_eef_pose_in_base()
             
             pos_error = target_pos - current_pos
             ori_error = R.from_quat(target_quat) * R.from_quat(current_quat).inv()
@@ -297,9 +306,7 @@ class RobosuiteArmController:
             with self.env_lock if self.env_lock else nullcontext():
                 safe_env_step(self.env, full_action)
 
-        final_pos = self.robot._hand_pos[self.arm_id]
-        final_ori_mat = self.robot._hand_orn[self.arm_id]
-        final_quat = R.from_matrix(final_ori_mat).as_quat()
+        final_pos, final_quat = self.get_eef_pose_in_base()
 
         pos_error = target_pos - final_pos
         ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()

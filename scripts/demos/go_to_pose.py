@@ -2,9 +2,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 
-from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.transforms import StampedPose
 
 
 class DualArmPoseController:
@@ -32,8 +32,12 @@ class DualArmPoseController:
     
     def _print_arm_positions(self):
         """Print current arm positions for debugging."""
-        left_pos = self.env.robots[0]._hand_pos["right"]
-        right_pos = self.env.robots[1]._hand_pos["right"]
+        left_robot = self.env.robots[0]
+        right_robot = self.env.robots[1]
+        left_pose = left_robot.pose_in_base_from_name(left_robot.robot_model.eef_name["right"])
+        right_pose = right_robot.pose_in_base_from_name(right_robot.robot_model.eef_name["right"])
+        left_pos = left_pose[:3, 3].copy()
+        right_pos = right_pose[:3, 3].copy()
         print(f"  Robot 0 (left) EEF position: {left_pos}")
         print(f"  Robot 1 (right) EEF position: {right_pos}")
 
@@ -62,13 +66,13 @@ class DualArmPoseController:
             return
 
         # Get initial position
-        initial_pos = self.env.robots[robot_id]._hand_pos["right"].copy()
+        robot = self.env.robots[robot_id]
+        pose4 = robot.pose_in_base_from_name(robot.robot_model.eef_name["right"])
+        initial_pos = pose4[:3, 3].copy()
         print(f"Sending {robot_name} to position {pos}")
         print(f"  Initial: {initial_pos}")
         print(f"  Delta:   {pos - initial_pos}")
         
-        # Create StampedPose for the target
-        from robosuite_franka_manipulation.transforms import StampedPose
         target_pose = StampedPose(
             position=pos,
             quaternion=quat,
@@ -78,7 +82,8 @@ class DualArmPoseController:
         success = controller.move_to_pose(target_pose)
         
         # Print final position and error
-        final_pos = self.env.robots[robot_id]._hand_pos["right"]
+        pose4_final = robot.pose_in_base_from_name(robot.robot_model.eef_name["right"])
+        final_pos = pose4_final[:3, 3].copy()
         error = pos - final_pos
         print(f"  Final:   {final_pos}")
         print(f"  Error:   {error} (norm: {np.linalg.norm(error):.4f}m)")
@@ -100,8 +105,10 @@ if __name__ == '__main__':
         controller = DualArmPoseController(env)
 
         # Get current positions to compute reasonable targets
-        left_current = env.robots[0]._hand_pos["right"].copy()
-        right_current = env.robots[1]._hand_pos["right"].copy()
+        robot0 = env.robots[0]
+        robot1 = env.robots[1]
+        left_current = robot0.pose_in_base_from_name(robot0.robot_model.eef_name["right"])[:3, 3].copy()
+        right_current = robot1.pose_in_base_from_name(robot1.robot_model.eef_name["right"])[:3, 3].copy()
         
         # Define relative movements from current position (safer than absolute poses)
         # Move left arm forward and up a bit
