@@ -203,10 +203,13 @@ class ObjectDetector:
         fx, fy, cx, cy = self._get_intrinsic_params()
 
         # Use utility function for deprojection
+        # Note: image_flipped=True because fastsam_service flips images from
+        # OpenGL origin (bottom-left) to standard image origin (top-left)
         return deproject_depth_to_point_cloud(
             depth, mask, fx, fy, cx, cy, 
             max_depth=constants.MAX_POINTCLOUD_RANGE,
             mujoco_convention=False,
+            image_flipped=True,
         )
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = "world") -> StampedPose:

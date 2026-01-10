@@ -181,6 +181,15 @@ class FastSAMService:
                 else:
                     rgb_image = np.transpose(rgb_image, (1, 2, 0))
                     rgb_image = (rgb_image * 255).astype(np.uint8)
+                
+                # Flip images vertically to convert from OpenGL origin (bottom-left)
+                # to standard image origin (top-left). This ensures:
+                # 1. The displayed image appears right-side-up
+                # 2. Pixel coordinates match robosuite's camera extrinsic matrix conventions
+                rgb_image = np.flipud(rgb_image).copy()
+            
+            if depth_image is not None:
+                depth_image = np.flipud(depth_image).copy()
 
             return rgb_image, depth_image
         finally:

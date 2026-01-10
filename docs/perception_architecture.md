@@ -169,7 +169,8 @@ pcd = deproject_depth_to_point_cloud(
     mask,            # Optional binary mask
     fx, fy, cx, cy,  # Camera intrinsics
     max_depth=10.0,
-    mujoco_convention=False  # standard pinhole / optical frame (x right, y down, z forward)
+    mujoco_convention=False,  # standard pinhole / optical frame (x right, y down, z forward)
+    image_flipped=True  # Set True if depth was flipped from OpenGL to standard image coords
 )
 ```
 
@@ -179,6 +180,10 @@ Z = depth[y, x]
 X = (x - cx) * Z / fx
 Y = (y - cy) * Z / fy
 ```
+
+When `image_flipped=True`, the function internally converts v coordinates back to the original
+OpenGL space before applying the pinhole formula, ensuring correct 3D reconstruction when working
+with robosuite's camera extrinsic matrices.
 
 ### Frame Transformations
 

@@ -252,7 +252,8 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
                                     cx: float, cy: float,
                                     max_depth: float = 10.0,
                                     *,
-                                    mujoco_convention: bool = True) -> np.ndarray:
+                                    mujoco_convention: bool = True,
+                                    image_flipped: bool = False) -> np.ndarray:
     """
     Deproject depth image to 3D point cloud using camera intrinsics.
     
@@ -262,10 +263,17 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
         fx, fy: Focal lengths
         cx, cy: Principal point
         max_depth: Maximum valid depth value
+        mujoco_convention: If True, negate Y and Z for MuJoCo camera convention
+        image_flipped: If True, the depth image has been vertically flipped
+            from OpenGL origin (bottom-left) to standard image origin (top-left).
+            The pinhole formula will use corrected v coordinates to match
+            robosuite's camera extrinsic matrix.
         
     Returns:
         Point cloud (N, 3) in camera frame
     """
+    H, W = depth.shape
+    
     if mask is not None:
         # Get pixel coordinates where mask is positive
         y_coords, x_coords = np.where(mask > 0)
@@ -274,7 +282,6 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
         depth_values = depth[y_coords, x_coords]
     else:
         # Use all pixels
-        H, W = depth.shape
         y_coords, x_coords = np.mgrid[0:H, 0:W]
         y_coords = y_coords.flatten()
         x_coords = x_coords.flatten()
@@ -289,11 +296,20 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
     if len(depth_values) == 0:
         return np.array([]).reshape(0, 3)
     
+    # Convert v coordinates back to original OpenGL space if image was flipped.
+    # This is necessary because robosuite's extrinsic matrix is computed for
+    # the original OpenGL image coordinate system (origin at bottom-left).
+    if image_flipped:
+        # v_original = H - 1 - v_flipped
+        y_coords_for_projection = (H - 1) - y_coords
+    else:
+        y_coords_for_projection = y_coords
+    
     # Deproject to 3D
-    # Start from standard pinhole where Z is positive “forward”.
+    # Standard pinhole where Z is positive "forward".
     Z = depth_values
     x = (x_coords - cx) * Z / fx
-    y = (y_coords - cy) * Z / fy
+    y = (y_coords_for_projection - cy) * Z / fy
 
     if mujoco_convention:
         # MuJoCo camera frames (and OpenGL-style rendering) typically use:
@@ -305,3 +321,4 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
         z = Z
 
     return np.column_stack([x, y, z]).astype(np.float32)
+
