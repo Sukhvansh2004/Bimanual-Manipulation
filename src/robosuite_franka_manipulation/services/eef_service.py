@@ -95,7 +95,9 @@ class EEFService:
             if lock:
                 lock.acquire()
             # Get current observation
-            obs = self.env._get_observations()
+            # robosuite exposes observation_spec() publicly; it returns the current
+            # observation dict (and internally handles viewer_get_obs if enabled).
+            obs = self.env.observation_spec()
 
             eef_data = {}
 

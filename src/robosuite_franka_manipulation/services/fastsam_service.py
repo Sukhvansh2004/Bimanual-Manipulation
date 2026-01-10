@@ -155,7 +155,9 @@ class FastSAMService:
             self.env_lock.acquire()
         
         try:
-            obs = self.env._get_observations()
+            # robosuite does not expose a public get_observations(); observation_spec()
+            # is the public accessor that returns the current observation dict.
+            obs = self.env.observation_spec()
 
             # Get RGB image
             rgb_key = f"{self.camera_name}_image"
