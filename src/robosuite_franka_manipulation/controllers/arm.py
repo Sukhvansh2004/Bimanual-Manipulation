@@ -22,6 +22,7 @@ from robosuite_franka_manipulation.utils.se3 import (
     compute_se3_distance,
 )
 from robosuite_franka_manipulation.utils import safe_env_step
+from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging  
 # Configure logging
@@ -209,7 +210,10 @@ class RobosuiteArmController:
     def move_to_pose(self, target_pose: StampedPose, 
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     timeout: int = constants.TRAJECTORY_MAX_TIMEOUT, 
-                    gripper_action: float = 0.0) -> bool:
+                    gripper_action: float = 0.0,
+                    approach: bool = False,
+                    approach_distance: float = 0.1,
+                    approach_axis: str = 'z') -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
         
@@ -220,10 +224,44 @@ class RobosuiteArmController:
             threshold: Position error threshold for convergence
             timeout: Maximum number of environment steps to reach the pose
             gripper_action: Gripper action to maintain (-1 closed, 1 open)
+            approach: If True, first move to an approach pose offset along the target's local axis,
+                     then move to the actual target. Useful for grasp approach motions.
+            approach_distance: Distance to offset for approach (meters). Default 0.1m (10cm).
+            approach_axis: Local axis of target frame to offset along ('x', 'y', or 'z').
+                          Default 'z' (gripper approach direction).
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
         """
+        # Handle approach motion: first move to approach pose, then to target
+        if approach:
+            logger.debug(f"Target pose before approach computation: pos={target_pose.position}, frame_id={target_pose.frame_id}")
+            approach_pose = compute_approach_pose(
+                target_pose, 
+                approach_distance=approach_distance,
+                approach_axis=approach_axis
+            )
+            logger.debug(f"Approach enabled: moving to approach pose first (offset {approach_distance}m along local {approach_axis}-axis)")
+            logger.debug(f"Approach pose: pos={approach_pose.position}, frame_id={approach_pose.frame_id}")
+            
+            # Move to approach pose first (without approach, to avoid recursion)
+            approach_success = self.move_to_pose(
+                approach_pose,
+                threshold=threshold,
+                timeout=timeout,
+                gripper_action=gripper_action,
+                approach=False  # Don't recurse
+            )
+            
+            if not approach_success:
+                logger.warning("Failed to reach approach pose")
+                # Continue to try reaching target anyway
+            else:
+                logger.debug("Approach pose reached successfully")
+            
+            logger.debug("Now moving to final target pose")
+           
+        
         # Transform to robot base frame if needed
         if target_pose.frame_id != self.base_frame:
             logger.debug(f"Transforming target pose from '{target_pose.frame_id}' to '{self.base_frame}'")
@@ -232,11 +270,13 @@ class RobosuiteArmController:
         target_pos = np.asarray(target_pose.position)
         target_quat = np.asarray(target_pose.quaternion)
 
+        # Get FRESH current pose right before planning
         current_pos, current_quat = self.get_eef_pose_in_base()
         
-        logger.debug(f"Current EEF pose in base: pos={current_pos}, quat={current_quat}")
-        logger.debug(f"Target pose in base: pos={target_pos}, quat={target_quat}")
-        logger.debug(f"Position delta: {target_pos - current_pos}, distance: {np.linalg.norm(target_pos - current_pos):.4f}m")
+        logger.info(f"Planning trajectory for robot{self.robot_id}_{self.arm_id}:")
+        logger.info(f"  Current EEF in base: pos={current_pos}")
+        logger.info(f"  Target in base: pos={target_pos}")
+        logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
         positions, quaternions, total_time = self.plan_trapezoidal_trajectory(
             current_pos, current_quat, target_pos, target_quat
@@ -244,6 +284,7 @@ class RobosuiteArmController:
 
         # Visualize the SE(3) trajectory if enabled
         if self.visualize:
+            self._clear_trajectory_visualization()
             self._visualize_se3_trajectory(positions, quaternions)
 
         if len(positions) <= 1:
@@ -273,6 +314,10 @@ class RobosuiteArmController:
             if (pos_error_norm < waypoint_threshold and ori_error_norm < waypoint_threshold) or \
                steps_at_waypoint >= max_steps_per_waypoint:
                 # Move to next waypoint
+                if(pos_error_norm < waypoint_threshold and ori_error_norm < waypoint_threshold):
+                    logger.debug(f"Reached waypoint {waypoint_idx} at step {step} with pos error {pos_error_norm:.4f}m, ori error {ori_error_norm:.4f}rad")
+                else:
+                    logger.debug(f"Max steps at waypoint {waypoint_idx} reached ({steps_at_waypoint}), moving to next waypoint")
                 waypoint_idx += 1
                 steps_at_waypoint = 0
                 if waypoint_idx >= len(positions):
@@ -336,6 +381,19 @@ class RobosuiteArmController:
 
         return False
     
+    def _clear_trajectory_visualization(self) -> None:
+        """Clear all trajectory visualizations from MeshCat."""
+        if self._meshcat_vis is None:
+            self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+        
+        vis = self._meshcat_vis
+        
+        # Clear the entire trajectory folder for this robot/arm
+        try:
+            vis[f"trajectory/robot{self.robot_id}_{self.arm_id}"].delete()
+        except Exception:
+            pass
+    
     def _visualize_se3_trajectory(self, positions: np.ndarray, quaternions: np.ndarray,
                                    num_frames: int = 10, axis_length: float = 0.05,
                                    axis_radius: float = 0.003) -> None:
@@ -379,22 +437,14 @@ class RobosuiteArmController:
             logger.warning(f"Could not get base-to-world transform, visualizing in base frame: {e}")
             T_base_to_world = np.eye(4)
         
-        # Select evenly spaced indices for visualization
+        # Visualize all waypoints in the trajectory
         n_waypoints = len(positions)
-        if n_waypoints <= num_frames:
-            indices = list(range(n_waypoints))
-        else:
-            indices = np.linspace(0, n_waypoints - 1, num_frames, dtype=int).tolist()
-        
-        # Always include the last waypoint
-        if indices[-1] != n_waypoints - 1:
-            indices.append(n_waypoints - 1)
         
         # Store world-frame positions for the trajectory line
         world_positions = []
         
-        # Draw frames at selected waypoints
-        for i, idx in enumerate(indices):
+        # Draw frames at all waypoints
+        for idx in range(n_waypoints):
             pos = positions[idx]
             quat = quaternions[idx]
             
@@ -408,12 +458,12 @@ class RobosuiteArmController:
             world_positions.append(T_pose_in_world[:3, 3])
             
             # Determine frame name based on position in trajectory
-            if i == 0:
+            if idx == 0:
                 frame_name = "start"
-            elif i == len(indices) - 1:
+            elif idx == n_waypoints - 1:
                 frame_name = "end"
             else:
-                frame_name = f"waypoint_{i}"
+                frame_name = f"waypoint_{idx}"
             
             # Use make_frame from grasp_gen utils
             frame_path = f"{root.path}/{frame_name}"
@@ -429,11 +479,11 @@ class RobosuiteArmController:
         # Draw trajectory line connecting the frames (in world coordinates)
         world_positions = np.array(world_positions)
         line_points = world_positions.T  # (3, N) for MeshCat
-        colors = np.zeros((3, len(indices)))
+        colors = np.zeros((3, n_waypoints))
         
         # Gradient color: green -> blue -> red
-        for i in range(len(indices)):
-            t = i / max(1, len(indices) - 1)
+        for i in range(n_waypoints):
+            t = i / max(1, n_waypoints - 1)
             if t < 0.5:
                 # Green to blue
                 colors[0, i] = 0  # R
@@ -452,4 +502,4 @@ class RobosuiteArmController:
             )
         )
         
-        logger.debug(f"Visualized SE(3) trajectory with {len(indices)} frames in world frame")
+        logger.debug(f"Visualized SE(3) trajectory with {n_waypoints} frames in world frame")

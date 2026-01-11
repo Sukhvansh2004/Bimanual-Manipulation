@@ -52,6 +52,12 @@ from robosuite_franka_manipulation.utils.env_utils import (
     safe_env_step,
 )
 
+from robosuite_franka_manipulation.utils.primitives import (
+    compute_approach_pose,
+    compute_retreat_pose,
+    compute_linear_waypoints,
+)
+
 __all__ = [
     # SE(3) utilities
     'skew',
@@ -84,4 +90,8 @@ __all__ = [
     'ensure_numpy',
     # Env utils
     'safe_env_step',
+    # Motion primitives
+    'compute_approach_pose',
+    'compute_retreat_pose',
+    'compute_linear_waypoints',
 ]
