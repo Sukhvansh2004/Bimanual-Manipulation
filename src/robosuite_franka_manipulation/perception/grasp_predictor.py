@@ -119,6 +119,9 @@ class GraspPredictor:
                 # Transform to world frame using object pose
                 world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
                 
+                # Apply gripper-specific offset transform
+                world_grasp = self._apply_gripper_offset(world_grasp)
+                
                 grasp_list.append({
                     "pos": world_grasp.position,
                     "quat": world_grasp.quaternion,
@@ -159,6 +162,49 @@ class GraspPredictor:
         
         # Apply transform to get grasp in world frame
         return object_to_world.apply_to_pose(grasp_local)
+    
+    def _apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
+        """
+        Apply gripper-specific offset transform to a grasp pose.
+        
+        Different grippers require different orientations relative to the predicted grasp.
+        For example, finger grippers need a 90 deg Z rotation to align the fingers properly.
+        
+        Args:
+            grasp_pose: Grasp pose in world frame
+            
+        Returns:
+            Grasp pose with gripper offset applied
+        """
+        # Get offset for current gripper type
+        if self.gripper_type not in constants.GRIPPER_GRASP_OFFSETS:
+            logger.warning(f"No grasp offset defined for gripper type '{self.gripper_type}', using identity")
+            return grasp_pose
+        
+        offset = constants.GRIPPER_GRASP_OFFSETS[self.gripper_type]
+        offset_pos = offset['position']
+        offset_quat = offset['quaternion']
+        
+        # Check if offset is identity (skip computation)
+        if np.allclose(offset_quat, [0, 0, 0, 1]) and np.allclose(offset_pos, [0, 0, 0]):
+            return grasp_pose
+        
+        # Apply rotation offset: new_quat = grasp_quat * offset_quat
+        # This rotates in the local grasp frame
+        grasp_rot = R.from_quat(grasp_pose.quaternion)
+        offset_rot = R.from_quat(offset_quat)
+        new_rot = grasp_rot * offset_rot
+        new_quat = new_rot.as_quat()
+        
+        # Position offset is already in local grasp frame, add directly
+        # (Currently all offsets have zero position, so this is just grasp_pose.position)
+        new_pos = grasp_pose.position + offset_pos
+        
+        return StampedPose(
+            position=new_pos,
+            quaternion=new_quat,
+            frame_id=grasp_pose.frame_id
+        )
 
     def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
         """

@@ -357,12 +357,14 @@ class RobosuiteArmController:
             # Step the environment
             with self.env_lock if self.env_lock else nullcontext():
                 safe_env_step(self.env, full_action)
+                
+            time.sleep(1.0 / self.env.control_freq)  # Maintain control frequency
             
             # Log progress periodically
             if waypoint_idx % 20 == 0:
                 pos_error_norm = np.linalg.norm(pos_error)
                 ori_error_norm = np.linalg.norm(ori_error_vec)
-                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}: pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
+                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}, error of that waypoint: pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
         
         # Final check: verify we reached the target
         final_pos, final_quat = self.get_eef_pose_in_base()

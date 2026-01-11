@@ -55,6 +55,22 @@ GRIPPER_TYPE_MAPPING = {
     'suction': 'single_suction_cup_30mm'
 }
 
+# Gripper grasp offset transforms
+# These offsets are applied to predicted grasps to align them with the gripper frame
+# Format: (position_offset, quaternion_offset) where quaternion is (x, y, z, w)
+# For finger gripper: 90 degree rotation around Z-axis
+# For suction gripper: identity transform (no offset)
+GRIPPER_GRASP_OFFSETS = {
+    'franka_panda': {
+        'position': np.array([0.0, 0.0, 0.0]),
+        'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
+    },
+    'single_suction_cup_30mm': {
+        'position': np.array([0.0, 0.0, 0.0]),
+        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # Identity
+    },
+}
+
 # =============================================================================
 # Perception and Detection Configuration
 # =============================================================================
