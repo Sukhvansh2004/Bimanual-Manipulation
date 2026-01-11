@@ -226,12 +226,17 @@ class RobosuiteArmController:
         """
         # Transform to robot base frame if needed
         if target_pose.frame_id != self.base_frame:
+            logger.debug(f"Transforming target pose from '{target_pose.frame_id}' to '{self.base_frame}'")
             target_pose = self.transform_manager.transform_pose(target_pose, self.base_frame)
         
         target_pos = np.asarray(target_pose.position)
         target_quat = np.asarray(target_pose.quaternion)
 
         current_pos, current_quat = self.get_eef_pose_in_base()
+        
+        logger.debug(f"Current EEF pose in base: pos={current_pos}, quat={current_quat}")
+        logger.debug(f"Target pose in base: pos={target_pos}, quat={target_quat}")
+        logger.debug(f"Position delta: {target_pos - current_pos}, distance: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
         positions, quaternions, total_time = self.plan_trapezoidal_trajectory(
             current_pos, current_quat, target_pos, target_quat
@@ -240,7 +245,7 @@ class RobosuiteArmController:
         # Visualize the SE(3) trajectory if enabled
         if self.visualize:
             self._visualize_se3_trajectory(positions, quaternions)
-            
+
         if len(positions) <= 1:
             return True # Already at target
 
@@ -365,8 +370,10 @@ class RobosuiteArmController:
         
         # Get transform from robot base frame to world frame
         # This is needed because trajectory is computed in base frame but MeshCat uses world frame
+        # get_transform(target, source) returns transform FROM source TO target
+        # We want: pose_in_world = T_world_from_base @ pose_in_base
         try:
-            base_to_world = self.transform_manager.get_transform(self.base_frame, "world")
+            base_to_world = self.transform_manager.get_transform("world", self.base_frame)
             T_base_to_world = base_to_world.to_matrix()
         except Exception as e:
             logger.warning(f"Could not get base-to-world transform, visualizing in base frame: {e}")
