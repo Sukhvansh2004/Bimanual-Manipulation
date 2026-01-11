@@ -93,10 +93,8 @@ DEFAULT_NUM_GRASPS = 5
 # Control and Trajectory Configuration
 # =============================================================================
 
-# Default control parameters
-DEFAULT_MAX_VELOCITY = 0.5  # m/s
-DEFAULT_MAX_ACCELERATION = 0.1  # m/s²
-DEFAULT_TIME_STEP = 0.02  # seconds
+# Trajectory planning - number of waypoints
+TRAJECTORY_NUM_POINTS = 100  # Number of waypoints for quintic polynomial trajectory
 
 # Trajectory planning
 TRAJECTORY_POS_ERROR_SCALE = 10  # Scaling factor for position control (increased for faster response)

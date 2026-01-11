@@ -88,36 +88,93 @@ class RobosuiteArmController:
         quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
         return pos, quat
 
-    def plan_trapezoidal_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
-                                   target_pos: np.ndarray, target_quat: np.ndarray,
-                                   max_vel: float = constants.DEFAULT_MAX_VELOCITY,
-                                   max_acc: float = constants.DEFAULT_MAX_ACCELERATION, 
-                                   dt: float = constants.DEFAULT_TIME_STEP) -> Tuple[np.ndarray, np.ndarray, float]:
+    @staticmethod
+    def _quintic_polynomial(s0: float, sf: float, v0: float = 0.0, vf: float = 0.0, 
+                            a0: float = 0.0, af: float = 0.0, 
+                            num_points: int = 100) -> np.ndarray:
         """
-        Plan a trapezoidal velocity profile trajectory from start to target pose in SE(3) space.
+        Generate a 5th-order (quintic) polynomial trajectory.
+        
+        The quintic polynomial ensures smooth motion with:
+        - Continuous position (C0 continuity)
+        - Continuous velocity (C1 continuity) 
+        - Continuous acceleration (C2 continuity)
+        
+        This results in jerk-limited motion which is smoother than trapezoidal profiles.
+        
+        Args:
+            s0: Initial position (typically 0)
+            sf: Final position (typically 1)
+            v0: Initial velocity (default 0 - start from rest)
+            vf: Final velocity (default 0 - end at rest)
+            a0: Initial acceleration (default 0)
+            af: Final acceleration (default 0)
+            num_points: Number of trajectory points to generate
+            
+        Returns:
+            s_trajectory: Array of interpolation parameters in [0, 1]
+        """
+        T = 1.0  # Normalize time to [0, 1]
+        time = np.linspace(0, T, num_points)
+        
+        # Coefficient matrix for quintic polynomial boundary conditions:
+        # s(0) = s0, s(T) = sf
+        # s'(0) = v0, s'(T) = vf  
+        # s''(0) = a0, s''(T) = af
+        M = np.array([
+            [0, 0, 0, 0, 0, 1],                      # s(0)
+            [T**5, T**4, T**3, T**2, T, 1],          # s(T)
+            [0, 0, 0, 0, 1, 0],                      # s'(0)
+            [5*T**4, 4*T**3, 3*T**2, 2*T, 1, 0],    # s'(T)
+            [0, 0, 0, 2, 0, 0],                      # s''(0)
+            [20*T**3, 12*T**2, 6*T, 2, 0, 0]        # s''(T)
+        ])
+        
+        # Boundary conditions vector
+        b = np.array([s0, sf, v0, vf, a0, af])
+        
+        # Solve for polynomial coefficients [a5, a4, a3, a2, a1, a0]
+        coeffs = np.linalg.solve(M, b)
+        
+        # Evaluate polynomial at each time step
+        s_trajectory = np.zeros(num_points)
+        for i, t in enumerate(time):
+            T_vec = np.array([t**5, t**4, t**3, t**2, t, 1])
+            s_trajectory[i] = T_vec @ coeffs
+        
+        return s_trajectory
+    
+    def plan_quintic_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
+                                target_pos: np.ndarray, target_quat: np.ndarray,
+                                num_points: int = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Plan a quintic polynomial trajectory from start to target pose in SE(3) space.
         
         Uses Lie algebra se(3) for proper coupled rotation-translation interpolation.
-        This ensures smooth geodesic motion on the SE(3) manifold.
+        This ensures smooth geodesic motion on the SE(3) manifold with continuous
+        velocity and acceleration profiles (C2 continuity).
         
         The trajectory is computed as:
             T(s) = T_start @ exp(s * log(T_start^-1 @ T_target))
         
-        where s follows a trapezoidal velocity profile from 0 to 1.
+        where s follows a quintic polynomial from 0 to 1, ensuring:
+        - Zero velocity at start and end (smooth stop)
+        - Zero acceleration at start and end (jerk-limited)
         
         Args:
             start_pos: Starting position [x, y, z]
             start_quat: Starting quaternion [x, y, z, w]
             target_pos: Target position [x, y, z]
             target_quat: Target quaternion [x, y, z, w]
-            max_vel: Maximum velocity (m/s) - controls linear component
-            max_acc: Maximum acceleration (m/s²)
-            dt: Time step (s)
+            num_points: Number of waypoints to generate (default from constants)
             
         Returns:
             positions: Array of positions over time (N, 3)
             quaternions: Array of quaternions over time (N, 4)
-            total_time: Total trajectory time (s)
         """
+        if num_points is None:
+            num_points = constants.TRAJECTORY_NUM_POINTS
+        
         # Convert to SE(3) matrices
         T_start = pose_to_SE3(start_pos, start_quat)
         T_target = pose_to_SE3(target_pos, target_quat)
@@ -141,61 +198,22 @@ class RobosuiteArmController:
         )
         
         if total_se3_distance < constants.TRAJECTORY_MIN_DISTANCE:
-            return np.array([target_pos]), np.array([target_quat]), 0.0
+            return np.array([target_pos]), np.array([target_quat])
         
-        # Use weighted se(3) distance for velocity timing
-        # This properly accounts for coupled rotation-translation motion
-        effective_distance = total_se3_distance
+        # Generate quintic polynomial interpolation parameters s(t) in [0, 1]
+        # Starting and ending at rest with zero acceleration
+        s_trajectory = self._quintic_polynomial(
+            s0=0.0, sf=1.0,  # Interpolate from start (0) to target (1)
+            v0=0.0, vf=0.0,  # Zero velocity at endpoints (smooth stop)
+            a0=0.0, af=0.0,  # Zero acceleration at endpoints (jerk-limited)
+            num_points=num_points
+        )
         
-        # Compute trapezoidal profile timing
-        # Phase 1: Acceleration from 0 to max_vel
-        t_acc = max_vel / max_acc
-        d_acc = 0.5 * max_acc * t_acc**2
-        
-        # Phase 3: Deceleration from max_vel to 0
-        t_dec = t_acc
-        d_dec = d_acc
-        
-        # Phase 2: Constant velocity
-        d_const = effective_distance - d_acc - d_dec
-        
-        if d_const > 0:
-            # Full trapezoidal profile
-            t_const = d_const / max_vel
-        else:
-            # Triangle profile (distance too short for constant velocity phase)
-            t_acc = np.sqrt(effective_distance / max_acc)
-            t_const = 0
-            t_dec = t_acc
-            d_acc = 0.5 * effective_distance
-            d_dec = d_acc
-            d_const = 0
-        
-        total_time = t_acc + t_const + t_dec
-        n_steps = max(constants.TRAJECTORY_MIN_STEPS, int(np.ceil(total_time / dt)))
-        
-        # Generate trajectory waypoints
+        # Generate trajectory waypoints by interpolating SE(3) using the quintic profile
         positions = []
         quaternions = []
         
-        for i in range(n_steps + 1):
-            t = i * total_time / n_steps if n_steps > 0 else 0
-            
-            # Compute position along trapezoid (distance traveled at time t)
-            if t <= t_acc:
-                # Acceleration phase
-                d = 0.5 * max_acc * t**2
-            elif t <= t_acc + t_const:
-                # Constant velocity phase
-                d = d_acc + max_vel * (t - t_acc)
-            else:
-                # Deceleration phase
-                t_in_dec = t - (t_acc + t_const)
-                d = d_acc + d_const + max_vel * t_in_dec - 0.5 * max_acc * t_in_dec**2
-            
-            # Normalize to [0, 1] interpolation parameter
-            s = np.clip(d / effective_distance, 0, 1) if effective_distance > 0 else 1.0
-            
+        for s in s_trajectory:
             # Interpolate in SE(3) using the exponential map
             # T(s) = T_start @ exp(s * twist)
             T_interp = T_start @ SE3_exp(s * twist)
@@ -205,7 +223,7 @@ class RobosuiteArmController:
             positions.append(pos)
             quaternions.append(quat)
         
-        return np.array(positions), np.array(quaternions), total_time
+        return np.array(positions), np.array(quaternions)
 
     def move_to_pose(self, target_pose: StampedPose, 
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
@@ -215,9 +233,10 @@ class RobosuiteArmController:
                     approach_distance: float = 0.1,
                     approach_axis: str = 'z') -> bool:
         """
-        Moves the robot's end-effector to the target position and orientation using a trapezoidal trajectory.
+        Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
         The pose will be automatically transformed to the robot's base frame if needed.
+        Uses quintic polynomial interpolation in SE(3) space for smooth, jerk-limited motion.
 
         Args:
             target_pose: Desired pose as StampedPose (includes position, quaternion, and frame_id)
@@ -271,6 +290,10 @@ class RobosuiteArmController:
         target_quat = np.asarray(target_pose.quaternion)
 
         # Get FRESH current pose right before planning
+        # Force MuJoCo to sync forward kinematics before reading
+        with self.env_lock if self.env_lock else nullcontext():
+            self.env.sim.forward()  # Ensure FK is up to date
+        
         current_pos, current_quat = self.get_eef_pose_in_base()
         
         logger.info(f"Planning trajectory for robot{self.robot_id}_{self.arm_id}:")
@@ -278,7 +301,7 @@ class RobosuiteArmController:
         logger.info(f"  Target in base: pos={target_pos}")
         logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
-        positions, quaternions, total_time = self.plan_trapezoidal_trajectory(
+        positions, quaternions = self.plan_quintic_trajectory(
             current_pos, current_quat, target_pos, target_quat
         )
 
@@ -390,7 +413,7 @@ class RobosuiteArmController:
         
         # Clear the entire trajectory folder for this robot/arm
         try:
-            vis[f"trajectory/robot{self.robot_id}_{self.arm_id}"].delete()
+            vis[f"trajectory_robot{self.robot_id}_{self.arm_id}"].delete()
         except Exception:
             pass
     
@@ -418,7 +441,8 @@ class RobosuiteArmController:
             self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
         
         vis = self._meshcat_vis
-        root = vis[f"trajectory/robot{self.robot_id}_{self.arm_id}"]
+        traj_path = f"trajectory_robot{self.robot_id}_{self.arm_id}"
+        root = vis[traj_path]
         
         # Clear previous trajectory visualization
         try:
@@ -466,7 +490,7 @@ class RobosuiteArmController:
                 frame_name = f"waypoint_{idx}"
             
             # Use make_frame from grasp_gen utils
-            frame_path = f"{root.path}/{frame_name}"
+            frame_path = f"{traj_path}/{frame_name}"
             make_frame(
                 vis,
                 name=frame_path,
