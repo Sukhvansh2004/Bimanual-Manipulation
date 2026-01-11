@@ -43,15 +43,16 @@ class RobosuiteArmController:
         self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
-        self.robot = self.env.robots[self.robot_id]  # type: ignore[attr-defined]
-        self.dof = self.robot.dof
+        # NOTE: Don't cache self.robot - always get fresh reference via self._get_robot()
+        # to avoid stale references after env resets or state changes
+        self.dof = self._get_robot().dof
         self.visualize = visualize
         
         # Lazy-created MeshCat visualizer for trajectory visualization
         self._meshcat_vis: Optional[meshcat.Visualizer] = None
         
         # Robot base frame name for transforms
-        robot_name = getattr(self.robot, 'name', f'robot{robot_id}')
+        robot_name = getattr(self._get_robot(), 'name', f'robot{robot_id}')
         logger.debug(f"RobosuiteArmController initialized for robot '{robot_name}', arm '{arm_id}'")
 
         # Use a stable unique TF base frame (robosuite can reuse robot.name across robots)
@@ -68,21 +69,33 @@ class RobosuiteArmController:
         else:
             self.transform_manager = TransformManager(env, env_lock=self.env_lock)
 
+    def _get_robot(self):
+        """Get fresh robot reference from environment.
+        
+        Always use this instead of a cached self.robot to ensure we have
+        the current robot state after environment steps/resets.
+        """
+        return self.env.robots[self.robot_id]  # type: ignore[attr-defined]
+
     def _eef_body_name(self) -> str:
-        return self.robot.robot_model.eef_name[self.arm_id]
+        return self._get_robot().robot_model.eef_name[self.arm_id]
 
     def get_eef_pose_in_base(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return current end-effector pose expressed in the robot base frame.
 
         Uses robosuite's public API (`pose_in_base_from_name`) instead of accessing
         underscore-prefixed internals like `_hand_pos` / `_hand_orn`.
+        
+        Gets a fresh robot reference each call to ensure current state.
 
         Returns:
             (pos, quat): position (3,) and quaternion (x, y, z, w)
         """
-        eef_body = self._eef_body_name()
+        robot = self._get_robot()  # Fresh reference
+        eef_body = robot.robot_model.eef_name[self.arm_id]
+        
         with self.env_lock if self.env_lock else nullcontext():
-            pose4 = self.robot.pose_in_base_from_name(eef_body)
+            pose4 = robot.pose_in_base_from_name(eef_body)
 
         pos = np.asarray(pose4[:3, 3], dtype=np.float64).copy()
         quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
@@ -227,7 +240,6 @@ class RobosuiteArmController:
 
     def move_to_pose(self, target_pose: StampedPose, 
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
-                    timeout: int = constants.TRAJECTORY_MAX_TIMEOUT, 
                     gripper_action: float = 0.0,
                     approach: bool = False,
                     approach_distance: float = 0.1,
@@ -237,11 +249,13 @@ class RobosuiteArmController:
         
         The pose will be automatically transformed to the robot's base frame if needed.
         Uses quintic polynomial interpolation in SE(3) space for smooth, jerk-limited motion.
+        
+        The trajectory has TRAJECTORY_NUM_POINTS waypoints, and we send one action per waypoint,
+        passing the full error to the OSC controller.
 
         Args:
             target_pose: Desired pose as StampedPose (includes position, quaternion, and frame_id)
-            threshold: Position error threshold for convergence
-            timeout: Maximum number of environment steps to reach the pose
+            threshold: Position/orientation error threshold for convergence check
             gripper_action: Gripper action to maintain (-1 closed, 1 open)
             approach: If True, first move to an approach pose offset along the target's local axis,
                      then move to the actual target. Useful for grasp approach motions.
@@ -267,7 +281,6 @@ class RobosuiteArmController:
             approach_success = self.move_to_pose(
                 approach_pose,
                 threshold=threshold,
-                timeout=timeout,
                 gripper_action=gripper_action,
                 approach=False  # Don't recurse
             )
@@ -311,97 +324,61 @@ class RobosuiteArmController:
             self._visualize_se3_trajectory(positions, quaternions)
 
         if len(positions) <= 1:
-            return True # Already at target
+            return True  # Already at target
 
-        # Closed-loop trajectory execution with waypoint tracking
-        waypoint_idx = 1  # Start from second waypoint (first is current pos)
-        steps_at_waypoint = 0
-        max_steps_per_waypoint = constants.TRAJECTORY_STEPS_PER_WAYPOINT
-        waypoint_threshold = constants.TRAJECTORY_WAYPOINT_THRESHOLD
+        # Simple trajectory execution: traverse each waypoint sequentially
+        # Since quintic polynomial already provides smooth interpolation,
+        # we just follow the waypoints one-by-one, sending full error as action
+        num_waypoints = len(positions)
         
-        for step in range(timeout):
+        for waypoint_idx in range(1, num_waypoints):  # Skip first waypoint (current pos)
             target_pos_step = positions[waypoint_idx]
             target_quat_step = quaternions[waypoint_idx]
-
+            
+            # Compute error to current waypoint
             current_pos, current_quat = self.get_eef_pose_in_base()
-
+            
             pos_error = target_pos_step - current_pos
             ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
             ori_error_vec = ori_error.as_rotvec()
             
-            pos_error_norm = np.linalg.norm(pos_error)
-            ori_error_norm = np.linalg.norm(ori_error_vec)
-            
-            # Check if we've reached the current waypoint or spent enough time
-            steps_at_waypoint += 1
-            if (pos_error_norm < waypoint_threshold and ori_error_norm < waypoint_threshold) or \
-               steps_at_waypoint >= max_steps_per_waypoint:
-                # Move to next waypoint
-                if(pos_error_norm < waypoint_threshold and ori_error_norm < waypoint_threshold):
-                    logger.debug(f"Reached waypoint {waypoint_idx} at step {step} with pos error {pos_error_norm:.4f}m, ori error {ori_error_norm:.4f}rad")
-                else:
-                    logger.debug(f"Max steps at waypoint {waypoint_idx} reached ({steps_at_waypoint}), moving to next waypoint")
-                waypoint_idx += 1
-                steps_at_waypoint = 0
-                if waypoint_idx >= len(positions):
-                    break  # Finished all waypoints
-
-            # Construct action for this robot
+            # Construct action with full error (no scaling - let OSC controller handle it)
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * constants.TRAJECTORY_POS_ERROR_SCALE, -1, 1)  # Position deltas
-            robot_action[3:6] = np.clip(ori_error_vec * constants.TRAJECTORY_ORI_ERROR_SCALE, -1, 1)  # Orientation deltas
-            robot_action[6] = gripper_action  # Gripper
-
+            robot_action[:3] = pos_error  # Full position error
+            robot_action[3:6] = ori_error_vec  # Full orientation error
+            robot_action[6] = gripper_action
+            
             # Construct full action
             full_action = np.zeros(self.total_action_dim)
             start_idx = self.robot_id * self.action_dim_per_robot
             end_idx = start_idx + self.action_dim_per_robot
             full_action[start_idx:end_idx] = robot_action
-
-            # Step the environment (use safe wrapper to handle intermittent runtime errors)
+            
+            # Step the environment
             with self.env_lock if self.env_lock else nullcontext():
                 safe_env_step(self.env, full_action)
+            
+            # Log progress periodically
+            if waypoint_idx % 20 == 0:
+                pos_error_norm = np.linalg.norm(pos_error)
+                ori_error_norm = np.linalg.norm(ori_error_vec)
+                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}: pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
         
-        # Final convergence: Keep sending final target until converged or timeout
-        final_convergence_steps = constants.TRAJECTORY_FINAL_CONVERGENCE_STEPS
-        for _ in range(final_convergence_steps):
-            current_pos, current_quat = self.get_eef_pose_in_base()
-            
-            pos_error = target_pos - current_pos
-            ori_error = R.from_quat(target_quat) * R.from_quat(current_quat).inv()
-            ori_error_vec = ori_error.as_rotvec()
-            
-            pos_error_norm = np.linalg.norm(pos_error)
-            ori_error_norm = np.linalg.norm(ori_error_vec)
-            
-            # Check if converged
-            if pos_error_norm < threshold and ori_error_norm < threshold:
-                break
-                
-            # Construct action
-            robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = np.clip(pos_error * constants.TRAJECTORY_POS_ERROR_SCALE, -1, 1)
-            robot_action[3:6] = np.clip(ori_error_vec * constants.TRAJECTORY_ORI_ERROR_SCALE, -1, 1)
-            robot_action[6] = gripper_action
-            
-            full_action = np.zeros(self.total_action_dim)
-            start_idx = self.robot_id * self.action_dim_per_robot
-            end_idx = start_idx + self.action_dim_per_robot
-            full_action[start_idx:end_idx] = robot_action
-            
-            with self.env_lock if self.env_lock else nullcontext():
-                safe_env_step(self.env, full_action)
-
+        # Final check: verify we reached the target
         final_pos, final_quat = self.get_eef_pose_in_base()
-
+        
         pos_error = target_pos - final_pos
         ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
         ori_error_vec = ori_error.as_rotvec()
-
-        time.sleep(constants.TRAJECTORY_SLEEP_TIME)
-        if np.linalg.norm(pos_error) < threshold and np.linalg.norm(ori_error_vec) < threshold:
+        
+        pos_error_norm = np.linalg.norm(pos_error)
+        ori_error_norm = np.linalg.norm(ori_error_vec)
+        
+        logger.info(f"Trajectory complete: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
+        
+        if pos_error_norm < threshold and ori_error_norm < threshold:
             return True
-
+        
         return False
     
     def _clear_trajectory_visualization(self) -> None:
