@@ -194,10 +194,10 @@ class DualArmManipulationSystem:
         # Load arm and gripper controllers
         logger.info("\n1b. Loading arm and gripper controllers...")
         self.left_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager
+            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
         )
         self.right_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager
+            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
         )
         self.left_gripper = RobosuiteGripperController(
             self.env, arm_id="right", robot_id=0, env_lock=self.env_lock

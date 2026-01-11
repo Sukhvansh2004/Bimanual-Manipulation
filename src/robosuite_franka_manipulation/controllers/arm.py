@@ -6,6 +6,9 @@ import threading
 from scipy.spatial.transform import Rotation as R
 from typing import Tuple, Union, Optional
 
+import meshcat
+import meshcat.geometry as g
+
 from robosuite.environments.base import MujocoEnv
 from robosuite.wrappers import Wrapper
 
@@ -19,6 +22,7 @@ from robosuite_franka_manipulation.utils.se3 import (
     compute_se3_distance,
 )
 from robosuite_franka_manipulation.utils import safe_env_step
+from grasp_gen.utils.meshcat_utils import make_frame
 import logging  
 # Configure logging
 logging.basicConfig(level=constants.LOG_LEVEL)
@@ -32,13 +36,18 @@ class RobosuiteArmController:
     to move the end-effector to that pose.
     """
     def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, 
-                 transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None) -> None:
+                 transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None,
+                 visualize: bool = False) -> None:
         self.env = env
         self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
         self.robot = self.env.robots[self.robot_id]  # type: ignore[attr-defined]
         self.dof = self.robot.dof
+        self.visualize = visualize
+        
+        # Lazy-created MeshCat visualizer for trajectory visualization
+        self._meshcat_vis: Optional[meshcat.Visualizer] = None
         
         # Robot base frame name for transforms
         robot_name = getattr(self.robot, 'name', f'robot{robot_id}')
@@ -228,6 +237,10 @@ class RobosuiteArmController:
             current_pos, current_quat, target_pos, target_quat
         )
 
+        # Visualize the SE(3) trajectory if enabled
+        if self.visualize:
+            self._visualize_se3_trajectory(positions, quaternions)
+            
         if len(positions) <= 1:
             return True # Already at target
 
@@ -317,3 +330,119 @@ class RobosuiteArmController:
             return True
 
         return False
+    
+    def _visualize_se3_trajectory(self, positions: np.ndarray, quaternions: np.ndarray,
+                                   num_frames: int = 10, axis_length: float = 0.05,
+                                   axis_radius: float = 0.003) -> None:
+        """
+        Visualize the SE(3) trajectory frames in MeshCat.
+        
+        Shows coordinate frames along the trajectory path to visualize the
+        coupled rotation-translation motion in SE(3) space.
+        
+        Args:
+            positions: Array of positions (N, 3) in robot base frame
+            quaternions: Array of quaternions (N, 4) in (x, y, z, w) format, in robot base frame
+            num_frames: Number of frames to display along trajectory (evenly spaced)
+            axis_length: Length of coordinate frame axes
+            axis_radius: Radius of coordinate frame axes
+        """
+        if len(positions) < 2:
+            return
+        
+        # Create or reuse MeshCat visualizer
+        if self._meshcat_vis is None:
+            self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+        
+        vis = self._meshcat_vis
+        root = vis[f"trajectory/robot{self.robot_id}_{self.arm_id}"]
+        
+        # Clear previous trajectory visualization
+        try:
+            root.delete()
+        except Exception:
+            pass
+        
+        # Get transform from robot base frame to world frame
+        # This is needed because trajectory is computed in base frame but MeshCat uses world frame
+        try:
+            base_to_world = self.transform_manager.get_transform(self.base_frame, "world")
+            T_base_to_world = base_to_world.to_matrix()
+        except Exception as e:
+            logger.warning(f"Could not get base-to-world transform, visualizing in base frame: {e}")
+            T_base_to_world = np.eye(4)
+        
+        # Select evenly spaced indices for visualization
+        n_waypoints = len(positions)
+        if n_waypoints <= num_frames:
+            indices = list(range(n_waypoints))
+        else:
+            indices = np.linspace(0, n_waypoints - 1, num_frames, dtype=int).tolist()
+        
+        # Always include the last waypoint
+        if indices[-1] != n_waypoints - 1:
+            indices.append(n_waypoints - 1)
+        
+        # Store world-frame positions for the trajectory line
+        world_positions = []
+        
+        # Draw frames at selected waypoints
+        for i, idx in enumerate(indices):
+            pos = positions[idx]
+            quat = quaternions[idx]
+            
+            # Build SE(3) transform matrix in robot base frame
+            T_pose_in_base = pose_to_SE3(pos, quat)
+            
+            # Transform to world frame: T_world = T_base_to_world @ T_pose_in_base
+            T_pose_in_world = T_base_to_world @ T_pose_in_base
+            
+            # Store world position for trajectory line
+            world_positions.append(T_pose_in_world[:3, 3])
+            
+            # Determine frame name based on position in trajectory
+            if i == 0:
+                frame_name = "start"
+            elif i == len(indices) - 1:
+                frame_name = "end"
+            else:
+                frame_name = f"waypoint_{i}"
+            
+            # Use make_frame from grasp_gen utils
+            frame_path = f"{root.path}/{frame_name}"
+            make_frame(
+                vis,
+                name=frame_path,
+                h=axis_length,
+                radius=axis_radius,
+                o=0.9,  # opacity
+            )
+            vis[frame_path].set_transform(T_pose_in_world)
+        
+        # Draw trajectory line connecting the frames (in world coordinates)
+        world_positions = np.array(world_positions)
+        line_points = world_positions.T  # (3, N) for MeshCat
+        colors = np.zeros((3, len(indices)))
+        
+        # Gradient color: green -> blue -> red
+        for i in range(len(indices)):
+            t = i / max(1, len(indices) - 1)
+            if t < 0.5:
+                # Green to blue
+                colors[0, i] = 0  # R
+                colors[1, i] = 1 - 2*t  # G
+                colors[2, i] = 2*t  # B
+            else:
+                # Blue to red
+                colors[0, i] = 2*(t - 0.5)  # R
+                colors[1, i] = 0  # G
+                colors[2, i] = 1 - 2*(t - 0.5)  # B
+        
+        root["path"].set_object(
+            g.Line(
+                g.PointsGeometry(line_points, colors),
+                g.LineBasicMaterial(vertexColors=True, linewidth=2)
+            )
+        )
+        
+        logger.debug(f"Visualized SE(3) trajectory with {len(indices)} frames in world frame")
