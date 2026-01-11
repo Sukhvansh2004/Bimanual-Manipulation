@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Dict, TypedDict
+from typing import List, TypedDict
 import sys
 import cv2
 import logging

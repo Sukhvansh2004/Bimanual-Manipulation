@@ -84,8 +84,7 @@ class FastSAMService:
 
         # Camera and detection state
         self.camera_intrinsics = None
-        self.latest_rgb_image = None
-        self.latest_depth_image = None
+        self.detector_lock = threading.Lock()
         self.latest_detections = []
 
         # Get camera intrinsics
@@ -244,13 +243,10 @@ class FastSAMService:
             rgb_image, depth_image = self._get_camera_data()
 
             if rgb_image is not None:
-                # Store latest images
-                self.latest_rgb_image = rgb_image
-                self.latest_depth_image = depth_image
-
                 # Process detections
-                detections = self._process_detections(rgb_image, depth_image)
-                self.latest_detections = detections
+                with self.detector_lock:
+                    detections = self._process_detections(rgb_image, depth_image)
+                    self.latest_detections = detections
 
                 # Register/update object frames in the shared TF manager (if provided)
                 if self.tf_manager is not None:
@@ -310,7 +306,8 @@ class FastSAMService:
         if command == 'SET_PROMPT':
             new_prompt = request.get('prompt', 'object')
             self.current_prompt = new_prompt
-            self.object_detector.set_prompt(new_prompt)
+            with self.detector_lock:
+                self.object_detector.set_prompt(new_prompt)
             return {
                 'status': 'success',
                 'message': f'Prompt updated to: {new_prompt}'
@@ -324,7 +321,8 @@ class FastSAMService:
 
         elif command == 'GET_LATEST_DETECTION':
             # Convert detections to JSON-serializable format using utility
-            json_detections = convert_detections_to_json(self.latest_detections)
+            with self.detector_lock:
+                json_detections = convert_detections_to_json(self.latest_detections)
             return {
                 'status': 'success',
                 'detections': json_detections,
