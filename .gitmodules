@@ -1,3 +1,6 @@
 [submodule "deps/GraspGen"]
 	path = deps/GraspGen
 	url = https://github.com/Sukhvansh2004/GraspGen.git
+[submodule "deps/YCB_Dataset"]
+	path = deps/YCB_Dataset
+	url = https://github.com/Sukhvansh2004/YCB_Dataset.git
