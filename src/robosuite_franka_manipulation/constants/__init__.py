@@ -111,6 +111,7 @@ DEFAULT_NUM_GRASPS = 5
 
 # Trajectory planning - number of waypoints
 TRAJECTORY_NUM_POINTS = 100  # Number of waypoints for quintic polynomial trajectory
+TRAJECTORY_TIME_STEP = 0.05  # Time step between waypoints (seconds)
 
 # Trajectory planning thresholds
 TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Position convergence threshold (1cm)

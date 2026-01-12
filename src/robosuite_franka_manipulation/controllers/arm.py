@@ -242,6 +242,7 @@ class RobosuiteArmController:
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     gripper_action: float = 0.0,
                     approach: bool = False,
+                    dt: float = constants.TRAJECTORY_TIME_STEP,
                     approach_distance: float = 0.1,
                     approach_axis: str = 'z') -> bool:
         """
@@ -358,7 +359,7 @@ class RobosuiteArmController:
             with self.env_lock if self.env_lock else nullcontext():
                 safe_env_step(self.env, full_action)
                 
-            time.sleep(1.0 / self.env.control_freq)  # Maintain control frequency
+            time.sleep(dt)  # Maintain control frequency
             
             # Log progress periodically
             if waypoint_idx % 20 == 0:
