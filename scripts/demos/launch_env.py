@@ -4,18 +4,28 @@ Demo script to launch and visualize the dual-arm Franka environment.
 
 This script creates a dual-arm robosuite environment with two Panda robots
 in an opposed configuration and allows you to visualize and interact with it.
+Supports adding custom primitive objects and YCB dataset objects.
 
 Usage:
     python scripts/demos/launch_env.py
     python scripts/demos/launch_env.py --with-objects
+    python scripts/demos/launch_env.py --ycb apple mug banana
+    python scripts/demos/launch_env.py --list-ycb
     python scripts/demos/launch_env.py --random-actions
+    python scripts/demos/launch_env.py --ycb apple --with-objects --random-actions
 """
 
 import argparse
 import time
 import numpy as np
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.environments import (
+    make_dual_arm_env,
+    get_available_ycb_objects,
+    list_ycb_objects,
+    create_primitive_object,
+    create_ycb_object,
+)
 
 
 def print_env_info(env):
@@ -59,37 +69,87 @@ def print_env_info(env):
     print(f"  Action spec (low): {env.action_spec[0][:6]}...")
     print(f"  Action spec (high): {env.action_spec[1][:6]}...")
     
+    # Custom objects info
+    if hasattr(env, 'get_object_names'):
+        obj_names = env.get_object_names()
+        if obj_names:
+            print(f"\n--- Custom Objects ---")
+            for name in obj_names:
+                pose = env.get_object_pose(name)
+                if pose is not None:
+                    pos = pose[:3, 3]
+                    print(f"  {name}: pos=[{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+                else:
+                    print(f"  {name}: (pose not available)")
+    
     print("\n" + "=" * 60)
 
 
 def get_sample_custom_objects():
-    """Return a list of sample custom objects to add to the environment."""
+    """Return a list of sample custom primitive objects to add to the environment."""
     return [
-        {
-            'type': 'box',
-            'name': 'red_block',
-            'size': [0.04, 0.04, 0.04],  # 4cm cube
-            'pos': [0.0, 0.0, 0.85],
-            'rgba': [0.9, 0.1, 0.1, 1.0],  # Red
-            'density': 500,
-        },
-        {
-            'type': 'cylinder',
-            'name': 'green_cylinder',
-            'size': [0.025, 0.08],  # radius=2.5cm, height=8cm
-            'pos': [0.1, 0.15, 0.85],
-            'rgba': [0.1, 0.9, 0.1, 1.0],  # Green
-            'density': 800,
-        },
-        {
-            'type': 'ball',
-            'name': 'blue_sphere',
-            'size': [0.03],  # radius=3cm
-            'pos': [-0.1, 0.1, 0.85],
-            'rgba': [0.1, 0.1, 0.9, 1.0],  # Blue
-            'density': 600,
-        },
+        create_primitive_object(
+            obj_type='box',
+            name='red_block',
+            size=[0.04, 0.04, 0.04],  # 4cm cube
+            position=[0.0, 0.0, 0.85],
+            rgba=[0.9, 0.1, 0.1, 1.0],  # Red
+            density=500,
+        ),
+        create_primitive_object(
+            obj_type='cylinder',
+            name='green_cylinder',
+            size=[0.025, 0.04],  # radius=2.5cm, half-height=4cm
+            position=[0.1, 0.15, 0.85],
+            rgba=[0.1, 0.9, 0.1, 1.0],  # Green
+            density=800,
+        ),
+        create_primitive_object(
+            obj_type='ball',
+            name='blue_sphere',
+            size=[0.03],  # radius=3cm
+            position=[-0.1, 0.1, 0.85],
+            rgba=[0.1, 0.1, 0.9, 1.0],  # Blue
+            density=600,
+        ),
     ]
+
+
+def get_sample_ycb_objects(ycb_names=None):
+    """
+    Get sample YCB object specifications.
+    
+    Args:
+        ycb_names: List of YCB object names to use, or None for defaults
+        
+    Returns:
+        List of YCB object specifications
+    """
+    available = get_available_ycb_objects()
+    
+    if not available:
+        print("Warning: No YCB objects found in dataset.")
+        return []
+    
+    if ycb_names is None:
+        # Default objects (check availability)
+        default_objects = ['apple', 'mug', 'banana']
+        ycb_names = [obj for obj in default_objects if obj in available]
+        if not ycb_names:
+            # Fallback to first 3 available objects
+            ycb_names = available[:3]
+    
+    objects = []
+    for i, name in enumerate(ycb_names):
+        if name not in available:
+            print(f"Warning: YCB object '{name}' not found. Skipping.")
+            continue
+        
+        # Position objects in a row
+        pos = [0.0 + i * 0.1, 0.15, 0.85]
+        objects.append(create_ycb_object(name, position=pos))
+    
+    return objects
 
 
 def run_random_actions(env, num_steps=200, render=True):
@@ -115,8 +175,10 @@ def run_random_actions(env, num_steps=200, render=True):
             # Zero out gripper actions to keep them stable
             # Assuming action format: [pos(3), ori(3), gripper(1)] per arm
             # For two arms: [arm0_pos, arm0_ori, arm0_grip, arm1_pos, arm1_ori, arm1_grip]
-            action[6] = 0  # Robot 0 gripper
-            action[13] = 0  # Robot 1 gripper (if action dim is 14)
+            if action_dim >= 7:
+                action[6] = 0  # Robot 0 gripper
+            if action_dim >= 14:
+                action[13] = 0  # Robot 1 gripper
             
             obs, reward, done, info = env.step(action)
             
@@ -132,12 +194,40 @@ def run_random_actions(env, num_steps=200, render=True):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Launch and visualize the dual-arm Franka environment"
+        description="Launch and visualize the dual-arm Franka environment",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s                          # Launch basic environment
+  %(prog)s --with-objects           # Add sample primitive objects
+  %(prog)s --ycb apple mug          # Add YCB objects
+  %(prog)s --list-ycb               # List available YCB objects
+  %(prog)s --ycb-all 5              # Add first 5 YCB objects
+  %(prog)s --random-actions         # Run with random robot movements
+        """
     )
     parser.add_argument(
         '--with-objects',
         action='store_true',
-        help='Add sample custom objects (box, cylinder, sphere) to the environment'
+        help='Add sample custom primitive objects (box, cylinder, sphere) to the environment'
+    )
+    parser.add_argument(
+        '--ycb',
+        nargs='+',
+        metavar='OBJECT',
+        help='Add specified YCB objects by name (e.g., --ycb apple mug banana)'
+    )
+    parser.add_argument(
+        '--ycb-all',
+        type=int,
+        metavar='N',
+        default=0,
+        help='Add first N YCB objects from the dataset'
+    )
+    parser.add_argument(
+        '--list-ycb',
+        action='store_true',
+        help='List all available YCB objects and exit'
     )
     parser.add_argument(
         '--random-actions',
@@ -155,20 +245,46 @@ def main():
         action='store_true',
         help='Disable rendering (useful for headless testing)'
     )
+    parser.add_argument(
+        '--headless',
+        action='store_true',
+        help='Run in headless mode (no on-screen renderer)'
+    )
     
     args = parser.parse_args()
     
+    # Handle --list-ycb
+    if args.list_ycb:
+        list_ycb_objects()
+        return
+    
+    # Prepare objects
+    custom_objects = []
+    ycb_objects = []
+    
+    if args.with_objects:
+        custom_objects = get_sample_custom_objects()
+        print(f"Adding {len(custom_objects)} custom primitive objects...")
+    
+    if args.ycb:
+        ycb_objects = args.ycb
+        print(f"Adding YCB objects: {ycb_objects}")
+    
+    if args.ycb_all > 0:
+        available = get_available_ycb_objects()
+        ycb_objects.extend(available[:args.ycb_all])
+        print(f"Adding first {min(args.ycb_all, len(available))} YCB objects...")
+    
     env = None
     try:
-        print("Creating dual-arm Franka environment...")
+        print("\nCreating dual-arm Franka environment...")
         
-        # Create environment with or without custom objects
-        if args.with_objects:
-            print("Adding custom objects to the scene...")
-            custom_objects = get_sample_custom_objects()
-            env = make_dual_arm_env(custom_objects=custom_objects)
-        else:
-            env = make_dual_arm_env()
+        # Create environment with custom objects
+        env = make_dual_arm_env(
+            custom_objects=custom_objects if custom_objects else None,
+            ycb_objects=ycb_objects if ycb_objects else None,
+            has_renderer=not args.headless and not args.no_render,
+        )
         
         print("Resetting environment...")
         obs = env.reset()
@@ -194,6 +310,8 @@ def main():
             print("=" * 60)
             print("\nThe environment is now running!")
             print("You should see a window with two Panda robots.")
+            if custom_objects or ycb_objects:
+                print(f"Custom objects added: {len(custom_objects)} primitives, {len(ycb_objects)} YCB objects")
             print("\nControls:")
             print("  - Close the window or press Ctrl+C to exit")
             print("  - The robots will hold their initial pose")

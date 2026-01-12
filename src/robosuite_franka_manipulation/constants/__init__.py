@@ -190,11 +190,14 @@ def get_project_root() -> Path:
     """Get the project root directory."""
     return Path(__file__).parent.parent.parent.parent
 
-def get_model_path(model_name: str) -> Path:
-    """Get full path to a model file."""
-    return get_project_root() / model_name
-
 def get_graspgen_config_path(gripper_type: str) -> Path:
     """Get full path to GraspGen config for a gripper type."""
     config_name = GRASPGEN_CONFIG_TEMPLATE.format(gripper_type=gripper_type)
     return get_project_root() / GRASPGEN_MODELS_DIR / config_name
+
+# =============================================================================
+# YCB Dataset Path Configuration
+# =============================================================================
+
+# Path to YCB dataset relative to project root
+YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
