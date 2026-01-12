@@ -301,8 +301,8 @@ Examples:
                 print(f"  {key}: {type(obs[key])}")
         
         if args.random_actions:
-            # Run with random actions
-            run_random_actions(env, num_steps=args.steps, render=not args.no_render)
+            # Run with random actions (only render if not headless and not no_render)
+            run_random_actions(env, num_steps=args.steps, render=not args.no_render and not args.headless)
         else:
             # Just visualize the environment
             print("\n" + "=" * 60)
@@ -324,7 +324,8 @@ Examples:
                 action = np.zeros(env.action_dim)
                 obs, reward, done, info = env.step(action)
                 
-                if not args.no_render:
+                # Only render if renderer is enabled (not headless and not no_render)
+                if not args.no_render and not args.headless:
                     env.render()
                 
                 step += 1

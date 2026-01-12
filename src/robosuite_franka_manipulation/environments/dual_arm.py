@@ -174,22 +174,25 @@ class DualArmEnvironmentWrapper:
         self,
         env: Union[MujocoEnv, Wrapper],
         custom_objects: Optional[List[Dict[str, Any]]] = None,
+        ycb_objects: Optional[List[Dict[str, Any]]] = None,
     ):
         """
         Initialize the environment wrapper.
         
         Args:
             env: The robosuite environment to wrap
-            custom_objects: Optional list of custom object specifications
+            custom_objects: Optional list of custom primitive object specifications
+            ycb_objects: Optional list of YCB object specifications
         """
         self._env = env
         self._custom_objects = custom_objects or []
+        self._ycb_objects = ycb_objects or []
         self._object_names: List[str] = []
         self._set_intrinsics()
         
-        # Add custom objects if specified
-        if self._custom_objects:
-            self._add_custom_objects()
+        # Add all objects in a single XML modification
+        if self._custom_objects or self._ycb_objects:
+            self._add_all_objects()
     
     def _set_intrinsics(self) -> None:
         """Set realistic camera intrinsics for all cameras."""
@@ -201,34 +204,148 @@ class DualArmEnvironmentWrapper:
             cy = constants.DEFAULT_CAMERA_INTRINSICS[1, 2]
             self._env.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
     
-    def _add_custom_objects(self) -> None:
+    def _add_all_objects(self) -> None:
         """
-        Add custom objects to the MuJoCo model.
-        
-        Supports:
-        - Primitive objects: box, cylinder, ball, capsule
-        - YCB dataset objects: loaded from XML files
+        Add all custom objects (primitives and YCB) in a single XML modification.
+        This ensures all objects are added together without resetting in between.
         """
-        
-        for obj_spec in self._custom_objects:
-            obj_type = obj_spec.get('type', 'box')
-            obj_name = obj_spec.get('name', f'custom_obj_{len(self._object_names)}')
-            pos = obj_spec.get('pos', [0.0, 0.0, 0.85])
+        try:
+            # Get current XML from robosuite's model
+            current_xml = self._env.model.get_xml()
             
-            if obj_type == 'ycb':
-                # YCB objects are handled through the MujocoXMLObject system
-                # They need to be added at environment creation time
-                logger.warning(
-                    f"YCB object '{obj_spec.get('ycb_name')}' should be added at "
-                    "environment creation. Use make_dual_arm_env(ycb_objects=[...]) instead."
-                )
-                continue
+            # Parse the XML
+            root = ET.fromstring(current_xml)
+            worldbody = root.find('worldbody')
+            asset = root.find('asset')
             
-            # For primitive objects, we modify the existing model
-            # This is a simplified approach - full dynamic object addition requires
-            # modifying the XML before environment creation
-            self._object_names.append(obj_name)
-            logger.info(f"Registered custom object: {obj_name} at position {pos}")
+            if worldbody is None:
+                raise ValueError("Could not find worldbody in model XML")
+            
+            # Create asset section if it doesn't exist
+            if asset is None:
+                asset = ET.SubElement(root, 'asset')
+            
+            # Add primitive objects
+            for obj_spec in self._custom_objects:
+                obj_type = obj_spec.get('type', 'box')
+                obj_name = obj_spec.get('name', f'custom_obj_{len(self._object_names)}')
+                pos = obj_spec.get('pos', [0.0, 0.0, 0.85])
+                
+                if obj_type == 'ycb':
+                    logger.warning(f"Use ycb_objects parameter for YCB objects, not custom_objects")
+                    continue
+                
+                # Generate XML for primitive object
+                object_xml = _generate_object_xml(obj_spec)
+                
+                # Parse and add to worldbody
+                obj_element = ET.fromstring(f"<root>{object_xml}</root>")
+                for body in obj_element.findall('body'):
+                    worldbody.append(body)
+                
+                self._object_names.append(obj_name)
+                logger.info(f"Added custom object: {obj_name} at position {pos}")
+            
+            # Add YCB objects
+            for ycb_obj in self._ycb_objects:
+                xml_path = ycb_obj.get('xml_path')
+                instance_name = ycb_obj.get('instance_name')
+                pos = ycb_obj.get('pos', [0.0, 0.0, 0.85])
+                ycb_name = ycb_obj.get('ycb_name', 'unknown')
+                
+                if not xml_path or not Path(xml_path).exists():
+                    logger.warning(f"YCB XML not found: {xml_path}")
+                    continue
+                
+                # Parse the YCB XML file
+                ycb_tree = ET.parse(xml_path)
+                ycb_root = ycb_tree.getroot()
+                
+                # Get asset directory
+                asset_dir = str(Path(xml_path).parent)
+                
+                # Add assets from YCB XML
+                ycb_assets = ycb_root.find('asset')
+                if ycb_assets is not None:
+                    for mesh in ycb_assets.findall('mesh'):
+                        new_mesh = ET.SubElement(asset, 'mesh')
+                        mesh_name = mesh.get('name', 'mesh')
+                        new_mesh.set('name', f"{instance_name}_{mesh_name}")
+                        mesh_file = mesh.get('file', '')
+                        full_mesh_path = os.path.join(asset_dir, mesh_file)
+                        new_mesh.set('file', full_mesh_path)
+                    
+                    for texture in ycb_assets.findall('texture'):
+                        new_tex = ET.SubElement(asset, 'texture')
+                        tex_name = texture.get('name', 'texture')
+                        new_tex.set('name', f"{instance_name}_{tex_name}")
+                        tex_file = texture.get('file', '')
+                        full_tex_path = os.path.join(asset_dir, tex_file)
+                        new_tex.set('file', full_tex_path)
+                        new_tex.set('type', texture.get('type', '2d'))
+                    
+                    for material in ycb_assets.findall('material'):
+                        new_mat = ET.SubElement(asset, 'material')
+                        mat_name = material.get('name', 'material')
+                        new_mat.set('name', f"{instance_name}_{mat_name}")
+                        tex_ref = material.get('texture', '')
+                        if tex_ref:
+                            new_mat.set('texture', f"{instance_name}_{tex_ref}")
+                
+                # Create body for YCB object
+                ycb_body_src = ycb_root.find('.//worldbody/body')
+                if ycb_body_src is not None:
+                    new_body = ET.SubElement(worldbody, 'body')
+                    new_body.set('name', instance_name)
+                    new_body.set('pos', ' '.join(map(str, pos)))
+                    
+                    # Add freejoint
+                    freejoint = ET.SubElement(new_body, 'freejoint')
+                    freejoint.set('name', f"{instance_name}_joint")
+                    
+                    # Copy geoms with renamed references
+                    for geom in ycb_body_src.findall('geom'):
+                        new_geom = ET.SubElement(new_body, 'geom')
+                        geom_name = geom.get('name', 'geom')
+                        new_geom.set('name', f"{instance_name}_{geom_name}")
+                        
+                        geom_type = geom.get('type', 'mesh')
+                        new_geom.set('type', geom_type)
+                        
+                        mesh_ref = geom.get('mesh', '')
+                        if mesh_ref:
+                            new_geom.set('mesh', f"{instance_name}_{mesh_ref}")
+                        
+                        mat_ref = geom.get('material', '')
+                        if mat_ref:
+                            new_geom.set('material', f"{instance_name}_{mat_ref}")
+                        
+                        for attr in ['pos', 'euler', 'contype', 'conaffinity', 'group', 'rgba']:
+                            val = geom.get(attr)
+                            if val:
+                                new_geom.set(attr, val)
+                    
+                    # Copy inertial properties
+                    inertial_src = ycb_body_src.find('inertial')
+                    if inertial_src is not None:
+                        new_inertial = ET.SubElement(new_body, 'inertial')
+                        for attr in ['pos', 'euler', 'mass', 'diaginertia']:
+                            val = inertial_src.get(attr)
+                            if val:
+                                new_inertial.set(attr, val)
+                
+                self._object_names.append(instance_name)
+                logger.info(f"Added YCB object '{ycb_name}' as '{instance_name}'")
+            
+            # Convert back to string and reload
+            new_xml = ET.tostring(root, encoding='unicode')
+            self._env.reset_from_xml_string(new_xml)
+            
+            logger.info(f"Successfully added {len(self._object_names)} objects to simulation")
+            
+        except Exception as e:
+            logger.error(f"Failed to add objects: {e}")
+            traceback.print_exc()
     
     def get_object_names(self) -> List[str]:
         """Get the names of all custom objects in the environment."""
@@ -260,9 +377,21 @@ class DualArmEnvironmentWrapper:
             return None
     
     def reset(self) -> Any:
-        """Reset environment and restore intrinsics."""
+        """
+        Reset environment, restore intrinsics, and re-add custom objects.
+        
+        Note: robosuite's reset reloads the original model, so we need to 
+        re-inject our custom objects after each reset.
+        """
         obs = self._env.reset()
         self._set_intrinsics()
+        
+        # Re-add custom objects since reset reloads the original model
+        if self._custom_objects or self._ycb_objects:
+            # Clear object names and re-add
+            self._object_names = []
+            self._add_all_objects()
+        
         return obs
     
     def step(self, action: np.ndarray) -> Tuple[Any, float, bool, dict]:
@@ -407,8 +536,8 @@ def make_dual_arm_env(
     # For dual-arm, controller_configs should be a list of configs
     controller_configs = [controller_config, controller_config]
     
-    # Prepare objects list for robosuite
-    all_objects = []
+    # Prepare YCB objects info for post-creation injection
+    ycb_objects_to_add = []
     object_names = []
     
     # Process YCB objects
@@ -417,23 +546,23 @@ def make_dual_arm_env(
             if isinstance(ycb_spec, str):
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
+                pos = [0.0, 0.1 * i, 0.85]
             else:
                 ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
                 instance_name = ycb_spec.get('name', f"{ycb_name}_{i}")
+                pos = ycb_spec.get('pos', [0.0, 0.1 * i, 0.85])
             
             # Check if YCB object exists
             xml_path = constants.YCB_DATASET_PATH / f"{ycb_name}.xml"
             if xml_path.exists():
-                try:
-                    ycb_obj = YCBObject(
-                        name=instance_name,
-                        ycb_object_name=ycb_name,
-                    )
-                    all_objects.append(ycb_obj)
-                    object_names.append(instance_name)
-                    logger.info(f"Added YCB object: {ycb_name} as {instance_name}")
-                except Exception as e:
-                    logger.error(f"Failed to load YCB object '{ycb_name}': {e}")
+                ycb_objects_to_add.append({
+                    'ycb_name': ycb_name,
+                    'instance_name': instance_name,
+                    'xml_path': xml_path,
+                    'pos': pos,
+                })
+                object_names.append(instance_name)
+                logger.info(f"Queued YCB object: {ycb_name} as {instance_name}")
             else:
                 logger.warning(f"YCB object '{ycb_name}' not found at {xml_path}")
                 available = get_available_ycb_objects()[:10]
@@ -461,14 +590,13 @@ def make_dual_arm_env(
     
     env = suite.make(**env_kwargs)
     
-    # Combine custom objects for the wrapper
-    all_custom_objects = (custom_objects or []).copy()
-    
     # Wrap environment to handle camera intrinsics and objects
-    wrapped_env = DualArmEnvironmentWrapper(env, custom_objects=all_custom_objects)
-    
-    # Store object names for external access
-    wrapped_env._object_names.extend(object_names)
+    # Pass both custom objects and YCB objects to the wrapper for unified handling
+    wrapped_env = DualArmEnvironmentWrapper(
+        env, 
+        custom_objects=custom_objects,
+        ycb_objects=ycb_objects_to_add,
+    )
     
     return wrapped_env
 
