@@ -1,6 +1,6 @@
 from robosuite_franka_manipulation.environments.dual_arm import (
     make_dual_arm_env,
-    DualArmEnvironmentWrapper,
+    DualArmEnvironment,
 )
 
 # Import helper functions from utils for backward compatibility
@@ -9,7 +9,6 @@ from robosuite_franka_manipulation.utils.env_utils import (
     list_ycb_objects,
     create_ycb_object,
     create_primitive_object,
-    YCBObject,
 )
 
 __all__ = [
@@ -18,6 +17,5 @@ __all__ = [
     "list_ycb_objects",
     "create_ycb_object",
     "create_primitive_object",
-    "YCBObject",
-    "DualArmEnvironmentWrapper",
+    "DualArmEnvironment",
 ]

@@ -3,6 +3,7 @@ import numpy as np
 from typing import Any, Dict, List, Optional, Tuple, Union
 from scipy.spatial.transform import Rotation as R
 
+import robosuite as suite
 from robosuite.environments.manipulation.two_arm_handover import TwoArmHandover
 from robosuite.models.objects import BoxObject, CylinderObject, BallObject, CapsuleObject
 from robosuite.controllers import load_part_controller_config
@@ -12,6 +13,7 @@ from robosuite_franka_manipulation.utils.env_utils import (
     get_available_ycb_objects,
     list_ycb_objects,
     YCBObject,
+    create_ycb_object,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,12 +110,13 @@ class DualArmEnvironment(TwoArmHandover):
 
         # 2. Create and add YCB objects
         for ycb_spec in self._ycb_object_specs:
-            # Handle both string and dict specifications (normalized in make_dual_arm_env)
+            # Check for dict type to ensure proper usage
             if isinstance(ycb_spec, dict):
                 ycb_name = ycb_spec.get('ycb_name', 'unknown')
                 instance_name = ycb_spec.get('instance_name', ycb_spec.get('name', f"{ycb_name}_0"))
                 pos = np.array(ycb_spec.get('pos', [0.0, 0.0, 0.90]))
             else:
+                logger.warning(f"Invalid YCB spec type: {type(ycb_spec)}. Expected dict. Skipping.")
                 continue
 
             try:
@@ -241,7 +244,7 @@ def make_dual_arm_env(
     # For dual-arm, controller_configs should be a list of configs
     controller_configs = [controller_config, controller_config]
     
-    # Normalize YCB object specs
+    # Normalize YCB object specs to ensure they are all Dicts before passing to the Env
     normalized_ycb_objects = []
     if ycb_objects:
         for i, ycb_spec in enumerate(ycb_objects):
@@ -249,19 +252,21 @@ def make_dual_arm_env(
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
                 pos = [-0.1 + 0.1 * i, -0.45, 0.90]
-            else:
-                ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
-                instance_name = ycb_spec.get('name', f"{ycb_name}_{i}")
-                pos = ycb_spec.get('pos', [-0.1 + 0.1 * i, -0.45, 0.90])
+                
+                # Convert string to dict spec immediately
+                ycb_spec = {
+                    'ycb_name': ycb_name,
+                    'instance_name': instance_name,
+                    'pos': pos
+                }
+            
+            # Now treating ycb_spec as a dict
+            ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
             
             # Check if YCB object exists
             xml_path = constants.YCB_DATASET_PATH / f"{ycb_name}.xml"
             if xml_path.exists():
-                normalized_ycb_objects.append({
-                    'ycb_name': ycb_name,
-                    'instance_name': instance_name,
-                    'pos': pos,
-                })
+                normalized_ycb_objects.append(ycb_spec)
             else:
                 logger.warning(f"YCB object '{ycb_name}' not found at {xml_path}")
 
@@ -317,12 +322,17 @@ if __name__ == '__main__':
             },
         ]
         
+        # Corrected: Create a list of Dictionaries for YCB objects
         available_ycb = get_available_ycb_objects()
-        ycb_to_load = ['apple', 'mug'] if all(o in available_ycb for o in ['apple', 'mug']) else []
+        ycb_to_load = []
+        for name in ['apple', 'mug']:
+            if name in available_ycb:
+                # Use helper to create proper dict spec
+                ycb_to_load.append(create_ycb_object(name))
         
         env = make_dual_arm_env(
             custom_objects=custom_objects,
-            ycb_objects=ycb_to_load,
+            ycb_objects=ycb_to_load, # Passing List[Dict] as expected
         )
         
         logger.info("Dual-arm handoff environment created successfully.")

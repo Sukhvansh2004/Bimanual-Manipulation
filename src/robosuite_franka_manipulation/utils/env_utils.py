@@ -139,7 +139,7 @@ def create_ycb_object(
         'type': 'ycb',
         'ycb_name': ycb_name,
         'name': instance_name,
-        'pos': position if position else constants.DEFAULT_TABLE_CENTER.copy(),
+        'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
     }
 
 
@@ -169,7 +169,7 @@ def create_primitive_object(
         'type': obj_type,
         'name': name,
         'size': size,
-        'pos': position if position else constants.DEFAULT_TABLE_CENTER.copy(),
+        'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
         'rgba': rgba if rgba else [0.5, 0.5, 0.5, 1.0],
         'density': density,
     }

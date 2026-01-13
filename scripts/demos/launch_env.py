@@ -154,7 +154,7 @@ def run_random_actions(env, num_steps=200, render=True):
     action_dim = env.action_dim
     
     try:
-        for step in range(num_steps):
+        for _ in range(num_steps):
             action = np.random.uniform(-0.3, 0.3, action_dim)
             
             # Zero out gripper actions
@@ -163,7 +163,7 @@ def run_random_actions(env, num_steps=200, render=True):
             if action_dim >= 14:
                 action[13] = 0
             
-            obs, reward, done, info = env.step(action)
+            env.step(action)
             
             if render:
                 env.render()
@@ -243,9 +243,7 @@ def main():
     except KeyboardInterrupt:
         print("\nExiting...")
     except Exception as e:
-        logger.error(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error: {e}", exc_info=True)
     finally:
         if env is not None:
             env.close()
