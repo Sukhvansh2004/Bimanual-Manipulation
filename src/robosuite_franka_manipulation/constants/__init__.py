@@ -198,3 +198,10 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
     """Get full path to GraspGen config for a gripper type."""
     config_name = GRASPGEN_CONFIG_TEMPLATE.format(gripper_type=gripper_type)
     return get_project_root() / GRASPGEN_MODELS_DIR / config_name
+
+# =============================================================================
+# PATHs
+# =============================================================================
+
+# Get the path to the worlds folder
+WORLDS_DIR = get_project_root() / "worlds"
