@@ -264,6 +264,23 @@ class DualArmEnvironmentWrapper:
         """Render the environment."""
         return self._env.render()
     
+    def set_camera_free(self) -> None:
+        """
+        Set the viewer camera to 'Free' mode for manual control.
+        
+        This allows the user to freely rotate and pan the camera view
+        using mouse controls instead of being locked to a fixed camera.
+        Must be called after the first render() to ensure viewer is initialized.
+        """
+        if hasattr(self._env, 'viewer') and self._env.viewer is not None:
+            # In robosuite's viewer, set_camera(-1) sets free camera mode
+            # camera_id < 0 means free camera, >= 0 means fixed camera
+            try:
+                self._env.viewer.set_camera(-1)
+                logger.debug("Viewer camera set to Free mode")
+            except Exception as e:
+                logger.debug(f"Could not set camera to free mode: {e}")
+    
     def close(self) -> None:
         """Close the environment."""
         self._env.close()
@@ -273,7 +290,7 @@ class DualArmEnvironmentWrapper:
         return getattr(self._env, name)
     
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in ('_env', '_custom_objects', '_object_names'):
+        if name in ('_env', '_custom_objects', '_ycb_objects', '_object_names'):
             super().__setattr__(name, value)
         else:
             setattr(self._env, name, value)
@@ -359,11 +376,12 @@ def make_dual_arm_env(
             if isinstance(ycb_spec, str):
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
-                pos = [0.0, 0.1 * i, 0.85]
+                # Default position on table: x offset based on index, y at table center, z above table
+                pos = [-0.1 + 0.1 * i, -0.45, 0.85]
             else:
                 ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
                 instance_name = ycb_spec.get('name', f"{ycb_name}_{i}")
-                pos = ycb_spec.get('pos', [0.0, 0.1 * i, 0.85])
+                pos = ycb_spec.get('pos', [-0.1 + 0.1 * i, -0.45, 0.85])
             
             # Check if YCB object exists
             xml_path = constants.YCB_DATASET_PATH / f"{ycb_name}.xml"

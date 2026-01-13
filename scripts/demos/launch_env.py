@@ -271,12 +271,14 @@ Examples:
         print(f"Adding {len(custom_objects)} custom primitive objects...")
     
     if args.ycb:
-        ycb_objects = args.ycb
-        print(f"Adding YCB objects: {ycb_objects}")
+        # Convert YCB names to proper object specs with table positions
+        ycb_objects = get_sample_ycb_objects(args.ycb)
+        print(f"Adding YCB objects: {args.ycb}")
     
     if args.ycb_all > 0:
         available = get_available_ycb_objects()
-        ycb_objects.extend(available[:args.ycb_all])
+        additional_ycb = get_sample_ycb_objects(available[:args.ycb_all])
+        ycb_objects.extend(additional_ycb)
         print(f"Adding first {min(args.ycb_all, len(available))} YCB objects...")
     
     env = None
@@ -292,6 +294,11 @@ Examples:
         
         print("Resetting environment...")
         obs = env.reset()
+        
+        # Do initial render to initialize the viewer, then set camera to free mode
+        if not args.no_render and not args.headless:
+            env.render()
+            env.set_camera_free()
         
         # Print environment information
         print_env_info(env)
