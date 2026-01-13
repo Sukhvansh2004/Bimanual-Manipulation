@@ -86,13 +86,17 @@ def print_env_info(env):
 
 
 def get_sample_custom_objects():
-    """Return a list of sample custom primitive objects to add to the environment."""
+    """
+    Return a list of sample custom primitive objects to add to the environment.
+    Objects are positioned on the table (table center is at y=-0.45, surface z≈0.8).
+    """
+    # Table center is at (0, -0.45), surface at z ≈ 0.8
     return [
         create_primitive_object(
             obj_type='box',
             name='red_block',
             size=[0.04, 0.04, 0.04],  # 4cm cube
-            position=[0.0, 0.0, 0.85],
+            position=[0.0, -0.45, 0.85],  # Center of table
             rgba=[0.9, 0.1, 0.1, 1.0],  # Red
             density=500,
         ),
@@ -100,7 +104,7 @@ def get_sample_custom_objects():
             obj_type='cylinder',
             name='green_cylinder',
             size=[0.025, 0.04],  # radius=2.5cm, half-height=4cm
-            position=[0.1, 0.15, 0.85],
+            position=[0.15, -0.45, 0.85],  # Right side of table
             rgba=[0.1, 0.9, 0.1, 1.0],  # Green
             density=800,
         ),
@@ -108,7 +112,7 @@ def get_sample_custom_objects():
             obj_type='ball',
             name='blue_sphere',
             size=[0.03],  # radius=3cm
-            position=[-0.1, 0.1, 0.85],
+            position=[-0.15, -0.45, 0.85],  # Left side of table
             rgba=[0.1, 0.1, 0.9, 1.0],  # Blue
             density=600,
         ),
@@ -145,8 +149,8 @@ def get_sample_ycb_objects(ycb_names=None):
             print(f"Warning: YCB object '{name}' not found. Skipping.")
             continue
         
-        # Position objects in a row
-        pos = [0.0 + i * 0.1, 0.15, 0.85]
+        # Position objects in a row on the table (table at y=-0.45, surface z≈0.8)
+        pos = [-0.1 + i * 0.1, -0.45, 0.85]
         objects.append(create_ycb_object(name, position=pos))
     
     return objects

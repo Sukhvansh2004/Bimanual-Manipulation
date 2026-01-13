@@ -215,11 +215,11 @@ class DualArmManipulationSystem:
         logger.info("\n3. Preparing teleoperation...")
         self.teleop = KeyboardTeleop(self.env)
         if start_teleop_thread:
-            self.teleop_thread = threading.Thread(target=self._run_teleop_loop, daemon=True)
+            self.teleop_thread = threading.Thread(target=self.run_teleop, daemon=True)
             self.teleop_thread.start()
             logger.info("   ✓ Teleoperation started (thread)")
         else:
-            logger.info("   Teleoperation ready. Run system.run_teleop_blocking() to start in main thread.")
+            logger.info("   Teleoperation ready. Run system.run_teleop() to start.")
         
         self.running = True
         
@@ -301,43 +301,86 @@ class DualArmManipulationSystem:
             logger.error(f"Failed to start services: {e}")
             raise
     
-    def _run_teleop_loop(self):
-        """Run teleoperation in separate thread."""
+    def _run_teleop(self):
+        """
+        Run teleoperation loop.
+        
+        Args:
+            blocking: If True, runs in current thread (for main thread usage).
+                      If False, intended to be called from a daemon thread.
+        """
         try:
-            # Add keypress callback
             assert self.env is not None, "Environment not initialized"
             assert self.teleop is not None, "Teleop not initialized"
+            
+            # Add keypress callback for robosuite device
             self.env.viewer.add_keypress_callback(self.teleop.device.on_press)  # type: ignore[union-attr]
             
+            # Handle quit in the viewer callback so 'q' works reliably when the
+            # mujoco window has focus - triggers immediate shutdown of services
+            def _on_viewer_keypress(key: Any) -> None:
+                if self._is_quit_key(key):
+                    self.request_shutdown(reason="q pressed")
+
+            self.env.viewer.add_keypress_callback(_on_viewer_keypress)
+            
             # Run teleoperation guarded by env_lock
-            with self.env_lock:
-                pass  # ensure lock exists
             self.teleop.run(env_lock=self.env_lock)
             
         except Exception as e:
             logger.error(f"Teleoperation error: {e}")
+        finally:
+            # Ensure teleop resources are cleaned up
+            self._stop_teleop()
 
-    def run_teleop_blocking(self):
-        """Run teleoperation in the current (main) thread with env lock."""
-        # Add keypress callback
-        assert self.env is not None, "Environment not initialized"
-        assert self.teleop is not None, "Teleop not initialized"
-        self.env.viewer.add_keypress_callback(self.teleop.device.on_press)
-
-        # Also handle quit in the viewer callback so 'q' works reliably when the
-        # mujoco window has focus and we can shut down services immediately.
-        def _on_viewer_keypress(key: Any) -> None:
-            if self._is_quit_key(key):
-                # Stop everything immediately (services + viewer)
-                self.request_shutdown(reason="q pressed")
-
-        try:
-            self.env.viewer.add_keypress_callback(_on_viewer_keypress)
-        except Exception:
-            # Viewer implementations differ; teleop still listens via pynput.
-            pass
-        self.teleop.run(env_lock=self.env_lock)
+    def run_teleop(self, blocking: bool = True):
+        """
+        Public method to run teleoperation.
+        
+        Args:
+            blocking: If True (default), runs in current thread.
+                      If False, starts in a daemon thread and returns immediately.
+        """
+        if blocking:
+            self._run_teleop()
+        else:
+            self.teleop_thread = threading.Thread(target=self._run_teleop, daemon=True)
+            self.teleop_thread.start()
     
+    def _stop_teleop(self):
+        """Stop teleoperation and clean up keyboard/pynput resources."""
+        if self.teleop is None:
+            return
+            
+        try:
+            # Signal teleop to exit
+            self.teleop.exit_pressed = True
+            self.teleop.running = False
+            
+            # Stop pynput keyboard listener
+            if hasattr(self.teleop, "listener") and self.teleop.listener is not None:
+                try:
+                    self.teleop.listener.stop()
+                    # Join to ensure thread terminates
+                    if self.teleop.listener.is_alive():
+                        self.teleop.listener.join(timeout=0.5)
+                except Exception as e:
+                    logger.debug(f"Error stopping pynput listener: {e}")
+            
+            # Stop robosuite Keyboard device if it has cleanup
+            if hasattr(self.teleop, "device"):
+                device = self.teleop.device
+                if hasattr(device, "listener") and device.listener is not None:
+                    try:
+                        device.listener.stop()
+                        if device.listener.is_alive():
+                            device.listener.join(timeout=0.5)
+                    except Exception as e:
+                        logger.debug(f"Error stopping keyboard device listener: {e}")
+                        
+        except Exception as e:
+            logger.debug(f"Error during teleop cleanup: {e}")
+
     def stop(self):
         """Stop the system."""
         with self._stop_lock:
@@ -346,15 +389,8 @@ class DualArmManipulationSystem:
             
         logger.info("\nStopping system...")
         
-        # Stop teleop
-        if self.teleop:
-            try:
-                self.teleop.exit_pressed = True
-                self.teleop.running = False
-                if hasattr(self.teleop, "listener") and self.teleop.listener is not None:
-                    self.teleop.listener.stop()
-            except Exception:
-                pass
+        # Stop teleop and keyboard/pynput resources
+        self._stop_teleop()
         
         # Stop services
         if self.eef_service:
@@ -578,7 +614,7 @@ Press Ctrl+D or type exit() to quit
         t.start()
 
         # Run teleoperation in main thread to ensure viewer renders
-        system.run_teleop_blocking()
+        system.run_teleop(blocking=True)
 
     except KeyboardInterrupt:
         logger.info("\nInterrupted by user")

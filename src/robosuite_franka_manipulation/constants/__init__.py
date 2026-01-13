@@ -196,8 +196,9 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
     return get_project_root() / GRASPGEN_MODELS_DIR / config_name
 
 # =============================================================================
-# YCB Dataset Path Configuration
+# YCB Dataset and Custom Objects Configuration
 # =============================================================================
 
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
+DEFAULT_TABLE_CENTER = [0.0, -0.45, 0.82]

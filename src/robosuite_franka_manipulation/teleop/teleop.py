@@ -48,7 +48,6 @@ class KeyboardTeleop:
         try:
             if hasattr(key, 'char') and key.char == 'q':
                 self.exit_pressed = True
-                self.running = False
         except AttributeError:
             pass
 
@@ -63,7 +62,7 @@ class KeyboardTeleop:
             if env_lock:
                 env_lock.acquire()
             try:
-                obs = self.env.reset()
+                self.env.reset()
                 self.env.render()
             finally:
                 if env_lock:
@@ -113,4 +112,5 @@ class KeyboardTeleop:
                     break
 
         self.listener.stop()
+        self.device.listener.stop()
         logger.info("Teleoperation ended.")

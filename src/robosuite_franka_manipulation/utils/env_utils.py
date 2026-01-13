@@ -124,7 +124,7 @@ def create_ycb_object(
     Args:
         ycb_name: Name of the YCB object (e.g., 'apple', 'mug', 'banana')
         instance_name: Optional unique instance name (defaults to ycb_name)
-        position: Optional [x, y, z] position for the object
+        position: Optional [x, y, z] position for the object (default: on table)
     
     Returns:
         Dictionary with object specification
@@ -136,7 +136,7 @@ def create_ycb_object(
         'type': 'ycb',
         'ycb_name': ycb_name,
         'name': instance_name,
-        'pos': position if position else [0.0, 0.0, 0.85],
+        'pos': position if position else constants.DEFAULT_TABLE_CENTER.copy(),
     }
 
 
@@ -155,7 +155,7 @@ def create_primitive_object(
         obj_type: Type of primitive ('box', 'cylinder', 'ball', 'capsule')
         name: Unique name for the object
         size: Size parameters (varies by type)
-        position: Optional [x, y, z] position for the object
+        position: Optional [x, y, z] position for the object (default: on table)
         rgba: Optional [r, g, b, a] color values
         density: Object density in kg/m³
     
@@ -166,7 +166,7 @@ def create_primitive_object(
         'type': obj_type,
         'name': name,
         'size': size,
-        'pos': position if position else [0.0, 0.0, 0.85],
+        'pos': position if position else constants.DEFAULT_TABLE_CENTER.copy(),
         'rgba': rgba if rgba else [0.5, 0.5, 0.5, 1.0],
         'density': density,
     }
