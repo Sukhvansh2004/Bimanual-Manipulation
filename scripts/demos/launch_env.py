@@ -31,7 +31,8 @@ from robosuite_franka_manipulation.constants import WORLDS_DIR
 
 from robosuite_franka_manipulation.environments import (
     make_dual_arm_env,
-    make_custom_world_env
+    make_custom_world_env,
+    CustomWorldEnvironment
 )
 
 def print_banner(title: str):
@@ -45,32 +46,45 @@ def print_env_info(env):
     """Print detailed information about the environment."""
     print_banner("ENVIRONMENT INFORMATION")
     
+    # Check if it's a custom world environment
+    is_custom = isinstance(env, CustomWorldEnvironment)
+    
     # Basic env info
     print(f"\n[Environment]")
     print(f"  Name: {env.name if hasattr(env, 'name') else 'Unknown'}")
+    print(f"  Type: {'CustomWorldEnvironment' if is_custom else 'RobosuiteEnvironment'}")
     print(f"  Control Frequency: {env.control_freq} Hz")
     print(f"  Horizon: {env.horizon} steps")
     print(f"  Action Dimension: {env.action_dim}")
     
-    # Robot info
-    if hasattr(env, 'robots'):
-        print(f"\n[Robots]")
-        print(f"  Number of robots: {len(env.robots)}")
-        for i, robot in enumerate(env.robots):
-            print(f"\n  Robot {i}:")
-            print(f"    Name: {robot.name}")
-            print(f"    Model: {robot.robot_model.name}")
-            
-            # EEF info
-            eef_name = robot.robot_model.eef_name.get("right", "unknown")
-            print(f"    EEF Name: {eef_name}")
-            
-            try:
-                pose = robot.pose_in_base_from_name(eef_name)
-                pos = pose[:3, 3]
-                print(f"    EEF Position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
-            except Exception as e:
-                print(f"    EEF Position: (unavailable)")
+    if is_custom:
+        # Custom world specific info
+        print(f"\n[MuJoCo Model]")
+        print(f"  Bodies: {env.model.nbody}")
+        print(f"  Geoms: {env.model.ngeom}")
+        print(f"  Cameras: {env.model.ncam}")
+        print(f"  Actuators: {env.model.nu}")
+        print(f"  World XML: {env.world_xml_path}")
+    else:
+        # Robot info for robosuite environments
+        if hasattr(env, 'robots'):
+            print(f"\n[Robots]")
+            print(f"  Number of robots: {len(env.robots)}")
+            for i, robot in enumerate(env.robots):
+                print(f"\n  Robot {i}:")
+                print(f"    Name: {robot.name}")
+                print(f"    Model: {robot.robot_model.name}")
+                
+                # EEF info
+                eef_name = robot.robot_model.eef_name.get("right", "unknown")
+                print(f"    EEF Name: {eef_name}")
+                
+                try:
+                    pose = robot.pose_in_base_from_name(eef_name)
+                    pos = pose[:3, 3]
+                    print(f"    EEF Position: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+                except Exception as e:
+                    print(f"    EEF Position: (unavailable)")
     
     # Camera info
     if hasattr(env, 'camera_names'):
@@ -78,8 +92,12 @@ def print_env_info(env):
         print(f"  Names: {env.camera_names}")
         if hasattr(env, 'camera_heights'):
             print(f"  Heights: {env.camera_heights}")
+        elif hasattr(env, 'camera_height'):
+            print(f"  Height: {env.camera_height}")
         if hasattr(env, 'camera_widths'):
             print(f"  Widths: {env.camera_widths}")
+        elif hasattr(env, 'camera_width'):
+            print(f"  Width: {env.camera_width}")
     
     print()
 
@@ -219,16 +237,13 @@ def main():
         # Determine what to create
         if args.world:
             print(f"\n  Custom world: {args.world}")
-            print("  Note: Custom world loading is experimental")
-            # For now, just use the standard env with a note about the world
             env = make_custom_world_env(args.world)
-            print("  (Using standard TwoArmHandover as base)")
+            print("  ✓ Custom world environment created!")
         else:
             print("\n  Using standard TwoArmHandover environment")
             env = make_dual_arm_env()
-        
-        # Wrap for visualization
-        env = VisualizationWrapper(env)
+            # Wrap for visualization (only for robosuite environments)
+            env = VisualizationWrapper(env)
         
         # Reset environment
         print("\n  Resetting environment...")

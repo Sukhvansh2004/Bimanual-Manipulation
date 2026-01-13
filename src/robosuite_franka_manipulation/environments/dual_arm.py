@@ -5,8 +5,7 @@ from typing import Any, List, Tuple, Union
 
 import robosuite as suite
 from robosuite.controllers import load_part_controller_config
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+import mujoco
 
 from robosuite_franka_manipulation import constants
 
@@ -19,7 +18,7 @@ class DualArmEnvironmentWrapper:
     Automatically sets camera intrinsics on creation and after reset.
     """
     
-    def __init__(self, env: Union[MujocoEnv, Wrapper]):
+    def __init__(self, env: Any):
         self._env = env
         self._set_intrinsics()
     
@@ -62,30 +61,28 @@ class DualArmEnvironmentWrapper:
             setattr(self._env, name, value)
 
 
-class CustomWorldEnvironment(MujocoEnv):
+class CustomWorldEnvironment:
     """
     A custom MuJoCo environment that loads from a user-specified XML world file.
     
     This environment can load any MuJoCo XML file from the worlds folder and provides
     basic simulation capabilities (stepping, rendering, etc.) without requiring
     robosuite robot controllers.
+    
+    This is a standalone environment that doesn't inherit from robosuite's MujocoEnv,
+    allowing direct loading of custom MuJoCo XML files.
     """
     
     def __init__(
         self,
         world_xml_path: str,
         has_renderer: bool = True,
-        has_offscreen_renderer: bool = True,
-        render_camera: str = "frontview",
-        use_camera_obs: bool = True,
+        render_camera: str = "agentview",
         camera_names: Union[str, List[str]] = "agentview",
-        camera_heights: Union[int, List[int]] = 480,
-        camera_widths: Union[int, List[int]] = 640,
-        camera_depths: bool = True,
+        camera_height: int = 480,
+        camera_width: int = 640,
         control_freq: int = 20,
         horizon: int = 1000,
-        ignore_done: bool = True,
-        renderer: str = "mjviewer",
     ):
         """
         Initialize a custom world environment.
@@ -93,49 +90,48 @@ class CustomWorldEnvironment(MujocoEnv):
         Args:
             world_xml_path: Path to the MuJoCo XML world file (relative to worlds folder or absolute)
             has_renderer: Whether to enable onscreen rendering
-            has_offscreen_renderer: Whether to enable offscreen rendering
             render_camera: Camera name for rendering
-            use_camera_obs: Whether to use camera observations
             camera_names: Name(s) of camera(s) for observations
-            camera_heights: Height(s) of camera images
-            camera_widths: Width(s) of camera images  
-            camera_depths: Whether to include depth images
+            camera_height: Height of camera images
+            camera_width: Width of camera images
             control_freq: Control frequency in Hz
             horizon: Maximum episode length
-            ignore_done: Whether to ignore episode termination
-            renderer: Renderer type ('mjviewer' or 'mujoco')
         """
-        self.world_xml_path = self._resolve_world_path(world_xml_path)
+        import mujoco
+        import mujoco.viewer
         
-        # Ensure camera_names and dimensions are lists
+        self.world_xml_path = self._resolve_world_path(world_xml_path)
+        self.has_renderer = has_renderer
+        self.render_camera = render_camera
+        self.control_freq = control_freq
+        self.horizon = horizon
+        self.camera_height = camera_height
+        self.camera_width = camera_width
+        
+        # Ensure camera_names is a list
         if isinstance(camera_names, str):
             camera_names = [camera_names]
-        if isinstance(camera_heights, int):
-            camera_heights = [camera_heights] * len(camera_names)
-        if isinstance(camera_widths, int):
-            camera_widths = [camera_widths] * len(camera_names)
-            
-        # Store for property access
-        self._camera_names = camera_names
-        self._camera_heights = camera_heights
-        self._camera_widths = camera_widths
-        self._camera_depths = camera_depths
-        self._use_camera_obs = use_camera_obs
+        self.camera_names = camera_names
         
-        super().__init__(
-            has_renderer=has_renderer,
-            has_offscreen_renderer=has_offscreen_renderer,
-            render_camera=render_camera,
-            use_camera_obs=use_camera_obs,
-            camera_names=camera_names,
-            camera_heights=camera_heights,
-            camera_widths=camera_widths,
-            camera_depths=camera_depths,
-            control_freq=control_freq,
-            horizon=horizon,
-            ignore_done=ignore_done,
-            renderer=renderer,
-        )
+        # Load the MuJoCo model
+        logger.info(f"Loading custom world from: {self.world_xml_path}")
+        self.model = mujoco.MjModel.from_xml_path(str(self.world_xml_path))
+        self.data = mujoco.MjData(self.model)
+        
+        # Viewer for rendering
+        self._viewer = None
+        self._step_count = 0
+        
+        # Compute timestep
+        self.timestep = self.model.opt.timestep
+        self.steps_per_action = int(1.0 / (self.control_freq * self.timestep))
+        
+        logger.info(f"Custom world environment initialized:")
+        logger.info(f"  - Bodies: {self.model.nbody}")
+        logger.info(f"  - Geoms: {self.model.ngeom}")
+        logger.info(f"  - Cameras: {self.model.ncam}")
+        logger.info(f"  - Control freq: {self.control_freq} Hz")
+        logger.info(f"  - Timestep: {self.timestep} s")
     
     def _resolve_world_path(self, world_xml_path: str) -> Path:
         """Resolve the world XML path to an absolute path."""
@@ -159,111 +155,135 @@ class CustomWorldEnvironment(MujocoEnv):
             f"Searched in: {constants.WORLDS_DIR}, and current directory"
         )
     
-    def _load_model(self):
-        """Load the MuJoCo model from the world XML file."""
-        from robosuite.models import MujocoWorldBase
+    def reset(self) -> dict:
+        """Reset the environment."""
+        import mujoco
         
-        # Load base world and merge with our custom XML
-        self.model = MujocoWorldBase()
+        mujoco.mj_resetData(self.model, self.data)
+        self._step_count = 0
         
-        # Load and merge the custom XML
-        self._load_custom_world()
+        # Step once to settle
+        mujoco.mj_step(self.model, self.data)
         
-    def _load_custom_world(self):
-        """Load the custom world XML and merge with base model."""
-        # Read the XML file
-        with open(self.world_xml_path, 'r') as f:
-            custom_xml = f.read()
+        return self._get_obs()
+    
+    def step(self, action: np.ndarray = None):
+        """
+        Step the environment.
         
-        # Merge into the world model by adding to the worldbody
-        # We'll use a simple approach: load the XML and add its contents
-        logger.info(f"Loading custom world from: {self.world_xml_path}")
-        self.model.merge_assets(self._parse_xml_assets(custom_xml))
-        self.model.worldbody.append(self._parse_xml_worldbody(custom_xml))
+        Args:
+            action: Control action (optional, can be None for passive simulation)
+            
+        Returns:
+            obs: Observation dictionary
+            reward: Reward (always 0 for this basic environment)
+            done: Whether episode is done
+            info: Additional info dictionary
+        """
+        
+        # Apply action if provided and we have actuators
+        if action is not None and self.model.nu > 0:
+            self.data.ctrl[:] = action[:self.model.nu]
+        
+        # Step simulation
+        for _ in range(self.steps_per_action):
+            mujoco.mj_step(self.model, self.data)
+        
+        self._step_count += 1
+        
+        obs = self._get_obs()
+        reward = 0.0
+        done = self._step_count >= self.horizon
+        info = {}
+        
+        return obs, reward, done, info
     
-    def _parse_xml_assets(self, xml_str: str) -> Any:
-        """Parse assets from XML string (placeholder - override if needed)."""
-        # This is a simplified implementation
-        # For complex assets, you may need to parse and add them properly
-        return None
+    def _get_obs(self) -> dict:
+        """Get observation dictionary."""
+        obs = {
+            "time": np.array([self.data.time]),
+            "qpos": self.data.qpos.copy(),
+            "qvel": self.data.qvel.copy(),
+        }
+        return obs
     
-    def _parse_xml_worldbody(self, xml_str: str) -> Any:
-        """Parse worldbody from XML string (placeholder - override if needed)."""
-        # This is a simplified implementation
-        return None
-
-    def _setup_references(self):
-        """Set up references to important objects in the simulation."""
-        super()._setup_references()
-        # Additional setup can be done here
+    def render(self):
+        """Render the environment."""
+        import mujoco.viewer
+        
+        if self.has_renderer:
+            if self._viewer is None:
+                self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            self._viewer.sync()
     
-    def _setup_observables(self):
-        """Set up observable functions."""
-        super()._setup_observables()
+    def close(self):
+        """Close the environment."""
+        if self._viewer is not None:
+            self._viewer.close()
+            self._viewer = None
     
-    def _reset_internal(self):
-        """Reset internal state."""
-        super()._reset_internal()
-    
-    def reward(self, action=None):
-        """Calculate reward (returns 0 for basic environment)."""
-        return 0.0
-    
-    def _check_success(self):
-        """Check if task succeeded (always False for basic environment)."""
-        return False
+    @property
+    def action_dim(self):
+        """Return action dimension (number of actuators)."""
+        return max(1, self.model.nu)
     
     @property
     def action_spec(self):
         """Return action specification."""
-        low = np.array([-1.0])
-        high = np.array([1.0])
+        low = np.full(self.action_dim, -1.0)
+        high = np.full(self.action_dim, 1.0)
         return low, high
     
     @property
-    def action_dim(self):
-        """Return action dimension."""
-        return 1
+    def name(self):
+        """Return environment name."""
+        return "CustomWorld"
 
 
 def make_custom_world_env(
-    world_xml_path: str
-) -> "DualArmEnvironmentWrapper":
+    world_xml_path: str,
+    has_renderer: bool = constants.DEFAULT_HAS_RENDERER,
+    render_camera: str = constants.DEFAULT_CAMERA_NAME,
+    camera_names: Union[str, List[str]] = constants.DEFAULT_CAMERA_NAME,
+    camera_height: int = constants.DEFAULT_CAMERA_HEIGHT,
+    camera_width: int = constants.DEFAULT_CAMERA_WIDTH,
+    control_freq: int = 20,
+    horizon: int = 1000,
+) -> CustomWorldEnvironment:
     """
     Create an environment from a custom MuJoCo world XML file.
     
     This is a simpler factory function that creates a basic MuJoCo environment
-    from a custom XML file. For full robosuite dual-arm functionality with 
-    controllers, use make_dual_arm_env instead.
+    from a custom XML file. This environment directly loads the MuJoCo XML
+    without using robosuite's environment framework.
+    
+    For full robosuite dual-arm functionality with controllers, use 
+    make_dual_arm_env instead.
     
     Args:
         world_xml_path: Path to the world XML file (relative to worlds folder or absolute)
         has_renderer: Enable onscreen rendering
-        has_offscreen_renderer: Enable offscreen rendering  
-        use_camera_obs: Include camera observations
+        render_camera: Camera name for rendering
         camera_names: Camera name(s) for observations
-        camera_heights: Height(s) of camera images
-        camera_widths: Width(s) of camera images
-        camera_depths: Include depth images
+        camera_height: Height of camera images
+        camera_width: Width of camera images
         control_freq: Control frequency in Hz
         horizon: Maximum episode length
         
     Returns:
-        DualArmEnvironmentWrapper wrapping the custom environment
+        CustomWorldEnvironment instance
     """
     env = CustomWorldEnvironment(
         world_xml_path=world_xml_path,
-        has_renderer= constants.DEFAULT_HAS_RENDERER,
-        has_offscreen_renderer= constants.DEFAULT_HAS_OFFSCREEN_RENDERER,
-        use_camera_obs= constants.DEFAULT_USE_CAMERA_OBS,
-        camera_names= constants.DEFAULT_CAMERA_NAME,
-        camera_heights= constants.DEFAULT_CAMERA_HEIGHT,
-        camera_widths= constants.DEFAULT_CAMERA_WIDTH,
-        camera_depths= constants.DEFAULT_CAMERA_DEPTH,
-        control_freq= constants.DEFAULT_CONTROL_FREQ,
-        horizon= constants.DEFAULT_HORIZON,
+        has_renderer=has_renderer,
+        render_camera=render_camera,
+        camera_names=camera_names,
+        camera_height=camera_height,
+        camera_width=camera_width,
+        control_freq=control_freq,
+        horizon=horizon,
     )
-    return DualArmEnvironmentWrapper(env)
+    return env
 
 
 def make_dual_arm_env() -> "DualArmEnvironmentWrapper":
