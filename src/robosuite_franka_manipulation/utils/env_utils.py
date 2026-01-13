@@ -1,12 +1,10 @@
 import time
 import logging
-import os
 import numpy as np
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from robosuite.models.objects import MujocoXMLObject
-
 from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
@@ -28,6 +26,7 @@ def get_available_ycb_objects() -> List[str]:
         return []
     
     objects = []
+    # Search for XML files in the YCB directory
     for xml_file in constants.YCB_DATASET_PATH.glob("*.xml"):
         objects.append(xml_file.stem)
     return sorted(objects)
@@ -78,6 +77,10 @@ class YCBObject(MujocoXMLObject):
         
         # Default joint configuration (free joint for manipulation)
         if joints is None:
+            # "default" joint in robosuite automatically adds a freejoint
+            # However, for MujocoXMLObject we often pass explicit dicts if needed.
+            # Passing "default" to the parent constructor is also supported by some classes,
+            # but providing the dict here is safer for XML objects.
             joints = [{"type": "free", "damping": "0.0005"}]
         
         super().__init__(
@@ -92,10 +95,10 @@ class YCBObject(MujocoXMLObject):
     def bottom_offset(self):
         """Return the bottom offset of the object for placement."""
         # Get the bounding box from geoms and compute bottom offset
-        bottom_site = self.worldbody.find("./body/site[@name='{}bottom_site']".format(self.naming_prefix))
+        bottom_site = self.worldbody.find(f"./body/site[@name='{self.naming_prefix}bottom_site']")
         if bottom_site is not None:
             return np.array([0, 0, float(bottom_site.get("pos", "0 0 0").split()[2])])
-        # Default: assume object center is at origin
+        # Default: assume object center is at origin, offset slightly
         return np.array([0, 0, -0.02])
     
     @property
@@ -172,77 +175,20 @@ def create_primitive_object(
     }
 
 
-def generate_object_xml(obj_spec: Dict[str, Any]) -> str:
-    """
-    Generate MuJoCo XML snippet for a primitive object.
-    
-    Args:
-        obj_spec: Object specification dictionary
-        
-    Returns:
-        XML string for the object
-    """
-    obj_type = obj_spec.get('type', 'box')
-    name = obj_spec.get('name', 'custom_object')
-    size = obj_spec.get('size', [0.05, 0.05, 0.05])
-    pos = obj_spec.get('pos', [0.0, 0.0, 0.85])
-    rgba = obj_spec.get('rgba', [0.5, 0.5, 0.5, 1.0])
-    density = obj_spec.get('density', 500.0)
-    
-    pos_str = ' '.join(map(str, pos))
-    rgba_str = ' '.join(map(str, rgba))
-    
-    if obj_type == 'box':
-        size_str = ' '.join(map(str, [s/2 for s in size[:3]]))  # MuJoCo uses half-sizes
-        geom_type = 'box'
-    elif obj_type == 'cylinder':
-        size_str = ' '.join(map(str, size[:2]))  # radius, half-height
-        geom_type = 'cylinder'
-    elif obj_type == 'ball' or obj_type == 'sphere':
-        size_str = str(size[0])  # radius
-        geom_type = 'sphere'
-    elif obj_type == 'capsule':
-        size_str = ' '.join(map(str, size[:2]))  # radius, half-length
-        geom_type = 'capsule'
-    else:
-        logger.warning(f"Unknown object type: {obj_type}, defaulting to box")
-        size_str = ' '.join(map(str, [s/2 for s in size[:3]]))
-        geom_type = 'box'
-    
-    xml = f'''
-    <body name="{name}" pos="{pos_str}">
-        <freejoint name="{name}_joint"/>
-        <geom name="{name}_geom" type="{geom_type}" size="{size_str}" 
-              rgba="{rgba_str}" density="{density}" 
-              contype="1" conaffinity="1"
-              friction="1 0.005 0.0001" condim="4"/>
-        <site name="{name}_site" pos="0 0 0" size="0.002" rgba="1 0 0 0"/>
-    </body>
-    '''
-    return xml
-
-
 # =============================================================================
 # Environment Step Utilities
 # =============================================================================
 
 def safe_env_step(env: Any, action: Any, retries: int = 3, delay: float = 0.01):
     """Safely call ``env.step(action)`` and retry on intermittent
-    RuntimeError: "dictionary changed size during iteration" which can
-    occasionally arise inside robosuite's internal robot control logic.
-
-    This keeps the retry/mitigation inside our codebase (no external
-    patching of robosuite). The function makes a defensive copy of the
-    action before passing it to the environment.
-    """
+    RuntimeError: "dictionary changed size during iteration"."""
+    
     action_copy = None
     try:
-        # Defensive copy for numpy arrays and array-like objects
-        import numpy as _np  # local import to avoid top-level dependency surprises
+        import numpy as _np
         if isinstance(action, _np.ndarray):
             action_copy = _np.array(action, copy=True)
         else:
-            # Fallback: try to create a numpy copy, otherwise use the original
             try:
                 action_copy = _np.array(action, copy=True)
             except Exception:
@@ -260,15 +206,12 @@ def safe_env_step(env: Any, action: Any, retries: int = 3, delay: float = 0.01):
             if "dictionary changed size during iteration" in msg:
                 logger.warning(
                     "Detected intermittent RuntimeError in env.step(): '%s' (attempt %d/%d). Retrying...",
-                    msg,
-                    attempt + 1,
-                    retries,
+                    msg, attempt + 1, retries,
                 )
                 time.sleep(delay * (attempt + 1))
                 continue
-            # Re-raise non-matching runtime errors
             raise
-    # Final attempt (let it raise if it still fails)
+    
     if last_exception is not None:
         logger.error("Final attempt to call env.step still failed: %s", last_exception)
     return env.step(action_copy)

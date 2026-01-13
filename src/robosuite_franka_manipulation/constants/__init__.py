@@ -140,7 +140,6 @@ DEFAULT_HORIZON = 1000  # steps
 DEFAULT_CAMERA_DEPTH = True
 
 # Environment setup
-DEFAULT_ENV_NAME = 'TwoArmHandover'
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = 'default'
 DEFAULT_ENV_CONFIG = 'opposed'

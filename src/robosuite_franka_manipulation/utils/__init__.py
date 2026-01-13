@@ -57,7 +57,6 @@ from robosuite_franka_manipulation.utils.env_utils import (
     # Object specification helpers
     create_ycb_object,
     create_primitive_object,
-    generate_object_xml,
 )
 
 from robosuite_franka_manipulation.utils.primitives import (
@@ -105,7 +104,6 @@ __all__ = [
     # Object specification helpers
     'create_ycb_object',
     'create_primitive_object',
-    'generate_object_xml',
     # Motion primitives
     'compute_approach_pose',
     'compute_retreat_pose',
