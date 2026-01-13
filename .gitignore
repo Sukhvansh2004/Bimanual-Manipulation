@@ -3,3 +3,4 @@
 .vscode**
 models/**
 scratch/**
+MUJOCO_LOG.TXT

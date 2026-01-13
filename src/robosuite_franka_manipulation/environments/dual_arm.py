@@ -91,7 +91,7 @@ class DualArmEnvironmentWrapper:
             for obj_spec in self._custom_objects:
                 obj_type = obj_spec.get('type', 'box')
                 obj_name = obj_spec.get('name', f'custom_obj_{len(self._object_names)}')
-                pos = obj_spec.get('pos', [0.0, 0.0, 0.85])
+                pos = obj_spec.get('pos', [0.0, 0.0, 0.90])
                 
                 if obj_type == 'ycb':
                     logger.warning(f"Use ycb_objects parameter for YCB objects, not custom_objects")
@@ -112,7 +112,7 @@ class DualArmEnvironmentWrapper:
             for ycb_obj in self._ycb_objects:
                 xml_path = ycb_obj.get('xml_path')
                 instance_name = ycb_obj.get('instance_name')
-                pos = ycb_obj.get('pos', [0.0, 0.0, 0.85])
+                pos = ycb_obj.get('pos', [0.0, 0.0, 0.90])
                 ycb_name = ycb_obj.get('ycb_name', 'unknown')
                 
                 if not xml_path or not Path(xml_path).exists():
@@ -186,6 +186,14 @@ class DualArmEnvironmentWrapper:
                             val = geom.get(attr)
                             if val:
                                 new_geom.set(attr, val)
+                        
+                        # Ensure collision geoms have proper collision attributes
+                        if geom_type == 'mesh':
+                             # Set default collision attributes if not specified
+                            if not new_geom.get('contype'):
+                                new_geom.set('contype', '1')
+                            if not new_geom.get('conaffinity'):
+                                new_geom.set('conaffinity', '1')
                     
                     # Copy inertial properties
                     inertial_src = ycb_body_src.find('inertial')
@@ -377,11 +385,11 @@ def make_dual_arm_env(
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
                 # Default position on table: x offset based on index, y at table center, z above table
-                pos = [-0.1 + 0.1 * i, -0.45, 0.85]
+                pos = [-0.1 + 0.1 * i, -0.45, 0.90]
             else:
                 ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
                 instance_name = ycb_spec.get('name', f"{ycb_name}_{i}")
-                pos = ycb_spec.get('pos', [-0.1 + 0.1 * i, -0.45, 0.85])
+                pos = ycb_spec.get('pos', [-0.1 + 0.1 * i, -0.45, 0.90])
             
             # Check if YCB object exists
             xml_path = constants.YCB_DATASET_PATH / f"{ycb_name}.xml"

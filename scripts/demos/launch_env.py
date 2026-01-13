@@ -18,6 +18,7 @@ Usage:
 import argparse
 import time
 import numpy as np
+import logging
 
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.utils import (
@@ -26,6 +27,16 @@ from robosuite_franka_manipulation.utils import (
     create_primitive_object,
     create_ycb_object,
 )
+import robosuite_franka_manipulation.constants as constants
+
+
+# Configure logging
+logging.basicConfig(
+    level=constants.LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 
 def print_env_info(env):
@@ -96,7 +107,7 @@ def get_sample_custom_objects():
             obj_type='box',
             name='red_block',
             size=[0.04, 0.04, 0.04],  # 4cm cube
-            position=[0.0, -0.45, 0.85],  # Center of table
+            position=[0.0, -0.45, 0.90],  # Center of table
             rgba=[0.9, 0.1, 0.1, 1.0],  # Red
             density=500,
         ),
@@ -104,7 +115,7 @@ def get_sample_custom_objects():
             obj_type='cylinder',
             name='green_cylinder',
             size=[0.025, 0.04],  # radius=2.5cm, half-height=4cm
-            position=[0.15, -0.45, 0.85],  # Right side of table
+            position=[0.15, -0.45, 0.90],  # Right side of table
             rgba=[0.1, 0.9, 0.1, 1.0],  # Green
             density=800,
         ),
@@ -112,7 +123,7 @@ def get_sample_custom_objects():
             obj_type='ball',
             name='blue_sphere',
             size=[0.03],  # radius=3cm
-            position=[-0.15, -0.45, 0.85],  # Left side of table
+            position=[-0.15, -0.45, 0.90],  # Left side of table
             rgba=[0.1, 0.1, 0.9, 1.0],  # Blue
             density=600,
         ),
@@ -150,7 +161,7 @@ def get_sample_ycb_objects(ycb_names=None):
             continue
         
         # Position objects in a row on the table (table at y=-0.45, surface z≈0.8)
-        pos = [-0.1 + i * 0.1, -0.45, 0.85]
+        pos = [-0.1 + i * 0.1, -0.45, 0.90]
         objects.append(create_ycb_object(name, position=pos))
     
     return objects

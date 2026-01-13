@@ -214,6 +214,7 @@ def generate_object_xml(obj_spec: Dict[str, Any]) -> str:
         <freejoint name="{name}_joint"/>
         <geom name="{name}_geom" type="{geom_type}" size="{size_str}" 
               rgba="{rgba_str}" density="{density}" 
+              contype="1" conaffinity="1"
               friction="1 0.005 0.0001" condim="4"/>
         <site name="{name}_site" pos="0 0 0" size="0.002" rgba="1 0 0 0"/>
     </body>
