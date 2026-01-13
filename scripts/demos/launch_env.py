@@ -222,7 +222,7 @@ def main():
         )
         
         print("Resetting environment...")
-        obs = env.reset()
+        env.reset()
         
         if not args.no_render and not args.headless:
             env.render()
