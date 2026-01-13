@@ -19,8 +19,8 @@ import argparse
 import time
 import numpy as np
 
-from robosuite_franka_manipulation.environments import (
-    make_dual_arm_env,
+from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.utils import (
     get_available_ycb_objects,
     list_ycb_objects,
     create_primitive_object,
