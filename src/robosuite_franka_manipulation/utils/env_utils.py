@@ -125,11 +125,12 @@ def create_ycb_object(
         Dictionary with object specification
     """
     if instance_name is None:
-        instance_name = ycb_name
+        instance_name = f"{ycb_name}_0"
     
     return {
         'type': 'ycb',
         'ycb_name': ycb_name,
+        'instance_name': instance_name,
         'name': instance_name,
         'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
     }

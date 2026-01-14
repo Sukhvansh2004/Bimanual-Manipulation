@@ -145,6 +145,7 @@ class DualArmEnvironment(TwoArmEnv):
         _process_objects(self._custom_object_specs, is_ycb=False)
         _process_objects(self._ycb_object_specs, is_ycb=True)
 
+        logger.debug(F"Processed custom and YCB objects for environment. Count: {len(mujoco_objects)}")
         # 5. Create ManipulationTask (Handles merging of arena, robots, and objects)
         self.model = ManipulationTask(
             mujoco_arena=self.mujoco_arena,

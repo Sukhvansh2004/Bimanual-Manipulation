@@ -63,6 +63,7 @@ from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object
 
 # Configure logging
 logging.basicConfig(
@@ -78,7 +79,18 @@ class DualArmManipulationSystem:
     Complete system for dual-arm manipulation with services.
     """
     
-    def __init__(self, visualize: bool = False, debug: bool = False, detection_prompt: str = "object", meshcat_tf: bool = False):
+    def __init__(
+            self, 
+            visualize: bool = False, 
+            debug: bool = False, 
+            detection_prompt: str = "object", 
+            meshcat_tf: bool = False,
+            custom_objects: Optional[Any] = None,
+            ycb_objects: Optional[Any] = None,
+            ):
+        
+        self.custom_objects = custom_objects
+        self.ycb_objects = ycb_objects
         self.visualize = visualize
         self.debug = debug
         self.detection_prompt = detection_prompt
@@ -162,7 +174,8 @@ class DualArmManipulationSystem:
         
         # Create environment
         logger.info("\n1. Creating dual-arm environment...")
-        self.env = make_dual_arm_env()
+        self.env = make_dual_arm_env(custom_objects=self.custom_objects, ycb_objects=self.ycb_objects)
+        logger.debug("Adding VisualizationWrapper to environment...")
         self.env = VisualizationWrapper(self.env)
         logger.info("   ✓ Environment created")
 
@@ -505,7 +518,7 @@ def set_prompt(prompt):
         print(f"Failed to change prompt: {response.get('message')}")
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Start dual-arm manipulation system with services and interactive shell"
@@ -536,6 +549,14 @@ def main():
     
     args = parser.parse_args()
     
+    ycb_objects = []
+
+    # Create the dictionary spec for this object
+    obj = create_ycb_object(
+        ycb_name="plate",
+    )
+    ycb_objects.append(obj)
+
     # Create and start system
     global system
     system = DualArmManipulationSystem(
@@ -543,6 +564,7 @@ def main():
         debug=args.debug,
         detection_prompt=args.prompt,
         meshcat_tf=args.meshcat_tf,
+        ycb_objects=ycb_objects,
     )
 
     # Ensure cleanup on normal interpreter shutdown and on SIGINT/SIGTERM
@@ -618,12 +640,15 @@ Press Ctrl+D or type exit() to quit
 
     except KeyboardInterrupt:
         logger.info("\nInterrupted by user")
+        return 0
+    except Exception:
+        logger.exception("Fatal error while starting/running the system", exc_info=True)
+        return 1
     finally:
-        # If we reached here, try a graceful stop first.
         system.stop()
-        # Then ensure the process exits promptly.
-        sys.exit(0)
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
