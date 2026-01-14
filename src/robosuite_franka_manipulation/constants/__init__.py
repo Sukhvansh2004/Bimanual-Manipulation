@@ -67,7 +67,7 @@ GRIPPER_GRASP_OFFSETS = {
     },
     'single_suction_cup_30mm': {
         'position': np.array([0.0, 0.0, 0.0]),
-        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # Identity
+        'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),  # 180 deg around Y
     },
 }
 
@@ -84,7 +84,6 @@ DEFAULT_CAMERA_INTRINSICS = np.array([
     [0, 800.0, 240.0],
     [0, 0, 1]
 ])
-DEFAULT_RENDER_CAMERA = 'free'
 
 # Point cloud validation
 MAX_POINTCLOUD_RANGE = 10.0  # meters
@@ -139,10 +138,11 @@ DEFAULT_ROT_SENSITIVITY = 1.0
 DEFAULT_CONTROL_FREQ = 20  # Hz
 DEFAULT_HORIZON = 1000  # steps
 DEFAULT_CAMERA_DEPTH = True
+DEFAULT_RENDER_CAMERA = 'free'
 
 # Environment setup
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
-DEFAULT_GRIPPER_TYPES_ENV = 'default'
+DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'WipingGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
