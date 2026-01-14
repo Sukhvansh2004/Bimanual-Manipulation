@@ -109,6 +109,23 @@ class DualArmEnvironment(TwoArmEnv):
                 if is_ycb:
                     ycb_name = spec.get('ycb_name', 'unknown')
                     name = spec.get('instance_name', spec.get('name', f"{ycb_name}_0"))
+
+                    # Many YCB XMLs already prefix geoms/sites with the object name (e.g. `plate_visual_geom`).
+                    # If the robosuite instance name matches that prefix exactly, robosuite's internal naming
+                    # can end up expecting double-prefixed geoms (e.g. `plate_plate_visual_geom`) during ID mapping.
+                    # Make the instance name distinct from the raw YCB asset prefix to avoid that failure.
+                    if name == ycb_name:
+                        name = f"{ycb_name}_0"
+
+                    # Ensure uniqueness across all objects in the scene.
+                    existing_names = {n for n, _, _ in self._added_objects}
+                    if name in existing_names:
+                        suffix = 1
+                        candidate = f"{name}_{suffix}"
+                        while candidate in existing_names:
+                            suffix += 1
+                            candidate = f"{name}_{suffix}"
+                        name = candidate
                     try:
                         obj = YCBObject(name=name, ycb_object_name=ycb_name)
                         logger.info(f"Added YCB object: {name} ({ycb_name})")
