@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from robosuite.models.objects import MujocoXMLObject
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.utils.suction_weld import apply_suction_weld
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,9 @@ def safe_env_step(env: Any, action: Any, retries: int = 3, delay: float = 0.01):
     last_exception = None
     for attempt in range(retries):
         try:
-            return env.step(action_copy)
+            obs = env.step(action_copy)
+            apply_suction_weld(env, action_copy)
+            return obs
         except RuntimeError as e:
             last_exception = e
             msg = str(e)
@@ -207,4 +210,6 @@ def safe_env_step(env: Any, action: Any, retries: int = 3, delay: float = 0.01):
     
     if last_exception is not None:
         logger.error("Final attempt to call env.step still failed: %s", last_exception)
-    return env.step(action_copy)
+    obs = env.step(action_copy)
+    apply_suction_weld(env, action_copy)
+    return obs
