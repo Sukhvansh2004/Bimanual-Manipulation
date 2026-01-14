@@ -62,9 +62,9 @@ class YCBObject(MujocoXMLObject):
         Initialize a YCB object.
         
         Args:
-            name: Unique name for this object instance
-            ycb_object_name: Name of the YCB object (e.g., 'apple', 'mug')
-            joints: List of joint specifications for the object
+            name: Unique instance name for this object (used in simulation)
+            ycb_object_name: Name of the YCB object file (e.g., 'apple', 'mug')
+            joints: List of joint specifications (default: free joint)
             obj_type: Type of object ('collision', 'visual', or 'all')
             duplicate_collision_geoms: Whether to duplicate collision geometries
         """
@@ -75,18 +75,12 @@ class YCBObject(MujocoXMLObject):
         if not xml_path.exists():
             raise FileNotFoundError(f"YCB object XML not found: {xml_path}")
         
-        # Default joint configuration (free joint for manipulation)
-        if joints is None:
-            # "default" joint in robosuite automatically adds a freejoint
-            # However, for MujocoXMLObject we often pass explicit dicts if needed.
-            # Passing "default" to the parent constructor is also supported by some classes,
-            # but providing the dict here is safer for XML objects.
-            joints = [{"type": "free", "damping": "0.0005"}]
-        
+        # Use default free joint if not specified
+        # This lets robosuite handle joint creation properly
         super().__init__(
             str(xml_path),
             name=name,
-            joints=joints,
+            joints="default" if joints is None else joints,
             obj_type=obj_type,
             duplicate_collision_geoms=duplicate_collision_geoms,
         )
@@ -94,11 +88,9 @@ class YCBObject(MujocoXMLObject):
     @property
     def bottom_offset(self):
         """Return the bottom offset of the object for placement."""
-        # Get the bounding box from geoms and compute bottom offset
         bottom_site = self.worldbody.find(f"./body/site[@name='{self.naming_prefix}bottom_site']")
         if bottom_site is not None:
             return np.array([0, 0, float(bottom_site.get("pos", "0 0 0").split()[2])])
-        # Default: assume object center is at origin, offset slightly
         return np.array([0, 0, -0.02])
     
     @property

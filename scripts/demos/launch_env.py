@@ -33,43 +33,43 @@ logger = logging.getLogger(__name__)
 
 def print_env_info(env):
     """Print information about the environment."""
-    print("\n" + "=" * 60)
-    print("DUAL-ARM FRANKA ENVIRONMENT INFO")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("DUAL-ARM FRANKA ENVIRONMENT INFO")
+    logger.info("=" * 60)
     
     # Environment info
-    print(f"\nEnvironment: {env.name if hasattr(env, 'name') else 'TwoArmHandover'}")
-    print(f"Number of robots: {len(env.robots)}")
-    print(f"Control frequency: {env.control_freq} Hz")
-    print(f"Horizon: {env.horizon} steps")
+    logger.info(f"Environment: {env.name if hasattr(env, 'name') else 'TwoArmHandover'}")
+    logger.info(f"Number of robots: {len(env.robots)}")
+    logger.info(f"Control frequency: {env.control_freq} Hz")
+    logger.info(f"Horizon: {env.horizon} steps")
     
     # Robot info
     for i, robot in enumerate(env.robots):
-        print(f"\n--- Robot {i} ({['Left', 'Right'][i]} side) ---")
-        print(f"  Robot name: {robot.name}")
-        print(f"  Robot model: {robot.robot_model.name}")
+        logger.info(f"--- Robot {i} ({['Left', 'Right'][i]} side) ---")
+        logger.info(f"  Robot name: {robot.name}")
+        logger.info(f"  Robot model: {robot.robot_model.name}")
         
         # Get EEF pose
         eef_name = robot.robot_model.eef_name["right"]
         pose = robot.pose_in_base_from_name(eef_name)
         pos = pose[:3, 3]
-        print(f"  EEF name: {eef_name}")
-        print(f"  EEF position (base frame): [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+        logger.info(f"  EEF name: {eef_name}")
+        logger.info(f"  EEF position (base frame): [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
     
     # Custom objects info
     if hasattr(env, 'get_object_names'):
         obj_names = env.get_object_names()
         if obj_names:
-            print(f"\n--- Custom Objects ({len(obj_names)}) ---")
+            logger.info(f"--- Custom Objects ({len(obj_names)}) ---")
             for name in obj_names:
                 pose = env.get_object_pose(name)
                 if pose is not None:
                     pos = pose[:3, 3]
-                    print(f"  {name}: pos=[{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+                    logger.info(f"  {name}: pos=[{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
                 else:
-                    print(f"  {name}: (pose not available)")
+                    logger.info(f"  {name}: (pose not available)")
     
-    print("\n" + "=" * 60)
+    logger.info("=" * 60)
 
 
 def get_sample_custom_objects():
@@ -115,9 +115,10 @@ def get_sample_ycb_objects(ycb_names=None):
         List of dicts, where each dict contains the spec for a YCB object.
     """
     available = get_available_ycb_objects()
+    logger.debug(f"Received YCB names: {ycb_names}")
     
     if not available:
-        print("Warning: No YCB objects found in dataset.")
+        logger.warning("No YCB objects found in dataset.")
         return []
     
     if ycb_names is None:
@@ -130,7 +131,7 @@ def get_sample_ycb_objects(ycb_names=None):
     objects = []
     for i, name in enumerate(ycb_names):
         if name not in available:
-            print(f"Warning: YCB object '{name}' not found. Skipping.")
+            logger.warning(f"YCB object '{name}' not found. Skipping.")
             continue
         
         # Position objects in a row on the table
@@ -149,7 +150,7 @@ def get_sample_ycb_objects(ycb_names=None):
 
 def run_random_actions(env, num_steps=200, render=True):
     """Run the environment with random actions."""
-    print("\nRunning random actions...")
+    logger.info("Running random actions...")
     
     action_dim = env.action_dim
     
@@ -169,7 +170,7 @@ def run_random_actions(env, num_steps=200, render=True):
                 env.render()
                 
     except KeyboardInterrupt:
-        print("\nStopped by user.")
+        logger.info("Stopped by user.")
 
 
 def main():
@@ -195,11 +196,11 @@ def main():
     
     if args.with_objects:
         custom_objects = get_sample_custom_objects()
-        print(f"Adding {len(custom_objects)} custom primitive objects.")
+        logger.info(f"Adding {len(custom_objects)} custom primitive objects.")
     
     if args.ycb:
         ycb_objects.extend(get_sample_ycb_objects(args.ycb))
-        print(f"Adding {len(args.ycb)} specific YCB objects.")
+        logger.info(f"Adding {len(args.ycb)} specific YCB objects.")
     
     if args.ycb_all > 0:
         available = get_available_ycb_objects()
@@ -208,11 +209,11 @@ def main():
         additional_count = min(args.ycb_all, len(available))
         additional_objs = get_sample_ycb_objects(available[:additional_count])
         ycb_objects.extend(additional_objs)
-        print(f"Adding first {additional_count} available YCB objects.")
+        logger.info(f"Adding first {additional_count} available YCB objects.")
     
     env = None
     try:
-        print("\nCreating dual-arm Franka environment...")
+        logger.info("Creating dual-arm Franka environment...")
         
         # We explicitly pass the lists of dictionaries here
         env = make_dual_arm_env(
@@ -221,7 +222,7 @@ def main():
             has_renderer=not args.headless and not args.no_render,
         )
         
-        print("Resetting environment...")
+        logger.info("Resetting environment...")
         env.reset()
         
         if not args.no_render and not args.headless:
@@ -233,7 +234,7 @@ def main():
         if args.random_actions:
             run_random_actions(env, num_steps=args.steps, render=not args.no_render and not args.headless)
         else:
-            print("\nVisualization mode. Press Ctrl+C to exit.")
+            logger.info("Visualization mode. Press Ctrl+C to exit.")
             while True:
                 env.step(np.zeros(env.action_dim))
                 if not args.no_render and not args.headless:
@@ -241,7 +242,7 @@ def main():
                 time.sleep(0.02)
                 
     except KeyboardInterrupt:
-        print("\nExiting...")
+        logger.info("Exiting...")
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
     finally:

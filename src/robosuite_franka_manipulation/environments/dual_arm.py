@@ -185,21 +185,31 @@ class DualArmEnvironment(TwoArmHandover):
         Returns:
             4x4 transformation matrix or None if not found
         """
-        try:
-            body_id = self.sim.model.body_name2id(object_name)
-            pos = self.sim.data.body_xpos[body_id]
-            quat = self.sim.data.body_xquat[body_id] # [w, x, y, z]
-            
-            # Convert to 4x4 transformation matrix
-            # SciPy expects [x, y, z, w]
-            rot_mat = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()
-            pose = np.eye(4)
-            pose[:3, :3] = rot_mat
-            pose[:3, 3] = pos
-            return pose
-        except Exception as e:
-            logger.debug(f"Could not get pose for object '{object_name}': {e}")
-            return None
+        # Robosuite prefixes body names with {name}_ and uses 'main' for root body
+        # So the actual body name is {object_name}_main
+        body_name_candidates = [
+            f"{object_name}_main",  # Standard robosuite naming
+            object_name,            # Direct name (fallback)
+        ]
+        
+        for body_name in body_name_candidates:
+            try:
+                body_id = self.sim.model.body_name2id(body_name)
+                pos = self.sim.data.body_xpos[body_id]
+                quat = self.sim.data.body_xquat[body_id]  # [w, x, y, z]
+                
+                # Convert to 4x4 transformation matrix
+                # SciPy expects [x, y, z, w]
+                rot_mat = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()
+                pose = np.eye(4)
+                pose[:3, :3] = rot_mat
+                pose[:3, 3] = pos
+                return pose
+            except Exception:
+                continue
+        
+        logger.debug(f"Could not get pose for object '{object_name}': body not found")
+        return None
 
     def set_camera_free(self) -> None:
         """Set the viewer camera to 'Free' mode."""
