@@ -203,4 +203,4 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
-DEFAULT_OBJECT_POSITION = [0.0, -0.45, 0.90]
+DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]

@@ -81,7 +81,7 @@ def get_sample_custom_objects():
             obj_type='box',
             name='red_block',
             size=[0.04, 0.04, 0.04],  # 4cm cube
-            position=[0.0, -0.45, 0.90],  # Center of table
+            position=[0.0, 0.0, 0.90],  # Center of table
             rgba=[0.9, 0.1, 0.1, 1.0],  # Red
             density=500,
         ),
@@ -89,7 +89,7 @@ def get_sample_custom_objects():
             obj_type='cylinder',
             name='green_cylinder',
             size=[0.025, 0.04],  # radius=2.5cm, half-height=4cm
-            position=[0.15, -0.45, 0.90],  # Right side of table
+            position=[0.15, 0.0, 0.90],  # Right side of table
             rgba=[0.1, 0.9, 0.1, 1.0],  # Green
             density=800,
         ),
@@ -97,7 +97,7 @@ def get_sample_custom_objects():
             obj_type='ball',
             name='blue_sphere',
             size=[0.03],  # radius=3cm
-            position=[-0.15, -0.45, 0.90],  # Left side of table
+            position=[-0.15, 0.0, 0.90],  # Left side of table
             rgba=[0.1, 0.1, 0.9, 1.0],  # Blue
             density=600,
         ),
@@ -135,7 +135,7 @@ def get_sample_ycb_objects(ycb_names=None):
             continue
         
         # Position objects in a row on the table
-        pos = [-0.1 + i * 0.3, -0.45, 0.90]
+        pos = [-0.1 + i * 0.3, 0.0, 0.90]
         
         # Create the dictionary spec for this object
         obj_spec = create_ycb_object(
