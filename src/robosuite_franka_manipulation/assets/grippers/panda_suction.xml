@@ -25,4 +25,19 @@
             </body>
         </body>
     </worldbody>
+
+    <equality>
+        <!--
+        This weld is kept inactive by default. At runtime, the controller code
+        retargets body2 to the contacted object body and sets relpose to the
+        current relative pose, then toggles eq_active.
+        -->
+        <weld name="suction_constraint"
+              body1="cobot_pump"
+              body2="gripper_base"
+              active="false"
+              relpose="0 0 0 1 0 0 0"
+              solref="0.02 1"
+              solimp=".9 .95 .001"/>
+    </equality>
 </mujoco>

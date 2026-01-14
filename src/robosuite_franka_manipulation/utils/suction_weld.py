@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import mujoco
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,6 @@ def _name2id(sim: Any, obj_type: str, name: str) -> int:
             return -1
 
     try:
-        import mujoco  # type: ignore
-
         type_map = {
             "body": mujoco.mjtObj.mjOBJ_BODY,
             "geom": mujoco.mjtObj.mjOBJ_GEOM,
@@ -57,8 +56,6 @@ def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
             return None
 
     try:
-        import mujoco  # type: ignore
-
         type_map = {
             "body": mujoco.mjtObj.mjOBJ_BODY,
             "geom": mujoco.mjtObj.mjOBJ_GEOM,
@@ -124,6 +121,77 @@ def _set_weld_target_body(sim: Any, eq_id: int, body2_id: int) -> bool:
         except Exception:
             return False
     return False
+
+
+def _get_body_pose_wxyz(sim: Any, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Return (pos, quat) for a body in world coordinates.
+
+    Quaternion is MuJoCo's convention (w, x, y, z).
+    """
+    data = sim.data
+    if hasattr(data, "body_xpos") and hasattr(data, "body_xquat"):
+        pos = np.asarray(data.body_xpos[body_id], dtype=np.float64)
+        quat = np.asarray(data.body_xquat[body_id], dtype=np.float64)
+        return pos, quat
+    # native mujoco python bindings typically expose data.xpos/xquat for bodies
+    pos = np.asarray(data.xpos[body_id], dtype=np.float64)
+    quat = np.asarray(data.xquat[body_id], dtype=np.float64)
+    return pos, quat
+
+
+def _quat_conj_wxyz(q: np.ndarray) -> np.ndarray:
+    return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float64)
+
+
+def _quat_mul_wxyz(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+    return np.array(
+        [
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        ],
+        dtype=np.float64,
+    )
+
+
+def _rotate_vec_by_quat_wxyz(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Rotate vector v by unit quaternion q (wxyz)."""
+    qv = np.array([0.0, v[0], v[1], v[2]], dtype=np.float64)
+    return _quat_mul_wxyz(_quat_mul_wxyz(q, qv), _quat_conj_wxyz(q))[1:4]
+
+
+def _set_weld_relpose_current(sim: Any, eq_id: int, body1_id: int, body2_id: int) -> bool:
+    """Set weld relpose to current relative pose (body2 in body1 frame).
+
+    This prevents objects from snapping when the weld activates.
+    """
+    model = sim.model
+    if not hasattr(model, "eq_data"):
+        return False
+
+    p1, q1 = _get_body_pose_wxyz(sim, body1_id)
+    p2, q2 = _get_body_pose_wxyz(sim, body2_id)
+
+    q1_inv = _quat_conj_wxyz(q1)
+    q_rel = _quat_mul_wxyz(q1_inv, q2)
+    p_rel = _rotate_vec_by_quat_wxyz(q1_inv, (p2 - p1))
+
+    try:
+        model.eq_data[eq_id, 0:3] = p_rel
+        model.eq_data[eq_id, 3:7] = q_rel
+        return True
+    except Exception:
+        # some backends may expose eq_data as a flat array
+        try:
+            base = eq_id * 7
+            model.eq_data[base : base + 3] = p_rel
+            model.eq_data[base + 3 : base + 7] = q_rel
+            return True
+        except Exception:
+            return False
 
 
 def _resolve_handles(env: Any, robot_id: int, gripper: Any) -> Optional[SuctionWeldHandles]:
@@ -316,6 +384,18 @@ def apply_suction_weld(env: Any, action: Any) -> None:
             if not _set_weld_target_body(sim, handles.eq_id, body2_id):
                 _set_equality_active(sim, handles.eq_id, False)
                 continue
+
+            # Set desired relative pose to current pose to avoid snapping.
+            try:
+                if hasattr(model, "eq_obj1id"):
+                    body1_id = int(model.eq_obj1id[handles.eq_id])
+                else:
+                    # fallback: find by name using the equality id name
+                    body1_id = -1
+                if body1_id != -1:
+                    _set_weld_relpose_current(sim, handles.eq_id, body1_id, body2_id)
+            except Exception:
+                pass
 
             handles.welded_body_id = body2_id
             _set_equality_active(sim, handles.eq_id, True)
