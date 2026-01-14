@@ -303,14 +303,14 @@ def make_dual_arm_env(
 
 if __name__ == '__main__':
     
-    print("\n" + "=" * 60)
-    print("Dual-Arm Environment Test (Updated)")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("Dual-Arm Environment Test")
+    logger.info("=" * 60)
     
     list_ycb_objects()
     
     try:
-        print("\nCreating dual-arm environment with sample objects...")
+        logger.info("\nCreating dual-arm environment with sample objects...")
         
         custom_objects = [
             {
@@ -336,7 +336,7 @@ if __name__ == '__main__':
         )
         
         logger.info("Dual-arm handoff environment created successfully.")
-        print(f"Objects in environment: {env.get_object_names()}")
+        logger.info(f"Objects in environment: {env.get_object_names()}")
 
         env.reset()
         for step in range(min(50, env.horizon)):
@@ -349,7 +349,7 @@ if __name__ == '__main__':
         
         logger.info(f"Environment stepped for {step + 1} steps.")
         env.close()
-        print("\nTest completed successfully!")
+        logger.info("Test completed successfully!")
 
     except Exception as e:
         logger.error(f"Failed to create or step dual-arm handoff environment: {e}")
