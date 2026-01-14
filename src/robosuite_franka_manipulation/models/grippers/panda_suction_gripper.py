@@ -1,9 +1,8 @@
 import os
-# Import the module where the original factory 
-import robosuite_franka_manipulation.constants as constants
-import robosuite.models.grippers.gripper_factory as gf_module
-import robosuite.models.grippers
+import numpy as np
 from robosuite.models.grippers.gripper_model import GripperModel
+from robosuite.models.grippers import register_gripper
+from robosuite_franka_manipulation import constants
 
 class PandaSuctionGripper(GripperModel):
     """
@@ -11,19 +10,27 @@ class PandaSuctionGripper(GripperModel):
     """
     def __init__(self, idn=0):
         # Construct absolute path using the project root from constants
+        # Ensure constants.SUCTION_GRIPPER_XML_PATH is defined in your constants file
+        # OR use: 
+        # root = constants.get_project_root()
+        # xml_path = root / "src/robosuite_franka_manipulation/assets/grippers/panda_suction.xml"
         xml_path = constants.SUCTION_GRIPPER_XML_PATH
         
-        # Verify file exists to avoid obscure errors later
         if not xml_path.exists():
             raise FileNotFoundError(f"Suction gripper XML not found at: {xml_path}")
 
         super().__init__(str(xml_path), idn=idn)
 
     def format_action(self, action):
+        """
+        Args:
+            action: -1 (open/release) to 1 (close/suck)
+        """
         return action
 
     @property
     def init_qpos(self):
+        # Suction grippers generally don't have actuated joints with initial positions
         return None
 
     @property
@@ -36,18 +43,33 @@ class PandaSuctionGripper(GripperModel):
 
     @property
     def contact_geoms(self):
+        # Must match the collision geom name in your XML
         return ["geo_snout"]
 
+    @property
+    def _important_sites(self):
+        """
+        Explicitly define the sites Robosuite looks for. 
+        This prevents the 'NoneType' error by ensuring it finds 'grip_site'.
+        """
+        return {
+            "grip_site": "grip_site",
+            "grip_cylinder": "grip_cylinder",
+            "ee": "grip_site",  # Main end-effector frame
+            "ee_x": "grip_site", 
+            "ee_y": "grip_site",
+            "ee_z": "grip_site",
+        }
 
-# 1. Save the original factory function
-original_gripper_factory = gf_module
+    @property
+    def _important_geoms(self):
+        return {
+            "left_finger": [],   # Suction has no fingers
+            "right_finger": [],
+            "left_finger_pad": [],
+            "right_finger_pad": [],
+            "root": ["geo_snout"] # The main body geom
+        }
 
-# 2. Define our wrapper
-def custom_gripper_factory(name, *args, **kwargs):
-    if name == "PandaSuctionGripper":
-        return PandaSuctionGripper(*args, **kwargs)
-    # Fallback to the original factory for standard grippers
-    return original_gripper_factory(name, *args, **kwargs)
-
-# 3. Apply the patch to both the module and the package namespace
-robosuite.models.grippers.gripper_factory = custom_gripper_factory
+# --- Registration ---
+register_gripper(PandaSuctionGripper)
