@@ -227,7 +227,6 @@ def main():
         
         if not args.no_render and not args.headless:
             env.render()
-            env.set_camera_free()
         
         print_env_info(env)
         

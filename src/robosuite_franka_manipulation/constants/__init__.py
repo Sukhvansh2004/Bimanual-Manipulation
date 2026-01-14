@@ -84,6 +84,7 @@ DEFAULT_CAMERA_INTRINSICS = np.array([
     [0, 800.0, 240.0],
     [0, 0, 1]
 ])
+DEFAULT_RENDER_CAMERA = 'free'
 
 # Point cloud validation
 MAX_POINTCLOUD_RANGE = 10.0  # meters
@@ -166,7 +167,6 @@ BASE_FRAME = 'base'             # Robot base frame (may have offset from world)
 EEF_FRAME_TEMPLATE = 'robot{robot_id}_{arm}_eef'  # End-effector frame template
 
 # Reward and episode settings
-DEFAULT_REWARD_SHAPING = False
 DEFAULT_IGNORE_DONE = True
 
 # =============================================================================

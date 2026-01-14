@@ -211,14 +211,6 @@ class DualArmEnvironment(TwoArmHandover):
         logger.debug(f"Could not get pose for object '{object_name}': body not found")
         return None
 
-    def set_camera_free(self) -> None:
-        """Set the viewer camera to 'Free' mode."""
-        if hasattr(self, 'viewer') and self.viewer is not None:
-            try:
-                self.viewer.set_camera(-1)
-            except Exception:
-                pass
-
 
 def make_dual_arm_env(
     custom_objects: Optional[List[Dict[str, Any]]] = None,
@@ -298,7 +290,7 @@ def make_dual_arm_env(
         "control_freq": constants.DEFAULT_CONTROL_FREQ,
         "horizon": constants.DEFAULT_HORIZON,
         "ignore_done": constants.DEFAULT_IGNORE_DONE,
-        "reward_shaping": constants.DEFAULT_REWARD_SHAPING,
+        "render_camera": constants.DEFAULT_RENDER_CAMERA,
     }
 
     # Instantiate our custom environment class directly
