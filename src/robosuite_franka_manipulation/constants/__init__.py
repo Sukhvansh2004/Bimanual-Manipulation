@@ -204,3 +204,10 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
 DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]
+
+# =============================================================================
+# Asset Paths
+# =============================================================================
+
+# Path to suction gripper XML asset
+SUCTION_GRIPPER_XML_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "grippers" / "panda_suction.xml"

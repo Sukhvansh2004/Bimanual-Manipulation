@@ -1,0 +1,28 @@
+<mujoco model="panda_suction_gripper">
+    <asset>
+        <mesh name="cobot_pump_visual" file="../meshes/cobot_pump/visual/cobot_pump.obj" />
+        <mesh name="cobot_pump_collision" file="../meshes/cobot_pump/collision/cobot_pump.stl" />
+        
+        <material name="panda_off_white" rgba="0.901961 0.921569 0.929412 1" />
+        <material name="panda_black" rgba="0.25 0.25 0.25 1" />
+    </asset>
+    
+    <actuator>
+        <general name="suction" joint="joint_suction" ctrllimited="true" ctrlrange="-1 1" />
+    </actuator>
+
+    <worldbody>
+        <body name="gripper_base" pos="0 0 0">
+            <joint name="joint_suction" type="slide" axis="0 0 1" limited="true" range="0 0.01" damping="0.1" />
+
+            <body name="cobot_pump" pos="0 0 0.107">
+                <inertial pos="0 0 0.063" mass="1.01" diaginertia="0.001 0.001 0.001" />
+                <geom type="mesh" mesh="cobot_pump_visual" material="panda_off_white" />
+                <geom type="mesh" mesh="cobot_pump_collision" group="0" name="geo_snout" />
+                
+                <site name="grip_site" pos="0 0 0.105" size="0.005 0.005 0.005" rgba="1 0 0 0.5" />
+                <site name="grip_cylinder" pos="0 0 0.105" size="0.005 0.005" rgba="0 1 0 0.2" type="cylinder" />
+            </body>
+        </body>
+    </worldbody>
+</mujoco>
