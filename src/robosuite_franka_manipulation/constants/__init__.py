@@ -142,7 +142,7 @@ DEFAULT_RENDER_CAMERA = 'free'
 
 # Environment setup
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
-DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'WipingGripper']
+DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)

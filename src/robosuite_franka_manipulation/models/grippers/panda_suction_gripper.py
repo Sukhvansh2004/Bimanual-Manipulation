@@ -30,8 +30,9 @@ class PandaSuctionGripper(GripperModel):
 
     @property
     def init_qpos(self):
-        # Suction grippers generally don't have actuated joints with initial positions
-        return None
+        # Robosuite resets gripper joints using this value; must be a numeric array.
+        # Our XML defines a single slide joint (joint_suction) with range [0, 0.01].
+        return np.array([0.0])
 
     @property
     def speed(self):
@@ -43,8 +44,9 @@ class PandaSuctionGripper(GripperModel):
 
     @property
     def contact_geoms(self):
-        # Must match the collision geom name in your XML
-        return ["geo_snout"]
+        # Robosuite prefixes names when merging models; always return the
+        # correctly-named geom to avoid lookup failures.
+        return [self.correct_naming("geo_snout")]
 
     @property
     def _important_sites(self):

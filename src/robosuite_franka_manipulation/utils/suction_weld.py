@@ -29,6 +29,7 @@ def _name2id(sim: Any, obj_type: str, name: str) -> int:
         try:
             return int(getattr(model, attr)(name))
         except Exception:
+            logger.exception(f"Failed to get id for {obj_type} named '{name}' using {attr}", exc_info=True)
             return -1
 
     try:
@@ -42,6 +43,7 @@ def _name2id(sim: Any, obj_type: str, name: str) -> int:
             return -1
         return int(mujoco.mj_name2id(model, mjt, name))
     except Exception:
+        logger.exception(f"Failed to get id for {obj_type} named '{name}' using mujoco.mj_name2id", exc_info=True)
         return -1
 
 
@@ -53,6 +55,7 @@ def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
         try:
             return getattr(model, attr)(idx)
         except Exception:
+            logger.exception(f"Failed to get name for {obj_type} id '{idx}' using {attr}", exc_info=True)
             return None
 
     try:
@@ -66,6 +69,7 @@ def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
             return None
         return mujoco.mj_id2name(model, mjt, int(idx))
     except Exception:
+        logger.exception(f"Failed to get name for {obj_type} id '{idx}' using mujoco.mj_id2name", exc_info=True)
         return None
 
 
@@ -100,7 +104,7 @@ def _body_is_dynamic(sim: Any, body_id: int) -> bool:
         if hasattr(model, "body_jntnum"):
             return int(model.body_jntnum[body_id]) > 0
     except Exception:
-        pass
+        logger.exception("Failed to determine if body is dynamic", exc_info=True)
     return True
 
 
@@ -119,6 +123,7 @@ def _set_weld_target_body(sim: Any, eq_id: int, body2_id: int) -> bool:
             model.eq_obj2id[eq_id] = int(body2_id)
             return True
         except Exception:
+            logger.exception("Failed to set eq_obj2id for weld equality", exc_info=True)
             return False
     return False
 
@@ -184,6 +189,7 @@ def _set_weld_relpose_current(sim: Any, eq_id: int, body1_id: int, body2_id: int
         model.eq_data[eq_id, 3:7] = q_rel
         return True
     except Exception:
+        logger.exception("Failed to set weld relpose using eq_data 2D indexing", exc_info=True)
         # some backends may expose eq_data as a flat array
         try:
             base = eq_id * 7
@@ -191,6 +197,7 @@ def _set_weld_relpose_current(sim: Any, eq_id: int, body1_id: int, body2_id: int
             model.eq_data[base + 3 : base + 7] = q_rel
             return True
         except Exception:
+            logger.exception("Failed to set weld relpose using eq_data flat indexing", exc_info=True)
             return False
 
 
@@ -253,6 +260,7 @@ def _resolve_handles(env: Any, robot_id: int, gripper: Any) -> Optional[SuctionW
                 if eq_id == -1 and "suction_constraint" in nm:
                     eq_id = i
         except Exception:
+            logger.exception("Failed to fallback-resolve suction_constraint equality", exc_info=True)
             pass
 
     if snout_geom_id == -1:
@@ -266,7 +274,7 @@ def _resolve_handles(env: Any, robot_id: int, gripper: Any) -> Optional[SuctionW
                 if snout_geom_id == -1 and "geo_snout" in nm:
                     snout_geom_id = i
         except Exception:
-            pass
+            logger.exception("Failed to fallback-resolve geo_snout geom", exc_info=True)
 
     handles = SuctionWeldHandles(valid=(eq_id != -1 and snout_geom_id != -1), eq_id=eq_id, snout_geom_id=snout_geom_id)
     per_model[robot_id] = handles
@@ -310,6 +318,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
         try:
             action_vec = np.asarray(action, dtype=np.float64).reshape(-1)
         except Exception:
+            logger.exception("Failed to interpret action as flat numpy array", exc_info=True)
             return
         if action_vec.size < total_action_dim:
             return
@@ -395,7 +404,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
                 if body1_id != -1:
                     _set_weld_relpose_current(sim, handles.eq_id, body1_id, body2_id)
             except Exception:
-                pass
+                logger.exception("Failed to set weld relpose to current", exc_info=True)
 
             handles.welded_body_id = body2_id
             _set_equality_active(sim, handles.eq_id, True)
@@ -405,7 +414,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
             try:
                 sim.forward()
             except Exception:
-                pass
+                logger.exception("sim.forward() failed after suction weld mutation", exc_info=True)
 
     except Exception as e:
-        logger.debug("apply_suction_weld error (ignored): %s", e)
+        logger.exception("apply_suction_weld error (ignored): %s", e, exc_info=True)

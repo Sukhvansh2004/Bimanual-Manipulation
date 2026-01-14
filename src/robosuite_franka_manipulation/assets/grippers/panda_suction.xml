@@ -19,12 +19,22 @@
                 <inertial pos="0 0 0.063" mass="1.01" diaginertia="0.001 0.001 0.001" />
                 <geom type="mesh" mesh="cobot_pump_visual" material="panda_off_white" />
                 <geom type="mesh" mesh="cobot_pump_collision" group="0" name="geo_snout" />
-                
-                <site name="grip_site" pos="0 0 0.105" size="0.005 0.005 0.005" rgba="1 0 0 0.5" />
-                <site name="grip_cylinder" pos="0 0 0.105" size="0.005 0.005" rgba="0 1 0 0.2" type="cylinder" />
+
+                <!-- Robosuite GripperModel expects a body named 'eef' to exist -->
+                <body name="eef" pos="0 0 0.105" quat="1 0 0 0">
+                    <site name="grip_site" pos="0 0 0" size="0.005 0.005 0.005" rgba="1 0 0 0.5" />
+                    <site name="grip_cylinder" pos="0 0 0" size="0.005 0.005" rgba="0 1 0 0.2" type="cylinder" />
+                    <!-- Match robosuite PandaGripper naming for ee wrench sensing -->
+                    <site name="ft_frame" pos="0 0 0" size="0.001" rgba="0 0 0 0" />
+                </body>
             </body>
         </body>
     </worldbody>
+
+    <sensor>
+        <force name="force_ee" site="ft_frame"/>
+        <torque name="torque_ee" site="ft_frame"/>
+    </sensor>
 
     <equality>
         <!--
