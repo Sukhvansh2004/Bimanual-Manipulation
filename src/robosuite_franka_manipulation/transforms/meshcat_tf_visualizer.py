@@ -24,6 +24,13 @@ import meshcat.geometry as g
 from grasp_gen.utils.meshcat_utils import make_frame
 from PIL import Image, ImageDraw, ImageFont
 
+import logging
+from logging import getLogger
+
+logging.basicConfig(level=constants.LOG_LEVEL)
+logger = getLogger(__name__)
+
+
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
     fps: float = 20.0
@@ -67,8 +74,8 @@ def stream_transforms_to_meshcat(
         except Exception:
             pass
 
-    print("Waiting for meshcat server... start one with: meshcat-server")
-    print("Then open: http://127.0.0.1:7000")
+    logger.info("Waiting for meshcat server... start one with: meshcat-server")
+    logger.info("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
 
@@ -184,7 +191,7 @@ def stream_transforms_to_meshcat(
         _ensure_label_drawn(frame_id, drawn_labels)
 
     dt = 1.0 / max(float(config.fps), 1e-6)
-    print("Streaming TF frames to MeshCat. Ctrl+C to stop.")
+    logger.info("Streaming TF frames to MeshCat. Ctrl+C to stop.")
 
     # Keep labels upright (vertical) for readability.
     # Rotate +90deg about X so the label plane is not flat on XY.

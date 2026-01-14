@@ -84,6 +84,7 @@ DEFAULT_CAMERA_INTRINSICS = np.array([
     [0, 800.0, 240.0],
     [0, 0, 1]
 ])
+DEFAULT_RENDER_CAMERA = 'free'
 
 # Point cloud validation
 MAX_POINTCLOUD_RANGE = 10.0  # meters
@@ -140,10 +141,12 @@ DEFAULT_HORIZON = 1000  # steps
 DEFAULT_CAMERA_DEPTH = True
 
 # Environment setup
-DEFAULT_ENV_NAME = 'TwoArmHandover'
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = 'default'
 DEFAULT_ENV_CONFIG = 'opposed'
+DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
+DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
+DEFAULT_USE_OBJECT_OBS = True
 
 # Renderer settings
 DEFAULT_HAS_RENDERER = True
@@ -167,7 +170,6 @@ BASE_FRAME = 'base'             # Robot base frame (may have offset from world)
 EEF_FRAME_TEMPLATE = 'robot{robot_id}_{arm}_eef'  # End-effector frame template
 
 # Reward and episode settings
-DEFAULT_REWARD_SHAPING = False
 DEFAULT_IGNORE_DONE = True
 
 # =============================================================================
@@ -190,11 +192,15 @@ def get_project_root() -> Path:
     """Get the project root directory."""
     return Path(__file__).parent.parent.parent.parent
 
-def get_model_path(model_name: str) -> Path:
-    """Get full path to a model file."""
-    return get_project_root() / model_name
-
 def get_graspgen_config_path(gripper_type: str) -> Path:
     """Get full path to GraspGen config for a gripper type."""
     config_name = GRASPGEN_CONFIG_TEMPLATE.format(gripper_type=gripper_type)
     return get_project_root() / GRASPGEN_MODELS_DIR / config_name
+
+# =============================================================================
+# YCB Dataset and Custom Objects Configuration
+# =============================================================================
+
+# Path to YCB dataset relative to project root
+YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
+DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]

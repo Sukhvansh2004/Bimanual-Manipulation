@@ -50,6 +50,13 @@ from robosuite_franka_manipulation.utils.serialization import (
 
 from robosuite_franka_manipulation.utils.env_utils import (
     safe_env_step,
+    # YCB utilities
+    get_available_ycb_objects,
+    list_ycb_objects,
+    YCBObject,
+    # Object specification helpers
+    create_ycb_object,
+    create_primitive_object,
 )
 
 from robosuite_franka_manipulation.utils.primitives import (
@@ -90,6 +97,13 @@ __all__ = [
     'ensure_numpy',
     # Env utils
     'safe_env_step',
+    # YCB utilities
+    'get_available_ycb_objects',
+    'list_ycb_objects',
+    'YCBObject',
+    # Object specification helpers
+    'create_ycb_object',
+    'create_primitive_object',
     # Motion primitives
     'compute_approach_pose',
     'compute_retreat_pose',

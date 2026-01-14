@@ -605,7 +605,7 @@ class TransformManager:
             root = self.WORLD_FRAME
         
         prefix = "  " * indent
-        logger.info(f"{prefix}{root}")
+        print(f"{prefix}{root}")
         
         # Find children
         children = [f for f, p in self._frame_parents.items() if p == root]

@@ -114,7 +114,7 @@ intrinsics = np.array([
 ])
 ```
 
-The `DualArmEnvironmentWrapper` automatically sets camera intrinsics from `constants.DEFAULT_CAMERA_INTRINSICS`:
+The `DualArmEnvironment` automatically sets camera intrinsics from `constants.DEFAULT_CAMERA_INTRINSICS`:
 ```python
 fx = 800.0, fy = 800.0  # Focal lengths
 cx = 320.0, cy = 240.0  # Principal point (image center)
