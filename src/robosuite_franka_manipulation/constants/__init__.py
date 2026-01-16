@@ -159,7 +159,7 @@ DEFAULT_CONTROLLER_TYPE = 'BASIC'
 DEFAULT_CONTROLLER_NAME = 'OSC_POSE'
 DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
 DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
-DEFAULT_INPUT_TYPE = 'delta'
+DEFAULT_INPUT_TYPE = 'absolute'  # Use absolute pose targets instead of delta
 
 DEFAULT_KP = 300  # Position stiffness (default is ~150)
 DEFAULT_DAMPING_RATIO = 1.0  # Critical damping (default is ~1.0)

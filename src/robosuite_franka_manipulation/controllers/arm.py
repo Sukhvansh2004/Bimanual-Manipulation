@@ -337,17 +337,13 @@ class RobosuiteArmController:
             target_pos_step = positions[waypoint_idx]
             target_quat_step = quaternions[waypoint_idx]
             
-            # Compute error to current waypoint
-            current_pos, current_quat = self.get_eef_pose_in_base()
+            # OSC controller expects: [x, y, z, ax, ay, az] where (ax, ay, az) is axis-angle
+            target_ori_axisangle = R.from_quat(target_quat_step).as_rotvec()
             
-            pos_error = target_pos_step - current_pos
-            ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
-            ori_error_vec = ori_error.as_rotvec()
-            
-            # Construct action with full error (no scaling - let OSC controller handle it)
+            # Construct action with absolute target pose
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = pos_error  # Full position error
-            robot_action[3:6] = ori_error_vec  # Full orientation error
+            robot_action[:3] = target_pos_step  # Absolute target position
+            robot_action[3:6] = target_ori_axisangle  # Absolute target orientation as axis-angle
             robot_action[6] = gripper_action
             
             # Construct full action
@@ -364,9 +360,10 @@ class RobosuiteArmController:
             
             # Log progress periodically
             if waypoint_idx % 20 == 0:
-                pos_error_norm = np.linalg.norm(pos_error)
-                ori_error_norm = np.linalg.norm(ori_error_vec)
-                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}, error of that waypoint: pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
+                current_pos, current_quat = self.get_eef_pose_in_base()
+                pos_err = np.linalg.norm(target_pos_step - current_pos)
+                ori_err = np.linalg.norm((R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()).as_rotvec())
+                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}, error: pos_err={pos_err:.4f}m, ori_err={ori_err:.4f}rad")
         
         # Final check: verify we reached the target
         final_pos, final_quat = self.get_eef_pose_in_base()
@@ -399,8 +396,8 @@ class RobosuiteArmController:
             pass
     
     def _visualize_se3_trajectory(self, positions: np.ndarray, quaternions: np.ndarray,
-                                   num_frames: int = 10, axis_length: float = 0.05,
-                                   axis_radius: float = 0.003) -> None:
+                                   axis_length: float = 0.05, axis_radius: float = 0.003
+                                   ) -> None:
         """
         Visualize the SE(3) trajectory frames in MeshCat.
         

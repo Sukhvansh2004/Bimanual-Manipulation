@@ -6,9 +6,10 @@ Provides keyboard-based teleoperation using robosuite's Keyboard device.
 import numpy as np
 import logging
 from copy import deepcopy
-from typing import Any, Optional, Union
+from typing import Any, Optional
 from threading import Lock
 from pynput import keyboard as pynput_keyboard
+from scipy.spatial.transform import Rotation as R
 
 from robosuite.devices import Keyboard
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -86,8 +87,9 @@ class KeyboardTeleop:
                     break
 
                 action_dict = deepcopy(input_ac_dict)
+                
                 for arm in active_robot.arms:
-                    action_dict[arm] = input_ac_dict[f"{arm}_delta"]
+                    action_dict[arm] = input_ac_dict[f"{arm}_abs"]
 
                 env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]
                 env_action[self.device.active_robot] = active_robot.create_action_vector(action_dict)
