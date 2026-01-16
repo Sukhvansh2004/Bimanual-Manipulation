@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional
 import logging
 
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.utils import safe_env_step
 
@@ -20,7 +21,7 @@ class RobosuiteGripperController:
         self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
-        self.action_dim_per_robot = 7
+        self.action_dim_per_robot = constants.DEFAULT_ROBOT_ACTION_DIM
         self.total_action_dim = self.env.action_dim
         
         # Detect gripper type

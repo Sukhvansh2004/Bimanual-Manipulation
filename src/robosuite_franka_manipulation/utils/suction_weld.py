@@ -5,8 +5,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import mujoco
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from robosuite_franka_manipulation import constants
 from scipy.spatial.transform import Rotation as R
 
+logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 
@@ -540,28 +542,20 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
     Uses robosuite's object tracking to identify valid suction targets.
     """
     try:
-        if not hasattr(env, "sim") or not hasattr(env, "robots"):
-            return
-
-        robots = getattr(env, "robots")
-        if not robots:
-            return
-
+        robots = env.robots
         sim = env.sim
         model = sim.model
-        mj_model = getattr(model, "_model", model)
+        mj_model = model._model
 
-        total_action_dim = int(getattr(env, "action_dim", 0))
-        if total_action_dim <= 0:
-            return
-        if len(robots) <= 0:
-            return
+        total_action_dim = env.action_dim
 
         # Calculate action dimensions per robot
         if total_action_dim % len(robots) == 0:
             per_robot_dim = total_action_dim // len(robots)
+            logger.debug(f"Detected per-robot action dim: {per_robot_dim}")
         else:
-            per_robot_dim = 7
+            per_robot_dim = constants.DEFAULT_ROBOT_ACTION_DIM
+            logger.debug(f"Non-uniform action dim; assuming per-robot action dim: {per_robot_dim}")
         if per_robot_dim <= 0:
             return
 

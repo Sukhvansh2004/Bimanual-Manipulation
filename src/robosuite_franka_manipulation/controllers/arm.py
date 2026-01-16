@@ -58,7 +58,7 @@ class RobosuiteArmController:
         self.base_frame = f"robot{robot_id}_base"
 
         # Action space: 6 pose + 1 gripper
-        self.action_dim_per_robot = 7
+        self.action_dim_per_robot = constants.DEFAULT_ROBOT_ACTION_DIM
         self.total_action_dim = self.env.action_dim
         
         # Transform manager for frame conversions

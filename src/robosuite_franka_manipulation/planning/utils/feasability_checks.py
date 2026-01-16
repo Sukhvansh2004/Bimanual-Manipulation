@@ -21,7 +21,8 @@ import numpy as np
 import mujoco
 
 from scipy.spatial.transform import Rotation as R
-
+from robosuite_franka_manipulation.constants import DEFAULT_ROBOT_ACTION_DIM
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 
 
@@ -214,7 +215,7 @@ def _unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> Li
 
 
 def enumerate_ik_solutions_for_arm(
-	env,
+	env: DualArmEnvironment,
 	*,
 	robot_id: int,
 	target_pose: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
@@ -232,7 +233,7 @@ def enumerate_ik_solutions_for_arm(
 	step_size: float = 0.6,
 	unique_atol: float = 1e-3,
 ) -> List[np.ndarray]:
-	"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
+	f"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
 
 	Discretization strategy (simple + robust):
 	- Sample the last joint ("elbow/wrist" redundancy) across its joint range.
@@ -240,7 +241,7 @@ def enumerate_ik_solutions_for_arm(
 	- Run DLS IK from each seed; keep converged solutions; de-duplicate.
 
 	Returns:
-		List of joint angle arrays of shape (7,).
+		List of joint angle arrays of shape (f{DEFAULT_ROBOT_ACTION_DIM},).
 	"""
 
 	ctx = env_lock if env_lock is not None else nullcontext()
@@ -251,8 +252,8 @@ def enumerate_ik_solutions_for_arm(
 		raw_data = _raw_mujoco_data(data)
 
 		joint_ids = _get_arm_joint_ids(model, robot_id)
-		if len(joint_ids) != 7:
-			raise RuntimeError(f"Expected 7 arm joints for robot{robot_id}, found {len(joint_ids)}.")
+		if len(joint_ids) != DEFAULT_ROBOT_ACTION_DIM:
+			raise RuntimeError(f"Expected {DEFAULT_ROBOT_ACTION_DIM} arm joints for robot{robot_id}, found {len(joint_ids)}.")
 
 		joint_qpos_idx = _get_joint_qpos_indices(model, joint_ids)
 		joint_dof_idx = _get_joint_dof_indices(model, joint_ids)
@@ -348,7 +349,7 @@ def _geom_belongs_to_robot(geom_name: str) -> Optional[int]:
 	return None
 
 
-def _in_collision(env, *, contact_dist_threshold: float = 1e-6, env_lock=None) -> bool:
+def _in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-6, env_lock=None) -> bool:
 	"""Return True if either robot has any contacts below the threshold."""
 
 	ctx = env_lock if env_lock is not None else nullcontext()
@@ -376,7 +377,7 @@ def _in_collision(env, *, contact_dist_threshold: float = 1e-6, env_lock=None) -
 
 
 def check_dual_arm_pose_feasibility(
-	env,
+	env: DualArmEnvironment,
 	eef_pose_robot0: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
 	eef_pose_robot1: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
 	*,
@@ -399,7 +400,7 @@ def check_dual_arm_pose_feasibility(
 	# Pairing caps
 	max_pairs: int = 256,
 ) -> List[List[Union[np.ndarray, bool]]]:
-	"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
+	f"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
 
 	This function:
 	1) Runs IK for each arm from multiple seed configurations to obtain a set of
@@ -417,7 +418,7 @@ def check_dual_arm_pose_feasibility(
 		env_lock: Optional threading.Lock used to guard sim state.
 
 	Returns:
-		A list of entries: ``[q_arm0 (7,), q_arm1 (7,), feasible_bool]``.
+		A list of entries: ``[q_arm0 ({DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
 
 	Notes
 	- If either arm has no IK solutions, returns an empty list.
