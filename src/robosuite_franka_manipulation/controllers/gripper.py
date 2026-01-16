@@ -34,12 +34,9 @@ class RobosuiteGripperController:
         try:
             # Robosuite robots list is accessible via env.robots
             robot = self.env.robots[self.robot_id]
-            if hasattr(robot, 'gripper') and robot.gripper is not None:
-                # Check the class name or the name attribute of the gripper model
-                # Common names: "VacuumGripper", "Suction", "Adhesion"
-                gripper_type = type(robot.gripper[self.arm_id]).__name__.lower()
-                logger.debug(f"Detected gripper type for robot {self.robot_id}: {gripper_type}")
-                return "vacuum" in gripper_type or "suction" in gripper_type
+            gripper_type = type(robot.gripper[self.arm_id]).__name__.lower()
+            logger.debug(f"Detected gripper type for robot {self.robot_id}: {gripper_type}")
+            return "vacuum" in gripper_type or "suction" in gripper_type
         except Exception as e:
             logger.warning(f"Could not detect gripper type: {e}")
         return False
