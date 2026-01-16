@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import mujoco
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite.utils.binding_utils import  MjSim
+from robosuite.utils.binding_utils import MjSim
 
 from robosuite_franka_manipulation import constants
 from scipy.spatial.transform import Rotation as R
@@ -77,7 +77,7 @@ def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
         return -1
 
 
-def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
+def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
     """Get MuJoCo element name from ID using native mujoco API."""
     model = sim.model
     mj_model = getattr(model, "_model", model)
@@ -123,61 +123,17 @@ def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
     
     valid_ids: Set[int] = set()
     
-    # Method 1: Use robosuite's object_body_ids if available (most reliable)
-    if hasattr(env, "object_body_ids") and env.object_body_ids:
-        for name, body_id in env.object_body_ids.items():
-            if isinstance(body_id, (int, np.integer)) and body_id > 0:
-                valid_ids.add(int(body_id))
-                logger.debug(f"Valid suction target: '{name}' -> body_id {body_id}")
-    
-    # Method 2: Use _added_objects list if available
-    if hasattr(env, "_added_objects") and env._added_objects:
-        for name, obj, _ in env._added_objects:
-            # Get the root body name using robosuite's naming convention
-            if hasattr(obj, "root_body"):
-                root_body_name = obj.root_body
-                if hasattr(obj, "naming_prefix"):
-                    root_body_name = f"{obj.naming_prefix}{root_body_name}"
-                body_id = _name2id(sim, "body", root_body_name)
-                if body_id > 0:
-                    valid_ids.add(body_id)
-                    logger.debug(f"Valid suction target from _added_objects: '{root_body_name}' -> body_id {body_id}")
-    
-    # Method 3: Look for bodies with free joints (6-DOF objects)
-    # These are typically manipulable objects
-    if not valid_ids:
-        model = sim.model
-        mj_model = getattr(model, "_model", model)
-        nbody = mj_model.nbody if hasattr(mj_model, "nbody") else getattr(model, "nbody", 0)
-        
-        for body_id in range(1, nbody):  # Skip world body (0)
-            body_name = _id2name(sim, "body", body_id) or ""
-            
-            # Check if this body has a free joint (6-DOF)
-            jnt_start = mj_model.body_jntadr[body_id]
-            jnt_num = mj_model.body_jntnum[body_id]
-            
-            has_free_joint = False
-            if jnt_num > 0:
-                for j in range(jnt_start, jnt_start + jnt_num):
-                    if mj_model.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE:
-                        has_free_joint = True
-                        break
-            
-            if has_free_joint:
-                # Exclude obvious robot/fixture bodies by checking parent chain
-                # Objects with free joints typically have world (0) as parent
-                parent_id = mj_model.body_parentid[body_id]
-                if parent_id == 0:  # Direct child of world = likely an object
-                    valid_ids.add(body_id)
-                    logger.debug(f"Valid suction target (free joint): '{body_name}' -> body_id {body_id}")
-    
+    for name, body_id in env.object_body_ids.items():
+        if isinstance(body_id, (int, np.integer)) and body_id > 0:
+            valid_ids.add(int(body_id))
+            logger.debug(f"Valid suction target: '{name}' -> body_id {body_id}")
+
     _OBJECT_BODY_CACHE[model_key] = valid_ids
     logger.info(f"Found {len(valid_ids)} valid suction target bodies: {valid_ids}")
     return valid_ids
 
 
-def _is_valid_suction_target(env: Any, sim: Any, body_id: int) -> bool:
+def _is_valid_suction_target(env: DualArmEnvironment, sim: MjSim, body_id: int) -> bool:
     """Check if a body is a valid suction target (i.e., a manipulable object)."""
     if body_id <= 0:
         return False
@@ -185,7 +141,7 @@ def _is_valid_suction_target(env: Any, sim: Any, body_id: int) -> bool:
     return body_id in valid_ids
 
 
-def _get_mujoco_objects(sim: Any) -> Tuple[Any, Any]:
+def _get_mujoco_objects(sim: MjSim) -> Tuple[Any, Any]:
     """Get native MuJoCo model and data objects from robosuite sim.
     
     Robosuite wraps MuJoCo objects. We need the native ones to modify constraints.
@@ -205,7 +161,7 @@ def _get_mujoco_objects(sim: Any) -> Tuple[Any, Any]:
     return mj_model, mj_data
 
 
-def _set_equality_active(sim: Any, eq_id: int, active: bool) -> None:
+def _set_equality_active(sim: MjSim, eq_id: int, active: bool) -> None:
     """Set weld constraint active state using native MuJoCo data."""
     mj_model, mj_data = _get_mujoco_objects(sim)
     
@@ -220,10 +176,9 @@ def _set_equality_active(sim: Any, eq_id: int, active: bool) -> None:
         data.eq_active[eq_id] = 1 if active else 0
 
 
-def _set_weld_bodies(sim: Any, eq_id: int, body1_id: int, body2_id: int) -> bool:
+def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bool:
     """Set weld's body1 (eef) and body2 (object) using NATIVE MuJoCo model.
     
-    CRITICAL: Must use native mj_model, not the robosuite wrapper!
     After robosuite merges XML, body IDs change. We must set BOTH
     eq_obj1id and eq_obj2id to ensure the weld connects the correct bodies.
     """
@@ -268,7 +223,7 @@ def _set_weld_bodies(sim: Any, eq_id: int, body1_id: int, body2_id: int) -> bool
     return success
 
 
-def _debug_weld_state(sim: Any, eq_id: int) -> None:
+def _debug_weld_state(sim: MjSim, eq_id: int) -> None:
     """Log the current state of a weld constraint for debugging using native MuJoCo."""
     try:
         mj_model, mj_data = _get_mujoco_objects(sim)
@@ -330,7 +285,7 @@ def _debug_weld_state(sim: Any, eq_id: int) -> None:
         logger.warning(f"Failed to debug weld state: {e}")
 
 
-def _verify_weld_constraint(sim: Any, eq_id: int) -> bool:
+def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
     """Verify weld constraint is properly configured.
     
     Returns True if the constraint appears valid and active.
@@ -369,7 +324,7 @@ def _verify_weld_constraint(sim: Any, eq_id: int) -> bool:
         return False
 
 
-def _get_body_pose_wxyz(sim: Any, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
+def _get_body_pose_wxyz(sim: MjSim, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
     """Return (pos, quat) for a body in world coordinates using native MuJoCo.
 
     Quaternion is MuJoCo's convention (w, x, y, z).
@@ -655,7 +610,6 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 # body1 is the eef (gripper), body2 is the object being suctioned
                 body1_id = handles.eef_body_id
                 
-                # After robosuite XML merge, body IDs change and we must update both!
                 if not _set_weld_bodies(sim, handles.eq_id, body1_id, body2_id):
                     logger.warning(f"Failed to set weld bodies: body1={body1_id}, body2={body2_id}")
                     _set_equality_active(sim, handles.eq_id, False)
