@@ -29,14 +29,10 @@ class GraspPredictor:
         model_path: str = "",
         debug: bool = False,
         visualize: bool = False,
-        transform_manager: Optional[TransformManager] = None,
     ) -> None:
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type
-
-        # Optional TransformManager for visualizing additional frames (EEF, cameras, etc.)
-        self.tf_manager: Optional[TransformManager] = transform_manager
 
         # Lazy-created MeshCat visualizer (shared across calls)
         self._meshcat_vis: Optional[meshcat.Visualizer] = None

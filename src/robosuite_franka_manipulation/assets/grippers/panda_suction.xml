@@ -12,21 +12,29 @@
     </actuator>
 
     <worldbody>
-        <body name="gripper_base" pos="0 0 0">
+        <!-- Match robosuite Panda gripper conventions so it mounts / renders correctly -->
+        <!-- NOTE: Use 'hand' instead of 'right_gripper' to avoid double 'right' when robosuite prefixes with arm name -->
+        <body name="hand" pos="0 0 0" quat="0.707107 0 0 -0.707107">
             <joint name="joint_suction" type="slide" axis="0 0 1" limited="true" range="0 0.01" damping="0.1" />
 
-            <body name="cobot_pump" pos="0 0 0.107">
-                <inertial pos="0 0 0.063" mass="1.01" diaginertia="0.001 0.001 0.001" />
-                <geom type="mesh" mesh="cobot_pump_visual" material="panda_off_white" />
-                <geom type="mesh" mesh="cobot_pump_collision" group="0" name="geo_snout" />
+            <!-- Optional wrench sensing site used by teleop / services -->
+            <site name="ft_frame" pos="0 0 0" size="0.01 0.01 0.01" rgba="0 0 0 0" type="sphere" group="1"/>
 
-                <!-- Robosuite GripperModel expects a body named 'eef' to exist -->
-                <body name="eef" pos="0 0 0.105" quat="1 0 0 0">
-                    <site name="grip_site" pos="0 0 0" size="0.005 0.005 0.005" rgba="1 0 0 0.5" />
-                    <site name="grip_cylinder" pos="0 0 0" size="0.005 0.005" rgba="0 1 0 0.2" type="cylinder" />
-                    <!-- Match robosuite PandaGripper naming for ee wrench sensing -->
-                    <site name="ft_frame" pos="0 0 0" size="0.001" rgba="0 0 0 0" />
-                </body>
+            <!-- Visual-only pump mesh (group=1 + no collisions so it always renders) -->
+            <geom name="cobot_pump_visual" type="mesh" mesh="cobot_pump_visual" material="panda_off_white"
+                  pos="0 0 0" quat="1 0 0 0" group="1" contype="0" conaffinity="0" />
+
+            <!-- Robosuite GripperModel expects a body named 'eef' to exist -->
+            <body name="eef" pos="0 0 0.097" quat="1 0 0 0">
+                <site name="grip_site" pos="0 0 0" size="0.01 0.01 0.01" rgba="1 0 0 0.5" type="sphere" group="1"/>
+                <site name="ee_x" pos="0.1 0 0" size="0.005 .1" quat="0.707105 0 0.707108 0" rgba="1 0 0 0" type="cylinder" group="1"/>
+                <site name="ee_y" pos="0 0.1 0" size="0.005 .1" quat="0.707105 0.707108 0 0" rgba="0 1 0 0" type="cylinder" group="1"/>
+                <site name="ee_z" pos="0 0 0.1" size="0.005 .1" quat="1 0 0 0" rgba="0 0 1 0" type="cylinder" group="1"/>
+                <site name="grip_site_cylinder" pos="0 0 0" size="0.005 10" rgba="0 1 0 0.3" type="cylinder" group="1"/>
+
+                <!-- Collision geom used for contact detection + suction welding -->
+                <geom name="geo_snout" type="cylinder" pos="0 0 0" size="0.015 0.001"
+                      rgba="0.3 0.3 0.3 1" group="0" contype="1" conaffinity="1" solref="0.01 0.5" friction="1 0.005 0.0001"/>
             </body>
         </body>
     </worldbody>
@@ -41,13 +49,18 @@
         This weld is kept inactive by default. At runtime, the controller code
         retargets body2 to the contacted object body and sets relpose to the
         current relative pose, then toggles eq_active.
+        body2 is set to 'hand' as a placeholder; it will be overwritten at runtime.
+        
+        Constraint parameters tuned for strong suction hold:
+        - solref="0.002 1": Very stiff (2ms time constant), critically damped
+        - solimp="0.99 0.999 0.001": Near-rigid constraint with minimal penetration
         -->
         <weld name="suction_constraint"
-              body1="cobot_pump"
-              body2="gripper_base"
+              body1="eef"
+              body2="hand"
               active="false"
               relpose="0 0 0 1 0 0 0"
-              solref="0.02 1"
-              solimp=".9 .95 .001"/>
+              solref="0.002 1"
+              solimp="0.99 0.999 0.001"/>
     </equality>
 </mujoco>

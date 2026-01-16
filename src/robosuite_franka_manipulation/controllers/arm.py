@@ -4,13 +4,12 @@ import time
 import numpy as np
 import threading
 from scipy.spatial.transform import Rotation as R
-from typing import Tuple, Union, Optional
+from typing import Tuple, Optional
 
 import meshcat
 import meshcat.geometry as g
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
@@ -36,7 +35,7 @@ class RobosuiteArmController:
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
     """
-    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, 
+    def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, 
                  transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None,
                  visualize: bool = False) -> None:
         self.env = env

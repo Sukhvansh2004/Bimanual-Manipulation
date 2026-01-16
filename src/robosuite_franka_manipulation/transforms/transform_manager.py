@@ -13,8 +13,7 @@ import time
 from collections import deque
 import threading
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose, Transform
@@ -59,7 +58,7 @@ class TransformManager:
     # Standard frame names (from constants)
     WORLD_FRAME = constants.WORLD_FRAME
     
-    def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
+    def __init__(self, env: Optional[DualArmEnvironment] = None, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
         """
         Initialize TransformManager.
         
@@ -91,7 +90,7 @@ class TransformManager:
         if env is not None and auto_discover:
             self._discover_frames()
     
-    def set_environment(self, env: Union[MujocoEnv, Wrapper], auto_discover: bool = True) -> None:
+    def set_environment(self, env: DualArmEnvironment, auto_discover: bool = True) -> None:
         """
         Set or update the robosuite environment.
         
@@ -117,7 +116,7 @@ class TransformManager:
                 # Using robot.name would cause TF frame-id collisions and frames would “disappear”
                 # (last one wins). Use a stable unique prefix by index.
                 robot_name = f"robot{robot_idx}"
-                
+
                 # Robot base frame - query actual transform from simulation
                 base_frame = f"{robot_name}_base"
                 self._register_robot_base_provider(robot_idx, base_frame)

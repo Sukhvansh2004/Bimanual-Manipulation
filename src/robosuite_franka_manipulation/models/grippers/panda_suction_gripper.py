@@ -56,11 +56,11 @@ class PandaSuctionGripper(GripperModel):
         """
         return {
             "grip_site": "grip_site",
-            "grip_cylinder": "grip_cylinder",
+            "grip_cylinder": "grip_site_cylinder",
             "ee": "grip_site",  # Main end-effector frame
-            "ee_x": "grip_site", 
-            "ee_y": "grip_site",
-            "ee_z": "grip_site",
+            "ee_x": "ee_x",
+            "ee_y": "ee_y",
+            "ee_z": "ee_z",
         }
 
     @property

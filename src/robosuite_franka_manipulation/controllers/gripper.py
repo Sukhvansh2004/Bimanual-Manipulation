@@ -1,11 +1,10 @@
 from contextlib import nullcontext
 import threading
 import numpy as np
-from typing import Union, Optional
+from typing import Optional
 import logging
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.utils import safe_env_step
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ class RobosuiteGripperController:
     This class abstracts the control of a robot gripper in a robosuite environment.
     Supports both Parallel Jaw and Suction grippers.
     """
-    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.Lock] = None) -> None:
+    def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.Lock] = None) -> None:
         self.env = env
         self.env_lock = env_lock
         self.arm_id = arm_id

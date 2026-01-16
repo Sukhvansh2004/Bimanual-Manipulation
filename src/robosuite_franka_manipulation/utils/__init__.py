@@ -65,6 +65,11 @@ from robosuite_franka_manipulation.utils.primitives import (
     compute_linear_waypoints,
 )
 
+from robosuite_franka_manipulation.utils.suction_weld import (
+    apply_suction_weld,
+    clear_suction_cache,
+)
+
 __all__ = [
     # SE(3) utilities
     'skew',
@@ -108,4 +113,7 @@ __all__ = [
     'compute_approach_pose',
     'compute_retreat_pose',
     'compute_linear_waypoints',
+    # Suction weld utilities
+    'apply_suction_weld',
+    'clear_suction_cache',
 ]

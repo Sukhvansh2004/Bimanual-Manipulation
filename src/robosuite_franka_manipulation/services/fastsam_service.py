@@ -7,7 +7,7 @@ import zmq
 import numpy as np
 import threading
 import time
-from typing import Dict, Any, List, Optional, Tuple, cast, Union
+from typing import Dict, Any, List, Optional, Tuple, cast
 import logging
 
 from robosuite.utils.camera_utils import (
@@ -17,8 +17,7 @@ from robosuite.utils.camera_utils import (
 )
 
 from scipy.spatial.transform import Rotation as R
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
@@ -45,7 +44,7 @@ class FastSAMService:
     env_lock: Optional[threading.Lock] = None
 
     def __init__(self,
-                 env: Union[MujocoEnv, Wrapper],
+                 env: DualArmEnvironment,
                  host: str = constants.DEFAULT_HOST,
                  port: int = constants.FASTSAM_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,

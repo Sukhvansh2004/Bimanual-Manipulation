@@ -1,11 +1,23 @@
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import mujoco
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
+
+
+def _quat_wxyz_to_xyzw(q_wxyz: np.ndarray) -> np.ndarray:
+    """Convert quaternion from MuJoCo (w,x,y,z) to scipy (x,y,z,w) convention."""
+    return np.array([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]], dtype=np.float64)
+
+
+def _quat_xyzw_to_wxyz(q_xyzw: np.ndarray) -> np.ndarray:
+    """Convert quaternion from scipy (x,y,z,w) to MuJoCo (w,x,y,z) convention."""
+    return np.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]], dtype=np.float64)
 
 
 @dataclass
@@ -13,63 +25,61 @@ class SuctionWeldHandles:
     valid: bool
     eq_id: int = -1
     snout_geom_id: int = -1
+    eef_body_id: int = -1  # The body that the snout is attached to (body1 of weld)
     welded_body_id: Optional[int] = None
 
 
 # Cache keyed by model id() so we only resolve names once per model
-_SUCTION_CACHE: Dict[int, Dict[int, SuctionWeldHandles]] = {}
+_SUCTION_CACHE: Dict[int, Dict[tuple, SuctionWeldHandles]] = {}
+
+# Cache for valid object body IDs per environment
+_OBJECT_BODY_CACHE: Dict[int, Set[int]] = {}
+
+
+def clear_suction_cache() -> None:
+    """Clear all suction weld caches. Call this after env.reset() if needed."""
+    _SUCTION_CACHE.clear()
+    _OBJECT_BODY_CACHE.clear()
+    logger.debug("Cleared suction weld caches")
 
 
 def _name2id(sim: Any, obj_type: str, name: str) -> int:
-    """Best-effort name->id across mujoco_py and native mujoco backends."""
+    """Get MuJoCo element ID from name using native mujoco API."""
     model = sim.model
+    mj_model = getattr(model, "_model", model)
 
-    attr = f"{obj_type}_name2id"
-    if hasattr(model, attr):
-        try:
-            return int(getattr(model, attr)(name))
-        except Exception:
-            logger.exception(f"Failed to get id for {obj_type} named '{name}' using {attr}", exc_info=True)
-            return -1
+    type_map = {
+        "body": mujoco.mjtObj.mjOBJ_BODY,
+        "geom": mujoco.mjtObj.mjOBJ_GEOM,
+        "equality": mujoco.mjtObj.mjOBJ_EQUALITY,
+    }
+    mjt = type_map.get(obj_type)
+    if mjt is None:
+        return -1
 
     try:
-        type_map = {
-            "body": mujoco.mjtObj.mjOBJ_BODY,
-            "geom": mujoco.mjtObj.mjOBJ_GEOM,
-            "equality": mujoco.mjtObj.mjOBJ_EQUALITY,
-        }
-        mjt = type_map.get(obj_type)
-        if mjt is None:
-            return -1
-        return int(mujoco.mj_name2id(model, mjt, name))
+        return int(mujoco.mj_name2id(mj_model, mjt, name))
     except Exception:
-        logger.exception(f"Failed to get id for {obj_type} named '{name}' using mujoco.mj_name2id", exc_info=True)
         return -1
 
 
 def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
+    """Get MuJoCo element name from ID using native mujoco API."""
     model = sim.model
+    mj_model = getattr(model, "_model", model)
 
-    attr = f"{obj_type}_id2name"
-    if hasattr(model, attr):
-        try:
-            return getattr(model, attr)(idx)
-        except Exception:
-            logger.exception(f"Failed to get name for {obj_type} id '{idx}' using {attr}", exc_info=True)
-            return None
+    type_map = {
+        "body": mujoco.mjtObj.mjOBJ_BODY,
+        "geom": mujoco.mjtObj.mjOBJ_GEOM,
+        "equality": mujoco.mjtObj.mjOBJ_EQUALITY,
+    }
+    mjt = type_map.get(obj_type)
+    if mjt is None:
+        return None
 
     try:
-        type_map = {
-            "body": mujoco.mjtObj.mjOBJ_BODY,
-            "geom": mujoco.mjtObj.mjOBJ_GEOM,
-            "equality": mujoco.mjtObj.mjOBJ_EQUALITY,
-        }
-        mjt = type_map.get(obj_type)
-        if mjt is None:
-            return None
-        return mujoco.mj_id2name(model, mjt, int(idx))
+        return mujoco.mj_id2name(mj_model, mjt, int(idx))
     except Exception:
-        logger.exception(f"Failed to get name for {obj_type} id '{idx}' using mujoco.mj_id2name", exc_info=True)
         return None
 
 
@@ -87,208 +97,447 @@ def _get_contact_pairs(sim: Any) -> List[Tuple[int, int, float]]:
     return pairs
 
 
-def _is_probably_robot_or_fixture_body(sim: Any, body_id: int) -> bool:
-    name = (_id2name(sim, "body", body_id) or "").lower()
-    if name == "":
-        return True
-    if "robot" in name or "gripper" in name or "panda" in name or "cobot_pump" in name:
-        return True
-    if "table" in name or "arena" in name or "world" in name or "floor" in name:
-        return True
-    return False
+def _get_valid_object_body_ids(env: Any, sim: Any) -> Set[int]:
+    """Get the set of body IDs that belong to manipulable objects in the environment.
+    
+    Uses robosuite's object tracking (object_body_ids) to identify valid targets.
+    Only these bodies can be welded to - everything else is rejected.
+    """
+    model_key = id(sim.model)
+    if model_key in _OBJECT_BODY_CACHE:
+        return _OBJECT_BODY_CACHE[model_key]
+    
+    valid_ids: Set[int] = set()
+    
+    # Method 1: Use robosuite's object_body_ids if available (most reliable)
+    if hasattr(env, "object_body_ids") and env.object_body_ids:
+        for name, body_id in env.object_body_ids.items():
+            if isinstance(body_id, (int, np.integer)) and body_id > 0:
+                valid_ids.add(int(body_id))
+                logger.debug(f"Valid suction target: '{name}' -> body_id {body_id}")
+    
+    # Method 2: Use _added_objects list if available
+    if hasattr(env, "_added_objects") and env._added_objects:
+        for name, obj, _ in env._added_objects:
+            # Get the root body name using robosuite's naming convention
+            if hasattr(obj, "root_body"):
+                root_body_name = obj.root_body
+                if hasattr(obj, "naming_prefix"):
+                    root_body_name = f"{obj.naming_prefix}{root_body_name}"
+                body_id = _name2id(sim, "body", root_body_name)
+                if body_id > 0:
+                    valid_ids.add(body_id)
+                    logger.debug(f"Valid suction target from _added_objects: '{root_body_name}' -> body_id {body_id}")
+    
+    # Method 3: Look for bodies with free joints (6-DOF objects)
+    # These are typically manipulable objects
+    if not valid_ids:
+        model = sim.model
+        mj_model = getattr(model, "_model", model)
+        nbody = mj_model.nbody if hasattr(mj_model, "nbody") else getattr(model, "nbody", 0)
+        
+        for body_id in range(1, nbody):  # Skip world body (0)
+            body_name = _id2name(sim, "body", body_id) or ""
+            
+            # Check if this body has a free joint (6-DOF)
+            jnt_start = mj_model.body_jntadr[body_id]
+            jnt_num = mj_model.body_jntnum[body_id]
+            
+            has_free_joint = False
+            if jnt_num > 0:
+                for j in range(jnt_start, jnt_start + jnt_num):
+                    if mj_model.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE:
+                        has_free_joint = True
+                        break
+            
+            if has_free_joint:
+                # Exclude obvious robot/fixture bodies by checking parent chain
+                # Objects with free joints typically have world (0) as parent
+                parent_id = mj_model.body_parentid[body_id]
+                if parent_id == 0:  # Direct child of world = likely an object
+                    valid_ids.add(body_id)
+                    logger.debug(f"Valid suction target (free joint): '{body_name}' -> body_id {body_id}")
+    
+    _OBJECT_BODY_CACHE[model_key] = valid_ids
+    logger.info(f"Found {len(valid_ids)} valid suction target bodies: {valid_ids}")
+    return valid_ids
 
 
-def _body_is_dynamic(sim: Any, body_id: int) -> bool:
+def _is_valid_suction_target(env: Any, sim: Any, body_id: int) -> bool:
+    """Check if a body is a valid suction target (i.e., a manipulable object)."""
+    if body_id <= 0:
+        return False
+    valid_ids = _get_valid_object_body_ids(env, sim)
+    return body_id in valid_ids
+
+
+def _get_mujoco_objects(sim: Any) -> Tuple[Any, Any]:
+    """Get native MuJoCo model and data objects from robosuite sim.
+    
+    Robosuite wraps MuJoCo objects. We need the native ones to modify constraints.
+    """
     model = sim.model
-    try:
-        if hasattr(model, "body_jntnum"):
-            return int(model.body_jntnum[body_id]) > 0
-    except Exception:
-        logger.exception("Failed to determine if body is dynamic", exc_info=True)
-    return True
+    data = sim.data
+    
+    # Try to get the underlying MuJoCo objects
+    mj_model = getattr(model, "_model", None)
+    if mj_model is None:
+        mj_model = model  # Already native or different wrapper
+    
+    mj_data = getattr(data, "_data", None)
+    if mj_data is None:
+        mj_data = data  # Already native or different wrapper
+    
+    return mj_model, mj_data
 
 
 def _set_equality_active(sim: Any, eq_id: int, active: bool) -> None:
-    model = sim.model
-    if not hasattr(model, "eq_active"):
+    """Set weld constraint active state using native MuJoCo data."""
+    mj_model, mj_data = _get_mujoco_objects(sim)
+    
+    # eq_active lives on mjData for runtime toggling
+    if hasattr(mj_data, "eq_active"):
+        mj_data.eq_active[eq_id] = 1 if active else 0
         return
-    model.eq_active[eq_id] = 1 if active else 0
+    
+    # Fallback: try on wrapper
+    data = sim.data
+    if hasattr(data, "eq_active"):
+        data.eq_active[eq_id] = 1 if active else 0
 
 
-def _set_weld_target_body(sim: Any, eq_id: int, body2_id: int) -> bool:
-    """Set weld's second object (object being suctioned)."""
-    model = sim.model
-    if hasattr(model, "eq_obj2id"):
-        try:
-            model.eq_obj2id[eq_id] = int(body2_id)
-            return True
-        except Exception:
-            logger.exception("Failed to set eq_obj2id for weld equality", exc_info=True)
+def _set_weld_bodies(sim: Any, eq_id: int, body1_id: int, body2_id: int) -> bool:
+    """Set weld's body1 (eef) and body2 (object) using NATIVE MuJoCo model.
+    
+    CRITICAL: Must use native mj_model, not the robosuite wrapper!
+    After robosuite merges XML, body IDs change. We must set BOTH
+    eq_obj1id and eq_obj2id to ensure the weld connects the correct bodies.
+    """
+    mj_model, mj_data = _get_mujoco_objects(sim)
+    success = True
+    
+    # Verify this is a weld constraint (mjEQ_WELD = 1)
+    if hasattr(mj_model, "eq_type"):
+        eq_type = int(mj_model.eq_type[eq_id])
+        if eq_type != 1:  # mjEQ_WELD = 1
+            logger.error(f"Constraint {eq_id} is not a WELD (type={eq_type}, expected 1)")
             return False
-    return False
+    
+    # Set body1 (the gripper's eef body)
+    if hasattr(mj_model, "eq_obj1id"):
+        try:
+            old_obj1 = int(mj_model.eq_obj1id[eq_id])
+            mj_model.eq_obj1id[eq_id] = int(body1_id)
+            # Always log body1 status for debugging
+            logger.info(f"eq_obj1id[{eq_id}]: was {old_obj1}, now {body1_id} (eef)")
+        except Exception:
+            logger.exception("Failed to set eq_obj1id")
+            success = False
+    else:
+        logger.error("Native model does not have eq_obj1id attribute")
+        success = False
+    
+    # Set body2 (the object being suctioned)
+    if hasattr(mj_model, "eq_obj2id"):
+        try:
+            old_obj2 = int(mj_model.eq_obj2id[eq_id])
+            mj_model.eq_obj2id[eq_id] = int(body2_id)
+            # Always log body2 status for debugging
+            logger.info(f"eq_obj2id[{eq_id}]: was {old_obj2}, now {body2_id} (object)")
+        except Exception:
+            logger.exception("Failed to set eq_obj2id")
+            success = False
+    else:
+        logger.error("Native model does not have eq_obj2id attribute")
+        success = False
+    
+    return success
+
+
+def _debug_weld_state(sim: Any, eq_id: int) -> None:
+    """Log the current state of a weld constraint for debugging using native MuJoCo."""
+    try:
+        mj_model, mj_data = _get_mujoco_objects(sim)
+        
+        # Get constraint type
+        eq_type = int(mj_model.eq_type[eq_id]) if hasattr(mj_model, "eq_type") else -1
+        # mjEQ_WELD = 1 in MuJoCo
+        type_name = "WELD" if eq_type == 1 else f"type_{eq_type}"
+        
+        # Get body IDs from native model
+        obj1_id = int(mj_model.eq_obj1id[eq_id]) if hasattr(mj_model, "eq_obj1id") else -1
+        obj2_id = int(mj_model.eq_obj2id[eq_id]) if hasattr(mj_model, "eq_obj2id") else -1
+        
+        # Get body names
+        obj1_name = _id2name(sim, "body", obj1_id) or f"body_{obj1_id}"
+        obj2_name = _id2name(sim, "body", obj2_id) or f"body_{obj2_id}"
+        
+        # Get active state from native data
+        eq_active = int(mj_data.eq_active[eq_id]) if hasattr(mj_data, "eq_active") else -1
+        
+        # Get relpose data from native model
+        # MuJoCo eq_data layout for WELD: anchor[0:3], relpose_pos[3:6], relpose_quat[6:10]
+        if hasattr(mj_model, "eq_data"):
+            try:
+                anchor = mj_model.eq_data[eq_id, 0:3]
+                pos = mj_model.eq_data[eq_id, 3:6]
+                quat = mj_model.eq_data[eq_id, 6:10]
+            except Exception:
+                anchor = np.zeros(3)
+                pos = np.zeros(3)
+                quat = np.array([1, 0, 0, 0])
+        else:
+            anchor = np.zeros(3)
+            pos = np.zeros(3)
+            quat = np.array([1, 0, 0, 0])
+        
+        # Get solref/solimp for constraint strength info
+        solref = None
+        solimp = None
+        if hasattr(mj_model, "eq_solref"):
+            try:
+                solref = mj_model.eq_solref[eq_id]
+            except Exception:
+                pass
+        if hasattr(mj_model, "eq_solimp"):
+            try:
+                solimp = mj_model.eq_solimp[eq_id]
+            except Exception:
+                pass
+        
+        logger.info(
+            f"WELD STATE eq_id={eq_id}: type={type_name}, "
+            f"body1={obj1_name}({obj1_id}), body2={obj2_name}({obj2_id}), "
+            f"active={eq_active}, anchor={anchor}, relpose_pos={pos}, relpose_quat={quat}"
+        )
+        if solref is not None:
+            logger.info(f"  solref={solref}, solimp={solimp}")
+    except Exception as e:
+        logger.warning(f"Failed to debug weld state: {e}")
+
+
+def _verify_weld_constraint(sim: Any, eq_id: int) -> bool:
+    """Verify weld constraint is properly configured.
+    
+    Returns True if the constraint appears valid and active.
+    """
+    try:
+        mj_model, mj_data = _get_mujoco_objects(sim)
+        
+        # Check constraint type
+        if hasattr(mj_model, "eq_type"):
+            eq_type = int(mj_model.eq_type[eq_id])
+            if eq_type != 1:  # mjEQ_WELD = 1
+                logger.error(f"eq_id={eq_id} is not a WELD constraint (type={eq_type})")
+                return False
+        
+        # Check active state
+        if hasattr(mj_data, "eq_active"):
+            active = int(mj_data.eq_active[eq_id])
+            if active != 1:
+                logger.warning(f"eq_id={eq_id} is not active (eq_active={active})")
+                return False
+        
+        # Check body IDs are valid
+        if hasattr(mj_model, "eq_obj1id") and hasattr(mj_model, "eq_obj2id"):
+            body1 = int(mj_model.eq_obj1id[eq_id])
+            body2 = int(mj_model.eq_obj2id[eq_id])
+            if body1 <= 0 or body2 <= 0:
+                logger.error(f"eq_id={eq_id} has invalid body IDs: body1={body1}, body2={body2}")
+                return False
+            if body1 == body2:
+                logger.error(f"eq_id={eq_id} has same body for both: {body1}")
+                return False
+        
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to verify weld constraint: {e}")
+        return False
 
 
 def _get_body_pose_wxyz(sim: Any, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (pos, quat) for a body in world coordinates.
+    """Return (pos, quat) for a body in world coordinates using native MuJoCo.
 
     Quaternion is MuJoCo's convention (w, x, y, z).
     """
+    mj_model, mj_data = _get_mujoco_objects(sim)
+    
+    # Native MuJoCo uses xpos/xquat (without body_ prefix)
+    if hasattr(mj_data, "xpos") and hasattr(mj_data, "xquat"):
+        pos = np.asarray(mj_data.xpos[body_id], dtype=np.float64)
+        quat = np.asarray(mj_data.xquat[body_id], dtype=np.float64)
+        return pos, quat
+    
+    # Fallback: robosuite wrapper uses body_xpos/body_xquat
     data = sim.data
     if hasattr(data, "body_xpos") and hasattr(data, "body_xquat"):
         pos = np.asarray(data.body_xpos[body_id], dtype=np.float64)
         quat = np.asarray(data.body_xquat[body_id], dtype=np.float64)
         return pos, quat
-    # native mujoco python bindings typically expose data.xpos/xquat for bodies
-    pos = np.asarray(data.xpos[body_id], dtype=np.float64)
-    quat = np.asarray(data.xquat[body_id], dtype=np.float64)
-    return pos, quat
+    
+    raise RuntimeError(f"Cannot get body pose for body_id={body_id}")
 
 
-def _quat_conj_wxyz(q: np.ndarray) -> np.ndarray:
-    return np.array([q[0], -q[1], -q[2], -q[3]], dtype=np.float64)
-
-
-def _quat_mul_wxyz(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    return np.array(
-        [
-            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        ],
-        dtype=np.float64,
-    )
-
-
-def _rotate_vec_by_quat_wxyz(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-    """Rotate vector v by unit quaternion q (wxyz)."""
-    qv = np.array([0.0, v[0], v[1], v[2]], dtype=np.float64)
-    return _quat_mul_wxyz(_quat_mul_wxyz(q, qv), _quat_conj_wxyz(q))[1:4]
+def _compute_relative_pose_wxyz(
+    p1: np.ndarray, q1_wxyz: np.ndarray,
+    p2: np.ndarray, q2_wxyz: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute relative pose of body2 in body1's frame using scipy Rotation.
+    
+    Args:
+        p1: Position of body1 in world frame
+        q1_wxyz: Quaternion of body1 in MuJoCo (w,x,y,z) convention
+        p2: Position of body2 in world frame  
+        q2_wxyz: Quaternion of body2 in MuJoCo (w,x,y,z) convention
+        
+    Returns:
+        (p_rel, q_rel_wxyz): Relative position and quaternion (MuJoCo convention)
+    """
+    # Convert to scipy convention (x,y,z,w)
+    q1_xyzw = _quat_wxyz_to_xyzw(q1_wxyz)
+    q2_xyzw = _quat_wxyz_to_xyzw(q2_wxyz)
+    
+    # Create scipy Rotation objects
+    rot1 = R.from_quat(q1_xyzw)
+    rot2 = R.from_quat(q2_xyzw)
+    
+    # Relative rotation: q_rel = q1^-1 * q2
+    rot_rel = rot1.inv() * rot2
+    
+    # Relative position: p_rel = R1^-1 * (p2 - p1)
+    p_rel = rot1.inv().apply(p2 - p1)
+    
+    # Convert back to MuJoCo convention (w,x,y,z)
+    q_rel_wxyz = _quat_xyzw_to_wxyz(rot_rel.as_quat())
+    
+    return p_rel, q_rel_wxyz
 
 
 def _set_weld_relpose_current(sim: Any, eq_id: int, body1_id: int, body2_id: int) -> bool:
     """Set weld relpose to current relative pose (body2 in body1 frame).
 
     This prevents objects from snapping when the weld activates.
+    Uses NATIVE MuJoCo model for reliable modification.
     """
-    model = sim.model
-    if not hasattr(model, "eq_data"):
+    mj_model, mj_data = _get_mujoco_objects(sim)
+    
+    if not hasattr(mj_model, "eq_data"):
+        logger.error("Native model does not have eq_data attribute")
         return False
 
-    p1, q1 = _get_body_pose_wxyz(sim, body1_id)
-    p2, q2 = _get_body_pose_wxyz(sim, body2_id)
+    # Get current world poses using native data
+    if hasattr(mj_data, "xpos") and hasattr(mj_data, "xquat"):
+        p1 = np.asarray(mj_data.xpos[body1_id], dtype=np.float64)
+        q1 = np.asarray(mj_data.xquat[body1_id], dtype=np.float64)
+        p2 = np.asarray(mj_data.xpos[body2_id], dtype=np.float64)
+        q2 = np.asarray(mj_data.xquat[body2_id], dtype=np.float64)
+    else:
+        # Fallback to wrapper
+        p1, q1 = _get_body_pose_wxyz(sim, body1_id)
+        p2, q2 = _get_body_pose_wxyz(sim, body2_id)
 
-    q1_inv = _quat_conj_wxyz(q1)
-    q_rel = _quat_mul_wxyz(q1_inv, q2)
-    p_rel = _rotate_vec_by_quat_wxyz(q1_inv, (p2 - p1))
+    # Calculate relative pose: body2 in body1's frame using scipy Rotation
+    p_rel, q_rel = _compute_relative_pose_wxyz(p1, q1, p2, q2)
+    
+    logger.info(f"Setting weld relpose: pos={p_rel}, quat={q_rel}")
 
+    # MuJoCo eq_data layout for WELD constraints:
+    #   [0:3]  = anchor point in body1 frame (we keep at origin)
+    #   [3:6]  = relpose position (body2 origin in body1 frame)
+    #   [6:10] = relpose quaternion (body2 orientation relative to body1, wxyz format)
+    #   [10]   = torquescale (optional)
     try:
-        model.eq_data[eq_id, 0:3] = p_rel
-        model.eq_data[eq_id, 3:7] = q_rel
+        # Keep anchor at origin (constraint acts at body1 origin)
+        mj_model.eq_data[eq_id, 0:3] = np.zeros(3)
+        # Set relpose position (indices 3:6)
+        mj_model.eq_data[eq_id, 3:6] = p_rel
+        # Set relpose quaternion (indices 6:10)
+        mj_model.eq_data[eq_id, 6:10] = q_rel
+        logger.info(f"Set eq_data[{eq_id}]: anchor=[0,0,0], relpose_pos={p_rel}, relpose_quat={q_rel}")
         return True
     except Exception:
-        logger.exception("Failed to set weld relpose using eq_data 2D indexing", exc_info=True)
+        logger.exception("Failed to set weld relpose using eq_data 2D indexing")
         # some backends may expose eq_data as a flat array
         try:
-            base = eq_id * 7
-            model.eq_data[base : base + 3] = p_rel
-            model.eq_data[base + 3 : base + 7] = q_rel
+            base = eq_id * 11  # MuJoCo eq_data has 11 elements per constraint
+            mj_model.eq_data[base : base + 3] = np.zeros(3)  # anchor
+            mj_model.eq_data[base + 3 : base + 6] = p_rel    # relpose pos
+            mj_model.eq_data[base + 6 : base + 10] = q_rel   # relpose quat
             return True
         except Exception:
-            logger.exception("Failed to set weld relpose using eq_data flat indexing", exc_info=True)
+            logger.exception("Failed to set weld relpose using eq_data flat indexing")
             return False
 
 
-def _resolve_handles(env: Any, robot_id: int, gripper: Any) -> Optional[SuctionWeldHandles]:
+def _resolve_handles(env: Any, robot_id: int, arm: str, gripper: Any) -> Optional[SuctionWeldHandles]:
+    """Resolve suction weld handles using robosuite's correct_naming method.
+    
+    Uses the gripper's correct_naming() to get properly prefixed element names,
+    which is the canonical way robosuite handles XML element naming after merge.
+    """
     if not hasattr(env, "sim"):
         return None
 
     sim = env.sim
-    model_key = id(sim.model)
+    model = sim.model
+    mj_model = getattr(model, "_model", model)
+    model_key = id(model)
     per_model = _SUCTION_CACHE.setdefault(model_key, {})
-    if robot_id in per_model:
-        return per_model[robot_id]
+    cache_key = (int(robot_id), str(arm))
+    if cache_key in per_model:
+        return per_model[cache_key]
 
-    # Prefer robosuite's own naming prefix if available; this makes us agnostic to
-    # robot index and any XML prefixing rules.
-    naming_prefix = getattr(gripper, "naming_prefix", None)
-    prefix = str(naming_prefix) if naming_prefix else ""
+    # Use robosuite's correct_naming method - this is the proper way
+    correct_naming = getattr(gripper, "correct_naming", None)
+    if not callable(correct_naming):
+        logger.warning(f"Gripper for robot {robot_id} arm {arm} lacks correct_naming method")
+        handles = SuctionWeldHandles(valid=False)
+        per_model[cache_key] = handles
+        return handles
 
-    # Robosuite may already include arm in the prefix (e.g., gripper0_right_), so
-    # only append the raw element names defined in the XML.
-    eq_name_candidates = []
-    geom_name_candidates = []
-    if prefix:
-        eq_name_candidates.extend([f"{prefix}suction_constraint"])
-        geom_name_candidates.extend([f"{prefix}geo_snout"])
+    # Get properly prefixed names using robosuite's naming system
+    eq_name = correct_naming("suction_constraint")
+    geom_name = correct_naming("geo_snout")
+    eef_body_name = correct_naming("eef")
+    
+    logger.debug(f"Looking for suction elements: eq='{eq_name}', geom='{geom_name}', eef='{eef_body_name}'")
 
-    # Backwards-compatible heuristics
-    eq_name_candidates.extend([
-        f"gripper{robot_id}_suction_constraint",
-        f"gripper{robot_id}_right_suction_constraint",
-        "suction_constraint",
-    ])
-    geom_name_candidates.extend([
-        f"gripper{robot_id}_geo_snout",
-        f"gripper{robot_id}_right_geo_snout",
-        "geo_snout",
-    ])
+    # Look up IDs using native MuJoCo API
+    eq_id = _name2id(sim, "equality", eq_name)
+    snout_geom_id = _name2id(sim, "geom", geom_name)
+    eef_body_id = _name2id(sim, "body", eef_body_name)
 
-    eq_id = -1
-    for n in eq_name_candidates:
-        eq_id = _name2id(sim, "equality", n)
-        if eq_id != -1:
-            break
-
-    snout_geom_id = -1
-    for n in geom_name_candidates:
-        snout_geom_id = _name2id(sim, "geom", n)
-        if snout_geom_id != -1:
-            break
-
-    # Fallback: substring scan (works regardless of prefix conventions)
     if eq_id == -1:
-        try:
-            neq = int(getattr(sim.model, "neq", 0))
-            for i in range(neq):
-                nm = (_id2name(sim, "equality", i) or "")
-                if "suction_constraint" in nm and f"gripper{robot_id}" in nm:
-                    eq_id = i
-                    break
-                if eq_id == -1 and "suction_constraint" in nm:
-                    eq_id = i
-        except Exception:
-            logger.exception("Failed to fallback-resolve suction_constraint equality", exc_info=True)
-            pass
-
+        logger.warning(f"Could not find equality constraint '{eq_name}'")
     if snout_geom_id == -1:
-        try:
-            ngeom = int(getattr(sim.model, "ngeom", 0))
-            for i in range(ngeom):
-                nm = (_id2name(sim, "geom", i) or "")
-                if "geo_snout" in nm and f"gripper{robot_id}" in nm:
-                    snout_geom_id = i
-                    break
-                if snout_geom_id == -1 and "geo_snout" in nm:
-                    snout_geom_id = i
-        except Exception:
-            logger.exception("Failed to fallback-resolve geo_snout geom", exc_info=True)
+        logger.warning(f"Could not find snout geom '{geom_name}'")
+    if eef_body_id == -1:
+        logger.warning(f"Could not find eef body '{eef_body_name}'")
 
-    handles = SuctionWeldHandles(valid=(eq_id != -1 and snout_geom_id != -1), eq_id=eq_id, snout_geom_id=snout_geom_id)
-    per_model[robot_id] = handles
+    valid = (eq_id != -1 and snout_geom_id != -1 and eef_body_id != -1)
+    handles = SuctionWeldHandles(
+        valid=valid,
+        eq_id=eq_id,
+        snout_geom_id=snout_geom_id,
+        eef_body_id=eef_body_id,
+    )
+    
+    if valid:
+        logger.info(f"Suction handles for robot {robot_id} arm {arm}: eq_id={eq_id}, geom_id={snout_geom_id}, eef_body={eef_body_id}")
+    
+    per_model[cache_key] = handles
     return handles
 
 
-def apply_suction_weld(env: Any, action: Any) -> None:
+def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
     """Contact-driven suction weld.
 
-    - If suction is ON (gripper action > 0) and suction cup is in contact with a dynamic object,
-      activate the MuJoCo weld equality and set its target body to that object.
+    - If suction is ON (gripper action > 0) and suction cup is in contact with a 
+      VALID OBJECT (from env.object_body_ids), activate the MuJoCo weld equality.
     - If suction is OFF, deactivate the weld.
+    - Does NOTHING if not in contact with a valid object (prevents self-welding).
 
-    This does *not* modify objects; it only uses contact queries + equality toggling.
+    Uses robosuite's object tracking to identify valid suction targets.
     """
     try:
         if not hasattr(env, "sim") or not hasattr(env, "robots"):
@@ -300,6 +549,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
 
         sim = env.sim
         model = sim.model
+        mj_model = getattr(model, "_model", model)
 
         total_action_dim = int(getattr(env, "action_dim", 0))
         if total_action_dim <= 0:
@@ -307,7 +557,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
         if len(robots) <= 0:
             return
 
-        # Prefer even split; otherwise fall back to the common robosuite layout (7 DoF per robot)
+        # Calculate action dimensions per robot
         if total_action_dim % len(robots) == 0:
             per_robot_dim = total_action_dim // len(robots)
         else:
@@ -318,7 +568,7 @@ def apply_suction_weld(env: Any, action: Any) -> None:
         try:
             action_vec = np.asarray(action, dtype=np.float64).reshape(-1)
         except Exception:
-            logger.exception("Failed to interpret action as flat numpy array", exc_info=True)
+            logger.exception("Failed to interpret action as flat numpy array")
             return
         if action_vec.size < total_action_dim:
             return
@@ -327,94 +577,128 @@ def apply_suction_weld(env: Any, action: Any) -> None:
         any_mutation = False
 
         for ridx, robot in enumerate(robots):
-            gripper = getattr(robot, "gripper", None)
-            if gripper is None:
+            arms = getattr(robot, "arms", None)
+            grippers = getattr(robot, "gripper", None)
+            if not arms or grippers is None:
                 continue
 
-            gripper_type = type(gripper).__name__.lower()
-            is_suction = ("suction" in gripper_type) or ("vacuum" in gripper_type)
-            if not is_suction:
-                continue
-
-            handles = _resolve_handles(env, ridx, gripper)
-            if not handles or not handles.valid:
-                continue
-
-            # Robosuite convention: last dim per robot is gripper
-            gripper_action_index = ridx * per_robot_dim + (per_robot_dim - 1)
-            if gripper_action_index < 0 or gripper_action_index >= action_vec.size:
-                continue
-            gripper_action = float(action_vec[gripper_action_index])
-            suction_on = gripper_action > 0.0
-
-            if not suction_on:
-                if handles.welded_body_id is not None:
-                    _set_equality_active(sim, handles.eq_id, False)
-                    handles.welded_body_id = None
-                    any_mutation = True
-                else:
-                    _set_equality_active(sim, handles.eq_id, False)
-                continue
-
-            # suction ON: keep existing weld
-            if handles.welded_body_id is not None:
-                _set_equality_active(sim, handles.eq_id, True)
-                continue
-
-            # select contacted geom other than the snout
-            target_geom_id: Optional[int] = None
-            best_dist = float("inf")
-            for g1, g2, dist in contact_pairs:
-                if g1 == handles.snout_geom_id:
-                    candidate = g2
-                elif g2 == handles.snout_geom_id:
-                    candidate = g1
-                else:
+            for arm in list(arms):
+                try:
+                    gripper = grippers[arm]
+                except Exception:
                     continue
-                if dist < best_dist:
-                    best_dist = dist
-                    target_geom_id = int(candidate)
+                if gripper is None:
+                    continue
 
-            if target_geom_id is None:
-                _set_equality_active(sim, handles.eq_id, False)
-                continue
+                # Check if this is a suction gripper
+                gripper_type = type(gripper).__name__.lower()
+                is_suction = ("suction" in gripper_type) or ("vacuum" in gripper_type)
+                if not is_suction:
+                    continue
 
-            body2_id = int(model.geom_bodyid[target_geom_id])
-            if body2_id <= 0:
-                _set_equality_active(sim, handles.eq_id, False)
-                continue
-            if _is_probably_robot_or_fixture_body(sim, body2_id):
-                _set_equality_active(sim, handles.eq_id, False)
-                continue
-            if not _body_is_dynamic(sim, body2_id):
-                _set_equality_active(sim, handles.eq_id, False)
-                continue
+                handles = _resolve_handles(env, ridx, arm, gripper)
+                if not handles or not handles.valid:
+                    continue
 
-            if not _set_weld_target_body(sim, handles.eq_id, body2_id):
-                _set_equality_active(sim, handles.eq_id, False)
-                continue
+                # Get gripper action value
+                gripper_action_index = ridx * per_robot_dim + (per_robot_dim - 1)
+                if gripper_action_index < 0 or gripper_action_index >= action_vec.size:
+                    continue
+                gripper_action = float(action_vec[gripper_action_index])
+                suction_on = gripper_action > 0.0
 
-            # Set desired relative pose to current pose to avoid snapping.
-            try:
-                if hasattr(model, "eq_obj1id"):
-                    body1_id = int(model.eq_obj1id[handles.eq_id])
-                else:
-                    # fallback: find by name using the equality id name
-                    body1_id = -1
+                # --- SUCTION OFF: Deactivate weld ---
+                if not suction_on:
+                    if handles.welded_body_id is not None:
+                        logger.debug(f"Releasing suction weld on body {handles.welded_body_id}")
+                        _set_equality_active(sim, handles.eq_id, False)
+                        handles.welded_body_id = None
+                        any_mutation = True
+                    else:
+                        # Make sure weld stays inactive
+                        _set_equality_active(sim, handles.eq_id, False)
+                    continue
+
+                # --- SUCTION ON ---
+                
+                # If already welded, just keep the weld active
+                if handles.welded_body_id is not None:
+                    _set_equality_active(sim, handles.eq_id, True)
+                    continue
+
+                # Find the best contacted geom (closest contact with snout)
+                target_geom_id: Optional[int] = None
+                best_dist = float("inf")
+                for g1, g2, dist in contact_pairs:
+                    if g1 == handles.snout_geom_id:
+                        candidate = g2
+                    elif g2 == handles.snout_geom_id:
+                        candidate = g1
+                    else:
+                        continue
+                    if dist < best_dist:
+                        best_dist = dist
+                        target_geom_id = int(candidate)
+
+                if target_geom_id is None:
+                    # No contact - keep weld inactive, do NOT activate
+                    _set_equality_active(sim, handles.eq_id, False)
+                    continue
+
+                # Get the body that owns this geom
+                body2_id = int(mj_model.geom_bodyid[target_geom_id])
+                
+                # CRITICAL: Only allow welding to VALID OBJECTS from the environment
+                if not _is_valid_suction_target(env, sim, body2_id):
+                    target_name = _id2name(sim, "body", body2_id) or f"body_{body2_id}"
+                    logger.debug(f"Ignoring contact with non-object body: {target_name}")
+                    _set_equality_active(sim, handles.eq_id, False)
+                    continue
+
+                # body1 is the eef (gripper), body2 is the object being suctioned
+                body1_id = handles.eef_body_id
+                
+                # CRITICAL FIX: Set BOTH eq_obj1id and eq_obj2id
+                # After robosuite XML merge, body IDs change and we must update both!
+                if not _set_weld_bodies(sim, handles.eq_id, body1_id, body2_id):
+                    logger.warning(f"Failed to set weld bodies: body1={body1_id}, body2={body2_id}")
+                    _set_equality_active(sim, handles.eq_id, False)
+                    continue
+
+                # Set weld relpose to current relative pose to prevent snapping
                 if body1_id != -1:
-                    _set_weld_relpose_current(sim, handles.eq_id, body1_id, body2_id)
-            except Exception:
-                logger.exception("Failed to set weld relpose to current", exc_info=True)
+                    if not _set_weld_relpose_current(sim, handles.eq_id, body1_id, body2_id):
+                        logger.warning("Failed to set weld relpose - weld may snap objects together")
 
-            handles.welded_body_id = body2_id
-            _set_equality_active(sim, handles.eq_id, True)
-            any_mutation = True
+                # Activate the weld
+                target_name = _id2name(sim, "body", body2_id) or f"body_{body2_id}"
+                body1_name = _id2name(sim, "body", body1_id) or f"body_{body1_id}"
+                logger.info(f"Activating suction weld: {body1_name}({body1_id}) -> {target_name}({body2_id})")
+                handles.welded_body_id = body2_id
+                _set_equality_active(sim, handles.eq_id, True)
+                
+                # Debug: log full weld state and verify constraint
+                _debug_weld_state(sim, handles.eq_id)
+                if not _verify_weld_constraint(sim, handles.eq_id):
+                    logger.error("Weld constraint verification FAILED!")
+                
+                any_mutation = True
 
-        if any_mutation and hasattr(sim, "forward"):
+        # Propagate constraint changes using native MuJoCo for reliability
+        if any_mutation:
             try:
-                sim.forward()
+                # Try native MuJoCo first - more reliable for constraint updates
+                mj_model = getattr(sim.model, "_model", sim.model)
+                mj_data = getattr(sim.data, "_data", sim.data)
+                mujoco.mj_forward(mj_model, mj_data)
+                logger.debug("Called mujoco.mj_forward() after weld mutation")
             except Exception:
-                logger.exception("sim.forward() failed after suction weld mutation", exc_info=True)
+                # Fallback to robosuite's sim.forward()
+                try:
+                    if hasattr(sim, "forward"):
+                        sim.forward()
+                except Exception:
+                    logger.exception("Failed to call forward() after suction weld mutation")
 
     except Exception as e:
-        logger.exception("apply_suction_weld error (ignored): %s", e, exc_info=True)
+        logger.exception("apply_suction_weld error (ignored): %s", e)

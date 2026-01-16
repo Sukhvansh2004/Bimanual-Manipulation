@@ -162,7 +162,7 @@ class DualArmEnvironment(TwoArmEnv):
         _process_objects(self._custom_object_specs, is_ycb=False)
         _process_objects(self._ycb_object_specs, is_ycb=True)
 
-        logger.debug(F"Processed custom and YCB objects for environment. Count: {len(mujoco_objects)}")
+        logger.debug(f"Processed custom and YCB objects for environment. Count: {len(mujoco_objects)}")
         # 5. Create ManipulationTask (Handles merging of arena, robots, and objects)
         self.model = ManipulationTask(
             mujoco_arena=self.mujoco_arena,
@@ -172,17 +172,22 @@ class DualArmEnvironment(TwoArmEnv):
 
     def _setup_references(self):
         """
-        Sets up references to important components.
+        Sets up references to important components. A reference is typically an
+        index or a list of indices that point to the corresponding elements
+        in a flatten array, which is how MuJoCo stores physical simulation data.
         """
         super()._setup_references()
         
         # Setup references for all added objects
+        # Use robosuite's standard pattern: obj.root_body returns the correctly prefixed name
+        # See: robosuite/environments/manipulation/lift.py, pick_place.py, nut_assembly.py
         self.object_body_ids = {}
         for name, obj, _ in self._added_objects:
             try:
                 self.object_body_ids[name] = self.sim.model.body_name2id(obj.root_body)
-            except Exception as e:
-                logger.warning(f"Could not find body ID for {name}: {e}")
+                logger.debug(f"Object '{name}' -> body '{obj.root_body}' -> id {self.object_body_ids[name]}")
+            except ValueError as e:
+                logger.warning(f"Could not find body for '{name}' (root_body='{obj.root_body}'): {e}")
 
     def _setup_observables(self):
         """
@@ -195,8 +200,13 @@ class DualArmEnvironment(TwoArmEnv):
             sensors = []
             names = []
 
-            # Create sensors for each object
+            # Create sensors for each object (only if body ID was found)
             for name, obj, _ in self._added_objects:
+                # Skip objects that weren't found in the model
+                if name not in self.object_body_ids:
+                    logger.warning(f"Skipping observables for '{name}' - body ID not found")
+                    continue
+                
                 # We need to capture the current value of 'name' in the closure
                 # Using a factory function is cleaner
                 
