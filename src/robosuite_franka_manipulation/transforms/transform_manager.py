@@ -6,7 +6,7 @@ provides methods for transforming poses between frames.
 """
 
 import numpy as np
-from typing import Dict, Optional, List, Set, Tuple, Union, Callable
+from typing import Dict, Optional, List, Set, Tuple, Callable
 from scipy.spatial.transform import Rotation as R
 import logging
 import time
