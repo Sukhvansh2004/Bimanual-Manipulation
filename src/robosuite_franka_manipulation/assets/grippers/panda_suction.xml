@@ -22,11 +22,10 @@
             
             <!-- 
             Dummy joint required by robosuite (grippers must have ≥1 DOF).
-            This joint is effectively LOCKED:
-            - range="0 1e-7": No movement allowed
-            - The actuator has zero gain, so it can't apply any force
+            This joint is effectively LOCKED with extreme stiffness and damping.
             -->
-            <joint name="joint_suction" type="slide" axis="0 0 1" limited="true" range="0 1e-7"/>
+            <joint name="joint_suction" type="slide" axis="0 0 1" limited="true" range="0 1e-8" 
+                   stiffness="1e8" damping="1e6" armature="100"/>
 
             <!-- Optional wrench sensing site used by teleop / services -->
             <site name="ft_frame" pos="0 0 0" size="0.01 0.01 0.01" rgba="0 0 0 0" type="sphere" group="1"/>
@@ -41,7 +40,7 @@
                   rgba="0.5 0.5 0.5 0" mass="0.1"/>
 
             <!-- Robosuite GripperModel expects a body named 'eef' to exist -->
-            <body name="eef" pos="0 0 0.097" quat="1 0 0 0">
+            <body name="eef" pos="0 0 0.11" quat="1 0 0 0">
                 <site name="grip_site" pos="0 0 0" size="0.01 0.01 0.01" rgba="1 0 0 0.5" type="sphere" group="1"/>
                 <site name="ee_x" pos="0.1 0 0" size="0.005 .1" quat="0.707105 0 0.707108 0" rgba="1 0 0 0" type="cylinder" group="1"/>
                 <site name="ee_y" pos="0 0.1 0" size="0.005 .1" quat="0.707105 0.707108 0 0" rgba="0 1 0 0" type="cylinder" group="1"/>
