@@ -88,8 +88,24 @@ class KeyboardTeleop:
 
                 action_dict = deepcopy(input_ac_dict)
                 
+                # Get the currently active arm from the device
+                active_arm = self.device.active_arm
+                
+                # For absolute input mode:
+                # - Active arm: use the pre-computed absolute action from device
+                # - Inactive arms: use their current achieved pose to keep them stationary
                 for arm in active_robot.arms:
-                    action_dict[arm] = input_ac_dict[f"{arm}_abs"]
+                    if arm == active_arm:
+                        # Use the device's computed absolute action for the active arm
+                        action_dict[arm] = input_ac_dict[f"{arm}_abs"]
+                    else:
+                        # For inactive arms, compute absolute pose from current achieved position
+                        # This prevents them from jumping back to some internal goal state
+                        eef_body = active_robot.robot_model.eef_name[arm]
+                        pose4 = active_robot.pose_in_base_from_name(eef_body)
+                        current_pos = pose4[:3, 3].copy()
+                        current_ori_axisangle = R.from_matrix(pose4[:3, :3]).as_rotvec()
+                        action_dict[arm] = np.concatenate([current_pos, current_ori_axisangle])
 
                 env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]
                 env_action[self.device.active_robot] = active_robot.create_action_vector(action_dict)
