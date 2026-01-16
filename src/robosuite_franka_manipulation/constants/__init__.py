@@ -117,6 +117,10 @@ TRAJECTORY_TIME_STEP = 0.05  # Time step between waypoints (seconds)
 TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Position convergence threshold (1cm)
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in SE(3) distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movement needed
+DEFAULT_APPROACH_DISTANCE = 0.1  # Default approach distance (meters)
+DEFAULT_APPROACH_AXIS = 'z'  # Default approach axis for pre-grasp
+MAX_POS_DELTA = 0.05  # Max position delta per step (meters)
+MAX_ORI_DELTA = 0.2   # Max rotation delta per step (radians)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

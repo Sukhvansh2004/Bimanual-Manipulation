@@ -179,15 +179,15 @@ class TestGripperControllers:
         left_gripper, right_gripper = grippers
 
         # Test left gripper
-        left_gripper.open()
+        left_gripper.release()
         time.sleep(0.2)
-        left_gripper.close()
+        left_gripper.grasp()
         time.sleep(0.2)
-        left_gripper.open()
+        left_gripper.release()
 
         # Test right gripper
-        right_gripper.open()
+        right_gripper.grasp()
         time.sleep(0.2)
-        right_gripper.close()
+        right_gripper.release()
         time.sleep(0.2)
-        right_gripper.open()
+        right_gripper.release()
