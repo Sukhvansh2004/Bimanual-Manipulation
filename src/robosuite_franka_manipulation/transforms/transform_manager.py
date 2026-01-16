@@ -6,15 +6,14 @@ provides methods for transforming poses between frames.
 """
 
 import numpy as np
-from typing import Dict, Optional, List, Set, Tuple, Union, Callable
+from typing import Dict, Optional, List, Set, Tuple, Callable
 from scipy.spatial.transform import Rotation as R
 import logging
 import time
 from collections import deque
 import threading
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose, Transform
@@ -59,7 +58,7 @@ class TransformManager:
     # Standard frame names (from constants)
     WORLD_FRAME = constants.WORLD_FRAME
     
-    def __init__(self, env: Optional[Union[MujocoEnv, Wrapper]] = None, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
+    def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
         """
         Initialize TransformManager.
         
@@ -68,7 +67,7 @@ class TransformManager:
             auto_discover: Whether to automatically discover frames from environment
             env_lock: Optional threading.Lock used to guard access to MuJoCo sim.data
         """
-        self.env = env
+        self.env: DualArmEnvironment = env
         # Optional lock to guard simulation access when multiple threads use the env
         self._env_lock: Optional[threading.Lock] = env_lock
         
@@ -88,18 +87,6 @@ class TransformManager:
         # Discovered frames
         self._known_frames: Set[str] = {self.WORLD_FRAME}
         
-        if env is not None and auto_discover:
-            self._discover_frames()
-    
-    def set_environment(self, env: Union[MujocoEnv, Wrapper], auto_discover: bool = True) -> None:
-        """
-        Set or update the robosuite environment.
-        
-        Args:
-            env: Robosuite environment instance
-            auto_discover: Whether to discover frames from environment
-        """
-        self.env = env
         if auto_discover:
             self._discover_frames()
     
@@ -111,51 +98,49 @@ class TransformManager:
         logger.info("Discovering frames from environment...")
         
         # Discover robot frames
-        if hasattr(self.env, 'robots'):
-            for robot_idx, robot in enumerate(self.env.robots):  # type: ignore[union-attr]
-                # NOTE: In robosuite, multiple robots can share the same .name (e.g., both "Panda").
-                # Using robot.name would cause TF frame-id collisions and frames would “disappear”
-                # (last one wins). Use a stable unique prefix by index.
-                robot_name = f"robot{robot_idx}"
-                
-                # Robot base frame - query actual transform from simulation
-                base_frame = f"{robot_name}_base"
-                self._register_robot_base_provider(robot_idx, base_frame)
-                
-                # Register EEF frames as dynamic
-                arm_ids: List[str] = []
-                try:
-                    # Preferred: use robosuite model metadata (public)
-                    arm_ids = list(robot.robot_model.eef_name.keys())
-                except Exception:
-                    # Fallback: robot.arms is generally available and public
-                    arm_ids = list(getattr(robot, "arms", []) or [])
+        for robot_idx, robot in enumerate(self.env.robots):  # type: ignore[union-attr]
+            # NOTE: In robosuite, multiple robots can share the same .name (e.g., both "Panda").
+            # Using robot.name would cause TF frame-id collisions and frames would “disappear”
+            # (last one wins). Use a stable unique prefix by index.
+            robot_name = f"robot{robot_idx}"
 
-                for arm_id in arm_ids:
-                    eef_frame = f"{robot_name}_{arm_id}_eef"
-                    self._register_eef_provider(robot_idx, arm_id, eef_frame)
-                    self._frame_parents[eef_frame] = base_frame
-                    self._known_frames.add(eef_frame)
-                    logger.debug(f"Registered EEF frame: {eef_frame}")
+            # Robot base frame - query actual transform from simulation
+            base_frame = f"{robot_name}_base"
+            self._register_robot_base_provider(robot_idx, base_frame)
+            
+            # Register EEF frames as dynamic
+            arm_ids: List[str] = []
+            try:
+                # Preferred: use robosuite model metadata (public)
+                arm_ids = list(robot.robot_model.eef_name.keys())
+            except Exception:
+                # Fallback: robot.arms is generally available and public
+                arm_ids = list(getattr(robot, "arms", []) or [])
+
+            for arm_id in arm_ids:
+                eef_frame = f"{robot_name}_{arm_id}_eef"
+                self._register_eef_provider(robot_idx, arm_id, eef_frame)
+                self._frame_parents[eef_frame] = base_frame
+                self._known_frames.add(eef_frame)
+                logger.debug(f"Registered EEF frame: {eef_frame}")
         
         # Discover camera frames
-        if hasattr(self.env, 'sim'):
-            for cam_id in range(self.env.sim.model.ncam):
-                cam_name = self.env.sim.model.camera_id2name(cam_id)
-                if cam_name:
-                    self._register_camera_provider(cam_name)
-                    # Camera provider publishes `{cam}_mj` dynamically as world<-cam_mj,
-                    # and static `{cam}_mj` -> `{cam}` / `{cam}_optical` transforms.
-                    cam_mj = f"{cam_name}_mj"
-                    self._frame_parents[cam_mj] = self.WORLD_FRAME
-                    self._frame_parents[cam_name] = cam_mj
-                    self._known_frames.add(cam_mj)
-                    self._known_frames.add(cam_name)
+        for cam_id in range(self.env.sim.model.ncam):
+            cam_name = self.env.sim.model.camera_id2name(cam_id)
+            if cam_name:
+                self._register_camera_provider(cam_name)
+                # Camera provider publishes `{cam}_mj` dynamically as world<-cam_mj,
+                # and static `{cam}_mj` -> `{cam}` / `{cam}_optical` transforms.
+                cam_mj = f"{cam_name}_mj"
+                self._frame_parents[cam_mj] = self.WORLD_FRAME
+                self._frame_parents[cam_name] = cam_mj
+                self._known_frames.add(cam_mj)
+                self._known_frames.add(cam_name)
 
-                    cam_opt = f"{cam_name}_optical"
-                    self._frame_parents[cam_opt] = cam_mj
-                    self._known_frames.add(cam_opt)
-                    logger.debug(f"Registered camera frame: {cam_name}")
+                cam_opt = f"{cam_name}_optical"
+                self._frame_parents[cam_opt] = cam_mj
+                self._known_frames.add(cam_opt)
+                logger.debug(f"Registered camera frame: {cam_name}")
         
         logger.info(f"Discovered frames: {sorted(self._known_frames)}")
     

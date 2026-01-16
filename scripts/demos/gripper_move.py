@@ -11,25 +11,27 @@ def test_gripper_sequence(env):
     left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
     right_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=1)
 
+    input("Press Enter to start the gripper test sequence...")
+    
     print("Starting gripper test sequence.")
 
     # --- Open both ---
-    print("--- Opening both grippers ---")
-    left_gripper.open()
-    right_gripper.open()
-    time.sleep(2)
+    print("--- Releasing both grippers ---")
+    left_gripper.release()
+    right_gripper.release()
+    input("Press Enter to continue...")
 
     # --- Close both ---
-    print("--- Closing both grippers ---")
-    left_gripper.close()
-    right_gripper.close()
-    time.sleep(2)
+    print("--- Grasping both grippers ---")
+    left_gripper.grasp()
+    right_gripper.grasp()
+    input("Press Enter to continue...")
 
     # --- Open both again ---
-    print("--- Opening both grippers again ---")
-    left_gripper.open()
-    right_gripper.open()
-    time.sleep(2)
+    print("--- Releasing both grippers again ---")
+    left_gripper.release()
+    right_gripper.release()
+    input("Press Enter to continue...")
     
     print("Gripper test sequence finished.")
 

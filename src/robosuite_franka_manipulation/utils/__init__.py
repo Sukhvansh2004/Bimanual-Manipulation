@@ -53,7 +53,6 @@ from robosuite_franka_manipulation.utils.env_utils import (
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
-    YCBObject,
     # Object specification helpers
     create_ycb_object,
     create_primitive_object,
@@ -63,6 +62,11 @@ from robosuite_franka_manipulation.utils.primitives import (
     compute_approach_pose,
     compute_retreat_pose,
     compute_linear_waypoints,
+)
+
+from robosuite_franka_manipulation.utils.suction_weld import (
+    apply_suction_weld,
+    clear_suction_cache,
 )
 
 __all__ = [
@@ -100,7 +104,6 @@ __all__ = [
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
-    'YCBObject',
     # Object specification helpers
     'create_ycb_object',
     'create_primitive_object',
@@ -108,4 +111,7 @@ __all__ = [
     'compute_approach_pose',
     'compute_retreat_pose',
     'compute_linear_waypoints',
+    # Suction weld utilities
+    'apply_suction_weld',
+    'clear_suction_cache',
 ]

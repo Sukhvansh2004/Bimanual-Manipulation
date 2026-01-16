@@ -11,8 +11,7 @@ from threading import Lock
 from pynput import keyboard as pynput_keyboard
 
 from robosuite.devices import Keyboard
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils import safe_env_step
@@ -23,7 +22,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: Union[MujocoEnv, Wrapper], pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
+    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
         if pos_sensitivity is None:
             pos_sensitivity = constants.DEFAULT_POS_SENSITIVITY
         if rot_sensitivity is None:
@@ -46,7 +45,7 @@ class KeyboardTeleop:
         Callback for keyboard listener to detect exit key.
         """
         try:
-            if hasattr(key, 'char') and key.char == 'q':
+            if key.char == 'q':
                 self.exit_pressed = True
         except AttributeError:
             pass

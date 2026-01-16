@@ -67,7 +67,7 @@ GRIPPER_GRASP_OFFSETS = {
     },
     'single_suction_cup_30mm': {
         'position': np.array([0.0, 0.0, 0.0]),
-        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # Identity
+        'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),  # 180 deg around Y
     },
 }
 
@@ -84,7 +84,6 @@ DEFAULT_CAMERA_INTRINSICS = np.array([
     [0, 800.0, 240.0],
     [0, 0, 1]
 ])
-DEFAULT_RENDER_CAMERA = 'free'
 
 # Point cloud validation
 MAX_POINTCLOUD_RANGE = 10.0  # meters
@@ -139,14 +138,16 @@ DEFAULT_ROT_SENSITIVITY = 1.0
 DEFAULT_CONTROL_FREQ = 20  # Hz
 DEFAULT_HORIZON = 1000  # steps
 DEFAULT_CAMERA_DEPTH = True
+DEFAULT_RENDER_CAMERA = 'free'
 
 # Environment setup
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
-DEFAULT_GRIPPER_TYPES_ENV = 'default'
+DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
+DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
 
 # Renderer settings
 DEFAULT_HAS_RENDERER = True
@@ -159,6 +160,11 @@ DEFAULT_CONTROLLER_NAME = 'OSC_POSE'
 DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
 DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
 DEFAULT_INPUT_TYPE = 'delta'
+
+DEFAULT_KP = 300  # Position stiffness (default is ~150)
+DEFAULT_DAMPING_RATIO = 1.0  # Critical damping (default is ~1.0)
+DEFAULT_KP_LIMITS = [0, 500]  # Allow higher stiffness values
+DEFAULT_DAMPING_RATIO_LIMITS = [0, 2]  # Allow higher damping
 
 # =============================================================================
 # Coordinate Frame Names
@@ -204,3 +210,10 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
 DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]
+
+# =============================================================================
+# Asset Paths
+# =============================================================================
+
+# Path to suction gripper XML asset
+SUCTION_GRIPPER_XML_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "grippers" / "panda_suction.xml"

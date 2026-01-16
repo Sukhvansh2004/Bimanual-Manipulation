@@ -11,8 +11,7 @@ import logging
 from typing import Dict, Any, Optional, cast, Union
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class EEFService:
 
     env_lock: Optional[threading.Lock] = None
 
-    def __init__(self, env: Union[MujocoEnv, Wrapper], host: str = constants.DEFAULT_HOST,
+    def __init__(self, env: DualArmEnvironment, host: str = constants.DEFAULT_HOST,
                  port: int = constants.EEF_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,

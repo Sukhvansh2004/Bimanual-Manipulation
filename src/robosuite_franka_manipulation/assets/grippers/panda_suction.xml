@@ -1,0 +1,81 @@
+<mujoco model="panda_suction_gripper">
+    <asset>
+        <mesh name="cobot_pump_visual" file="../meshes/cobot_pump/visual/cobot_pump.obj" />
+        <mesh name="cobot_pump_collision" file="../meshes/cobot_pump/collision/cobot_pump.stl" />
+        
+        <material name="panda_off_white" rgba="0.901961 0.921569 0.929412 1" />
+        <material name="panda_black" rgba="0.25 0.25 0.25 1" />
+    </asset>
+    
+    <actuator>
+        <!-- 
+        Dummy actuator required by robosuite's gripper interface.
+        gainprm/biasprm = 0 means it produces NO force - the joint won't move.
+        The suction ON/OFF logic is handled by apply_suction_weld() which reads the action value.
+        -->
+        <general name="suction" joint="joint_suction" ctrllimited="true" ctrlrange="-1 1" 
+                 gainprm="0 0 0" biasprm="0 0 0"/>
+    </actuator>
+
+    <worldbody>
+        <body name="hand" pos="0 0 0" quat="0.707107 0 0 -0.707107">
+            
+            <!-- 
+            Dummy joint required by robosuite (grippers must have ≥1 DOF).
+            This joint is effectively LOCKED with extreme stiffness and damping.
+            -->
+            <joint name="joint_suction" type="slide" axis="0 0 1" limited="true" range="0 1e-8" 
+                   stiffness="1e8" damping="1e6" armature="100"/>
+
+            <!-- Optional wrench sensing site used by teleop / services -->
+            <site name="ft_frame" pos="0 0 0" size="0.01 0.01 0.01" rgba="0 0 0 0" type="sphere" group="1"/>
+
+            <!-- Visual-only pump mesh (group=1 so it always renders) -->
+            <geom name="cobot_pump_visual" type="mesh" mesh="cobot_pump_visual" material="panda_off_white"
+                  pos="0 0 0" quat="1 0 0 0" group="1" contype="0" conaffinity="0" />
+            
+            <!-- Collision geometry for the pump body - prevents clipping through robot arm -->
+            <geom name="cobot_pump_collision" type="mesh" mesh="cobot_pump_collision"
+                  pos="0 0 0" quat="1 0 0 0" group="0" contype="1" conaffinity="1" 
+                  rgba="0.5 0.5 0.5 0" mass="0.1"/>
+
+            <!-- Robosuite GripperModel expects a body named 'eef' to exist -->
+            <body name="eef" pos="0 0 0.11" quat="1 0 0 0">
+                <site name="grip_site" pos="0 0 0" size="0.01 0.01 0.01" rgba="1 0 0 0.5" type="sphere" group="1"/>
+                <site name="ee_x" pos="0.1 0 0" size="0.005 .1" quat="0.707105 0 0.707108 0" rgba="1 0 0 0" type="cylinder" group="1"/>
+                <site name="ee_y" pos="0 0.1 0" size="0.005 .1" quat="0.707105 0.707108 0 0" rgba="0 1 0 0" type="cylinder" group="1"/>
+                <site name="ee_z" pos="0 0 0.1" size="0.005 .1" quat="1 0 0 0" rgba="0 0 1 0" type="cylinder" group="1"/>
+                <site name="grip_site_cylinder" pos="0 0 0" size="0.005 10" rgba="0 1 0 0.3" type="cylinder" group="1"/>
+
+                <!-- Collision geom used for contact detection + suction welding -->
+                <geom name="geo_snout" type="cylinder" pos="0 0 0" size="0.015 0.001"
+                      rgba="0.3 0.3 0.3 1" group="0" contype="1" conaffinity="1" solref="0.01 0.5" friction="1 0.005 0.0001"/>
+            </body>
+        </body>
+    </worldbody>
+
+    <sensor>
+        <force name="force_ee" site="ft_frame"/>
+        <torque name="torque_ee" site="ft_frame"/>
+    </sensor>
+
+    <equality>
+        <!--
+        This weld is kept inactive by default. At runtime, the controller code
+        retargets body2 to the contacted object body and sets relpose to the
+        current relative pose, then toggles eq_active.
+        body2 is set to 'hand' as a placeholder; it will be overwritten at runtime.
+        
+        Constraint parameters tuned for strong suction hold:
+        - solref="0.002 1": Very stiff (2ms time constant), critically damped
+        - solimp="0.99 0.999 0.001": Near-rigid constraint with minimal penetration
+        -->
+        <weld name="suction_constraint"
+              body1="eef"
+              body2="hand"
+              active="false"
+              relpose="0 0 0 1 0 0 0"
+              solref="0.002 1"
+              solimp="0.99 0.999 0.001"/>
+    </equality>
+</mujoco>

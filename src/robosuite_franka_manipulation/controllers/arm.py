@@ -4,13 +4,12 @@ import time
 import numpy as np
 import threading
 from scipy.spatial.transform import Rotation as R
-from typing import Tuple, Union, Optional
+from typing import Tuple, Optional
 
 import meshcat
 import meshcat.geometry as g
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
@@ -36,7 +35,7 @@ class RobosuiteArmController:
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
     """
-    def __init__(self, env: Union[MujocoEnv, Wrapper], arm_id: str = "right", robot_id: int = 0, 
+    def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, 
                  transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None,
                  visualize: bool = False) -> None:
         self.env = env
@@ -59,7 +58,7 @@ class RobosuiteArmController:
         self.base_frame = f"robot{robot_id}_base"
 
         # Action space: 6 pose + 1 gripper
-        self.action_dim_per_robot = 7
+        self.action_dim_per_robot = constants.DEFAULT_ROBOT_ACTION_DIM
         self.total_action_dim = self.env.action_dim
         
         # Transform manager for frame conversions
@@ -257,7 +256,9 @@ class RobosuiteArmController:
         Args:
             target_pose: Desired pose as StampedPose (includes position, quaternion, and frame_id)
             threshold: Position/orientation error threshold for convergence check
-            gripper_action: Gripper action to maintain (-1 closed, 1 open)
+            gripper_action: Raw gripper action to maintain during movement.
+                            - For Parallel Gripper: 1.0 (Open), -1.0 (Closed).
+                            - For Suction Gripper: 1.0 (Release/Off), -1.0 (Grasp/On).
             approach: If True, first move to an approach pose offset along the target's local axis,
                      then move to the actual target. Useful for grasp approach motions.
             approach_distance: Distance to offset for approach (meters). Default 0.1m (10cm).

@@ -10,9 +10,7 @@ import time
 from typing import Dict, Any, List, Optional, cast
 import logging
 
-from robosuite.environments.base import MujocoEnv
-from robosuite.wrappers import Wrapper
-from typing import Union
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
@@ -40,7 +38,7 @@ class GraspService:
                  port: int = constants.GRASP_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
-                 env: Optional[Union[MujocoEnv, Wrapper]] = None,
+                 env: Optional[DualArmEnvironment] = None,
                  env_lock: Optional[threading.Lock] = None,
                  tf_manager: Optional[TransformManager] = None,
                  debug: bool = False,
@@ -79,7 +77,7 @@ class GraspService:
         for gripper_type in gripper_types:
             try:
                 self.grasp_predictors[gripper_type] = GraspPredictor(
-                    gripper_type=gripper_type, debug=debug, visualize=visualize, transform_manager=self.tf_manager
+                    gripper_type=gripper_type, debug=debug, visualize=visualize
                 )
                 logger.info(f"Loaded GraspPredictor for {gripper_type}")
             except Exception as e:

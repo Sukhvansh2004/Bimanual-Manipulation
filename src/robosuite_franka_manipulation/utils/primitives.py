@@ -6,7 +6,7 @@ such as approach motions, retreat motions, and linear trajectories.
 """
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 from typing import Tuple
 
 from robosuite_franka_manipulation.transforms import StampedPose
@@ -127,16 +127,15 @@ def compute_linear_waypoints(start_pose: StampedPose,
         pos = start_pos + t * (end_pos - start_pos)
         
         # SLERP for orientation
-        slerp = R.from_quat([
+        key_rots = R.from_quat([
             start_rot.as_quat(),
             end_rot.as_quat()
         ])
-        # Use scipy's slerp via concatenation
-        rot = R.slerp([0, 1], slerp)([t])[0] if hasattr(R, 'slerp') else start_rot * (start_rot.inv() * end_rot) ** t
+        rot = Slerp([0, 1], key_rots)([t])[0]
         
         waypoints.append(StampedPose(
             position=pos,
-            quaternion=rot.as_quat() if hasattr(rot, 'as_quat') else end_rot.as_quat(),
+            quaternion=rot.as_quat(),
             frame_id=start_pose.frame_id
         ))
     

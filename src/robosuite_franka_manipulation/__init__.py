@@ -5,6 +5,7 @@ from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_en
 from robosuite_franka_manipulation.perception import GraspPredictor, ObjectDetector
 from robosuite_franka_manipulation.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose, Transform
+from robosuite_franka_manipulation.models.grippers import panda_suction_gripper 
 
 __all__ = [
     "RobosuiteArmController",
