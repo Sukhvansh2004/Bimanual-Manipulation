@@ -402,6 +402,13 @@ def make_dual_arm_env(
     osc_pose_config["gripper"] = {"type": constants.DEFAULT_GRIPPER_CONTROLLER_TYPE}
     osc_pose_config["input_ref_frame"] = constants.DEFAULT_INPUT_REF_FRAME
     osc_pose_config["input_type"] = constants.DEFAULT_INPUT_TYPE
+    
+    # Increase impedance (stiffness and damping) for better resistance to external forces
+    # Higher kp = stiffer position control, higher damping_ratio = more stable
+    osc_pose_config["kp"] = constants.DEFAULT_KP  # Position stiffness (default is ~150)
+    osc_pose_config["damping_ratio"] = constants.DEFAULT_DAMPING_RATIO  # Critical damping (default is ~1.0)
+    osc_pose_config["kp_limits"] = constants.DEFAULT_KP_LIMITS  # Allow higher stiffness values
+    osc_pose_config["damping_ratio_limits"] = constants.DEFAULT_DAMPING_RATIO_LIMITS  # Allow higher damping
 
     # Create the composite controller config
     controller_config = {
