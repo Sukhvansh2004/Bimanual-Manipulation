@@ -552,10 +552,8 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
         # Calculate action dimensions per robot
         if total_action_dim % len(robots) == 0:
             per_robot_dim = total_action_dim // len(robots)
-            logger.debug(f"Detected per-robot action dim: {per_robot_dim}")
         else:
             per_robot_dim = constants.DEFAULT_ROBOT_ACTION_DIM
-            logger.debug(f"Non-uniform action dim; assuming per-robot action dim: {per_robot_dim}")
         if per_robot_dim <= 0:
             return
 

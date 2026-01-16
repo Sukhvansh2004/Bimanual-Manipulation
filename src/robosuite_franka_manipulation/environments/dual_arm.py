@@ -3,7 +3,6 @@ import numpy as np
 from typing import Any, Dict, List, Optional, Tuple, Union
 from scipy.spatial.transform import Rotation as R
 
-import robosuite as suite
 import robosuite.utils.transform_utils as T
 from robosuite.environments.manipulation.two_arm_env import TwoArmEnv
 from robosuite.models.arenas import TableArena
@@ -13,7 +12,6 @@ from robosuite.utils.observables import Observable, sensor
 from robosuite.controllers import load_part_controller_config
 
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.utils.env_utils import YCBObject
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=constants.LOG_LEVEL)
@@ -107,6 +105,9 @@ class DualArmEnvironment(TwoArmEnv):
                 pos = np.array(spec.get('pos', [0.0, 0.0, 0.90]))
                 
                 if is_ycb:
+                    # Lazy import to avoid circular dependencies at module import time
+                    from robosuite_franka_manipulation.utils.env_utils import YCBObject
+
                     ycb_name = spec.get('ycb_name', 'unknown')
                     name = spec.get('instance_name', spec.get('name', f"{ycb_name}_0"))
 
