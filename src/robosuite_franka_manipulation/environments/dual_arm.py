@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from scipy.spatial.transform import Rotation as R
 
 import robosuite.utils.transform_utils as T
+from robosuite.models.objects import MujocoXMLObject
 from robosuite.environments.manipulation.two_arm_env import TwoArmEnv
 from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BoxObject, CylinderObject, BallObject, CapsuleObject
@@ -15,6 +16,68 @@ from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=constants.LOG_LEVEL)
+
+
+class YCBObject(MujocoXMLObject):
+    """
+    Custom MuJoCo object class for loading YCB dataset objects.
+    
+    This class wraps YCB dataset XML files to be compatible with robosuite's
+    object placement system.
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        ycb_object_name: str,
+        joints: Optional[List[dict]] = None,
+        obj_type: str = "all",
+        duplicate_collision_geoms: bool = True,
+    ):
+        """
+        Initialize a YCB object.
+        
+        Args:
+            name: Unique instance name for this object (used in simulation)
+            ycb_object_name: Name of the YCB object file (e.g., 'apple', 'mug')
+            joints: List of joint specifications (default: free joint)
+            obj_type: Type of object ('collision', 'visual', or 'all')
+            duplicate_collision_geoms: Whether to duplicate collision geometries
+        """
+        self.ycb_object_name = ycb_object_name
+        
+        # Find the XML file for this YCB object
+        xml_path = constants.YCB_DATASET_PATH / f"{ycb_object_name}.xml"
+        if not xml_path.exists():
+            raise FileNotFoundError(f"YCB object XML not found: {xml_path}")
+        
+        # Use default free joint if not specified
+        # This lets robosuite handle joint creation properly
+        super().__init__(
+            str(xml_path),
+            name=name,
+            joints="default" if joints is None else joints,
+            obj_type=obj_type,
+            duplicate_collision_geoms=duplicate_collision_geoms,
+        )
+    
+    @property
+    def bottom_offset(self):
+        """Return the bottom offset of the object for placement."""
+        bottom_site = self.worldbody.find(f"./body/site[@name='{self.naming_prefix}bottom_site']")
+        if bottom_site is not None:
+            return np.array([0, 0, float(bottom_site.get("pos", "0 0 0").split()[2])])
+        return np.array([0, 0, -0.02])
+    
+    @property
+    def top_offset(self):
+        """Return the top offset of the object."""
+        return np.array([0, 0, 0.05])
+    
+    @property
+    def horizontal_radius(self):
+        """Return the horizontal radius for placement."""
+        return 0.05
 
 
 class DualArmEnvironment(TwoArmEnv):
@@ -105,8 +168,6 @@ class DualArmEnvironment(TwoArmEnv):
                 pos = np.array(spec.get('pos', [0.0, 0.0, 0.90]))
                 
                 if is_ycb:
-                    # Lazy import to avoid circular dependencies at module import time
-                    from robosuite_franka_manipulation.utils.env_utils import YCBObject
 
                     ycb_name = spec.get('ycb_name', 'unknown')
                     name = spec.get('instance_name', spec.get('name', f"{ycb_name}_0"))

@@ -33,33 +33,35 @@ class RobosuiteGripperController:
         """Checks if the robot is equipped with a suction gripper based on model name."""
         try:
             # Robosuite robots list is accessible via env.robots
-            if hasattr(self.env, "robots") and len(self.env.robots) > self.robot_id:
-                robot = self.env.robots[self.robot_id]
-                if hasattr(robot, 'gripper') and robot.gripper is not None:
-                    # Check the class name or the name attribute of the gripper model
-                    # Common names: "VacuumGripper", "Suction", "Adhesion"
-                    gripper_type = type(robot.gripper).__name__.lower()
-                    return "vacuum" in gripper_type or "suction" in gripper_type
+            robot = self.env.robots[self.robot_id]
+            if hasattr(robot, 'gripper') and robot.gripper is not None:
+                # Check the class name or the name attribute of the gripper model
+                # Common names: "VacuumGripper", "Suction", "Adhesion"
+                gripper_type = type(robot.gripper[self.arm_id]).__name__.lower()
+                logger.debug(f"Detected gripper type for robot {self.robot_id}: {gripper_type}")
+                return "vacuum" in gripper_type or "suction" in gripper_type
         except Exception as e:
             logger.warning(f"Could not detect gripper type: {e}")
         return False
 
-    def open(self, width: float = 1.0) -> None:
+    def release(self, width: float = 1.0) -> None:
         """
-        Opens (releases) the gripper.
+        Releases (opens) the gripper.
         Args:
             width (float): Target gripper width (normalized). 1.0 is fully open/release.
         """
         if self.is_suction:
             # For suction, "Open" means Release (Suction Off)
-            # Robosuite Suction Action: < 0 is Off, > 0 is On.
-            # We map "open" (width=1.0) to Action -1.0
-            self._send_gripper_action(-1.0)
+            self._send_gripper_action(-1)
         else:
-            # For parallel: 1.0 is open
-            self._send_gripper_action(width)
+            # For parallel jaw: map width [0.0, 1.0] to action [1.0, -1.0]
+            # width=1.0 (fully open) -> action=-1.0
+            # width=0.0 (closed) -> action=1.0
+            action_val = 1.0 - width * 2.0
+            logger.debug(f"Releasing gripper of arm {self.arm_id} of robot {self.robot_id} with width {width}, action value {action_val}")
+            self._send_gripper_action(action_val)
 
-    def close(self, width: float = 0.0) -> None:
+    def grasp(self, width: float = 0.0) -> None:
         """
         Closes (grasps) the gripper.
         Args:
@@ -67,13 +69,13 @@ class RobosuiteGripperController:
         """
         if self.is_suction:
             # For suction, "Close" means Grasp (Suction On)
-            # Robosuite Suction Action: > 0 is On.
-            # We map "close" (width=0.0) to Action 1.0
-            self._send_gripper_action(1.0)
+            self._send_gripper_action(1)
         else:
-            # For parallel: 0.0 -> -1.0 (Closed)
-            # Map width to action: assuming 0-> -1, 1->1
-            action_val = -1.0 + width * 2.0
+            # For parallel jaw: map width [0.0, 1.0] to action [1.0, -1.0]
+            # width=0.0 (fully closed) -> action=1.0
+            # width=1.0 (fully open) -> action=-1.0
+            action_val = 1.0 - width * 2.0
+            logger.debug(f"Grasping gripper of arm {self.arm_id} of robot {self.robot_id} with width {width}, action value {action_val}")
             self._send_gripper_action(action_val)
 
     def _send_gripper_action(self, gripper_val: float) -> None:
@@ -81,7 +83,7 @@ class RobosuiteGripperController:
         Sends a gripper action while keeping arm still.
         """
         full_action = np.zeros(self.total_action_dim)
-        start_idx = self.robot_id * self.action_dim_per_robot + 6
+        start_idx = self.robot_id * self.action_dim_per_robot + (self.action_dim_per_robot - 1)
         full_action[start_idx] = gripper_val
         with self.env_lock if self.env_lock else nullcontext():
             safe_env_step(self.env, full_action)

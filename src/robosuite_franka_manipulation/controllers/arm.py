@@ -258,7 +258,7 @@ class RobosuiteArmController:
             threshold: Position/orientation error threshold for convergence check
             gripper_action: Raw gripper action to maintain during movement.
                             - For Parallel Gripper: 1.0 (Open), -1.0 (Closed).
-                            - For Suction Gripper: 1.0 (Grasp/On), -1.0 (Release/Off).
+                            - For Suction Gripper: 1.0 (Release/Off), -1.0 (Grasp/On).
             approach: If True, first move to an approach pose offset along the target's local axis,
                      then move to the actual target. Useful for grasp approach motions.
             approach_distance: Distance to offset for approach (meters). Default 0.1m (10cm).

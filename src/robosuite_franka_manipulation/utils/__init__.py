@@ -53,7 +53,6 @@ from robosuite_franka_manipulation.utils.env_utils import (
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
-    YCBObject,
     # Object specification helpers
     create_ycb_object,
     create_primitive_object,
@@ -105,7 +104,6 @@ __all__ = [
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
-    'YCBObject',
     # Object specification helpers
     'create_ycb_object',
     'create_primitive_object',

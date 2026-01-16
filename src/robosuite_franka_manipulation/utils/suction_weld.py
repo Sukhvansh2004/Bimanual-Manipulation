@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import mujoco
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from robosuite.utils.binding_utils import  MjSim
+
 from robosuite_franka_manipulation import constants
 from scipy.spatial.transform import Rotation as R
 
@@ -30,6 +32,16 @@ class SuctionWeldHandles:
     eef_body_id: int = -1  # The body that the snout is attached to (body1 of weld)
     welded_body_id: Optional[int] = None
 
+    def __repr__(self):
+        return (
+            f"""SuctionWeldHandles(
+                    valid={self.valid}, 
+                    eq_id={self.eq_id},
+                    snout_geom_id={self.snout_geom_id},
+                    eef_body_id={self.eef_body_id},
+                    welded_body_id={self.welded_body_id}
+                )"""
+        )
 
 # Cache keyed by model id() so we only resolve names once per model
 _SUCTION_CACHE: Dict[int, Dict[tuple, SuctionWeldHandles]] = {}
@@ -45,7 +57,7 @@ def clear_suction_cache() -> None:
     logger.debug("Cleared suction weld caches")
 
 
-def _name2id(sim: Any, obj_type: str, name: str) -> int:
+def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
     """Get MuJoCo element ID from name using native mujoco API."""
     model = sim.model
     mj_model = getattr(model, "_model", model)
@@ -85,7 +97,7 @@ def _id2name(sim: Any, obj_type: str, idx: int) -> Optional[str]:
         return None
 
 
-def _get_contact_pairs(sim: Any) -> List[Tuple[int, int, float]]:
+def _get_contact_pairs(sim: MjSim) -> List[Tuple[int, int, float]]:
     """Return list of (geom1, geom2, dist) for all contacts."""
     data = sim.data
     ncon = int(getattr(data, "ncon", 0))
@@ -99,7 +111,7 @@ def _get_contact_pairs(sim: Any) -> List[Tuple[int, int, float]]:
     return pairs
 
 
-def _get_valid_object_body_ids(env: Any, sim: Any) -> Set[int]:
+def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
     """Get the set of body IDs that belong to manipulable objects in the environment.
     
     Uses robosuite's object tracking (object_body_ids) to identify valid targets.
@@ -471,18 +483,15 @@ def _set_weld_relpose_current(sim: Any, eq_id: int, body1_id: int, body2_id: int
             return False
 
 
-def _resolve_handles(env: Any, robot_id: int, arm: str, gripper: Any) -> Optional[SuctionWeldHandles]:
+def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: Any) -> Optional[SuctionWeldHandles]:
     """Resolve suction weld handles using robosuite's correct_naming method.
     
     Uses the gripper's correct_naming() to get properly prefixed element names,
     which is the canonical way robosuite handles XML element naming after merge.
     """
-    if not hasattr(env, "sim"):
-        return None
 
     sim = env.sim
     model = sim.model
-    mj_model = getattr(model, "_model", model)
     model_key = id(model)
     per_model = _SUCTION_CACHE.setdefault(model_key, {})
     cache_key = (int(robot_id), str(arm))
@@ -524,9 +533,8 @@ def _resolve_handles(env: Any, robot_id: int, arm: str, gripper: Any) -> Optiona
         eef_body_id=eef_body_id,
     )
     
-    if valid:
-        logger.info(f"Suction handles for robot {robot_id} arm {arm}: eq_id={eq_id}, geom_id={snout_geom_id}, eef_body={eef_body_id}")
-    
+    logger.info(f"Suction Weld Handles for robot {robot_id} arm {arm}: {handles}")
+
     per_model[cache_key] = handles
     return handles
 
@@ -563,24 +571,18 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
             logger.exception("Failed to interpret action as flat numpy array")
             return
         if action_vec.size < total_action_dim:
+            logger.warning(f"Action vector size {action_vec.size} is less than expected {total_action_dim}")
             return
 
         contact_pairs = _get_contact_pairs(sim)
         any_mutation = False
 
         for ridx, robot in enumerate(robots):
-            arms = getattr(robot, "arms", None)
-            grippers = getattr(robot, "gripper", None)
-            if not arms or grippers is None:
-                continue
+            arms = robot.arms
+            grippers = robot.gripper
 
             for arm in list(arms):
-                try:
-                    gripper = grippers[arm]
-                except Exception:
-                    continue
-                if gripper is None:
-                    continue
+                gripper = grippers[arm]
 
                 # Check if this is a suction gripper
                 gripper_type = type(gripper).__name__.lower()
@@ -590,6 +592,7 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
 
                 handles = _resolve_handles(env, ridx, arm, gripper)
                 if not handles or not handles.valid:
+                    logger.warning(f"Invalid suction weld handles for robot {ridx} arm {arm}")
                     continue
 
                 # Get gripper action value
@@ -597,10 +600,13 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 if gripper_action_index < 0 or gripper_action_index >= action_vec.size:
                     continue
                 gripper_action = float(action_vec[gripper_action_index])
-                suction_on = gripper_action > 0.0
+                
+                if (gripper_action == 0.0):
+                    # Neutral action - do nothing
+                    continue
 
                 # --- SUCTION OFF: Deactivate weld ---
-                if not suction_on:
+                if (gripper_action == -1.0):
                     if handles.welded_body_id is not None:
                         logger.debug(f"Releasing suction weld on body {handles.welded_body_id}")
                         _set_equality_active(sim, handles.eq_id, False)
@@ -619,7 +625,7 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                     continue
 
                 # Find the best contacted geom (closest contact with snout)
-                target_geom_id: Optional[int] = None
+                target_geom_id = None
                 best_dist = float("inf")
                 for g1, g2, dist in contact_pairs:
                     if g1 == handles.snout_geom_id:
@@ -640,7 +646,6 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 # Get the body that owns this geom
                 body2_id = int(mj_model.geom_bodyid[target_geom_id])
                 
-                # CRITICAL: Only allow welding to VALID OBJECTS from the environment
                 if not _is_valid_suction_target(env, sim, body2_id):
                     target_name = _id2name(sim, "body", body2_id) or f"body_{body2_id}"
                     logger.debug(f"Ignoring contact with non-object body: {target_name}")
@@ -650,7 +655,6 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 # body1 is the eef (gripper), body2 is the object being suctioned
                 body1_id = handles.eef_body_id
                 
-                # CRITICAL FIX: Set BOTH eq_obj1id and eq_obj2id
                 # After robosuite XML merge, body IDs change and we must update both!
                 if not _set_weld_bodies(sim, handles.eq_id, body1_id, body2_id):
                     logger.warning(f"Failed to set weld bodies: body1={body1_id}, body2={body2_id}")
