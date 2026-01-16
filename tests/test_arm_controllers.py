@@ -186,8 +186,8 @@ class TestGripperControllers:
         left_gripper.release()
 
         # Test right gripper
-        right_gripper.grasp()
-        time.sleep(0.2)
         right_gripper.release()
+        time.sleep(0.2)
+        right_gripper.grasp()
         time.sleep(0.2)
         right_gripper.release()
