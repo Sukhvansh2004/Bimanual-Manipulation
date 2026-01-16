@@ -3,7 +3,7 @@ import logging
 import numpy as np
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
+from robosuite.utils.binding_utils import MjSim
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.suction_weld import apply_suction_weld
 
@@ -110,7 +110,7 @@ def create_primitive_object(
 # Environment Step Utilities
 # =============================================================================
 
-def safe_env_step(env: Any, action: Any, retries: int = 3, delay: float = 0.01):
+def safe_env_step(env: MjSim, action: Any, retries: int = 3, delay: float = 0.01):
     """Safely call ``env.step(action)`` and retry on intermittent
     RuntimeError: "dictionary changed size during iteration"."""
     
