@@ -392,7 +392,7 @@ class FastSAMService:
         # Close any OpenCV visualization windows owned by the detector
         try:
             if hasattr(self, "object_detector") and self.object_detector is not None:
-                self.object_detector._close_visualization_windows()
+                self.object_detector.close_visualization_windows()
         except Exception:
             pass
 

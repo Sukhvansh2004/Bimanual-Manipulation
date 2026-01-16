@@ -69,26 +69,15 @@ def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
     
     obj_name = type_map.get(obj_type)
     if obj_name is None:
-        # For equality constraints, the wrapper has no public helper; use native model if available
-        mj_model = model if isinstance(model, mujoco.MjModel) else getattr(model, "_model", None)
-        if mj_model is None:
-            logger.warning("Could not access native mujoco model to resolve equality name")
-            return -1
-        try:
-            return int(mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, name))
-        except Exception:
-            logger.exception("Failed to get equality constraint ID using mujoco API", exc_info=True)
-            return -1
+        # For equality constraints, the wrapper has no public helper; use native model
+        mj_model = model if isinstance(model, mujoco.MjModel) else model._model
+        return int(mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, name))
     
     # Use wrapper's public name2id methods
-    try:
-        if obj_type == "body":
-            return model.body_name2id(name)
-        elif obj_type == "geom":
-            return model.geom_name2id(name)
-    except (ValueError, KeyError):
-        return -1
-    
+    if obj_type == "body":
+        return model.body_name2id(name)
+    if obj_type == "geom":
+        return model.geom_name2id(name)
     return -1
 
 
@@ -96,31 +85,26 @@ def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
     """Get MuJoCo element name from ID using wrapper's public API."""
     model = sim.model
     
-    # Use wrapper's public id2name methods
-    try:
-        if obj_type == "body":
-            return model.body_id2name(idx)
-        elif obj_type == "geom":
-            return model.geom_id2name(idx)
-        elif obj_type == "equality":
-            # No public method for equality, fall back to mujoco API
-            return mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_EQUALITY, int(idx))
-    except (ValueError, KeyError):
-        return None
-    
+    if obj_type == "body":
+        return model.body_id2name(idx)
+    if obj_type == "geom":
+        return model.geom_id2name(idx)
+    if obj_type == "equality":
+        mj_model = model if isinstance(model, mujoco.MjModel) else model._model
+        return mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, int(idx))
     return None
 
 
 def _get_contact_pairs(sim: MjSim) -> List[Tuple[int, int, float]]:
     """Return list of (geom1, geom2, dist) for all contacts."""
     data = sim.data
-    ncon = int(getattr(data, "ncon", 0))
+    ncon = int(data.ncon)
     pairs: List[Tuple[int, int, float]] = []
     for i in range(ncon):
         c = data.contact[i]
-        g1 = int(getattr(c, "geom1"))
-        g2 = int(getattr(c, "geom2"))
-        dist = float(getattr(c, "dist", 0.0))
+        g1 = int(c.geom1)
+        g2 = int(c.geom2)
+        dist = float(c.dist)
         pairs.append((g1, g2, dist))
     return pairs
 
@@ -158,11 +142,7 @@ def _is_valid_suction_target(env: DualArmEnvironment, sim: MjSim, body_id: int) 
 def _set_equality_active(sim: MjSim, eq_id: int, active: bool) -> None:
     """Set weld constraint active state using wrapper's public API."""
     data = sim.data
-    
-    # eq_active lives on mjData for runtime toggling
-    # The wrapper delegates to the underlying data object
-    if hasattr(data, "eq_active"):
-        data.eq_active[eq_id] = 1 if active else 0
+    data.eq_active[eq_id] = 1 if active else 0
 
 
 def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bool:
@@ -175,106 +155,55 @@ def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bo
     success = True
     
     # Verify this is a weld constraint (mjEQ_WELD = 1)
-    if hasattr(model, "eq_type"):
-        eq_type = int(model.eq_type[eq_id])
-        if eq_type != 1:  # mjEQ_WELD = 1
-            logger.error(f"Constraint {eq_id} is not a WELD (type={eq_type}, expected 1)")
-            return False
+    eq_type = int(model.eq_type[eq_id])
+    if eq_type != 1:  # mjEQ_WELD = 1
+        logger.error(f"Constraint {eq_id} is not a WELD (type={eq_type}, expected 1)")
+        return False
     
     # Set body1 (the gripper's eef body)
-    if hasattr(model, "eq_obj1id"):
-        try:
-            old_obj1 = int(model.eq_obj1id[eq_id])
-            model.eq_obj1id[eq_id] = int(body1_id)
-            # Always log body1 status for debugging
-            logger.info(f"eq_obj1id[{eq_id}]: was {old_obj1}, now {body1_id} (eef)")
-        except Exception:
-            logger.exception("Failed to set eq_obj1id")
-            success = False
-    else:
-        logger.error("Model does not have eq_obj1id attribute")
-        success = False
+    old_obj1 = int(model.eq_obj1id[eq_id])
+    model.eq_obj1id[eq_id] = int(body1_id)
+    # Always log body1 status for debugging
+    logger.info(f"eq_obj1id[{eq_id}]: was {old_obj1}, now {body1_id} (eef)")
     
     # Set body2 (the object being suctioned)
-    if hasattr(model, "eq_obj2id"):
-        try:
-            old_obj2 = int(model.eq_obj2id[eq_id])
-            model.eq_obj2id[eq_id] = int(body2_id)
-            # Always log body2 status for debugging
-            logger.info(f"eq_obj2id[{eq_id}]: was {old_obj2}, now {body2_id} (object)")
-        except Exception:
-            logger.exception("Failed to set eq_obj2id")
-            success = False
-    else:
-        logger.error("Model does not have eq_obj2id attribute")
-        success = False
+    old_obj2 = int(model.eq_obj2id[eq_id])
+    model.eq_obj2id[eq_id] = int(body2_id)
+    # Always log body2 status for debugging
+    logger.info(f"eq_obj2id[{eq_id}]: was {old_obj2}, now {body2_id} (object)")
     
     return success
 
 
 def _debug_weld_state(sim: MjSim, eq_id: int) -> None:
     """Log the current state of a weld constraint for debugging using wrapper's public API."""
-    try:
-        model = sim.model
-        data = sim.data
-        
-        # Get constraint type
-        eq_type = int(model.eq_type[eq_id]) if hasattr(model, "eq_type") else -1
-        # mjEQ_WELD = 1 in MuJoCo
-        type_name = "WELD" if eq_type == 1 else f"type_{eq_type}"
-        
-        # Get body IDs from model
-        obj1_id = int(model.eq_obj1id[eq_id]) if hasattr(model, "eq_obj1id") else -1
-        obj2_id = int(model.eq_obj2id[eq_id]) if hasattr(model, "eq_obj2id") else -1
-        
-        # Get body names
-        obj1_name = _id2name(sim, "body", obj1_id) or f"body_{obj1_id}"
-        obj2_name = _id2name(sim, "body", obj2_id) or f"body_{obj2_id}"
-        
-        # Get active state from data
-        eq_active = int(data.eq_active[eq_id]) if hasattr(data, "eq_active") else -1
-        
-        # Get relpose data from model
-        # MuJoCo eq_data layout for WELD: anchor[0:3], relpose_pos[3:6], relpose_quat[6:10]
-        if hasattr(model, "eq_data"):
-            try:
-                anchor = model.eq_data[eq_id, 0:3]
-                pos = model.eq_data[eq_id, 3:6]
-                quat = model.eq_data[eq_id, 6:10]
-            except Exception:
-                anchor = np.zeros(3)
-                pos = np.zeros(3)
-                quat = np.array([1, 0, 0, 0])
-        else:
-            anchor = np.zeros(3)
-            pos = np.zeros(3)
-            quat = np.array([1, 0, 0, 0])
-        
-        # Get solref/solimp for constraint strength info
-        solref = None
-        solimp = None
-        if hasattr(model, "eq_solref"):
-            try:
-                solref = model.eq_solref[eq_id]
-            except Exception:
-                pass
-        if hasattr(model, "eq_solimp"):
-            try:
-                solimp = model.eq_solimp[eq_id]
-            except Exception:
-                pass
-        
-        logger.info(
-            f"WELD STATE eq_id={eq_id}: type={type_name}, "
-            f"body1={obj1_name}({obj1_id}), body2={obj2_name}({obj2_id}), "
-            f"active={eq_active}, anchor={anchor}, relpose_pos={pos}, relpose_quat={quat}"
-        )
-        if solref is not None:
-            logger.info(f"  solref={solref}, solimp={solimp}")
-        else:
-            logger.info("  solref/solimp not available")
-    except Exception as e:
-        logger.warning(f"Failed to debug weld state: {e}")
+    model = sim.model
+    data = sim.data
+    
+    eq_type = int(model.eq_type[eq_id])
+    type_name = "WELD" if eq_type == 1 else f"type_{eq_type}"
+    
+    obj1_id = int(model.eq_obj1id[eq_id])
+    obj2_id = int(model.eq_obj2id[eq_id])
+    
+    obj1_name = _id2name(sim, "body", obj1_id) or f"body_{obj1_id}"
+    obj2_name = _id2name(sim, "body", obj2_id) or f"body_{obj2_id}"
+    
+    eq_active = int(data.eq_active[eq_id])
+    
+    anchor = model.eq_data[eq_id, 0:3]
+    pos = model.eq_data[eq_id, 3:6]
+    quat = model.eq_data[eq_id, 6:10]
+    
+    solref = model.eq_solref[eq_id]
+    solimp = model.eq_solimp[eq_id]
+    
+    logger.info(
+        f"WELD STATE eq_id={eq_id}: type={type_name}, "
+        f"body1={obj1_name}({obj1_id}), body2={obj2_name}({obj2_id}), "
+        f"active={eq_active}, anchor={anchor}, relpose_pos={pos}, relpose_quat={quat}"
+    )
+    logger.info(f"  solref={solref}, solimp={solimp}")
 
 
 def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
@@ -282,39 +211,29 @@ def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
     
     Returns True if the constraint appears valid and active.
     """
-    try:
-        model = sim.model
-        data = sim.data
-        
-        # Check constraint type
-        if hasattr(model, "eq_type"):
-            eq_type = int(model.eq_type[eq_id])
-            if eq_type != 1:  # mjEQ_WELD = 1
-                logger.error(f"eq_id={eq_id} is not a WELD constraint (type={eq_type})")
-                return False
-        
-        # Check active state
-        if hasattr(data, "eq_active"):
-            active = int(data.eq_active[eq_id])
-            if active != 1:
-                logger.warning(f"eq_id={eq_id} is not active (eq_active={active})")
-                return False
-        
-        # Check body IDs are valid
-        if hasattr(model, "eq_obj1id") and hasattr(model, "eq_obj2id"):
-            body1 = int(model.eq_obj1id[eq_id])
-            body2 = int(model.eq_obj2id[eq_id])
-            if body1 <= 0 or body2 <= 0:
-                logger.error(f"eq_id={eq_id} has invalid body IDs: body1={body1}, body2={body2}")
-                return False
-            if body1 == body2:
-                logger.error(f"eq_id={eq_id} has same body for both: {body1}")
-                return False
-        
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to verify weld constraint: {e}")
+    model = sim.model
+    data = sim.data
+    
+    eq_type = int(model.eq_type[eq_id])
+    if eq_type != 1:  # mjEQ_WELD = 1
+        logger.error(f"eq_id={eq_id} is not a WELD constraint (type={eq_type})")
         return False
+    
+    active = int(data.eq_active[eq_id])
+    if active != 1:
+        logger.warning(f"eq_id={eq_id} is not active (eq_active={active})")
+        return False
+    
+    body1 = int(model.eq_obj1id[eq_id])
+    body2 = int(model.eq_obj2id[eq_id])
+    if body1 <= 0 or body2 <= 0:
+        logger.error(f"eq_id={eq_id} has invalid body IDs: body1={body1}, body2={body2}")
+        return False
+    if body1 == body2:
+        logger.error(f"eq_id={eq_id} has same body for both: {body1}")
+        return False
+    
+    return True
 
 
 def _get_body_pose_wxyz(sim: MjSim, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -371,22 +290,9 @@ def _set_weld_relpose_current(sim: MjSim, eq_id: int, body1_id: int, body2_id: i
     Uses wrapper's public API for reliable modification.
     """
     model = sim.model
-    data = sim.data
     
-    if not hasattr(model, "eq_data"):
-        logger.error("Model does not have eq_data attribute")
-        return False
-
-    # Get current world poses using data
-    if hasattr(data, "xpos") and hasattr(data, "xquat"):
-        p1 = np.asarray(data.xpos[body1_id], dtype=np.float64)
-        q1 = np.asarray(data.xquat[body1_id], dtype=np.float64)
-        p2 = np.asarray(data.xpos[body2_id], dtype=np.float64)
-        q2 = np.asarray(data.xquat[body2_id], dtype=np.float64)
-    else:
-        # Fallback to helper function
-        p1, q1 = _get_body_pose_wxyz(sim, body1_id)
-        p2, q2 = _get_body_pose_wxyz(sim, body2_id)
+    p1, q1 = _get_body_pose_wxyz(sim, body1_id)
+    p2, q2 = _get_body_pose_wxyz(sim, body2_id)
 
     # Calculate relative pose: body2 in body1's frame using scipy Rotation
     p_rel, q_rel = _compute_relative_pose_wxyz(p1, q1, p2, q2)
@@ -398,27 +304,14 @@ def _set_weld_relpose_current(sim: MjSim, eq_id: int, body1_id: int, body2_id: i
     #   [3:6]  = relpose position (body2 origin in body1 frame)
     #   [6:10] = relpose quaternion (body2 orientation relative to body1, wxyz format)
     #   [10]   = torquescale (optional)
-    try:
-        # Keep anchor at origin (constraint acts at body1 origin)
-        model.eq_data[eq_id, 0:3] = np.zeros(3)
-        # Set relpose position (indices 3:6)
-        model.eq_data[eq_id, 3:6] = p_rel
-        # Set relpose quaternion (indices 6:10)
-        model.eq_data[eq_id, 6:10] = q_rel
-        logger.info(f"Set eq_data[{eq_id}]: anchor=[0,0,0], relpose_pos={p_rel}, relpose_quat={q_rel}")
-        return True
-    except Exception:
-        logger.exception("Failed to set weld relpose using eq_data 2D indexing")
-        # some backends may expose eq_data as a flat array
-        try:
-            base = eq_id * 11  # MuJoCo eq_data has 11 elements per constraint
-            model.eq_data[base : base + 3] = np.zeros(3)  # anchor
-            model.eq_data[base + 3 : base + 6] = p_rel    # relpose pos
-            model.eq_data[base + 6 : base + 10] = q_rel   # relpose quat
-            return True
-        except Exception:
-            logger.exception("Failed to set weld relpose using eq_data flat indexing")
-            return False
+    # Keep anchor at origin (constraint acts at body1 origin)
+    model.eq_data[eq_id, 0:3] = np.zeros(3)
+    # Set relpose position (indices 3:6)
+    model.eq_data[eq_id, 3:6] = p_rel
+    # Set relpose quaternion (indices 6:10)
+    model.eq_data[eq_id, 6:10] = q_rel
+    logger.info(f"Set eq_data[{eq_id}]: anchor=[0,0,0], relpose_pos={p_rel}, relpose_quat={q_rel}")
+    return True
 
 
 def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: Any) -> Optional[SuctionWeldHandles]:
@@ -437,12 +330,7 @@ def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: 
         return per_model[cache_key]
 
     # Use robosuite's correct_naming method - this is the proper way
-    correct_naming = getattr(gripper, "correct_naming", None)
-    if not callable(correct_naming):
-        logger.warning(f"Gripper for robot {robot_id} arm {arm} lacks correct_naming method")
-        handles = SuctionWeldHandles(valid=False)
-        per_model[cache_key] = handles
-        return handles
+    correct_naming = gripper.correct_naming
 
     # Get properly prefixed names using robosuite's naming system
     eq_name = correct_naming("suction_constraint")
@@ -455,13 +343,6 @@ def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: 
     eq_id = _name2id(sim, "equality", eq_name)
     snout_geom_id = _name2id(sim, "geom", geom_name)
     eef_body_id = _name2id(sim, "body", eef_body_name)
-
-    if eq_id == -1:
-        logger.warning(f"Could not find equality constraint '{eq_name}'")
-    if snout_geom_id == -1:
-        logger.warning(f"Could not find snout geom '{geom_name}'")
-    if eef_body_id == -1:
-        logger.warning(f"Could not find eef body '{eef_body_name}'")
 
     valid = (eq_id != -1 and snout_geom_id != -1 and eef_body_id != -1)
     handles = SuctionWeldHandles(

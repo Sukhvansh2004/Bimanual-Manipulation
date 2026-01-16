@@ -72,10 +72,10 @@ class ObjectDetector:
         """Set the detection prompt and close old visualization windows."""
         if prompt != self.prompt:
             # Close old visualization windows before changing prompt
-            self._close_visualization_windows()
+            self.close_visualization_windows()
         self.prompt = prompt
     
-    def _close_visualization_windows(self) -> None:
+    def close_visualization_windows(self) -> None:
         """Close all tracked visualization windows."""
         for window_name in self._current_window_names:
             try:
@@ -239,7 +239,7 @@ class ObjectDetector:
         # Track current window names for cleanup
         new_window_names = [camera_window, segmentation_window]
         if self._current_window_names != new_window_names:
-            self._close_visualization_windows()
+            self.close_visualization_windows()
             self._current_window_names = new_window_names
         
         # Show raw camera image

@@ -45,7 +45,7 @@ class KeyboardTeleop:
         Callback for keyboard listener to detect exit key.
         """
         try:
-            if hasattr(key, 'char') and key.char == 'q':
+            if key.char == 'q':
                 self.exit_pressed = True
         except AttributeError:
             pass
