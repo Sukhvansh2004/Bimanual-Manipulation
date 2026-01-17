@@ -23,9 +23,9 @@ from robosuite_franka_manipulation.utils.se3 import (
 from robosuite_franka_manipulation.utils import safe_env_step
 from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
 from grasp_gen.utils.meshcat_utils import make_frame
-import logging  
+import logging
+
 # Configure logging
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 class RobosuiteArmController:

@@ -20,7 +20,6 @@ from robosuite_franka_manipulation.utils.serialization import convert_grasps_to_
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 
 # Configure logging
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 

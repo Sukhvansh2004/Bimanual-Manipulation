@@ -10,7 +10,6 @@ from robosuite.utils.binding_utils import MjSim
 from robosuite_franka_manipulation import constants
 from scipy.spatial.transform import Rotation as R
 
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 

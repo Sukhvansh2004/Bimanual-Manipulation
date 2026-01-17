@@ -15,7 +15,6 @@ from robosuite.controllers import load_part_controller_config
 from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=constants.LOG_LEVEL)
 
 
 class YCBObject(MujocoXMLObject):

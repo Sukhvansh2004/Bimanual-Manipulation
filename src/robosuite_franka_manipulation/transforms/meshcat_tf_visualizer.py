@@ -23,13 +23,12 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 import meshcat
 import meshcat.geometry as g
+from robosuite_franka_manipulation.utils.meshcat_mj_utils import MeshcatMjVisualizer
 from grasp_gen.utils.meshcat_utils import make_frame
 from PIL import Image, ImageDraw, ImageFont
 
-import logging
 from logging import getLogger
 
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = getLogger(__name__)
 
 
@@ -45,6 +44,9 @@ class MeshcatTFVisualizerConfig:
     labels: bool = True
     # World Z offset (meters) for label placement *below* the frame origin.
     label_offset: float = 0.05
+    
+    # Whether to visualize the robot meshes and other environment geoms
+    visualize_scene: bool = True
 
 
 def stream_transforms_to_meshcat(
@@ -80,6 +82,9 @@ def stream_transforms_to_meshcat(
     logger.info("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
+    
+    # Optional scene visualizer
+    mj_vis = MeshcatMjVisualizer(vis) if config.visualize_scene else None
 
     def _group_for_frame(frame_id: str) -> str:
         if frame_id == "world":
@@ -232,6 +237,8 @@ def stream_transforms_to_meshcat(
             with env_lock:
                 try:
                     env.sim.forward()
+                    if mj_vis is not None:
+                        mj_vis.publish_environment(env.sim)
                 except Exception:
                     pass
 
