@@ -107,17 +107,24 @@ if __name__ == '__main__':
         # Get current positions to compute reasonable targets
         robot0 = env.robots[0]
         robot1 = env.robots[1]
-        left_current = robot0.pose_in_base_from_name(robot0.robot_model.eef_name["right"])[:3, 3].copy()
-        right_current = robot1.pose_in_base_from_name(robot1.robot_model.eef_name["right"])[:3, 3].copy()
+        
+        left_current_pose = robot0.pose_in_base_from_name(robot0.robot_model.eef_name["right"])
+        right_current_pose = robot1.pose_in_base_from_name(robot1.robot_model.eef_name["right"])
+        
+        left_current_pos = left_current_pose[:3, 3].copy()
+        right_current_pos = right_current_pose[:3, 3].copy()
+        
+        left_current_quat = R.from_matrix(left_current_pose[:3, :3]).as_quat()
+        right_current_quat = R.from_matrix(right_current_pose[:3, :3]).as_quat()
         
         # Define relative movements from current position (safer than absolute poses)
         # Move left arm forward and up a bit
-        left_arm_position = left_current + np.array([0.05, 0.0, 0.05])
-        left_arm_orientation = [0.0, 0.0, 0.0, 1.0]
+        left_arm_position = left_current_pos + np.array([0.05, 0.0, 0.05])
+        left_arm_orientation = left_current_quat
 
         # Move right arm forward and up a bit  
-        right_arm_position = right_current + np.array([0.05, 0.0, 0.05])
-        right_arm_orientation = [0.0, 0.0, 0.0, 1.0]
+        right_arm_position = right_current_pos + np.array([0.05, 0.0, 0.05])
+        right_arm_orientation = right_current_quat
 
         # --- Send Commands ---
         print("\n--- Moving Robot 0 (left side) ---")
@@ -130,12 +137,6 @@ if __name__ == '__main__':
 
         print("\n--- Moving Robot 1 (right side) ---")
         controller.send_pose_goal('right', right_arm_position.tolist(), right_arm_orientation)
-
-        # Render final state
-        print("\nHolding final position (press Ctrl+C to exit)...")
-        while True:
-            env.render()
-            time.sleep(0.02)
 
     except KeyboardInterrupt:
         print("\nExiting...")
