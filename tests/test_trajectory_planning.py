@@ -120,8 +120,8 @@ class TestTrajectoryPlanning:
         controller = RobosuiteArmController.__new__(RobosuiteArmController)
         yield controller
 
-    def test_trapezoidal_trajectory_planning(self, controller):
-        """Test trapezoidal trajectory planning."""
+    def test_quintic_trajectory_planning(self, controller):
+        """Test quintic polynomial trajectory planning."""
         # Define start and end poses
         start_pos = np.array([0.0, 0.0, 0.0])
         start_quat = np.array([0.0, 0.0, 0.0, 1.0])  # Identity quaternion
@@ -129,17 +129,18 @@ class TestTrajectoryPlanning:
         target_quat = np.array([0.0, 0.0, 0.0, 1.0])
 
         # Plan trajectory
-        positions, quaternions, total_time = controller.plan_trapezoidal_trajectory(
+        # Using specific num_points for testing
+        num_points = 50
+        positions, quaternions = controller.plan_quintic_trajectory(
             start_pos, start_quat, target_pos, target_quat,
-            max_vel=0.05, max_acc=0.02, dt=0.02
+            num_points=num_points
         )
 
         # Check trajectory structure
         assert isinstance(positions, np.ndarray)
         assert isinstance(quaternions, np.ndarray)
-        assert isinstance(total_time, float)
-        assert len(positions) > 0
-        assert len(quaternions) > 0
+        assert len(positions) == num_points
+        assert len(quaternions) == num_points
         assert positions.shape[1] == 3  # 3D positions
         assert quaternions.shape[1] == 4  # 4D quaternions
 
@@ -150,36 +151,33 @@ class TestTrajectoryPlanning:
         np.testing.assert_array_almost_equal(quaternions[-1], target_quat, decimal=5)
 
     def test_trajectory_timing(self, controller):
-        """Test that trajectory timing is correct."""
+        """Test that trajectory generates correct number of points."""
         start_pos = np.array([0.0, 0.0, 0.0])
         start_quat = np.array([0.0, 0.0, 0.0, 1.0])
         target_pos = np.array([0.1, 0.0, 0.0])
         target_quat = np.array([0.0, 0.0, 0.0, 1.0])
 
-        dt = 0.02
-        positions, quaternions, total_time = controller.plan_trapezoidal_trajectory(
-            start_pos, start_quat, target_pos, target_quat, dt=dt
+        num_points = 100
+        positions, quaternions = controller.plan_quintic_trajectory(
+            start_pos, start_quat, target_pos, target_quat, num_points=num_points
         )
 
-        # Check that total time is reasonable
-        assert total_time > 0
-        expected_steps = len(positions) - 1
-        expected_time = expected_steps * dt
-        assert abs(total_time - expected_time) < dt  # Should be close
+        # Check that number of points matches request
+        assert len(positions) == num_points
+        assert len(quaternions) == num_points
 
     def test_zero_displacement_trajectory(self, controller):
         """Test planning with zero displacement."""
         pos = np.array([0.0, 0.0, 0.0])
         quat = np.array([0.0, 0.0, 0.0, 1.0])
 
-        positions, quaternions, total_time = controller.plan_trapezoidal_trajectory(
+        positions, quaternions = controller.plan_quintic_trajectory(
             pos, quat, pos, quat
         )
 
-        # Should return minimal trajectory
+        # Should return minimal trajectory (just the target point)
         assert len(positions) == 1
         assert len(quaternions) == 1
-        assert total_time == 0.0
         np.testing.assert_array_almost_equal(positions[0], pos)
         np.testing.assert_array_almost_equal(quaternions[0], quat)
 
@@ -188,7 +186,7 @@ class TestTrajectoryPlanning:
         start_quat = np.array([0.0, 0.0, 0.0, 1.0])
         target_quat = np.array([0.0, 0.0, np.sin(np.pi/4), np.cos(np.pi/4)])  # 90 degree rotation
 
-        positions, quaternions, total_time = controller.plan_trapezoidal_trajectory(
+        positions, quaternions = controller.plan_quintic_trajectory(
             np.array([0.0, 0.0, 0.0]), start_quat,
             np.array([0.1, 0.0, 0.0]), target_quat
         )
@@ -202,12 +200,12 @@ class TestTrajectoryPlanning:
         """Test that trajectories are smooth (no sudden jumps)."""
         start_pos = np.array([0.0, 0.0, 0.0])
         target_pos = np.array([0.3, 0.2, 0.1])
-
-        positions, quaternions, total_time = controller.plan_trapezoidal_trajectory(
+        
+        num_points = 100
+        positions, quaternions = controller.plan_quintic_trajectory(
             start_pos, np.array([0.0, 0.0, 0.0, 1.0]),
             target_pos, np.array([0.0, 0.0, 0.0, 1.0]),
-            max_vel=0.1,  # Limit velocity for smoother trajectory
-            dt=0.02
+            num_points=num_points
         )
 
         # Check position continuity
@@ -216,6 +214,9 @@ class TestTrajectoryPlanning:
             displacement = np.linalg.norm(positions[i] - positions[i-1])
             max_displacement = max(max_displacement, displacement)
         
-        # With max_vel=0.1 and dt=0.02, max displacement should be ~0.002
-        # Allow some margin for acceleration phase
-        assert max_displacement < 0.05, f"Max displacement {max_displacement} exceeds limit"
+        # Total distance is roughly 0.37m. 
+        # Average step is 0.37 / 100 = 0.0037m.
+        # Max step shouldn't be too much larger than average.
+        # Quintic profile has peak velocity higher than average.
+        # 0.02 is a safe upper bound.
+        assert max_displacement < 0.02, f"Max displacement {max_displacement} exceeds limit"
