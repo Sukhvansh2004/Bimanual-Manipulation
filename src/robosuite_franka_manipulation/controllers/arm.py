@@ -366,23 +366,10 @@ class RobosuiteArmController:
                     break
                 continue
             
-            # Send delta command toward current waypoint
-            # Scale down large deltas to avoid instability
-            max_pos_delta = constants.MAX_POS_DELTA
-            max_ori_delta = constants.MAX_ORI_DELTA
-            
-            pos_delta_scaled = pos_delta
-            if waypoint_pos_error > max_pos_delta:
-                pos_delta_scaled = pos_delta * (max_pos_delta / waypoint_pos_error)
-            
-            ori_delta_scaled = ori_delta
-            if waypoint_ori_error > max_ori_delta:
-                ori_delta_scaled = ori_delta * (max_ori_delta / waypoint_ori_error)
-            
             # Construct action with scaled delta
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = pos_delta_scaled  # Position delta
-            robot_action[3:6] = ori_delta_scaled  # Orientation delta
+            robot_action[:3] = pos_delta  # Position delta
+            robot_action[3:6] = ori_delta  # Orientation delta
             robot_action[6] = gripper_action
             
             # Construct full action

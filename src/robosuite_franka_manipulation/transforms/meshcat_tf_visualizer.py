@@ -239,7 +239,7 @@ def stream_transforms_to_meshcat(
                         Tl_local = np.linalg.inv(T) @ Tl_world
                         vis[_label_path(frame_id)].set_transform(Tl_local)
                 except Exception:
-                    logger.exception(f"Could not publish frame {frame_id} to MeshCat", exc_info=True)
+                    continue
 
             time.sleep(dt)
 
