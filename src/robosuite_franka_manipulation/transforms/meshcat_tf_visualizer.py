@@ -189,10 +189,24 @@ def stream_transforms_to_meshcat(
 
     drawn: set[str] = set()
     drawn_labels: set[str] = set()
+    configured_visibility: set[str] = set()
+
+    def _ensure_visibility(frame_id: str, configured: set[str]) -> None:
+        if frame_id in configured:
+            return
+        
+        group = _group_for_frame(frame_id)
+        # Turn off camera frames by default so the view isn't cluttered.
+        # This allows the user to just tick the specific camera they want to see.
+        if group.startswith("cameras"):
+             vis[_frame_path(frame_id)].set_property("visible", False)
+        
+        configured.add(frame_id)
 
     for frame_id in tfm.get_known_frames():
         _ensure_frame_drawn(frame_id, drawn)
         _ensure_label_drawn(frame_id, drawn_labels)
+        _ensure_visibility(frame_id, configured_visibility)
 
     dt = 1.0 / max(float(config.fps), 1e-6)
     logger.info("Streaming TF frames to MeshCat. Ctrl+C to stop.")
@@ -222,6 +236,7 @@ def stream_transforms_to_meshcat(
             for frame_id in tfm.get_known_frames():
                 _ensure_frame_drawn(frame_id, drawn)
                 _ensure_label_drawn(frame_id, drawn_labels)
+                _ensure_visibility(frame_id, configured_visibility)
 
             for frame_id in tfm.get_known_frames():
                 try:
