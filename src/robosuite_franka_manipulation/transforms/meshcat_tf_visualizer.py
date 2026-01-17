@@ -33,7 +33,7 @@ logger = getLogger(__name__)
 
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
-    fps: float = 20.0
+    fps: float = constants.MESHCAT_TF_VISUALIZER_FPS
     zmq_url: str = constants.MESHCAT_ZMQ_URL
     clear: bool = True
 
@@ -82,6 +82,20 @@ def stream_transforms_to_meshcat(
     def _group_for_frame(frame_id: str) -> str:
         if frame_id == "world":
             return "world"
+            
+        # Check for cameras first (including eye-in-hand which starts with robot prefix)
+        if frame_id.endswith("_mj"):
+            base = frame_id[:-3]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras/raw"
+        if frame_id.endswith("_optical"):
+            base = frame_id[: -len("_optical")]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras"
+        if frame_id.endswith("view") or "eye_in_hand" in frame_id:
+            return "cameras"
+            
+        # Then check for robots
         if frame_id.startswith("robot0_"):
             return "robots/robot0"
         if frame_id.startswith("robot1_"):
@@ -93,17 +107,7 @@ def stream_transforms_to_meshcat(
             return "objects"
         if frame_id.startswith("grasp"):
             return "grasps"
-        # Heuristic for camera frames in robosuite
-        if frame_id.endswith("_mj"):
-            base = frame_id[:-3]
-            if base.endswith("view") or "eye_in_hand" in base:
-                return "cameras/raw"
-        if frame_id.endswith("_optical"):
-            base = frame_id[: -len("_optical")]
-            if base.endswith("view") or "eye_in_hand" in base:
-                return "cameras"
-        if frame_id.endswith("view") or "eye_in_hand" in frame_id:
-            return "cameras"
+            
         return "other"
 
     def _frame_path(frame_id: str) -> str:

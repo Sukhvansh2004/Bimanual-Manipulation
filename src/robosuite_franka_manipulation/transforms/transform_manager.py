@@ -97,24 +97,18 @@ class TransformManager:
         
         logger.info("Discovering frames from environment...")
         
-        # Discover robot frames
+        # Discover robot frames first, as eye-in-hand cameras are relative to them
         for robot_idx, robot in enumerate(self.env.robots):  # type: ignore[union-attr]
-            # NOTE: In robosuite, multiple robots can share the same .name (e.g., both "Panda").
-            # Using robot.name would cause TF frame-id collisions and frames would “disappear”
-            # (last one wins). Use a stable unique prefix by index.
             robot_name = f"robot{robot_idx}"
 
-            # Robot base frame - query actual transform from simulation
+            # Robot base frame
             base_frame = f"{robot_name}_base"
             self._register_robot_base_provider(robot_idx, base_frame)
             
-            # Register EEF frames as dynamic
-            arm_ids: List[str] = []
+            # EEF frames
             try:
-                # Preferred: use robosuite model metadata (public)
                 arm_ids = list(robot.robot_model.eef_name.keys())
             except Exception:
-                # Fallback: robot.arms is generally available and public
                 arm_ids = list(getattr(robot, "arms", []) or [])
 
             for arm_id in arm_ids:
@@ -127,20 +121,35 @@ class TransformManager:
         # Discover camera frames
         for cam_id in range(self.env.sim.model.ncam):
             cam_name = self.env.sim.model.camera_id2name(cam_id)
-            if cam_name:
-                self._register_camera_provider(cam_name)
-                # Camera provider publishes `{cam}_mj` dynamically as world<-cam_mj,
-                # and static `{cam}_mj` -> `{cam}` / `{cam}_optical` transforms.
-                cam_mj = f"{cam_name}_mj"
-                self._frame_parents[cam_mj] = self.WORLD_FRAME
-                self._frame_parents[cam_name] = cam_mj
-                self._known_frames.add(cam_mj)
-                self._known_frames.add(cam_name)
+            if not cam_name:
+                continue
 
-                cam_opt = f"{cam_name}_optical"
-                self._frame_parents[cam_opt] = cam_mj
-                self._known_frames.add(cam_opt)
-                logger.debug(f"Registered camera frame: {cam_name}")
+            parent_frame = self.WORLD_FRAME
+            if "eye_in_hand" in cam_name:
+                try:
+                    parts = cam_name.split('_')
+                    robot_name_part = parts[0]
+                    robot_idx = int(robot_name_part.replace('robot', ''))
+                    robot = self.env.robots[robot_idx]
+                    arm_id = list(robot.robot_model.eef_name.keys())[0]  # Assume first/only arm
+                    parent_frame = f"{robot_name_part}_{arm_id}_eef"
+                except (IndexError, ValueError) as e:
+                    logger.warning(f"Could not determine parent for eye_in_hand camera '{cam_name}': {e}. Defaulting to world.")
+                    parent_frame = self.WORLD_FRAME
+
+            # This will handle both static (eye-in-hand) and dynamic (fixed) cameras
+            self._register_camera_provider(cam_name, parent_frame=parent_frame)
+            
+            cam_mj = f"{cam_name}_mj"
+            self._frame_parents[cam_mj] = parent_frame
+            self._frame_parents[cam_name] = cam_mj
+            self._known_frames.add(cam_mj)
+            self._known_frames.add(cam_name)
+
+            cam_opt = f"{cam_name}_optical"
+            self._frame_parents[cam_opt] = cam_mj
+            self._known_frames.add(cam_opt)
+            logger.debug(f"Registered camera frame: {cam_name}")
         
         logger.info(f"Discovered frames: {sorted(self._known_frames)}")
     
@@ -227,74 +236,87 @@ class TransformManager:
         
         self._dynamic_frame_providers[frame_id] = get_eef_transform
     
-    def _register_camera_provider(self, camera_name: str) -> None:
-        """Register a dynamic transform provider for a camera."""
-        # MuJoCo / OpenGL camera frame has forward along -Z.
-        # We publish:
-        # - `{camera}_mj`      : raw MuJoCo camera frame (world<-camera_mj)
-        # - `{camera}`         : camera_link-style frame (x forward, y left, z up)
-        # - `{camera}_optical` : ROS optical frame (x right, y down, z forward)
-        #
-        # Static relationships are expressed as parent<-child:
-        #   camera_mj <- camera_link
-        #   camera_mj <- camera_optical
+    def _register_camera_provider(self, camera_name: str, parent_frame: str) -> None:
+        """
+        Register a provider for a camera.
+        If parent_frame is 'world', the camera is dynamic (fixed to world).
+        If parent_frame is another frame (e.g. an EEF), the transform is static.
+        """
+        cam_mj = f"{camera_name}_mj"
 
-        # camera_link axes expressed in camera_mj coordinates:
-        #   x_link = -z_mj (forward)
-        #   y_link = -x_mj (left)
-        #   z_link =  y_mj (up)
-        R_cam_mj_link = np.array(
-            [
-                [0.0, -1.0, 0.0],
-                [0.0, 0.0, 1.0],
-                [-1.0, 0.0, 0.0],
-            ],
-            dtype=float,
-        )
-
-        # ROS optical relative to camera_mj: x right, y down, z forward.
-        # In MuJoCo/OpenGL terms: y and z flip.
-        R_cam_mj_opt = np.diag([1.0, -1.0, -1.0])
-
-        def get_camera_transform() -> Transform:
+        # Static transform for eye-in-hand cameras
+        if parent_frame != self.WORLD_FRAME:
+            # Get camera pose in world
             if self._env_lock:
                 with self._env_lock:
+                    self.env.sim.forward()
+                    cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
+                    cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+            else:
+                self.env.sim.forward()
+                cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
+                cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+            
+            T_world_cam = Transform(
+                translation=cam_pos_world,
+                rotation=R.from_matrix(cam_rot_world).as_quat(),
+                parent_frame=self.WORLD_FRAME,
+                child_frame=cam_mj
+            )
+
+            # Get parent pose in world
+            T_world_parent = self.get_transform(self.WORLD_FRAME, parent_frame)
+
+            # Compute T_parent_cam = (T_world_parent)^-1 * T_world_cam
+            T_parent_cam = T_world_parent.inverse().compose(T_world_cam)
+            
+            self.add_static_transform(Transform(
+                translation=T_parent_cam.translation,
+                rotation=T_parent_cam.rotation,
+                parent_frame=parent_frame,
+                child_frame=cam_mj,
+                is_static=True
+            ))
+
+        # Dynamic transform provider for fixed-to-world cameras
+        else:
+            def get_camera_transform() -> Transform:
+                if self._env_lock:
+                    with self._env_lock:
+                        pos = self.env.sim.data.get_camera_xpos(camera_name)
+                        rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
+                else:
                     pos = self.env.sim.data.get_camera_xpos(camera_name)
                     rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
-            else:
-                pos = self.env.sim.data.get_camera_xpos(camera_name)
-                rot_mat = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
 
-            # Publish raw camera frame as `{camera_name}_mj`
-            quat = R.from_matrix(rot_mat).as_quat()
-            
-            return Transform(
-                translation=pos,
-                rotation=quat,
-                parent_frame=self.WORLD_FRAME,
-                child_frame=f"{camera_name}_mj",
-                is_static=False  # Cameras could potentially move
-            )
-        
-        self._dynamic_frame_providers[f"{camera_name}_mj"] = get_camera_transform
+                quat = R.from_matrix(rot_mat).as_quat()
+                return Transform(
+                    translation=pos,
+                    rotation=quat,
+                    parent_frame=self.WORLD_FRAME,
+                    child_frame=cam_mj,
+                    is_static=False
+                )
+            self._dynamic_frame_providers[cam_mj] = get_camera_transform
 
-        # camera_link-style frame at `{camera_name}`
+        # Ancillary frames (camera_link, optical) are always static relative to the _mj frame
+        R_cam_mj_link = np.array([[0., -1., 0.], [0., 0., 1.], [-1., 0., 0.]], dtype=float)
+        R_cam_mj_opt = np.diag([1.0, -1.0, -1.0])
+
         self.add_static_transform(
             Transform(
                 translation=np.zeros(3),
                 rotation=R.from_matrix(R_cam_mj_link).as_quat(),
-                parent_frame=f"{camera_name}_mj",
+                parent_frame=cam_mj,
                 child_frame=camera_name,
                 is_static=True,
             )
         )
-
-        # ROS optical frame
         self.add_static_transform(
             Transform(
                 translation=np.zeros(3),
                 rotation=R.from_matrix(R_cam_mj_opt).as_quat(),
-                parent_frame=f"{camera_name}_mj",
+                parent_frame=cam_mj,
                 child_frame=f"{camera_name}_optical",
                 is_static=True,
             )

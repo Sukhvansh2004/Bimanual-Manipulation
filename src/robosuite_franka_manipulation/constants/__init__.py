@@ -190,6 +190,7 @@ LOG_LEVEL = logging.DEBUG  # Default logging level
 # Meshcat Configuration
 # =============================================================================
 
+MESHCAT_TF_VISUALIZER_FPS = 20.0
 MESHCAT_ZMQ_URL = "tcp://127.0.0.1:6000"
 
 # =============================================================================
