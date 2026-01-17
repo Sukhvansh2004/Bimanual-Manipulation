@@ -5,7 +5,6 @@ import meshcat.geometry as g
 import logging
 from typing import Dict, Optional, Set
 
-from robosuite_franka_manipulation.transforms.stamped_pose import Transform
 from robosuite.utils.binding_utils import MjSim
 
 logger = logging.getLogger(__name__)
@@ -21,9 +20,8 @@ class MeshcatMjVisualizer:
         # Track published geoms to avoid redundant set_object calls
         self._published_geoms: Set[str] = set()
 
-    def _get_meshcat_geometry(self, sim, geom_id: int) -> Optional[g.Geometry]:
+    def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
         """Convert MuJoCo geom to MeshCat geometry."""
-        model = sim.model
         geom_type = model.geom_type[geom_id]
         
         # Unique key for caching
@@ -86,19 +84,14 @@ class MeshcatMjVisualizer:
         return None
 
     def _get_group_for_geom(self, geom_name: str) -> str:
-        """Determine the visualization group for a geometry based on its name."""
-        if geom_name.startswith("robot") or geom_name.startswith("gripper") or "_link" in geom_name:
-            return "robots"
-        elif "wall" in geom_name:
-            return "walls"
-        elif "table" in geom_name:
-            return "arena"
-        elif "mount" in geom_name:
-            return "mounts"
-        else:
-            return "objects"
+        """Determine the visualization group for a geometry based on its name prefix."""
+        # Generalize grouping: use the first part of the name (before the first underscore)
+        # e.g., 'robot0_link1' -> 'robot0', 'wall_left' -> 'wall'
+        if "_" in geom_name:
+            return geom_name.split('_')[0]
+        return "other"
 
-    def publish_environment(self, sim):
+    def publish_environment(self, sim: MjSim):
         """Publish all geoms in the simulation to MeshCat."""
         model = sim.model
         data = sim.data
@@ -132,7 +125,7 @@ class MeshcatMjVisualizer:
                 path = f"scene/{group}/{geom_name}"
                 
                 # Get geometry
-                geometry = self._get_meshcat_geometry(sim, geom_id)
+                geometry = self._get_meshcat_geometry(model, geom_id)
                 if geometry is None:
                     # logger.debug(f"Skipping geom {geom_name} (geometry creation failed)")
                     continue
