@@ -5,7 +5,7 @@ import meshcat.geometry as g
 import logging
 from typing import Dict, Optional, Set
 
-from robosuite.utils.binding_utils import MjSim
+from robosuite.utils.binding_utils import MjSim, MjModel
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class MeshcatMjVisualizer:
         # Track published geoms to avoid redundant set_object calls
         self._published_geoms: Set[str] = set()
 
-    def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
+    def _get_meshcat_geometry(self, model: MjModel, geom_id: int) -> Optional[g.Geometry]:
         """Convert MuJoCo geom to MeshCat geometry."""
         geom_type = model.geom_type[geom_id]
         
