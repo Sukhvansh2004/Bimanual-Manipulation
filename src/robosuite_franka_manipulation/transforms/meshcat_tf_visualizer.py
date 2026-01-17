@@ -13,12 +13,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import time
 from typing import Optional
+from threading import Lock
 
 import numpy as np
 import io
 
 from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 import meshcat
 import meshcat.geometry as g
 from grasp_gen.utils.meshcat_utils import make_frame
@@ -47,8 +49,8 @@ class MeshcatTFVisualizerConfig:
 
 def stream_transforms_to_meshcat(
     *,
-    env,
-    env_lock,
+    env: DualArmEnvironment,
+    env_lock: Lock,
     tf_manager: Optional[TransformManager] = None,
     auto_discover: bool = True,
     config: MeshcatTFVisualizerConfig = MeshcatTFVisualizerConfig(),
