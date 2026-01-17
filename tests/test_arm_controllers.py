@@ -76,8 +76,8 @@ class TestArmControllers:
         # Get current pose
         current_pos, current_quat = arm.get_eef_pose_in_base()
 
-        # Create a slightly offset target pose (small movement for reliability)
-        target_pos = current_pos + np.array([0.05, 0.0, 0.0])
+        # Create a slightly offset target pose
+        target_pos = current_pos + np.array([0.05, 0.3, 0.8])
         target_quat = current_quat  # Keep same orientation
 
         target_pose = StampedPose(
@@ -91,7 +91,7 @@ class TestArmControllers:
 
         # Movement should complete without crashing
         # Success depends on control tuning but method should work
-        assert isinstance(success, bool)
+        assert success==True
 
 
 class TestArmControllerFrameHandling:
