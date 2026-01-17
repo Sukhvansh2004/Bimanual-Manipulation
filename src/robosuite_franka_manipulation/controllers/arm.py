@@ -319,8 +319,20 @@ class RobosuiteArmController:
         logger.info(f"  Target in base: pos={target_pos}")
         logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
+        # Determine number of trajectory points
+        # If timeout is provided, ensure trajectory finishes before timeout to allow settling
+        if timeout is not None:
+            # Reserve 20% or at least 10 steps for settling
+            settling_steps = max(10, int(timeout * 0.2))
+            # Ensure at least 2 points (start/end)
+            traj_num_points = max(2, timeout - settling_steps)
+            logger.debug(f"Adjusting trajectory points to {traj_num_points} (timeout={timeout}) to allow settling")
+        else:
+            traj_num_points = constants.TRAJECTORY_NUM_POINTS
+
         positions, quaternions = self.plan_quintic_trajectory(
-            current_pos, current_quat, target_pos, target_quat
+            current_pos, current_quat, target_pos, target_quat,
+            num_points=traj_num_points
         )
 
         # Visualize the SE(3) trajectory if enabled
@@ -338,10 +350,15 @@ class RobosuiteArmController:
         max_steps = timeout if timeout is not None else num_waypoints * 2
         
         # Track which waypoint we're currently targeting
-        current_waypoint_idx = 1  # Start from second waypoint (first is current position)
+        # Start at 0, will increment to 1 on first step
+        current_waypoint_idx = 0 
         steps_taken = 0
         
-        while current_waypoint_idx < num_waypoints and steps_taken < max_steps:
+        while steps_taken < max_steps:
+            # Advance waypoint index to follow time-based trajectory
+            if current_waypoint_idx < num_waypoints - 1:
+                current_waypoint_idx += 1
+                
             # Get target waypoint
             target_pos_step = positions[current_waypoint_idx]
             target_quat_step = quaternions[current_waypoint_idx]
@@ -353,18 +370,6 @@ class RobosuiteArmController:
             pos_delta = target_pos_step - current_pos
             ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
             ori_delta = ori_error.as_rotvec()
-            
-            # Check if we've reached this waypoint (within a tolerance)
-            waypoint_pos_error = np.linalg.norm(pos_delta)
-            waypoint_ori_error = np.linalg.norm(ori_delta)
-            waypoint_threshold = threshold * 2  # More lenient for intermediate waypoints
-            
-            if waypoint_pos_error < waypoint_threshold and waypoint_ori_error < waypoint_threshold:
-                # Move to next waypoint
-                current_waypoint_idx += 1
-                if current_waypoint_idx >= num_waypoints:
-                    break
-                continue
             
             # Construct action with scaled delta
             robot_action = np.zeros(self.action_dim_per_robot)
@@ -385,10 +390,21 @@ class RobosuiteArmController:
             steps_taken += 1
             time.sleep(dt)  # Maintain control frequency
             
+            # Check convergence if we are targeting the final waypoint
+            if current_waypoint_idx == num_waypoints - 1:
+                waypoint_pos_error = np.linalg.norm(pos_delta)
+                waypoint_ori_error = np.linalg.norm(ori_delta)
+                
+                if waypoint_pos_error < threshold and waypoint_ori_error < threshold:
+                    logger.debug(f"Converged at step {steps_taken}")
+                    break
+
             # Log progress periodically
             if steps_taken % 20 == 0:
-                logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
-                           f"pos_err={waypoint_pos_error:.4f}m, ori_err={waypoint_ori_error:.4f}rad")
+                 current_pos_error = np.linalg.norm(pos_delta)
+                 current_ori_error = np.linalg.norm(ori_delta)
+                 logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                           f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
         
         # Final check: verify we reached the target
         final_pos, final_quat = self.get_eef_pose_in_base()

@@ -77,8 +77,8 @@ class TestArmControllers:
         current_pos, current_quat = arm.get_eef_pose_in_base()
 
         # Create a slightly offset target pose
-        target_pos = current_pos + np.array([0.05, 0.3, 0.8])
-        target_quat = current_quat  # Keep same orientation
+        target_pos = current_pos + np.array([0.2, 0.3, 0.4])
+        target_quat = np.array([0.86603, 0.28868, 0.28868, 0.28868])
 
         target_pose = StampedPose(
             position=target_pos,
@@ -87,7 +87,7 @@ class TestArmControllers:
         )
 
         # Attempt movement
-        success = arm.move_to_pose(target_pose, timeout=100, threshold=0.05)
+        success = arm.move_to_pose(target_pose)
 
         # Movement should complete without crashing
         # Success depends on control tuning but method should work
