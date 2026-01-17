@@ -46,7 +46,7 @@ class MeshcatTFVisualizerConfig:
     label_offset: float = 0.05
     
     # Whether to visualize the robot meshes and other environment geoms
-    visualize_scene: bool = True
+    visualize_scene: bool = constants.MESHCAT_VISUALIZE_GEOMETRY
 
 
 def stream_transforms_to_meshcat(

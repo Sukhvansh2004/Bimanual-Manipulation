@@ -85,7 +85,20 @@ class MeshcatMjVisualizer:
             
         return None
 
-    def publish_environment(self, sim, group_name: str = "visual"):
+    def _get_group_for_geom(self, geom_name: str) -> str:
+        """Determine the visualization group for a geometry based on its name."""
+        if geom_name.startswith("robot") or geom_name.startswith("gripper") or "_link" in geom_name:
+            return "robots"
+        elif "wall" in geom_name:
+            return "walls"
+        elif "table" in geom_name:
+            return "arena"
+        elif "mount" in geom_name:
+            return "mounts"
+        else:
+            return "objects"
+
+    def publish_environment(self, sim):
         """Publish all geoms in the simulation to MeshCat."""
         model = sim.model
         data = sim.data
@@ -113,8 +126,10 @@ class MeshcatMjVisualizer:
                 # For now, publish everything except the floor/arena if it's too big
                 if "floor" in geom_name or "ground" in geom_name:
                     continue
-                    
-                path = f"scene/{group_name}/{geom_name}"
+                
+                # Determine group based on name
+                group = self._get_group_for_geom(geom_name)
+                path = f"scene/{group}/{geom_name}"
                 
                 # Get geometry
                 geometry = self._get_meshcat_geometry(sim, geom_id)
