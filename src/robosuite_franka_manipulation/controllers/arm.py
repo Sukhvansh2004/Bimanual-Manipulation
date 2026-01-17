@@ -23,9 +23,9 @@ from robosuite_franka_manipulation.utils.se3 import (
 from robosuite_franka_manipulation.utils import safe_env_step
 from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
 from grasp_gen.utils.meshcat_utils import make_frame
-import logging  
+import logging
+
 # Configure logging
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 class RobosuiteArmController:
@@ -242,16 +242,17 @@ class RobosuiteArmController:
                     gripper_action: float = 0.0,
                     approach: bool = False,
                     dt: float = constants.TRAJECTORY_TIME_STEP,
-                    approach_distance: float = 0.1,
-                    approach_axis: str = 'z') -> bool:
+                    approach_distance: float = constants.DEFAULT_APPROACH_DISTANCE,
+                    approach_axis: str = constants.DEFAULT_APPROACH_AXIS,
+                    timeout: Optional[int] = None) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
         The pose will be automatically transformed to the robot's base frame if needed.
         Uses quintic polynomial interpolation in SE(3) space for smooth, jerk-limited motion.
         
-        The trajectory has TRAJECTORY_NUM_POINTS waypoints, and we send one action per waypoint,
-        passing the full error to the OSC controller.
+        The OSC controller is sent delta commands based on the trajectory waypoints,
+        with one action per waypoint to follow the smooth trajectory.
 
         Args:
             target_pose: Desired pose as StampedPose (includes position, quaternion, and frame_id)
@@ -264,6 +265,8 @@ class RobosuiteArmController:
             approach_distance: Distance to offset for approach (meters). Default 0.1m (10cm).
             approach_axis: Local axis of target frame to offset along ('x', 'y', or 'z').
                           Default 'z' (gripper approach direction).
+            timeout: Maximum number of steps to execute. If None, uses trajectory waypoint count.
+                    This is kept for backwards compatibility but is generally not needed.
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
@@ -316,8 +319,20 @@ class RobosuiteArmController:
         logger.info(f"  Target in base: pos={target_pos}")
         logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
+        # Determine number of trajectory points
+        # If timeout is provided, ensure trajectory finishes before timeout to allow settling
+        if timeout is not None:
+            # Reserve 20% or at least 10 steps for settling
+            settling_steps = max(10, int(timeout * 0.2))
+            # Ensure at least 2 points (start/end)
+            traj_num_points = max(2, timeout - settling_steps)
+            logger.debug(f"Adjusting trajectory points to {traj_num_points} (timeout={timeout}) to allow settling")
+        else:
+            traj_num_points = constants.TRAJECTORY_NUM_POINTS
+
         positions, quaternions = self.plan_quintic_trajectory(
-            current_pos, current_quat, target_pos, target_quat
+            current_pos, current_quat, target_pos, target_quat,
+            num_points=traj_num_points
         )
 
         # Visualize the SE(3) trajectory if enabled
@@ -328,26 +343,38 @@ class RobosuiteArmController:
         if len(positions) <= 1:
             return True  # Already at target
 
-        # Simple trajectory execution: traverse each waypoint sequentially
-        # Since quintic polynomial already provides smooth interpolation,
-        # we just follow the waypoints one-by-one, sending full error as action
+        # Trajectory execution: send delta commands to follow the quintic trajectory
+        # The OSC controller expects delta commands (since input_type='delta'),
+        # so we compute the delta from current position to next waypoint
         num_waypoints = len(positions)
+        max_steps = timeout if timeout is not None else num_waypoints * 2
         
-        for waypoint_idx in range(1, num_waypoints):  # Skip first waypoint (current pos)
-            target_pos_step = positions[waypoint_idx]
-            target_quat_step = quaternions[waypoint_idx]
+        # Track which waypoint we're currently targeting
+        # Start at 0, will increment to 1 on first step
+        current_waypoint_idx = 0 
+        steps_taken = 0
+        
+        while steps_taken < max_steps:
+            # Advance waypoint index to follow time-based trajectory
+            if current_waypoint_idx < num_waypoints - 1:
+                current_waypoint_idx += 1
+                
+            # Get target waypoint
+            target_pos_step = positions[current_waypoint_idx]
+            target_quat_step = quaternions[current_waypoint_idx]
             
-            # Compute error to current waypoint
+            # Get current pose
             current_pos, current_quat = self.get_eef_pose_in_base()
             
-            pos_error = target_pos_step - current_pos
+            # Compute error to current waypoint target
+            pos_delta = target_pos_step - current_pos
             ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
-            ori_error_vec = ori_error.as_rotvec()
+            ori_delta = ori_error.as_rotvec()
             
-            # Construct action with full error (no scaling - let OSC controller handle it)
+            # Construct action with scaled delta
             robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = pos_error  # Full position error
-            robot_action[3:6] = ori_error_vec  # Full orientation error
+            robot_action[:3] = pos_delta  # Position delta
+            robot_action[3:6] = ori_delta  # Orientation delta
             robot_action[6] = gripper_action
             
             # Construct full action
@@ -359,14 +386,25 @@ class RobosuiteArmController:
             # Step the environment
             with self.env_lock if self.env_lock else nullcontext():
                 safe_env_step(self.env, full_action)
-                
+            
+            steps_taken += 1
             time.sleep(dt)  # Maintain control frequency
             
+            # Check convergence if we are targeting the final waypoint
+            if current_waypoint_idx == num_waypoints - 1:
+                waypoint_pos_error = np.linalg.norm(pos_delta)
+                waypoint_ori_error = np.linalg.norm(ori_delta)
+                
+                if waypoint_pos_error < threshold and waypoint_ori_error < threshold:
+                    logger.debug(f"Converged at step {steps_taken}")
+                    break
+
             # Log progress periodically
-            if waypoint_idx % 20 == 0:
-                pos_error_norm = np.linalg.norm(pos_error)
-                ori_error_norm = np.linalg.norm(ori_error_vec)
-                logger.debug(f"Waypoint {waypoint_idx}/{num_waypoints-1}, error of that waypoint: pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
+            if steps_taken % 20 == 0:
+                 current_pos_error = np.linalg.norm(pos_delta)
+                 current_ori_error = np.linalg.norm(ori_delta)
+                 logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                           f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
         
         # Final check: verify we reached the target
         final_pos, final_quat = self.get_eef_pose_in_base()

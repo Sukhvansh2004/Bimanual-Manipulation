@@ -66,7 +66,7 @@ GRIPPER_GRASP_OFFSETS = {
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
-        'position': np.array([0.0, 0.0, 0.0]),
+        'position': np.array([0.0, 0.0, 0.11]),
         'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),  # 180 deg around Y
     },
 }
@@ -110,13 +110,15 @@ DEFAULT_NUM_GRASPS = 5
 # =============================================================================
 
 # Trajectory planning - number of waypoints
-TRAJECTORY_NUM_POINTS = 100  # Number of waypoints for quintic polynomial trajectory
+TRAJECTORY_NUM_POINTS = 200  # Number of waypoints for quintic polynomial trajectory
 TRAJECTORY_TIME_STEP = 0.05  # Time step between waypoints (seconds)
 
 # Trajectory planning thresholds
-TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Position convergence threshold (1cm)
+TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in SE(3) distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movement needed
+DEFAULT_APPROACH_DISTANCE = 0.1  # Default approach distance (meters)
+DEFAULT_APPROACH_AXIS = 'z'  # Default approach axis for pre-grasp
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0
@@ -161,7 +163,7 @@ DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
 DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
 DEFAULT_INPUT_TYPE = 'delta'
 
-DEFAULT_KP = 300  # Position stiffness (default is ~150)
+DEFAULT_KP = 500  # Position stiffness (default is ~150)
 DEFAULT_DAMPING_RATIO = 1.0  # Critical damping (default is ~1.0)
 DEFAULT_KP_LIMITS = [0, 500]  # Allow higher stiffness values
 DEFAULT_DAMPING_RATIO_LIMITS = [0, 2]  # Allow higher damping
@@ -188,7 +190,9 @@ LOG_LEVEL = logging.DEBUG  # Default logging level
 # Meshcat Configuration
 # =============================================================================
 
+MESHCAT_TF_VISUALIZER_FPS = 20.0
 MESHCAT_ZMQ_URL = "tcp://127.0.0.1:6000"
+MESHCAT_VISUALIZE_GEOMETRY = True
 
 # =============================================================================
 # Utility Functions

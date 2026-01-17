@@ -13,27 +13,28 @@ from __future__ import annotations
 from dataclasses import dataclass
 import time
 from typing import Optional
+from threading import Lock
 
 import numpy as np
 import io
 
 from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 import meshcat
 import meshcat.geometry as g
+from robosuite_franka_manipulation.utils.meshcat_mj_utils import MeshcatMjVisualizer
 from grasp_gen.utils.meshcat_utils import make_frame
 from PIL import Image, ImageDraw, ImageFont
 
-import logging
 from logging import getLogger
 
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
-    fps: float = 20.0
+    fps: float = constants.MESHCAT_TF_VISUALIZER_FPS
     zmq_url: str = constants.MESHCAT_ZMQ_URL
     clear: bool = True
 
@@ -43,12 +44,15 @@ class MeshcatTFVisualizerConfig:
     labels: bool = True
     # World Z offset (meters) for label placement *below* the frame origin.
     label_offset: float = 0.05
+    
+    # Whether to visualize the robot meshes and other environment geoms
+    visualize_scene: bool = constants.MESHCAT_VISUALIZE_GEOMETRY
 
 
 def stream_transforms_to_meshcat(
     *,
-    env,
-    env_lock,
+    env: DualArmEnvironment,
+    env_lock: Lock,
     tf_manager: Optional[TransformManager] = None,
     auto_discover: bool = True,
     config: MeshcatTFVisualizerConfig = MeshcatTFVisualizerConfig(),
@@ -78,10 +82,27 @@ def stream_transforms_to_meshcat(
     logger.info("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
+    
+    # Optional scene visualizer
+    mj_vis = MeshcatMjVisualizer(vis) if config.visualize_scene else None
 
     def _group_for_frame(frame_id: str) -> str:
         if frame_id == "world":
             return "world"
+            
+        # Check for cameras first (including eye-in-hand which starts with robot prefix)
+        if frame_id.endswith("_mj"):
+            base = frame_id[:-3]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras/raw"
+        if frame_id.endswith("_optical"):
+            base = frame_id[: -len("_optical")]
+            if base.endswith("view") or "eye_in_hand" in base:
+                return "cameras"
+        if frame_id.endswith("view") or "eye_in_hand" in frame_id:
+            return "cameras"
+            
+        # Then check for robots
         if frame_id.startswith("robot0_"):
             return "robots/robot0"
         if frame_id.startswith("robot1_"):
@@ -93,17 +114,7 @@ def stream_transforms_to_meshcat(
             return "objects"
         if frame_id.startswith("grasp"):
             return "grasps"
-        # Heuristic for camera frames in robosuite
-        if frame_id.endswith("_mj"):
-            base = frame_id[:-3]
-            if base.endswith("view") or "eye_in_hand" in base:
-                return "cameras/raw"
-        if frame_id.endswith("_optical"):
-            base = frame_id[: -len("_optical")]
-            if base.endswith("view") or "eye_in_hand" in base:
-                return "cameras"
-        if frame_id.endswith("view") or "eye_in_hand" in frame_id:
-            return "cameras"
+            
         return "other"
 
     def _frame_path(frame_id: str) -> str:
@@ -185,10 +196,24 @@ def stream_transforms_to_meshcat(
 
     drawn: set[str] = set()
     drawn_labels: set[str] = set()
+    configured_visibility: set[str] = set()
+
+    def _ensure_visibility(frame_id: str, configured: set[str]) -> None:
+        if frame_id in configured:
+            return
+        
+        group = _group_for_frame(frame_id)
+        # Turn off camera frames by default so the view isn't cluttered.
+        # This allows the user to just tick the specific camera they want to see.
+        if group.startswith("cameras"):
+             vis[_frame_path(frame_id)].set_property("visible", False)
+        
+        configured.add(frame_id)
 
     for frame_id in tfm.get_known_frames():
         _ensure_frame_drawn(frame_id, drawn)
         _ensure_label_drawn(frame_id, drawn_labels)
+        _ensure_visibility(frame_id, configured_visibility)
 
     dt = 1.0 / max(float(config.fps), 1e-6)
     logger.info("Streaming TF frames to MeshCat. Ctrl+C to stop.")
@@ -212,12 +237,15 @@ def stream_transforms_to_meshcat(
             with env_lock:
                 try:
                     env.sim.forward()
+                    if mj_vis is not None:
+                        mj_vis.publish_environment(env.sim)
                 except Exception:
                     pass
 
             for frame_id in tfm.get_known_frames():
                 _ensure_frame_drawn(frame_id, drawn)
                 _ensure_label_drawn(frame_id, drawn_labels)
+                _ensure_visibility(frame_id, configured_visibility)
 
             for frame_id in tfm.get_known_frames():
                 try:

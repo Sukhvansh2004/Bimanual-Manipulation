@@ -12,7 +12,6 @@ from typing import Dict, Any, Optional, List, cast
 from robosuite_franka_manipulation import constants
 
 # Configure logging
-logging.basicConfig(level=constants.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 

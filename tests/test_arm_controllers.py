@@ -76,9 +76,9 @@ class TestArmControllers:
         # Get current pose
         current_pos, current_quat = arm.get_eef_pose_in_base()
 
-        # Create a slightly offset target pose (small movement for reliability)
-        target_pos = current_pos + np.array([0.05, 0.0, 0.0])
-        target_quat = current_quat  # Keep same orientation
+        # Create a slightly offset target pose
+        target_pos = current_pos + np.array([0.2, 0.3, 0.4])
+        target_quat = np.array([0.86603, 0.28868, 0.28868, 0.28868])
 
         target_pose = StampedPose(
             position=target_pos,
@@ -87,11 +87,11 @@ class TestArmControllers:
         )
 
         # Attempt movement
-        success = arm.move_to_pose(target_pose, timeout=100, threshold=0.05)
+        success = arm.move_to_pose(target_pose)
 
         # Movement should complete without crashing
         # Success depends on control tuning but method should work
-        assert isinstance(success, bool)
+        assert success==True
 
 
 class TestArmControllerFrameHandling:
@@ -179,15 +179,15 @@ class TestGripperControllers:
         left_gripper, right_gripper = grippers
 
         # Test left gripper
-        left_gripper.open()
+        left_gripper.release()
         time.sleep(0.2)
-        left_gripper.close()
+        left_gripper.grasp()
         time.sleep(0.2)
-        left_gripper.open()
+        left_gripper.release()
 
         # Test right gripper
-        right_gripper.open()
+        right_gripper.release()
         time.sleep(0.2)
-        right_gripper.close()
+        right_gripper.grasp()
         time.sleep(0.2)
-        right_gripper.open()
+        right_gripper.release()
