@@ -116,12 +116,11 @@ def safe_env_step(env: MjSim, action: Any, retries: int = 3, delay: float = 0.01
     
     action_copy = None
     try:
-        import numpy as _np
-        if isinstance(action, _np.ndarray):
-            action_copy = _np.array(action, copy=True)
+        if isinstance(action, np.ndarray):
+            action_copy = np.array(action, copy=True)
         else:
             try:
-                action_copy = _np.array(action, copy=True)
+                action_copy = np.array(action, copy=True)
             except Exception:
                 action_copy = action
     except Exception:
