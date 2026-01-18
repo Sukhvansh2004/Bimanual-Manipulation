@@ -100,7 +100,8 @@ class KeyboardTeleop:
             try:
                 # Use safe wrapper to mitigate intermittent RuntimeError from robosuite internals
                 # Pass robot_id so env_step knows which gripper state to update and constructs full action
-                env_step(self.env, robot_action, robot_id=self.device.active_robot)
+                # Pass arm list to indicate we are controlling all arms
+                env_step(self.env, robot_action, robot_id=self.device.active_robot, arm=active_robot.arms)
                 self.env.render()
             finally:
                 if env_lock:
