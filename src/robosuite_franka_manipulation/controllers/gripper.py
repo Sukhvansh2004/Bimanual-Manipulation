@@ -6,7 +6,7 @@ import logging
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.utils import safe_env_step
+from robosuite_franka_manipulation.utils import env_step
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class RobosuiteGripperController:
         self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
-        self.action_dim_per_robot = constants.DEFAULT_ROBOT_ACTION_DIM
+        self.robot_action_dim = constants.DEFAULT_ROBOT_ACTION_DIM
         self.total_action_dim = self.env.action_dim
         
         # Detect gripper type
@@ -79,8 +79,11 @@ class RobosuiteGripperController:
         """
         Sends a gripper action while keeping arm still.
         """
-        full_action = np.zeros(self.total_action_dim)
-        start_idx = self.robot_id * self.action_dim_per_robot + (self.action_dim_per_robot - 1)
-        full_action[start_idx] = gripper_val
+        # Create single robot action
+        robot_action = np.zeros(self.robot_action_dim)
+        # Gripper index is at the end of the robot's action space
+        # (Assuming gripper is the last dimension of robot_action_dim)
+        robot_action[-1] = gripper_val
+        
         with self.env_lock if self.env_lock else nullcontext():
-            safe_env_step(self.env, full_action)
+            env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)

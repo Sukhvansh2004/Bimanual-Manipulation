@@ -49,7 +49,7 @@ from robosuite_franka_manipulation.utils.serialization import (
 )
 
 from robosuite_franka_manipulation.utils.env_utils import (
-    safe_env_step,
+    env_step,
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
@@ -100,7 +100,7 @@ __all__ = [
     'numpy_to_list',
     'ensure_numpy',
     # Env utils
-    'safe_env_step',
+    'env_step',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',

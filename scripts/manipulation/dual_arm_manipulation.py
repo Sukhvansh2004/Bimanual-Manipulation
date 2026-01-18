@@ -369,28 +369,7 @@ class DualArmManipulationSystem:
             # Signal teleop to exit
             self.teleop.exit_pressed = True
             self.teleop.running = False
-            
-            # Stop pynput keyboard listener
-            if hasattr(self.teleop, "listener") and self.teleop.listener is not None:
-                try:
-                    self.teleop.listener.stop()
-                    # Join to ensure thread terminates
-                    if self.teleop.listener.is_alive():
-                        self.teleop.listener.join(timeout=0.5)
-                except Exception as e:
-                    logger.debug(f"Error stopping pynput listener: {e}")
-            
-            # Stop robosuite Keyboard device if it has cleanup
-            if hasattr(self.teleop, "device"):
-                device = self.teleop.device
-                if hasattr(device, "listener") and device.listener is not None:
-                    try:
-                        device.listener.stop()
-                        if device.listener.is_alive():
-                            device.listener.join(timeout=0.5)
-                    except Exception as e:
-                        logger.debug(f"Error stopping keyboard device listener: {e}")
-                        
+
         except Exception as e:
             logger.debug(f"Error during teleop cleanup: {e}")
 
