@@ -114,17 +114,7 @@ def safe_env_step(env: MjSim, action: Any, retries: int = 3, delay: float = 0.01
     """Safely call ``env.step(action)`` and retry on intermittent
     RuntimeError: "dictionary changed size during iteration"."""
     
-    action_copy = None
-    try:
-        if isinstance(action, np.ndarray):
-            action_copy = np.array(action, copy=True)
-        else:
-            try:
-                action_copy = np.array(action, copy=True)
-            except Exception:
-                action_copy = action
-    except Exception:
-        action_copy = action
+    action_copy = np.array(action, copy=True)
 
     last_exception = None
     for attempt in range(retries):
