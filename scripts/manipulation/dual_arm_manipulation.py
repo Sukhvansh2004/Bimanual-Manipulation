@@ -226,7 +226,7 @@ class DualArmManipulationSystem:
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")
-        self.teleop = KeyboardTeleop(self.env)
+        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
         if start_teleop_thread:
             self.teleop_thread = threading.Thread(target=self.run_teleop, daemon=True)
             self.teleop_thread.start()
@@ -338,7 +338,7 @@ class DualArmManipulationSystem:
             self.env.viewer.add_keypress_callback(_on_viewer_keypress)
             
             # Run teleoperation guarded by env_lock
-            self.teleop.run(env_lock=self.env_lock)
+            self.teleop.run()
             
         except Exception as e:
             logger.error(f"Teleoperation error: {e}")
