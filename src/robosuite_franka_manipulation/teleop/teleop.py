@@ -23,7 +23,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None, env_renderer: bool = True) -> None:
+    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None) -> None:
         self.env = env
         self.env_lock = env_lock
         self.device = Keyboard(
@@ -38,10 +38,6 @@ class KeyboardTeleop:
         # Setup keyboard listener for exit key and step triggering
         self.listener = pynput_keyboard.Listener(on_press=self._on_key_press)
         self.listener.start()
-
-        self.render_thread = None
-        if env_renderer:
-            self.render_thread = threading.Thread(target=self._render_loop, daemon=True)
 
     def _on_key_press(self, key: Any) -> None:
         """
@@ -73,20 +69,30 @@ class KeyboardTeleop:
 
         with self.env_lock if self.env_lock else nullcontext():
             self.env.reset()
-            if self.render_thread:
-                self.render_thread.start()
 
         self.device.start_control()
 
         while self.running:
-            if not self.step_event.wait(timeout=0.05):
-                if self.exit_pressed:
-                    break
-                continue    
-                
             self.step_event.clear()
 
-            active_robot = self.env.robots[self.device.active_robot]
+            active_robot_idx = self.device.active_robot
+            active_robot = self.env.robots[active_robot_idx]
+
+            # Sync device grasp_states with previous environment steps
+            if hasattr(env_step, "previous_gripper_actions"):
+                for i, arm in enumerate(active_robot.arms):
+                    store_key = f"robot_{active_robot_idx}_{arm}"
+                    if store_key in env_step.previous_gripper_actions:
+                        prev_val = env_step.previous_gripper_actions[store_key]
+                        # Handle both scalar and array-like gripper states
+                        if hasattr(prev_val, "__len__"):
+                            prev_val = prev_val[0]
+                        
+                        # Use nested indexing: [robot_idx][arm_idx]
+                        if active_robot_idx < len(self.device.grasp_states):
+                            if i < len(self.device.grasp_states[active_robot_idx]):
+                                self.device.grasp_states[active_robot_idx][i] = True if prev_val > 0 else False
+
             input_ac_dict = self.device.input2action(mirror_actions=False)
 
             if input_ac_dict is None:

@@ -130,34 +130,36 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
     if not hasattr(env_step, "previous_gripper_actions"):
         env_step.previous_gripper_actions = {}
 
-    input_action = np.array(action, copy=True)
     full_action = np.zeros(env.action_dim)
     
-    # Determine if input is full action or partial robot action
-    is_full_action = (len(input_action) == env.action_dim)
-    
-    if is_full_action:
-        full_action = input_action
-    elif robot_id is not None:
-        # Construct full action from single robot action
-        current_idx = 0
-        robot_start_idx = 0
-        robot_end_idx = 0
+    if action is not None:
+        input_action = np.array(action, copy=True)
         
-        for i, robot in enumerate(env.robots):
-            robot_dim = robot.action_dim
-            if i == robot_id:
-                robot_start_idx = current_idx
-                robot_end_idx = current_idx + robot_dim
-                break
-            current_idx += robot_dim
+        # Determine if input is full action or partial robot action
+        is_full_action = (len(input_action) == env.action_dim)
+        
+        if is_full_action:
+            full_action = input_action
+        elif robot_id is not None:
+            # Construct full action from single robot action
+            current_idx = 0
+            robot_start_idx = 0
+            robot_end_idx = 0
             
-        if len(input_action) != (robot_end_idx - robot_start_idx):
-             raise ValueError(f"Action dimension {len(input_action)} does not match expected dimension {robot_end_idx - robot_start_idx} for robot {robot_id}")
-             
-        full_action[robot_start_idx:robot_end_idx] = input_action
-    else:
-        raise ValueError("Provided partial action without robot_id, or action dimension mismatch.")
+            for i, robot in enumerate(env.robots):
+                robot_dim = robot.action_dim
+                if i == robot_id:
+                    robot_start_idx = current_idx
+                    robot_end_idx = current_idx + robot_dim
+                    break
+                current_idx += robot_dim
+                
+            if len(input_action) != (robot_end_idx - robot_start_idx):
+                 raise ValueError(f"Action dimension {len(input_action)} does not match expected dimension {robot_end_idx - robot_start_idx} for robot {robot_id}")
+                 
+            full_action[robot_start_idx:robot_end_idx] = input_action
+        else:
+            raise ValueError("Provided partial action without robot_id, or action dimension mismatch.")
 
     # Update/Restore Gripper States
     current_idx = 0
@@ -176,7 +178,7 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
             if arm_name in robot.gripper:
                 gripper_dofs.append(robot.gripper[arm_name].dof)
                 gripper_arms.append(arm_name)
-        
+
         total_gripper_dim = sum(gripper_dofs)
         
         # Start index of the gripper block for this robot in the FULL action vector
@@ -195,17 +197,19 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
             
             # Check if we should update or restore
             should_update = False
-            if robot_id is not None:
-                if i == robot_id:
-                    # Check if this arm is in the 'arm' argument
-                    if isinstance(arm, list):
-                        if g_arm_name in arm:
+            
+            if action is not None:
+                if robot_id is not None:
+                    if i == robot_id:
+                        # Check if this arm is in the 'arm' argument
+                        if isinstance(arm, list):
+                            if g_arm_name in arm:
+                                should_update = True
+                        elif arm == g_arm_name:
                             should_update = True
-                    elif arm == g_arm_name:
-                        should_update = True
-            else:
-                # Full action passed without robot_id -> update everything
-                should_update = True
+                else:
+                    # Full action passed without robot_id -> update everything
+                    should_update = True
             
             if should_update:
                 # Update storage from full_action (which has the input)
