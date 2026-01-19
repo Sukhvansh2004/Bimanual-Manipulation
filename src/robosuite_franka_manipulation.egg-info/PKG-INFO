@@ -143,7 +143,7 @@ pip install -e .
 │   │   └── serialization.py             # JSON/numpy serialization
 │   └── teleop/                           # Keyboard teleoperation
 ├── scripts/
-│   ├── demos/                            # Demo scripts (go_to_pose, gripper_move)
+│   ├── demos/                            # Demo scripts (go_to_pose, gripper_move, launch_env)
 │   ├── manipulation/                     # Main manipulation script
 │   └── teleop/                           # Standalone teleoperation
 ├── tests/                                # Pytest test suite (96 tests)
@@ -221,6 +221,9 @@ python scripts/demos/go_to_pose.py
 # Test gripper open/close
 python scripts/demos/gripper_move.py
 
+# Launch environment with custom/YCB objects
+python scripts/demos/launch_env.py --with-objects --ycb apple banana
+
 # Standalone teleoperation
 python scripts/teleop/teleop_dual_arm.py
 ```
@@ -254,7 +257,7 @@ GraspGen-based grasp prediction.
 ```python
 client.call('grasp_service', {
     'command': 'GET_GRASPS',
-    'pointcloud': detection['pointcloud'],
+    'pcd': detection['pcd'],
     'object_pose': detection['pose'],
     'num_grasps': 5,
     'gripper_type': 'finger'  # or 'suction'
