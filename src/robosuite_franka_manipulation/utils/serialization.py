@@ -75,32 +75,6 @@ def from_json_to_numpy(obj: Any, convert_lists: bool = False) -> Any:
         return obj
 
 
-def convert_grasps_to_json(grasps: List[Dict]) -> List[Dict]:
-    """
-    Convert a list of grasp dictionaries to JSON-serializable format.
-    
-    Args:
-        grasps: List of grasp dictionaries with numpy arrays
-        
-    Returns:
-        List of grasp dictionaries with JSON-serializable values
-    """
-    return [to_json_serializable(grasp) for grasp in grasps]
-
-
-def convert_detections_to_json(detections: List[Dict]) -> List[Dict]:
-    """
-    Convert a list of detection dictionaries to JSON-serializable format.
-    
-    Args:
-        detections: List of detection dictionaries with numpy arrays
-        
-    Returns:
-        List of detection dictionaries with JSON-serializable values
-    """
-    return [to_json_serializable(detection) for detection in detections]
-
-
 def convert_pose_to_json(pose: Union[StampedPose, Dict]) -> Dict:
     """
     Convert a pose (StampedPose or dictionary) to JSON-serializable format.

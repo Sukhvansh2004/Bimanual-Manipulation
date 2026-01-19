@@ -8,10 +8,11 @@ import zmq
 import threading
 import time
 import logging
-from typing import Dict, Any, Optional, cast, Union
+from typing import Dict, Any, Optional, cast
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from robosuite_franka_manipulation.schema import EEFRequest, EEFResponse
 
 logger = logging.getLogger(__name__)
 
@@ -108,27 +109,19 @@ class EEFService:
                     pos = obs[f"{robot_key}_eef_pos"]
                     quat = obs[f"{robot_key}_eef_quat"]
 
-                    # Convert to lists for JSON serialization
+                    # Use PoseSchema format (pos, quat, frame_id)
                     eef_data[f"robot_{robot_id}"] = {
-                        "position": {
-                            "x": float(pos[0]),
-                            "y": float(pos[1]),
-                            "z": float(pos[2])
-                        },
-                        "orientation": {
-                            "w": float(quat[0]),
-                            "x": float(quat[1]),
-                            "y": float(quat[2]),
-                            "z": float(quat[3])
-                        },
-                        "frame": "world"
+                        "pos": pos.tolist(),
+                        "quat": quat.tolist(),
+                        "frame_id": constants.WORLD_FRAME,
+                        "timestamp": time.time()
                     }
 
             return {
                 "success": True,
                 "eef_coordinates": eef_data,
                 "timestamp": time.time(),
-                "frame": "world"
+                "frame": constants.WORLD_FRAME
             }
 
         except Exception as e:
@@ -165,8 +158,13 @@ class EEFService:
 
     def _handle_request(self, request: Dict) -> Dict:
         """Handle a client request."""
-        command = request.get("command")
-        if command == "GET":
-            return self.get_eef_coordinates()
+        try:
+            req = EEFRequest(**request)
+        except Exception as e:
+            return EEFResponse(success=False, error=str(e)).model_dump()
+
+        if req.command == "GET":
+            response_data = self.get_eef_coordinates()
+            return EEFResponse(**response_data).model_dump()
         else:
-            return {"success": False, "error": "Invalid command. Use 'GET'."}
+            return EEFResponse(success=False, error="Invalid command. Use 'GET'.").model_dump()

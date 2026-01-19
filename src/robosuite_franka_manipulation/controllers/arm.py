@@ -468,7 +468,7 @@ class RobosuiteArmController:
         # get_transform(target, source) returns transform FROM source TO target
         # We want: pose_in_world = T_world_from_base @ pose_in_base
         try:
-            base_to_world = self.transform_manager.get_transform("world", self.base_frame)
+            base_to_world = self.transform_manager.get_transform(constants.WORLD_FRAME, self.base_frame)
             T_base_to_world = base_to_world.to_matrix()
         except Exception as e:
             logger.warning(f"Could not get base-to-world transform, visualizing in base frame: {e}")

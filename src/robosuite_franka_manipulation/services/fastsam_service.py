@@ -22,9 +22,9 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.utils.serialization import convert_detections_to_json
 from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+from robosuite_franka_manipulation.schema import FastSAMRequest, FastSAMResponse, DetectionSchema, ResponseStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -260,7 +260,7 @@ class FastSAMService:
                                 pose_sp = StampedPose(
                                     position=np.array(pose['pos']),
                                     quaternion=np.array(pose['quat']),
-                                    frame_id='world',
+                                    frame_id=constants.WORLD_FRAME,
                                 )
                             self.tf_manager.update_object_frame(object_id=object_id, pose=pose_sp)
                         except Exception:
@@ -299,39 +299,54 @@ class FastSAMService:
         Returns:
             Response dictionary
         """
-        command = request.get('command', '').upper()
+        try:
+            req = FastSAMRequest(**request)
+        except Exception as e:
+            return ResponseStatus(status="error", message=str(e)).model_dump()
+
+        command = req.command.upper()
 
         if command == 'SET_PROMPT':
-            new_prompt = request.get('prompt', 'object')
+            new_prompt = req.prompt or 'object'
             self.current_prompt = new_prompt
             with self.detector_lock:
                 self.object_detector.set_prompt(new_prompt)
-            return {
-                'status': 'success',
-                'message': f'Prompt updated to: {new_prompt}'
-            }
+            return FastSAMResponse(
+                status='success', 
+                message=f'Prompt updated to: {new_prompt}'
+            ).model_dump()
 
         elif command == 'GET_PROMPT':
-            return {
-                'status': 'success',
-                'prompt': self.current_prompt
-            }
+            return FastSAMResponse(
+                status='success', 
+                prompt=self.current_prompt
+            ).model_dump()
 
         elif command == 'GET_LATEST_DETECTION':
-            # Convert detections to JSON-serializable format using utility
+            # Convert detections to Schema
             with self.detector_lock:
-                json_detections = convert_detections_to_json(self.latest_detections)
-            return {
-                'status': 'success',
-                'detections': json_detections,
-                'timestamp': time.time()
-            }
+                det_schemas = []
+                for det in self.latest_detections:
+                    try:
+                        det_dict = det.copy()
+                        # Handle StampedPose -> dict conversion for PoseSchema
+                        if isinstance(det_dict.get('pose'), StampedPose):
+                            det_dict['pose'] = det_dict['pose'].to_dict()
+                        det_schemas.append(DetectionSchema(**det_dict))
+                    except Exception as e:
+                        logger.warning(f"Failed to serialize detection: {e}")
+            
+            return FastSAMResponse(
+                status='success', 
+                detections=det_schemas,
+                timestamp=time.time()
+            ).model_dump()
 
         else:
-            return {
-                'status': 'error',
-                'message': f'Unknown command: {command}'
-            }
+            return ResponseStatus(
+                status='error', 
+                message=f'Unknown command: {command}'
+            ).model_dump()
 
     def start(self) -> None:
         """Start the FastSAM service."""

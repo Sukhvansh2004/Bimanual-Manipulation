@@ -16,8 +16,8 @@ from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredic
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
-from robosuite_franka_manipulation.utils.serialization import convert_grasps_to_json
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
+from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, GraspSchema, ResponseStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ class GraspService:
     def _predict_grasps_for_pointcloud(self, pcd: np.ndarray,
                                      object_pose: StampedPose,
                                      num_grasps: int = constants.DEFAULT_NUM_GRASPS,
-                                     gripper_type: str = 'finger') -> List[Dict]:
+                                     gripper_type: str = constants.GRIPPER_TYPES[0]) -> List[Dict]:
         """
         Predict grasps for a single point cloud.
 
@@ -118,10 +118,9 @@ class GraspService:
             List of grasp dictionaries
         """
         # Select predictor based on gripper type
-        if gripper_type == 'suction':
-            predictor = self.grasp_predictors[constants.GRIPPER_TYPE_MAPPING['suction']]
-        elif gripper_type == 'finger':
-            predictor = self.grasp_predictors[constants.GRIPPER_TYPE_MAPPING['finger']]
+        if gripper_type in constants.GRIPPER_TYPE_MAPPING:
+            full_gripper_type = constants.GRIPPER_TYPE_MAPPING[gripper_type]
+            predictor = self.grasp_predictors.get(full_gripper_type)
         else:
             logger.error(f"Unknown gripper type: {gripper_type}")
             return []
@@ -207,6 +206,133 @@ class GraspService:
 
         logger.info("Server loop stopped")
 
+    def _get_grasps(self, req: GraspRequest) -> GraspResponse:
+        simplified_type = req.gripper_type
+        num_grasps = req.num_grasps
+        
+        # Validate simplified gripper type
+        if simplified_type not in constants.GRIPPER_TYPE_MAPPING:
+            return ResponseStatus(
+                status='error', 
+                message=f'Invalid gripper type: {simplified_type}. Use amongst {constants.GRIPPER_TYPES}'
+            ).model_dump()
+        
+        # Map simplified type to full gripper type for predictor lookup
+        full_gripper_type = constants.GRIPPER_TYPE_MAPPING[simplified_type]
+        
+        # Check if gripper type predictor is loaded
+        if full_gripper_type not in self.grasp_predictors:
+            return ResponseStatus(
+                status='error',
+                message=f'Grasp predictor for {simplified_type} gripper not loaded'
+            ).model_dump()
+        
+        # Check if pcd and pose are provided
+        pcd_data = req.pcd
+        object_pose_data = req.object_pose
+        
+        object_id: Optional[str] = None
+
+        # If not provided, query FastSAM service
+        if pcd_data is None or object_pose_data is None:
+            logger.info("No pcd/pose provided, querying FastSAM service")
+            fastsam_data = self._query_fastsam_service()
+            if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
+                # Use the first detection
+                detection = fastsam_data['detections'][0]
+                object_id = str(detection.get('id', detection.get('name', '0')))
+                pcd_data = detection.get('pcd', [])
+                object_pose_data = detection.get('pose', {})
+                logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
+            else:
+                return ResponseStatus(
+                    status='error',
+                    message='No pcd/pose provided and FastSAM service returned no detections'
+                ).model_dump()
+
+        if not pcd_data:
+            return ResponseStatus(status='error', message='No pcd data available').model_dump()
+
+        if not object_pose_data:
+            return ResponseStatus(status='error', message='No object pose available').model_dump()
+
+        # Convert data
+        try:
+            pcd = np.array(pcd_data, dtype=np.float32)
+            
+            # Handle PoseSchema or Dict -> StampedPose
+            if isinstance(object_pose_data, dict):
+                object_pose_stamped = StampedPose.from_dict(object_pose_data, frame_id=constants.WORLD_FRAME)
+            elif hasattr(object_pose_data, 'pos') and hasattr(object_pose_data, 'quat'):
+                # Assume Schema
+                object_pose_stamped = StampedPose(
+                    position=np.array(object_pose_data.pos),
+                    quaternion=np.array(object_pose_data.quat),
+                    frame_id=object_pose_data.frame_id
+                )
+            else:
+                return ResponseStatus(status='error', message='Invalid pose format').model_dump()
+                
+        except (KeyError, ValueError, AttributeError) as e:
+            return ResponseStatus(
+                status='error',
+                message=f'Invalid data format: {e}'
+            ).model_dump()
+
+        # Ensure object frames are registered in the shared TF manager.
+        if self.tf_manager is not None:
+            try:
+                if object_id is not None:
+                    self.tf_manager.update_object_frame(object_id=object_id, pose=object_pose_stamped)
+
+                self.tf_manager.add_static_transform(
+                    Transform(
+                        translation=object_pose_stamped.position,
+                        rotation=object_pose_stamped.quaternion,
+                        parent_frame=object_pose_stamped.frame_id,
+                        child_frame="object_local",
+                        is_static=False,
+                    )
+                )
+            except Exception as e:
+                logger.debug("Failed to register object frames in TF manager: %s", e)
+
+        # Predict grasps using the appropriate predictor
+        grasps = self._predict_grasps_for_pointcloud(
+            pcd, object_pose_stamped, num_grasps, simplified_type
+        )
+
+        # Publish grasp poses as TF frames for MeshCat / TF debugging.
+        if self.tf_manager is not None:
+            try:
+                for i, grasp in enumerate(grasps):
+                    pos = grasp.get("pos")
+                    quat = grasp.get("quat")
+                    if pos is None or quat is None:
+                        continue
+                    self.tf_manager.add_static_transform(
+                        Transform(
+                            translation=np.asarray(pos, dtype=np.float64),
+                            rotation=np.asarray(quat, dtype=np.float64),
+                            parent_frame=constants.WORLD_FRAME,
+                            child_frame=f"grasp_{i}",
+                            is_static=False,
+                        )
+                    )
+            except Exception as e:
+                logger.debug("Failed to publish grasp frames to TF manager: %s", e)
+
+        # Convert grasps to Schema format
+        grasp_schemas = [GraspSchema(**g) for g in grasps]
+
+        return GraspResponse(
+            status='success',
+            grasps=grasp_schemas,
+            num_grasps_predicted=len(grasps),
+            pcd_size=len(pcd),
+            gripper_type=simplified_type
+        ).model_dump()
+
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle incoming ZMQ requests.
@@ -218,152 +344,19 @@ class GraspService:
             Response dictionary
         """
         try:
-            command = request.get('command', '').upper()
-
-            if command == 'GET_GRASPS':
-                # Extract parameters - gripper_type should be simplified ('finger' or 'suction')
-                simplified_type = request.get('gripper_type', 'finger')
-                num_grasps = request.get('num_grasps', constants.DEFAULT_NUM_GRASPS)
-                
-                # Validate simplified gripper type
-                if simplified_type not in ['finger', 'suction']:
-                    return {
-                        'status': 'error',
-                        'message': f'Invalid gripper type: {simplified_type}. Use "finger" or "suction"'
-                    }
-                
-                # Map simplified type to full gripper type for predictor lookup
-                if simplified_type == 'suction':
-                    full_gripper_type = constants.GRIPPER_TYPE_MAPPING['suction']
-                else:  # finger
-                    full_gripper_type = constants.GRIPPER_TYPE_MAPPING['finger']
-                
-                # Check if gripper type predictor is loaded
-                if full_gripper_type not in self.grasp_predictors:
-                    return {
-                        'status': 'error',
-                        'message': f'Grasp predictor for {simplified_type} gripper not loaded'
-                    }
-                
-                # Check if pcd and pose are provided
-                pcd_data = request.get('pcd')
-                object_pose = request.get('object_pose')
-                
-                object_id: Optional[str] = None
-
-                # If not provided, query FastSAM service
-                if pcd_data is None or object_pose is None:
-                    logger.info("No pcd/pose provided, querying FastSAM service")
-                    fastsam_data = self._query_fastsam_service()
-                    if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
-                        # Use the first detection
-                        detection = fastsam_data['detections'][0]
-                        object_id = str(detection.get('id', detection.get('name', '0')))
-                        pcd_data = detection.get('pcd', [])
-                        object_pose = detection.get('pose', {})
-                        logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
-                    else:
-                        return {
-                            'status': 'error',
-                            'message': 'No pcd/pose provided and FastSAM service returned no detections'
-                        }
-
-                if not pcd_data:
-                    return {
-                        'status': 'error',
-                        'message': 'No pcd data available'
-                    }
-
-                if not object_pose:
-                    return {
-                        'status': 'error',
-                        'message': 'No object pose available'
-                    }
-
-                # Convert data
-                try:
-                    pcd = np.array(pcd_data, dtype=np.float32)
-                    object_pose_stamped = StampedPose(
-                        position=np.array(object_pose['pos']),
-                        quaternion=np.array(object_pose['quat']),
-                        frame_id='world'
-                    )
-                except (KeyError, ValueError) as e:
-                    return {
-                        'status': 'error',
-                        'message': f'Invalid data format: {e}'
-                    }
-
-                # Ensure object frames are registered in the shared TF manager.
-                # This fixes missing `object_local` and keeps TF visualization consistent.
-                if self.tf_manager is not None:
-                    try:
-                        # Register/update object_<id> frame if we know an id
-                        if object_id is not None:
-                            self.tf_manager.update_object_frame(object_id=object_id, pose=object_pose_stamped)
-
-                        # Register/update the canonical object-local frame used by GraspGen
-                        self.tf_manager.add_static_transform(
-                            Transform(
-                                translation=object_pose_stamped.position,
-                                rotation=object_pose_stamped.quaternion,
-                                parent_frame=object_pose_stamped.frame_id,
-                                child_frame="object_local",
-                                is_static=False,
-                            )
-                        )
-                    except Exception as e:
-                        logger.debug("Failed to register object frames in TF manager: %s", e)
-
-                # Predict grasps using the appropriate predictor
-                grasps = self._predict_grasps_for_pointcloud(
-                    pcd, object_pose_stamped, num_grasps, simplified_type
-                )
-
-                # Publish grasp poses as TF frames for MeshCat / TF debugging.
-                # These frames are in world coordinates (consistent with returned grasp poses).
-                if self.tf_manager is not None:
-                    try:
-                        for i, grasp in enumerate(grasps):
-                            pos = grasp.get("pos")
-                            quat = grasp.get("quat")
-                            if pos is None or quat is None:
-                                continue
-                            self.tf_manager.add_static_transform(
-                                Transform(
-                                    translation=np.asarray(pos, dtype=np.float64),
-                                    rotation=np.asarray(quat, dtype=np.float64),
-                                    parent_frame="world",
-                                    child_frame=f"grasp_{i}",
-                                    is_static=False,
-                                )
-                            )
-                    except Exception as e:
-                        logger.debug("Failed to publish grasp frames to TF manager: %s", e)
-
-                # Convert grasps to JSON-serializable format using utility
-                json_grasps = convert_grasps_to_json(grasps)
-
-                return {
-                    'status': 'success',
-                    'grasps': json_grasps,
-                    'num_grasps_predicted': len(grasps),
-                    'pcd_size': len(pcd),
-                    'gripper_type': simplified_type
-                }
-
-            else:
-                return {
-                    'status': 'error',
-                    'message': f'Unknown command: {command}'
-                }
-
+            req = GraspRequest(**request)
         except Exception as e:
-            logger.error(f"Request handling error: {e}")
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
+            return ResponseStatus(status="error", message=str(e)).model_dump()
+
+        command = req.command.upper()
+
+        if command == 'GET_GRASPS':
+            return self._get_grasps(req)
+        else:
+            return ResponseStatus(
+                status='error', 
+                message=f'Unknown command: {command}'
+            ).model_dump()
 
     def start(self) -> None:
         """Start the Grasp service."""

@@ -43,9 +43,6 @@ GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
 # Gripper Configuration
 # =============================================================================
 
-# Supported gripper types
-GRIPPER_TYPES = ['franka_panda', 'single_suction_cup_30mm']
-
 # Default gripper type
 DEFAULT_GRIPPER_TYPE = 'franka_panda'
 
@@ -54,6 +51,9 @@ GRIPPER_TYPE_MAPPING = {
     'finger': 'franka_panda',
     'suction': 'single_suction_cup_30mm'
 }
+
+# Supported gripper types
+GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.values())
 
 # Gripper grasp offset transforms
 # These offsets are applied to predicted grasps to align them with the gripper frame
@@ -200,7 +200,7 @@ MESHCAT_VISUALIZE_GEOMETRY = True
 
 def get_project_root() -> Path:
     """Get the project root directory."""
-    return Path(__file__).parent.parent.parent.parent
+    return Path(__file__).parent.parent.parent
 
 def get_graspgen_config_path(gripper_type: str) -> Path:
     """Get full path to GraspGen config for a gripper type."""

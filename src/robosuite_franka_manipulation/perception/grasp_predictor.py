@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 import torch
 from scipy.spatial.transform import Rotation as R
 import meshcat
@@ -121,7 +121,7 @@ class GraspPredictor:
                     "pos": world_grasp.position,
                     "quat": world_grasp.quaternion,
                     "score": float(grasp_conf[i].cpu().numpy()),
-                    "frame_id": "world"
+                    "frame_id": constants.WORLD_FRAME
                 })
         
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
@@ -151,7 +151,7 @@ class GraspPredictor:
         object_to_world = Transform(
             translation=object_pose.position,
             rotation=object_pose.quaternion,
-            parent_frame="world",
+            parent_frame=constants.WORLD_FRAME,
             child_frame="object_local"
         )
         
@@ -275,7 +275,7 @@ class GraspPredictor:
         world_to_object = Transform(
             translation=object_pose.position,
             rotation=object_pose.quaternion,
-            parent_frame="world",
+            parent_frame=constants.WORLD_FRAME,
             child_frame="object_local"
         ).inverse()  # We want world -> object_local, so invert object -> world
         

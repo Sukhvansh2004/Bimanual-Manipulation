@@ -164,7 +164,7 @@ class ObjectDetector:
             camera_to_world = Transform(
                 translation=camera_pos,
                 rotation=camera_rot.as_quat(),
-                parent_frame="world",
+                parent_frame=constants.WORLD_FRAME,
                 child_frame="camera"
             )
             
@@ -215,7 +215,7 @@ class ObjectDetector:
             image_flipped=False,
         )
 
-    def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = "world") -> StampedPose:
+    def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = constants.WORLD_FRAME) -> StampedPose:
         """Estimate object pose from point cloud using PCA for orientation."""
         pos, quat = estimate_pose_from_point_cloud(pcd)
         return StampedPose(position=pos, quaternion=quat, frame_id=frame_id)

@@ -23,6 +23,7 @@ Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 Requires-Dist: numpy<2.0.0,>=1.21.0
 Requires-Dist: scipy>=1.7.0
+Requires-Dist: pydantic>=2.0.0
 Requires-Dist: robosuite>=1.4.0
 Requires-Dist: ultralytics>=8.0.0
 Requires-Dist: pynput>=1.7.0
