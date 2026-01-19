@@ -63,7 +63,7 @@ from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
 
 # Configure logging
 logging.basicConfig(
@@ -228,8 +228,7 @@ class DualArmManipulationSystem:
         logger.info("\n3. Preparing teleoperation...")
         self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
         if start_teleop_thread:
-            self.teleop_thread = threading.Thread(target=self.run_teleop, daemon=True)
-            self.teleop_thread.start()
+            self.run_teleop(blocking=False)
             logger.info("   ✓ Teleoperation started (thread)")
         else:
             logger.info("   Teleoperation ready. Run system.run_teleop() to start.")
@@ -606,6 +605,7 @@ Press Ctrl+D or type exit() to quit
                     'get_grasps': get_grasps,
                     'get_eef': get_eef,
                     'set_prompt': set_prompt,
+                    'env_step': env_step,
                 }
                 code.interact(banner=banner, local=namespace)
             except SystemExit:
