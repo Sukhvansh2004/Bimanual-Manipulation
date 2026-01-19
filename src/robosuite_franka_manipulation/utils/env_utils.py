@@ -110,7 +110,7 @@ def create_primitive_object(
 # Environment Step Utilities
 # =============================================================================
 
-def env_step(env: DualArmEnvironment, action: Any, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
+def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
     """Handles full action construction and gripper state persistence.
     
     Args:
@@ -157,77 +157,72 @@ def env_step(env: DualArmEnvironment, action: Any, robot_id: Optional[int] = Non
              
         full_action[robot_start_idx:robot_end_idx] = input_action
     else:
-        if len(input_action) == env.action_dim:
-             full_action = input_action
-        else:
-             raise ValueError("Provided partial action without robot_id, or action dimension mismatch.")
+        raise ValueError("Provided partial action without robot_id, or action dimension mismatch.")
 
     # Update/Restore Gripper States
-    if hasattr(env, "robots"):
-        current_idx = 0
-        for i, robot in enumerate(env.robots):
-            robot_dim = robot.action_dim
+    current_idx = 0
+    for i, robot in enumerate(env.robots):
+        robot_dim = robot.action_dim
+        
+        # Determine gripper layout
+        # We assume gripper actions are at the end of the robot action vector,
+        # ordered by robot.arms
+        
+        gripper_dofs = []
+        gripper_arms = []
+        
+        # Iterate in order of robot.arms to match action vector structure
+        for arm_name in robot.arms:
+            if arm_name in robot.gripper:
+                gripper_dofs.append(robot.gripper[arm_name].dof)
+                gripper_arms.append(arm_name)
+        
+        total_gripper_dim = sum(gripper_dofs)
+        
+        # Start index of the gripper block for this robot in the FULL action vector
+        # The gripper block is at the end of this robot's segment
+        robot_gripper_block_start = current_idx + robot_dim - total_gripper_dim
+        
+        current_gripper_offset = 0
+        for g_idx, g_dof in enumerate(gripper_dofs):
+            g_arm_name = gripper_arms[g_idx]
             
-            # Determine gripper layout
-            # We assume gripper actions are at the end of the robot action vector,
-            # ordered by robot.arms
+            # Indices for this specific gripper in full_action
+            g_start = robot_gripper_block_start + current_gripper_offset
+            g_end = g_start + g_dof
             
-            gripper_dofs = []
-            gripper_arms = []
+            store_key = f"robot_{i}_{g_arm_name}"
             
-            if hasattr(robot, "gripper"):
-                # Iterate in order of robot.arms to match action vector structure
-                for arm_name in robot.arms:
-                    if arm_name in robot.gripper:
-                        gripper_dofs.append(robot.gripper[arm_name].dof)
-                        gripper_arms.append(arm_name)
-            
-            total_gripper_dim = sum(gripper_dofs)
-            
-            # Start index of the gripper block for this robot in the FULL action vector
-            # The gripper block is at the end of this robot's segment
-            robot_gripper_block_start = current_idx + robot_dim - total_gripper_dim
-            
-            current_gripper_offset = 0
-            for g_idx, g_dof in enumerate(gripper_dofs):
-                g_arm_name = gripper_arms[g_idx]
-                
-                # Indices for this specific gripper in full_action
-                g_start = robot_gripper_block_start + current_gripper_offset
-                g_end = g_start + g_dof
-                
-                store_key = f"robot_{i}_{g_arm_name}"
-                
-                # Check if we should update or restore
-                should_update = False
-                if robot_id is not None:
-                    if i == robot_id:
-                        # Check if this arm is in the 'arm' argument
-                        if isinstance(arm, list):
-                            if g_arm_name in arm:
-                                should_update = True
-                        elif arm == g_arm_name:
+            # Check if we should update or restore
+            should_update = False
+            if robot_id is not None:
+                if i == robot_id:
+                    # Check if this arm is in the 'arm' argument
+                    if isinstance(arm, list):
+                        if g_arm_name in arm:
                             should_update = True
+                    elif arm == g_arm_name:
+                        should_update = True
+            else:
+                # Full action passed without robot_id -> update everything
+                should_update = True
+            
+            if should_update:
+                # Update storage from full_action (which has the input)
+                val = full_action[g_start:g_end]
+                env_step.previous_gripper_actions[store_key] = val
+            else:
+                # Restore from storage
+                if store_key in env_step.previous_gripper_actions:
+                    full_action[g_start:g_end] = env_step.previous_gripper_actions[store_key]
                 else:
-                    # Full action passed without robot_id -> update everything
-                    should_update = True
-                
-                if should_update:
-                    # Update storage from full_action (which has the input)
+                    # Init storage
                     val = full_action[g_start:g_end]
                     env_step.previous_gripper_actions[store_key] = val
-                else:
-                    # Restore from storage
-                    if store_key in env_step.previous_gripper_actions:
-                        full_action[g_start:g_end] = env_step.previous_gripper_actions[store_key]
-                    else:
-                        # Init storage
-                        val = full_action[g_start:g_end]
-                        env_step.previous_gripper_actions[store_key] = val
-                
-                current_gripper_offset += g_dof
+            
+            current_gripper_offset += g_dof
 
-            current_idx += robot_dim
+        current_idx += robot_dim
 
     obs = env.step(full_action)
     apply_suction_weld(env, full_action)

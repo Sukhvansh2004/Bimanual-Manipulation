@@ -61,6 +61,7 @@ class KeyboardTeleop:
         """Continuously render the environment."""
         while self.running:
             with self.env_lock if self.env_lock else nullcontext():
+                env_step(self.env)
                 self.env.render()
 
     def run(self) -> None:
@@ -78,7 +79,7 @@ class KeyboardTeleop:
         self.device.start_control()
 
         while self.running:
-            if not self.step_event.wait(timeout=0.1):
+            if not self.step_event.wait(timeout=0.05):
                 if self.exit_pressed:
                     break
                 continue    
