@@ -33,7 +33,8 @@ SE(3) is the Special Euclidean group representing rigid body transformations (ro
 ```python
 from robosuite_franka_manipulation.utils import (
     pose_to_SE3, SE3_to_pose, SE3_log, SE3_exp,
-    compute_se3_distance, interpolate_SE3, skew
+    compute_se3_distance, interpolate_SE3, skew, unskew,
+    se3_to_matrix, matrix_to_se3
 )
 import numpy as np
 
@@ -51,11 +52,17 @@ T2 = pose_to_SE3([1, 0, 0], [0, 0, 0.707, 0.707])  # 90° yaw
 distance = compute_se3_distance(T1, T2)
 
 # Interpolate between poses (geodesic on SE(3) manifold)
-T_interp = interpolate_SE3(T1, T2, alpha=0.5)  # Midpoint
+T_interp = interpolate_SE3(T1, T2, s=0.5)  # Midpoint
 
 # Skew-symmetric matrix (so(3) representation)
 omega = [0, 0, 1]  # Rotation around z-axis
 omega_hat = skew(omega)  # 3x3 skew-symmetric matrix
+omega_rec = unskew(omega_hat) # Recover vector
+
+# Twist conversions
+twist = np.array([0, 0, 1, 0.1, 0, 0]) # [omega, v]
+mat = se3_to_matrix(twist) # 4x4 se(3) matrix
+twist_rec = matrix_to_se3(mat) # Recover twist
 ```
 
 ### Trajectory Planning
@@ -85,6 +92,7 @@ from robosuite_franka_manipulation.utils import (
     filter_point_cloud_by_range,
     validate_point_cloud,
     deproject_depth_to_point_cloud,
+    ensure_depth_2d,
 )
 
 # Downsample point cloud
@@ -105,6 +113,9 @@ pcd_filtered = filter_point_cloud_by_range(pcd, min_range=0.1, max_range=2.0)
 # Validate point cloud data
 is_valid = validate_point_cloud(pcd, max_range=10.0, min_points=100)
 
+# Ensure depth map is 2D
+depth_2d = ensure_depth_2d(depth, height=480, width=640)
+
 # Deproject depth image to 3D points
 pcd = deproject_depth_to_point_cloud(
     depth,           # HxW depth image
@@ -112,7 +123,7 @@ pcd = deproject_depth_to_point_cloud(
     fx, fy, cx, cy,  # Camera intrinsics
     max_depth=10.0,
     mujoco_convention=False,  # standard pinhole / optical frame (x right, y down, z forward)
-    image_flipped=True  # Set True if depth was flipped from OpenGL to standard image coords
+    image_flipped=False       # Set True if depth was flipped from OpenGL to standard image coords
 )
 ```
 
@@ -128,7 +139,8 @@ Y = (y - cy) * Z / fy
 
 When `image_flipped=True`, the function internally converts v coordinates back to the original
 OpenGL space before applying the pinhole formula, ensuring correct 3D reconstruction when working
-with robosuite's camera extrinsic matrices.
+with robosuite's camera extrinsic matrices. Note that the system typically handles image flipping
+before calling this function, so it is often called with `image_flipped=False` (default).
 
 ## Serialization Utilities
 

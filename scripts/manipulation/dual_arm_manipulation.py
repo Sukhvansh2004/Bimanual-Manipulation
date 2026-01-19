@@ -15,7 +15,7 @@ keyboard controls, while simultaneously using the Python terminal to:
 - Change prompts: client.call('fastsam_service', {'command': 'SET_PROMPT', 'prompt': 'cup'})
 
 Usage:
-    python scripts/manipulation/start_services_and_teleop.py
+    python scripts/manipulation/dual_arm_manipulation.py
     
     Then in the interactive shell:
     >>> # Get latest detections

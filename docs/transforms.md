@@ -16,7 +16,12 @@ from robosuite_franka_manipulation.environments import make_dual_arm_env
 env = make_dual_arm_env()
 env.reset()
 
-tf_manager = TransformManager(env)
+# Initialize with auto-discovery enabled
+tf_manager = TransformManager(
+    env=env,
+    auto_discover=True,  # Automatically discover robot and camera frames
+    env_lock=None        # Optional lock for thread-safe simulation access
+)
 
 # Print discovered frames
 print(tf_manager.get_known_frames())
@@ -36,7 +41,18 @@ tf_manager.print_frame_tree()
 
 ### StampedPose
 
-A pose (position + orientation) with an associated coordinate frame. Similar to `geometry_msgs/PoseStamped` in ROS.
+A pose (position + orientation) with an associated coordinate frame and timestamp. Similar to `geometry_msgs/PoseStamped` in ROS.
+
+```python
+@dataclass
+class StampedPose:
+    position: np.ndarray    # [x, y, z]
+    quaternion: np.ndarray  # [x, y, z, w] - scipy convention
+    frame_id: str          # Frame this pose is expressed in
+    timestamp: float       # Time of creation
+```
+
+Usage:
 
 ```python
 from robosuite_franka_manipulation.transforms import StampedPose
@@ -44,31 +60,31 @@ from robosuite_franka_manipulation.transforms import StampedPose
 # Create a pose in the agentview camera frame
 camera_pose = StampedPose(
     position=[0.5, 0.0, 0.3],
-    quaternion=[0, 0, 0, 1],  # (x, y, z, w) - scipy convention
+    quaternion=[0, 0, 0, 1],
     frame_id="agentview"
 )
 
-# Create from dictionary (common format from detections)
-detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1]}
-pose = StampedPose.from_dict(detection, frame_id="world")
-
-# Create from 4x4 transformation matrix
-import numpy as np
-matrix = np.eye(4)
-matrix[:3, 3] = [0.5, 0.0, 0.3]
-pose = StampedPose.from_matrix(matrix, frame_id="world")
-
-# Convert to matrix
-transform_matrix = pose.to_matrix()  # 4x4 numpy array
-
-# Convert to dictionary
-pose_dict = pose.to_dict()
-# {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': 'world', 'timestamp': ...}
+# Create from dictionary
+detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': 'world'}
+pose = StampedPose.from_dict(detection)
 ```
 
 ### Transform
 
 A transformation between two coordinate frames. Similar to `geometry_msgs/TransformStamped` in ROS.
+
+```python
+@dataclass
+class Transform:
+    translation: np.ndarray # [x, y, z]
+    rotation: np.ndarray    # [x, y, z, w]
+    parent_frame: str      # Source/Reference frame
+    child_frame: str       # Target frame
+    timestamp: float       # Time of creation
+    is_static: bool = False # Whether transform is constant
+```
+
+Usage:
 
 ```python
 from robosuite_franka_manipulation.transforms import Transform
@@ -77,25 +93,11 @@ import numpy as np
 # Create a transform from world to object frame
 transform = Transform(
     translation=[0.5, 0.0, 0.3],
-    rotation=[0, 0, 0, 1],  # (x, y, z, w)
+    rotation=[0, 0, 0, 1],
     parent_frame="world",
     child_frame="object_0",
-    is_static=False  # Object can move
+    is_static=False
 )
-
-# Identity transform
-identity = Transform.identity("world", "robot_base", is_static=True)
-
-# Inverse transform (child -> parent)
-inverse = transform.inverse()
-
-# Compose transforms
-# T_A_C = T_A_B * T_B_C
-composed = transform_A_B.compose(transform_B_C)
-
-# Apply transform to a pose
-pose_in_child = StampedPose([0, 0, 0], [0, 0, 0, 1], "object_0")
-pose_in_parent = transform.apply_to_pose(pose_in_child)  # Now in "world" frame
 ```
 
 ### TransformManager
@@ -107,10 +109,6 @@ from robosuite_franka_manipulation.transforms import TransformManager
 
 # Create with environment (auto-discovers frames)
 tf_manager = TransformManager(env)
-
-# Or create without environment and set later
-tf_manager = TransformManager()
-tf_manager.set_environment(env)
 
 # Check available frames
 frames = tf_manager.get_known_frames()

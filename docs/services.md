@@ -123,7 +123,12 @@ response = client.call('fastsam_service', {
 #   'detections': [
 #     {
 #       'name': 'object_0',
-#       'pose': {'pos': [x, y, z], 'quat': [qx, qy, qz, qw]},
+#       'pose': {
+#           'pos': [x, y, z],
+#           'quat': [qx, qy, qz, qw],
+#           'frame_id': 'world',
+#           'timestamp': 123.45
+#       },
 #       'pcd': [[x1, y1, z1], ...],
 #       'mask': [[0, 1, ...], ...],
 #       'id': 0
@@ -133,13 +138,13 @@ response = client.call('fastsam_service', {
 #   'timestamp': 1234567890.123
 # }
 ```
-#       'pcd_size': 1024,
+
 ### Detection Output Format
 
 Each detection contains:
 - `name`: Object identifier (e.g., "object_0")
-- `pose`: Estimated 6-DOF pose with position and quaternion
-- `pcd`: Nx3 array of 3D points in world frame
+- `pose`: Estimated 6-DOF pose dict (position, quaternion, frame_id)
+- `pcd`: Nx3 list of 3D points in world frame
 - `mask`: Binary segmentation mask
 - `id`: Detection index
 
@@ -166,6 +171,7 @@ response = client.call('grasp_service', {
 #       'quat': [qx, qy, qz, qw],
 #       'score': 0.95,
 #       'id': 0,
+#       'frame_id': 'world',
 #       'pcd_size': 1024,
 #       'prediction_timestamp': 1234567890.123
 #     },
@@ -197,11 +203,13 @@ response = client.call('eef_service', {
 #   'eef_coordinates': {
 #     'robot_0': {
 #       'position': {'x': 0.5, 'y': 0.0, 'z': 0.4},
-#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
+#       'frame': 'world'
 #     },
 #     'robot_1': {
 #       'position': {'x': -0.5, 'y': 0.0, 'z': 0.4},
-#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
+#       'frame': 'world'
 #     }
 #   }
 # }

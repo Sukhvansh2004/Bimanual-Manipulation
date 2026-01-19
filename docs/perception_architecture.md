@@ -52,13 +52,12 @@ detections = detector.detect_objects(
 
 #### Output Format
 
+The detector returns a list of dictionaries. Note that `pose` is a `StampedPose` object.
+
 ```python
 detection = {
     'name': 'object_0',
-    'pose': {
-        'pos': np.array([x, y, z]),      # World frame position
-        'quat': np.array([qx, qy, qz, qw])  # Quaternion orientation
-    },
+    'pose': StampedPose(position=[x, y, z], quaternion=[x, y, z, w], frame_id='world'),
     'pcd': np.array([[x1,y1,z1], ...]),   # World frame point cloud
     'mask': np.array([[0,1,...], ...]),   # Binary segmentation mask
     'id': 0
@@ -81,7 +80,7 @@ predictor = GraspPredictor(
 # Predict grasps
 grasps = predictor.predict_grasps(
     object_pcd=pcd,            # Nx3 array
-    object_pose=pose_dict,     # {'pos': [...], 'quat': [...]}
+    object_pose=pose_stamped,  # StampedPose object
     num_grasps=5
 )
 ```
@@ -92,7 +91,8 @@ grasps = predictor.predict_grasps(
 grasp = {
     'pos': np.array([x, y, z]),         # Grasp position in world frame
     'quat': np.array([qx, qy, qz, qw]), # Grasp orientation
-    'score': 0.95                        # Confidence score [0, 1]
+    'score': 0.95,                      # Confidence score [0, 1]
+    'frame_id': 'world'
 }
 ```
 
@@ -170,7 +170,7 @@ pcd = deproject_depth_to_point_cloud(
     fx, fy, cx, cy,  # Camera intrinsics
     max_depth=10.0,
     mujoco_convention=False,  # standard pinhole / optical frame (x right, y down, z forward)
-    image_flipped=True  # Set True if depth was flipped from OpenGL to standard image coords
+    image_flipped=False       # Set True if depth was flipped from OpenGL to standard image coords
 )
 ```
 
@@ -183,7 +183,8 @@ Y = (y - cy) * Z / fy
 
 When `image_flipped=True`, the function internally converts v coordinates back to the original
 OpenGL space before applying the pinhole formula, ensuring correct 3D reconstruction when working
-with robosuite's camera extrinsic matrices.
+with robosuite's camera extrinsic matrices. Note that `ObjectDetector` internally handles image flipping
+during preprocessing, so it typically calls this with `image_flipped=False`.
 
 ### Frame Transformations
 
