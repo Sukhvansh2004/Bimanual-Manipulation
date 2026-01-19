@@ -63,7 +63,7 @@ from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
 
 # Configure logging
 logging.basicConfig(
@@ -226,10 +226,9 @@ class DualArmManipulationSystem:
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")
-        self.teleop = KeyboardTeleop(self.env)
+        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
         if start_teleop_thread:
-            self.teleop_thread = threading.Thread(target=self.run_teleop, daemon=True)
-            self.teleop_thread.start()
+            self.run_teleop(blocking=False)
             logger.info("   ✓ Teleoperation started (thread)")
         else:
             logger.info("   Teleoperation ready. Run system.run_teleop() to start.")
@@ -338,7 +337,7 @@ class DualArmManipulationSystem:
             self.env.viewer.add_keypress_callback(_on_viewer_keypress)
             
             # Run teleoperation guarded by env_lock
-            self.teleop.run(env_lock=self.env_lock)
+            self.teleop.run()
             
         except Exception as e:
             logger.error(f"Teleoperation error: {e}")
@@ -369,28 +368,7 @@ class DualArmManipulationSystem:
             # Signal teleop to exit
             self.teleop.exit_pressed = True
             self.teleop.running = False
-            
-            # Stop pynput keyboard listener
-            if hasattr(self.teleop, "listener") and self.teleop.listener is not None:
-                try:
-                    self.teleop.listener.stop()
-                    # Join to ensure thread terminates
-                    if self.teleop.listener.is_alive():
-                        self.teleop.listener.join(timeout=0.5)
-                except Exception as e:
-                    logger.debug(f"Error stopping pynput listener: {e}")
-            
-            # Stop robosuite Keyboard device if it has cleanup
-            if hasattr(self.teleop, "device"):
-                device = self.teleop.device
-                if hasattr(device, "listener") and device.listener is not None:
-                    try:
-                        device.listener.stop()
-                        if device.listener.is_alive():
-                            device.listener.join(timeout=0.5)
-                    except Exception as e:
-                        logger.debug(f"Error stopping keyboard device listener: {e}")
-                        
+
         except Exception as e:
             logger.debug(f"Error during teleop cleanup: {e}")
 
@@ -627,6 +605,7 @@ Press Ctrl+D or type exit() to quit
                     'get_grasps': get_grasps,
                     'get_eef': get_eef,
                     'set_prompt': set_prompt,
+                    'env_step': env_step,
                 }
                 code.interact(banner=banner, local=namespace)
             except SystemExit:

@@ -2,8 +2,8 @@ import time
 import logging
 import numpy as np
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from robosuite.utils.binding_utils import MjSim
+from typing import Any, Dict, List, Optional, Union
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.suction_weld import apply_suction_weld
 
@@ -110,32 +110,124 @@ def create_primitive_object(
 # Environment Step Utilities
 # =============================================================================
 
-def safe_env_step(env: MjSim, action: Any, retries: int = 3, delay: float = 0.01):
-    """Safely call ``env.step(action)`` and retry on intermittent
-    RuntimeError: "dictionary changed size during iteration"."""
+def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
+    """Handles full action construction and gripper state persistence.
     
-    action_copy = np.array(action, copy=True)
+    Args:
+        env: The robosuite environment (MjSim)
+        action: The action vector. Can be:
+                - Full environment action vector (size env.action_dim)
+                - Single robot action vector (size robot.action_dim), if robot_id is provided
+        robot_id: ID of the robot currently being controlled. Required if passing single robot action.
+        arm: Name(s) of the arm(s) currently being controlled. Required if robot_id is provided.
+             Can be a single string (e.g. "right") or a list of strings (e.g. ["right", "left"]).
+    """
+    
+    if robot_id is not None and arm is None:
+        raise ValueError("The 'arm' argument must be specified when 'robot_id' is provided.")
 
-    last_exception = None
-    for attempt in range(retries):
-        try:
-            obs = env.step(action_copy)
-            apply_suction_weld(env, action_copy)
-            return obs
-        except RuntimeError as e:
-            last_exception = e
-            msg = str(e)
-            if "dictionary changed size during iteration" in msg:
-                logger.warning(
-                    "Detected intermittent RuntimeError in env.step(): '%s' (attempt %d/%d). Retrying...",
-                    msg, attempt + 1, retries,
-                )
-                time.sleep(delay * (attempt + 1))
-                continue
-            raise
+    # Initialize gripper state storage if not present
+    if not hasattr(env_step, "previous_gripper_actions"):
+        env_step.previous_gripper_actions = {}
+
+    full_action = np.zeros(env.action_dim)
     
-    if last_exception is not None:
-        logger.error("Final attempt to call env.step still failed: %s", last_exception)
-    obs = env.step(action_copy)
-    apply_suction_weld(env, action_copy)
+    if action is not None:
+        input_action = np.array(action, copy=True)
+        
+        # Determine if input is full action or partial robot action
+        is_full_action = (len(input_action) == env.action_dim)
+        
+        if is_full_action:
+            full_action = input_action
+        elif robot_id is not None:
+            # Construct full action from single robot action
+            current_idx = 0
+            robot_start_idx = 0
+            robot_end_idx = 0
+            
+            for i, robot in enumerate(env.robots):
+                robot_dim = robot.action_dim
+                if i == robot_id:
+                    robot_start_idx = current_idx
+                    robot_end_idx = current_idx + robot_dim
+                    break
+                current_idx += robot_dim
+                
+            if len(input_action) != (robot_end_idx - robot_start_idx):
+                 raise ValueError(f"Action dimension {len(input_action)} does not match expected dimension {robot_end_idx - robot_start_idx} for robot {robot_id}")
+                 
+            full_action[robot_start_idx:robot_end_idx] = input_action
+        else:
+            raise ValueError("Provided partial action without robot_id, or action dimension mismatch.")
+
+    # Update/Restore Gripper States
+    current_idx = 0
+    for i, robot in enumerate(env.robots):
+        robot_dim = robot.action_dim
+        
+        # Determine gripper layout
+        # We assume gripper actions are at the end of the robot action vector,
+        # ordered by robot.arms
+        
+        gripper_dofs = []
+        gripper_arms = []
+        
+        # Iterate in order of robot.arms to match action vector structure
+        for arm_name in robot.arms:
+            if arm_name in robot.gripper:
+                gripper_dofs.append(robot.gripper[arm_name].dof)
+                gripper_arms.append(arm_name)
+
+        total_gripper_dim = sum(gripper_dofs)
+        
+        # Start index of the gripper block for this robot in the FULL action vector
+        # The gripper block is at the end of this robot's segment
+        robot_gripper_block_start = current_idx + robot_dim - total_gripper_dim
+        
+        current_gripper_offset = 0
+        for g_idx, g_dof in enumerate(gripper_dofs):
+            g_arm_name = gripper_arms[g_idx]
+            
+            # Indices for this specific gripper in full_action
+            g_start = robot_gripper_block_start + current_gripper_offset
+            g_end = g_start + g_dof
+            
+            store_key = f"robot_{i}_{g_arm_name}"
+            
+            # Check if we should update or restore
+            should_update = False
+            
+            if action is not None:
+                if robot_id is not None:
+                    if i == robot_id:
+                        # Check if this arm is in the 'arm' argument
+                        if isinstance(arm, list):
+                            if g_arm_name in arm:
+                                should_update = True
+                        elif arm == g_arm_name:
+                            should_update = True
+                else:
+                    # Full action passed without robot_id -> update everything
+                    should_update = True
+            
+            if should_update:
+                # Update storage from full_action (which has the input)
+                val = full_action[g_start:g_end]
+                env_step.previous_gripper_actions[store_key] = val
+            else:
+                # Restore from storage
+                if store_key in env_step.previous_gripper_actions:
+                    full_action[g_start:g_end] = env_step.previous_gripper_actions[store_key]
+                else:
+                    # Init storage
+                    val = full_action[g_start:g_end]
+                    env_step.previous_gripper_actions[store_key] = val
+            
+            current_gripper_offset += g_dof
+
+        current_idx += robot_dim
+
+    obs = env.step(full_action)
+    apply_suction_weld(env, full_action)
     return obs

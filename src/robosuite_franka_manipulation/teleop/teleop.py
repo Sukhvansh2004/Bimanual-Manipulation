@@ -3,84 +3,115 @@ Teleoperation module for dual-arm Franka robots in robosuite.
 Provides keyboard-based teleoperation using robosuite's Keyboard device.
 """
 
-import numpy as np
+from contextlib import nullcontext
 import logging
+import threading
 from copy import deepcopy
-from typing import Any, Optional, Union
+from typing import Any, Optional
 from threading import Lock
 from pynput import keyboard as pynput_keyboard
+from pynput.keyboard import Key
 
 from robosuite.devices import Keyboard
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.utils import safe_env_step
+from robosuite_franka_manipulation.utils import env_step
 
 logger = logging.getLogger(__name__)
+
+class KeyboardOverride(Keyboard):
+    """
+    A subclass of robosuite's Keyboard that explicitly ignores the Space key.
+    This prevents robosuite from reacting to Space (e.g., resetting env),
+    allowing the Teleop class to handle Space exclusively.
+    """
+    def on_press(self, key):
+        if key == Key.space:
+            return  # Do nothing if space is pressed
+        
+        # Pass all other keys to the original robosuite handler
+        super().on_press(key)
 
 class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = None, rot_sensitivity: Optional[float] = None) -> None:
-        if pos_sensitivity is None:
-            pos_sensitivity = constants.DEFAULT_POS_SENSITIVITY
-        if rot_sensitivity is None:
-            rot_sensitivity = constants.DEFAULT_ROT_SENSITIVITY
+    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None) -> None:
         self.env = env
-        self.device = Keyboard(
+        self.env_lock = env_lock
+        self.device = KeyboardOverride(
             env=env,
             pos_sensitivity=pos_sensitivity,
             rot_sensitivity=rot_sensitivity,
         )
         self.running = False
         self.exit_pressed = False
-        
-        # Setup keyboard listener for exit key
+        self.gripper_toggle = threading.Event()
+
+        # Setup keyboard listener for exit key and step triggering
         self.listener = pynput_keyboard.Listener(on_press=self._on_key_press)
         self.listener.start()
 
     def _on_key_press(self, key: Any) -> None:
         """
-        Callback for keyboard listener to detect exit key.
+        Callback for keyboard listener to detect exit key and trigger step.
         """
         try:
-            if key.char == 'q':
+            if hasattr(key, 'char') and key.char == 'q':
                 self.exit_pressed = True
+            elif key == Key.space:
+                # Trigger a single environment step when spacebar is pressed
+                self.gripper_toggle.set()
+
         except AttributeError:
             pass
 
-    def run(self, env_lock: Optional[Lock] = None) -> None:
+    def _render_loop(self) -> None:
+        """Continuously render the environment."""
+        while self.running:
+            with self.env_lock if self.env_lock else nullcontext():
+                env_step(self.env)
+                self.env.render()
+
+    def run(self) -> None:
         """Run teleoperation loop. If env_lock is provided, guard env access with it."""
         self.running = True
         logger.info("Starting teleoperation with robosuite Keyboard device.")
         logger.info("Controls: Follow robosuite's keyboard controls.")
         logger.info("Press 'q' key to exit teleoperation.")
 
+        with self.env_lock if self.env_lock else nullcontext():
+            self.env.reset()
+
+        self.device.start_control()
+
         while self.running:
-            if env_lock:
-                env_lock.acquire()
-            try:
-                self.env.reset()
-                self.env.render()
-            finally:
-                if env_lock:
-                    env_lock.release()
 
-            self.device.start_control()
+            active_robot_idx = self.device.active_robot
+            active_robot = self.env.robots[active_robot_idx]
 
-            all_prev_gripper_actions = [
-                {
-                    f"{robot_arm}_gripper": np.repeat([0], robot.gripper[robot_arm].dof)
-                    for robot_arm in robot.arms
-                    if robot.gripper[robot_arm].dof > 0
-                }
-                for robot in self.env.robots
-            ]
+            with self.env_lock if self.env_lock else nullcontext():
+                # Sync device grasp_states with previous environment steps
+                if hasattr(env_step, "previous_gripper_actions"):
+                    for i, arm in enumerate(active_robot.arms):
+                        store_key = f"robot_{active_robot_idx}_{arm}"
+                        if store_key in env_step.previous_gripper_actions:
+                            prev_val = env_step.previous_gripper_actions[store_key]
+                            # Handle both scalar and array-like gripper states
+                            if hasattr(prev_val, "__len__"):
+                                prev_val = prev_val[0]
+                            
+                            # Use nested indexing: [robot_idx][arm_idx]
+                            if active_robot_idx < len(self.device.grasp_states):
+                                if i < len(self.device.grasp_states[active_robot_idx]):
+                                    self.device.grasp_states[active_robot_idx][i] = True if prev_val > 0 else False
+                                if self.gripper_toggle.is_set():
+                                    # Toggle grasp state
+                                    self.device.grasp_states[active_robot_idx][i] = not self.device.grasp_states[active_robot_idx][i]
+                                    self.gripper_toggle.clear()
 
-            while True:
-                active_robot = self.env.robots[self.device.active_robot]
-                input_ac_dict = self.device.input2action(mirror_actions=False)
+                input_ac_dict = self.device.input2action(mirror_actions=True)
 
                 if input_ac_dict is None:
                     break
@@ -89,26 +120,14 @@ class KeyboardTeleop:
                 for arm in active_robot.arms:
                     action_dict[arm] = input_ac_dict[f"{arm}_delta"]
 
-                env_action = [robot.create_action_vector(all_prev_gripper_actions[i]) for i, robot in enumerate(self.env.robots)]
-                env_action[self.device.active_robot] = active_robot.create_action_vector(action_dict)
-                env_action = np.concatenate(env_action)
+                # Construct only the active robot's action vector
+                robot_action = active_robot.create_action_vector(action_dict)
+                
+                env_step(self.env, robot_action, robot_id=self.device.active_robot, arm=active_robot.arms)
 
-                for gripper_ac in all_prev_gripper_actions[self.device.active_robot]:
-                    all_prev_gripper_actions[self.device.active_robot][gripper_ac] = action_dict[gripper_ac]
-
-                if env_lock:
-                    env_lock.acquire()
-                try:
-                    # Use safe wrapper to mitigate intermittent RuntimeError from robosuite internals
-                    safe_env_step(self.env, env_action)
-                    self.env.render()
-                finally:
-                    if env_lock:
-                        env_lock.release()
-
-                if self.exit_pressed:
-                    self.running = False
-                    break
+            if self.exit_pressed:
+                self.running = False
+                break
 
         self.listener.stop()
         self.device.listener.stop()

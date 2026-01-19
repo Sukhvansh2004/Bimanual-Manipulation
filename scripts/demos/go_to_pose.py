@@ -3,10 +3,19 @@ from scipy.spatial.transform import Rotation as R
 import time
 import threading
 
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 
+import logging
+# Configure logging
+logging.basicConfig(
+    level=constants.LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 class DualArmPoseController:
     """

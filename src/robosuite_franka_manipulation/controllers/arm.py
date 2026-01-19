@@ -20,7 +20,7 @@ from robosuite_franka_manipulation.utils.se3 import (
     SE3_exp,
     compute_se3_distance,
 )
-from robosuite_franka_manipulation.utils import safe_env_step
+from robosuite_franka_manipulation.utils import env_step
 from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging
@@ -377,15 +377,9 @@ class RobosuiteArmController:
             robot_action[3:6] = ori_delta  # Orientation delta
             robot_action[6] = gripper_action
             
-            # Construct full action
-            full_action = np.zeros(self.total_action_dim)
-            start_idx = self.robot_id * self.action_dim_per_robot
-            end_idx = start_idx + self.action_dim_per_robot
-            full_action[start_idx:end_idx] = robot_action
-            
             # Step the environment
             with self.env_lock if self.env_lock else nullcontext():
-                safe_env_step(self.env, full_action)
+                env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
             
             steps_taken += 1
             time.sleep(dt)  # Maintain control frequency
