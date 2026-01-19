@@ -8,11 +8,12 @@ import zmq
 import threading
 import time
 import logging
-from typing import Dict, Any, Optional, cast
+from typing import Dict, Any, Optional, cast, Union
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.schema import EEFRequest, EEFResponse
+from robosuite_franka_manipulation.transforms import StampedPose
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +110,13 @@ class EEFService:
                     pos = obs[f"{robot_key}_eef_pos"]
                     quat = obs[f"{robot_key}_eef_quat"]
 
-                    # Use PoseSchema format (pos, quat, frame_id)
-                    eef_data[f"robot_{robot_id}"] = {
-                        "pos": pos.tolist(),
-                        "quat": quat.tolist(),
-                        "frame_id": constants.WORLD_FRAME,
-                        "timestamp": time.time()
-                    }
+                    # Use StampedPose object directly
+                    eef_data[f"robot_{robot_id}"] = StampedPose(
+                        position=pos,
+                        quaternion=quat,
+                        frame_id=constants.WORLD_FRAME,
+                        timestamp=time.time()
+                    )
 
             return {
                 "success": True,

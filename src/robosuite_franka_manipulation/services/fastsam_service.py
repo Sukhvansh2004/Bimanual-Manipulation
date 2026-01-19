@@ -193,7 +193,7 @@ class FastSAMService:
             if self.env_lock:
                 self.env_lock.release()
 
-    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[Dict[str, Any]]:
+    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[DetectionSchema]:
         """
         Process RGB image through FastSAM and extract detections with point clouds.
 
@@ -202,7 +202,7 @@ class FastSAMService:
             depth_image: Depth image from camera (required)
 
         Returns:
-            List of detection dictionaries with masks, point clouds, etc.
+            List of detection schemas with masks, point clouds, etc.
         """
         if depth_image is None:
             raise ValueError("Depth image is required for object detection")
@@ -223,14 +223,8 @@ class FastSAMService:
         cam_pos = cam_T_world[:3, 3]
         cam_rot = R.from_matrix(cam_T_world[:3, :3])
 
-        # Run object detection
-        detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
-
-        # ObjectDetector returns detections with:
-        # - 'pcd'  : point cloud in world frame
-        # - 'pose' : object pose in world frame
-        # Keep the service contract consistent: use 'pcd' everywhere.
-        return [dict(detection) for detection in detections]
+        # Run object detection (returns List[DetectionSchema])
+        return self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
     def _continuous_detection_loop(self) -> None:
         """Main detection loop that continuously processes camera feed."""
@@ -250,20 +244,12 @@ class FastSAMService:
                 if self.tf_manager is not None:
                     for det in detections:
                         try:
-                            object_id = str(det.get('id', det.get('name', '0')))
-                            pose = det.get('pose')
-                            if pose is None:
-                                continue
-                            if isinstance(pose, StampedPose):
-                                pose_sp = pose
-                            else:
-                                pose_sp = StampedPose(
-                                    position=np.array(pose['pos']),
-                                    quaternion=np.array(pose['quat']),
-                                    frame_id=constants.WORLD_FRAME,
-                                )
-                            self.tf_manager.update_object_frame(object_id=object_id, pose=pose_sp)
-                        except Exception:
+                            # det is DetectionSchema
+                            object_id = str(det.id)
+                            # pose is StampedPose (which is a Pydantic model now)
+                            self.tf_manager.update_object_frame(object_id=object_id, pose=det.pose)
+                        except Exception as e:
+                            logger.debug(f"Failed to update object frame: {e}")
                             continue
 
                 logger.debug(f"Processed {len(detections)} detections")
@@ -323,22 +309,13 @@ class FastSAMService:
             ).model_dump()
 
         elif command == 'GET_LATEST_DETECTION':
-            # Convert detections to Schema
+            # Return schemas directly (List[DetectionSchema])
             with self.detector_lock:
-                det_schemas = []
-                for det in self.latest_detections:
-                    try:
-                        det_dict = det.copy()
-                        # Handle StampedPose -> dict conversion for PoseSchema
-                        if isinstance(det_dict.get('pose'), StampedPose):
-                            det_dict['pose'] = det_dict['pose'].to_dict()
-                        det_schemas.append(DetectionSchema(**det_dict))
-                    except Exception as e:
-                        logger.warning(f"Failed to serialize detection: {e}")
+                detections = self.latest_detections
             
             return FastSAMResponse(
                 status='success', 
-                detections=det_schemas,
+                detections=detections,
                 timestamp=time.time()
             ).model_dump()
 

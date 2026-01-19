@@ -53,7 +53,7 @@ GRIPPER_TYPE_MAPPING = {
 }
 
 # Supported gripper types
-GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.values())
+GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.keys())
 
 # Gripper grasp offset transforms
 # These offsets are applied to predicted grasps to align them with the gripper frame

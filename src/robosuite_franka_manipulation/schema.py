@@ -8,34 +8,17 @@ import numpy as np
 import time
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms import StampedPose
 
 class BaseSchema(BaseModel):
     """Base schema with common configuration."""
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
-def _numpy_to_list(v: Any) -> Any:
-    """Helper to convert numpy arrays to lists."""
-    if isinstance(v, np.ndarray):
-        return v.flatten().tolist()
-    return v
-
-class PoseSchema(BaseSchema):
-    """Schema for StampedPose data."""
-    pos: List[float] = Field(..., description="Position [x, y, z]")
-    quat: List[float] = Field(..., description="Quaternion [x, y, z, w]")
-    frame_id: str = Field(constants.WORLD_FRAME, description="Coordinate frame ID")
-    timestamp: float = Field(default_factory=time.time, description="Timestamp")
-
-    @field_validator('pos', 'quat', mode='before')
-    @classmethod
-    def validate_numpy(cls, v: Any) -> Any:
-        return _numpy_to_list(v)
-
 class DetectionSchema(BaseSchema):
     """Schema for a single object detection."""
     name: str
     id: Union[int, str]
-    pose: PoseSchema
+    pose: StampedPose
     pcd: List[List[float]] = Field(default_factory=list, description="Point cloud [N, 3]")
     mask: Optional[List[List[int]]] = Field(None, description="Segmentation mask")
 
@@ -46,20 +29,12 @@ class DetectionSchema(BaseSchema):
             return v.tolist()
         return v
 
-class GraspSchema(BaseSchema):
+class GraspSchema(StampedPose):
     """Schema for a predicted grasp."""
-    pos: List[float]
-    quat: List[float]
     score: float
     id: int
-    frame_id: str = constants.WORLD_FRAME
     pcd_size: int = 0
-    prediction_timestamp: float = Field(default_factory=time.time)
-
-    @field_validator('pos', 'quat', mode='before')
-    @classmethod
-    def validate_numpy(cls, v: Any) -> Any:
-        return _numpy_to_list(v)
+    # prediction_timestamp is covered by StampedPose.timestamp
 
 # --- Service Request/Response Models ---
 
@@ -82,7 +57,7 @@ class FastSAMResponse(ResponseStatus):
 class GraspRequest(BaseSchema):
     command: str
     pcd: Optional[List[List[float]]] = None
-    object_pose: Optional[Union[PoseSchema, Dict[str, Any]]] = None
+    object_pose: Optional[Union[StampedPose, Dict[str, Any]]] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
     gripper_type: str = "finger"
 
@@ -106,6 +81,6 @@ class EEFRequest(BaseSchema):
 class EEFResponse(BaseSchema):
     success: bool
     error: Optional[str] = None
-    eef_coordinates: Optional[Dict[str, PoseSchema]] = None
+    eef_coordinates: Optional[Dict[str, StampedPose]] = None
     timestamp: float = Field(default_factory=time.time)
     frame: str = constants.WORLD_FRAME

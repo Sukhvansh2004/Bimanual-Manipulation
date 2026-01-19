@@ -104,7 +104,7 @@ class GraspService:
     def _predict_grasps_for_pointcloud(self, pcd: np.ndarray,
                                      object_pose: StampedPose,
                                      num_grasps: int = constants.DEFAULT_NUM_GRASPS,
-                                     gripper_type: str = constants.GRIPPER_TYPES[0]) -> List[Dict]:
+                                     gripper_type: str = constants.GRIPPER_TYPES[0]) -> List[GraspSchema]:
         """
         Predict grasps for a single point cloud.
 
@@ -140,14 +140,7 @@ class GraspService:
             if not grasps:
                 logger.info("No grasps predicted for point cloud")
                 return []
-
-            # Grasps are already in world frame from GraspPredictor
-            # Add metadata
-            for i, grasp in enumerate(grasps):
-                grasp['id'] = i
-                grasp['pcd_size'] = len(pcd)
-                grasp['prediction_timestamp'] = time.time()
-
+            
             logger.debug(f"Predicted {len(grasps)} grasps for point cloud with {len(pcd)} points")
 
             return grasps
@@ -260,16 +253,11 @@ class GraspService:
         try:
             pcd = np.array(pcd_data, dtype=np.float32)
             
-            # Handle PoseSchema or Dict -> StampedPose
+            # Handle StampedPose input (dict or StampedPose object)
             if isinstance(object_pose_data, dict):
                 object_pose_stamped = StampedPose.from_dict(object_pose_data, frame_id=constants.WORLD_FRAME)
-            elif hasattr(object_pose_data, 'pos') and hasattr(object_pose_data, 'quat'):
-                # Assume Schema
-                object_pose_stamped = StampedPose(
-                    position=np.array(object_pose_data.pos),
-                    quaternion=np.array(object_pose_data.quat),
-                    frame_id=object_pose_data.frame_id
-                )
+            elif isinstance(object_pose_data, StampedPose):
+                object_pose_stamped = object_pose_data
             else:
                 return ResponseStatus(status='error', message='Invalid pose format').model_dump()
                 
@@ -306,8 +294,9 @@ class GraspService:
         if self.tf_manager is not None:
             try:
                 for i, grasp in enumerate(grasps):
-                    pos = grasp.get("pos")
-                    quat = grasp.get("quat")
+                    # grasp is GraspSchema which inherits StampedPose
+                    pos = grasp.position
+                    quat = grasp.quaternion
                     if pos is None or quat is None:
                         continue
                     self.tf_manager.add_static_transform(
@@ -322,17 +311,15 @@ class GraspService:
             except Exception as e:
                 logger.debug("Failed to publish grasp frames to TF manager: %s", e)
 
-        # Convert grasps to Schema format
-        grasp_schemas = [GraspSchema(**g) for g in grasps]
-
+        # grasps is already List[GraspSchema]
         return GraspResponse(
             status='success',
-            grasps=grasp_schemas,
+            grasps=grasps,
             num_grasps_predicted=len(grasps),
             pcd_size=len(pcd),
             gripper_type=simplified_type
         ).model_dump()
-
+        
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle incoming ZMQ requests.

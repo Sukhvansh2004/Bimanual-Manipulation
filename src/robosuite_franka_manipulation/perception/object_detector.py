@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, TypedDict
+from typing import List, Union
 import sys
 import cv2
 import logging
@@ -14,20 +14,13 @@ from robosuite_franka_manipulation.utils.pointcloud import (
     parse_camera_intrinsics,
     ensure_depth_2d,
 )
+from robosuite_franka_manipulation.schema import DetectionSchema
 
 from ultralytics.models.fastsam import FastSAM
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
 
-
-class Detection(TypedDict):
-    """Type definition for detected object."""
-    name: str
-    pose: StampedPose
-    pcd: np.ndarray
-    mask: np.ndarray
-    id: int
 
 class ObjectDetector:
     """
@@ -96,7 +89,7 @@ class ObjectDetector:
         return ensure_depth_2d(depth_image, height=self.camera_height, width=self.camera_width)
 
     def detect_objects(self, rgb_image: np.ndarray, depth_image: np.ndarray,
-                      camera_pos: np.ndarray, camera_rot: R) -> List[Detection]:
+                      camera_pos: np.ndarray, camera_rot: R) -> List[DetectionSchema]:
         """
         Detect objects in the scene using FastSAM on camera images.
 
@@ -107,9 +100,9 @@ class ObjectDetector:
             camera_rot: Camera rotation (scipy Rotation object)
 
         Returns:
-            List of detected objects with poses, point clouds, and masks
+            List of detected objects as DetectionSchema
         """
-        objects: List[Detection] = []
+        objects: List[DetectionSchema] = []
 
         if not self.model:
             logger.error("FastSAM model not available")
@@ -174,14 +167,16 @@ class ObjectDetector:
             
             # Estimate pose from point cloud in world frame
             pose = self._estimate_pose_from_point_cloud(pcd_world_frame)
-
-            objects.append({
-                'name': f'object_{i}',
-                'pose': pose,
-                'pcd': pcd_world_frame,
-                'mask': mask,
-                'id': i
-            })
+            
+            # Create DetectionSchema directly with StampedPose
+            detection = DetectionSchema(
+                name=f'object_{i}',
+                id=i,
+                pose=pose, # pose is now StampedPose which is compatible with DetectionSchema
+                pcd=pcd_world_frame.tolist(),
+                mask=mask.tolist()
+            )
+            objects.append(detection)
 
         return objects
 

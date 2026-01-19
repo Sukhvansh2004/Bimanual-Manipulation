@@ -86,7 +86,7 @@ def convert_pose_to_json(pose: Union[StampedPose, Dict]) -> Dict:
         JSON-serializable pose dictionary
     """
     if isinstance(pose, StampedPose):
-        return pose.to_dict()
+        return pose.model_dump(by_alias=True)
     return to_json_serializable(pose)
 
 
