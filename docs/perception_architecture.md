@@ -57,7 +57,7 @@ The detector returns a list of dictionaries. Note that `pose` is a `StampedPose`
 ```python
 detection = {
     'name': 'object_0',
-    'pose': StampedPose(position=[x, y, z], quaternion=[x, y, z, w], frame_id='world'),
+    'pose': StampedPose(position=[x, y, z], quaternion=[x, y, z, w], frame_id=constants.WORLD_FRAME),
     'pcd': np.array([[x1,y1,z1], ...]),   # World frame point cloud
     'mask': np.array([[0,1,...], ...]),   # Binary segmentation mask
     'id': 0
@@ -92,7 +92,7 @@ grasp = {
     'pos': np.array([x, y, z]),         # Grasp position in world frame
     'quat': np.array([qx, qy, qz, qw]), # Grasp orientation
     'score': 0.95,                      # Confidence score [0, 1]
-    'frame_id': 'world'
+    'frame_id': constants.WORLD_FRAME
 }
 ```
 

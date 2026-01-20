@@ -166,7 +166,7 @@ json_data = to_json_serializable(data)
 numpy_data = from_json_to_numpy(json_data)
 
 # Convert StampedPose for ZMQ transmission
-pose = StampedPose(pos=[0,0,0], quat=[0,0,0,1])
+pose = StampedPose(pos=[0,0,0], quat=[0,0,0,1], frame_id=constants.WORLD_FRAME)
 json_pose = convert_pose_to_json(pose)
 
 # Ensure value is numpy array
@@ -189,6 +189,7 @@ from robosuite_franka_manipulation.utils import (
     to_json_serializable,
 )
 from robosuite_franka_manipulation.transforms import Transform, StampedPose
+from robosuite_franka_manipulation import constants
 
 # Get point cloud from depth
 pcd_camera = deproject_depth_to_point_cloud(depth, mask, fx, fy, cx, cy)

@@ -126,7 +126,7 @@ response = client.call('fastsam_service', {
 #       'pose': {
 #           'pos': [x, y, z],
 #           'quat': [qx, qy, qz, qw],
-#           'frame_id': 'world',
+#           'frame_id': constants.WORLD_FRAME,
 #           'timestamp': 123.45
 #       },
 #       'pcd': [[x1, y1, z1], ...],
@@ -171,7 +171,7 @@ response = client.call('grasp_service', {
 #       'quat': [qx, qy, qz, qw],
 #       'score': 0.95,
 #       'id': 0,
-#       'frame_id': 'world',
+#       'frame_id': constants.WORLD_FRAME,
 #       'pcd_size': 1024,
 #       'prediction_timestamp': 1234567890.123
 #     },
@@ -204,12 +204,12 @@ response = client.call('eef_service', {
 #     'robot_0': {
 #       'position': {'x': 0.5, 'y': 0.0, 'z': 0.4},
 #       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
-#       'frame': 'world'
+#       'frame': constants.WORLD_FRAME
 #     },
 #     'robot_1': {
 #       'position': {'x': -0.5, 'y': 0.0, 'z': 0.4},
 #       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
-#       'frame': 'world'
+#       'frame': constants.WORLD_FRAME
 #     }
 #   }
 # }
