@@ -11,6 +11,7 @@ The transforms module provides coordinate frame management similar to ROS tf/tf2
 ```python
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation import constants
 
 # Create environment and transform manager
 env = make_dual_arm_env()
@@ -41,31 +42,41 @@ tf_manager.print_frame_tree()
 
 ### StampedPose
 
-A pose (position + orientation) with an associated coordinate frame and timestamp. Similar to `geometry_msgs/PoseStamped` in ROS.
+A pose (position + orientation) with an associated coordinate frame and timestamp. It is a Pydantic model.
 
 ```python
-@dataclass
-class StampedPose:
-    position: np.ndarray    # [x, y, z]
-    quaternion: np.ndarray  # [x, y, z, w] - scipy convention
-    frame_id: str          # Frame this pose is expressed in
-    timestamp: float       # Time of creation
+class StampedPose(BaseModel):
+    pos: np.ndarray         # [x, y, z]
+    quat: np.ndarray        # [x, y, z, w] - scipy convention
+    frame_id: str = constants.WORLD_FRAME # Frame this pose is expressed in
+    timestamp: float        # Time of creation
+
+    # Properties for backward compatibility
+    @property
+    def position(self) -> np.ndarray: ...
+    @property
+    def quaternion(self) -> np.ndarray: ...
 ```
 
 Usage:
 
 ```python
 from robosuite_franka_manipulation.transforms import StampedPose
+from robosuite_franka_manipulation import constants
 
-# Create a pose in the agentview camera frame
+# Create a pose (using aliases or property names)
 camera_pose = StampedPose(
-    position=[0.5, 0.0, 0.3],
-    quaternion=[0, 0, 0, 1],
+    pos=[0.5, 0.0, 0.3],
+    quat=[0, 0, 0, 1],
     frame_id="agentview"
 )
 
+# Access fields
+print(camera_pose.pos)
+print(camera_pose.position)  # Same as .pos
+
 # Create from dictionary
-detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': 'world'}
+detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': constants.WORLD_FRAME}
 pose = StampedPose.from_dict(detection)
 ```
 
@@ -88,13 +99,14 @@ Usage:
 
 ```python
 from robosuite_franka_manipulation.transforms import Transform
+from robosuite_franka_manipulation import constants
 import numpy as np
 
 # Create a transform from world to object frame
 transform = Transform(
     translation=[0.5, 0.0, 0.3],
     rotation=[0, 0, 0, 1],
-    parent_frame="world",
+    parent_frame=constants.WORLD_FRAME,
     child_frame="object_0",
     is_static=False
 )
@@ -106,6 +118,7 @@ Central manager for coordinate frame transformations. Maintains a tree of frames
 
 ```python
 from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation import constants
 
 # Create with environment (auto-discovers frames)
 tf_manager = TransformManager(env)
@@ -115,14 +128,14 @@ frames = tf_manager.get_known_frames()
 tf_manager.frame_exists("agentview")  # True
 
 # Get transform between any two frames
-transform = tf_manager.get_transform("world", "agentview")  # camera -> world
+transform = tf_manager.get_transform(constants.WORLD_FRAME, "agentview")  # camera -> world
 
 # Transform a pose
 camera_pose = StampedPose([0.5, 0.0, 0.3], [0, 0, 0, 1], "agentview")
-world_pose = tf_manager.transform_pose(camera_pose, "world")
+world_pose = tf_manager.transform_pose(camera_pose, constants.WORLD_FRAME)
 
 # Get current pose of a frame
-eef_pose = tf_manager.get_frame_pose("robot0_right_eef", "world")
+eef_pose = tf_manager.get_frame_pose("robot0_right_eef", constants.WORLD_FRAME)
 print(f"EEF position: {eef_pose.position}")
 ```
 
@@ -148,15 +161,15 @@ Register detected objects as frames:
 ```python
 # Add an object frame
 detection = {'pos': [0.5, 0.0, 0.1], 'quat': [0, 0, 0, 1]}
-pose = StampedPose.from_dict(detection, "world")
+pose = StampedPose.from_dict(detection, constants.WORLD_FRAME)
 frame_name = tf_manager.add_object_frame("cube", pose)  # Returns "object_cube"
 
 # Update object frame as it moves
-new_pose = StampedPose([0.6, 0.1, 0.1], [0, 0, 0, 1], "world")
+new_pose = StampedPose([0.6, 0.1, 0.1], [0, 0, 0, 1], constants.WORLD_FRAME)
 tf_manager.update_object_frame("cube", new_pose)
 
 # Transform to object's local frame
-world_point = StampedPose([0.55, 0.05, 0.15], [0, 0, 0, 1], "world")
+world_point = StampedPose([0.55, 0.05, 0.15], [0, 0, 0, 1], constants.WORLD_FRAME)
 object_local = tf_manager.transform_pose(world_point, "object_cube")
 ```
 
@@ -176,47 +189,21 @@ from robosuite_franka_manipulation.transforms import (
 
 # Convert detection dict to StampedPose
 detection = {'pose': {'pos': [0.5, 0, 0.1], 'quat': [0, 0, 0, 1]}}
-pose = detection_to_stamped_pose(detection, "world")
+pose = detection_to_stamped_pose(detection, constants.WORLD_FRAME)
 
 # Register multiple detections
-frame_names = register_detection_frames(tf_manager, detections, "world")
+frame_names = register_detection_frames(tf_manager, detections, constants.WORLD_FRAME)
 
 # Transform grasp list to different frame
 robot_frame_grasps = transform_grasps_to_frame(
-    tf_manager, grasps, "world", "robot0_base"
+    tf_manager, grasps, constants.WORLD_FRAME, "robot0_base"
 )
 
 # Get current EEF pose
-eef_pose = get_eef_pose(tf_manager, "robot0", "right", "world")
+eef_pose = get_eef_pose(tf_manager, "robot0", "right", constants.WORLD_FRAME)
 
 # Compute approach pose (offset along grasp z-axis)
 approach = compute_approach_pose(grasp_pose, approach_distance=0.1, approach_axis='z')
-```
-
-## Frame-Aware Grasp Pipeline
-
-Higher-level interface for grasp planning with automatic frame handling:
-
-```python
-from robosuite_franka_manipulation.transforms import FrameAwareGraspPipeline
-from robosuite_franka_manipulation.perception import GraspPredictor
-
-grasp_predictor = GraspPredictor()
-pipeline = FrameAwareGraspPipeline(tf_manager, grasp_predictor)
-
-# Predict grasps for a detection
-grasps = pipeline.predict_grasps_for_detection(
-    detection,
-    num_grasps=10,
-    output_frame="world"
-)  # Returns List[StampedPose]
-
-# Select best grasp for a specific arm
-best_grasp = pipeline.get_best_grasp_for_arm(
-    grasps,
-    arm="right",
-    robot_name="robot0"
-)
 ```
 
 ## Integration with Manipulation
@@ -232,7 +219,7 @@ tf_manager = TransformManager(env)
 arm_controller = RobosuiteArmController(env, arm_id="right")
 
 # Get grasp pose (from grasp service or predictor)
-grasp_pose = StampedPose.from_dict(grasp, "world")
+grasp_pose = StampedPose.from_dict(grasp, constants.WORLD_FRAME)
 
 # Compute approach pose
 approach_pose = compute_approach_pose(grasp_pose, approach_distance=0.1)
@@ -255,7 +242,7 @@ arm_controller.move_to_pose(
 lift_pose = StampedPose(
     position=grasp_pose.position + [0, 0, 0.1],  # Lift 10cm
     quaternion=grasp_pose.quaternion,
-    frame_id="world"
+    frame_id=constants.WORLD_FRAME
 )
 arm_controller.move_to_pose(lift_pose.position, lift_pose.quaternion)
 ```

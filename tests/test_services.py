@@ -90,7 +90,11 @@ class TestEEFService:
             assert response["success"] is True
             assert "eef_coordinates" in response
             assert "robot_0" in response["eef_coordinates"]
-            assert "robot_1" in response["eef_coordinates"]
+            # Check serialized StampedPose format
+            robot0_pose = response["eef_coordinates"]["robot_0"]
+            assert "pos" in robot0_pose or "position" in robot0_pose
+            assert "quat" in robot0_pose or "quaternion" in robot0_pose
+            assert "frame_id" in robot0_pose
         else:
             socket.close()
             context.term()

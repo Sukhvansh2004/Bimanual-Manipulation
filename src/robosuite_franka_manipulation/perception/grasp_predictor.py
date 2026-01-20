@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 import torch
 from scipy.spatial.transform import Rotation as R
 import meshcat
@@ -9,8 +9,9 @@ import meshcat.geometry as g
 from robosuite_franka_manipulation import constants
 
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
-from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
+from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation.utils import downsample_point_cloud, transform_point_cloud
+from robosuite_franka_manipulation.schema import GraspSchema
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
@@ -45,7 +46,7 @@ class GraspPredictor:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-    def predict_grasps(self, object_pcd: np.ndarray, object_pose: StampedPose, num_grasps: int = 10) -> List[Dict]:
+    def predict_grasps(self, object_pcd: np.ndarray, object_pose: StampedPose, num_grasps: int = 10) -> List[GraspSchema]:
         """
         Predict grasp poses for an object.
 
@@ -55,7 +56,7 @@ class GraspPredictor:
             num_grasps: Number of grasps to predict
 
         Returns:
-            List of grasp poses (position, quaternion)
+            List of grasp poses as GraspSchema
         """
         logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
         logger.debug(f"Object pose: pos={object_pose.position}, quat={object_pose.quaternion}")
@@ -92,8 +93,8 @@ class GraspPredictor:
             remove_outliers=False  # We already did outlier removal in preprocessing
         )
         
-        # Convert to list of dicts
-        grasp_list = []
+        # Convert to list of GraspSchema
+        grasp_list: List[GraspSchema] = []
         if len(grasps) > 0:
             # object_pose is already a StampedPose, use it directly
             for i in range(len(grasps)):
@@ -117,16 +118,19 @@ class GraspPredictor:
                 # Apply gripper-specific offset transform
                 world_grasp = self._apply_gripper_offset(world_grasp)
                 
-                grasp_list.append({
-                    "pos": world_grasp.position,
-                    "quat": world_grasp.quaternion,
-                    "score": float(grasp_conf[i].cpu().numpy()),
-                    "frame_id": "world"
-                })
+                grasp_schema = GraspSchema(
+                    pos=world_grasp.position.tolist(),
+                    quat=world_grasp.quaternion.tolist(),
+                    score=float(grasp_conf[i].cpu().numpy()),
+                    id=i,
+                    frame_id=constants.WORLD_FRAME,
+                    pcd_size=len(object_pcd)
+                )
+                grasp_list.append(grasp_schema)
         
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
         if grasp_list:
-            logger.debug(f"Best grasp score: {max(g['score'] for g in grasp_list):.4f}")
+            logger.debug(f"Best grasp score: {max(g.score for g in grasp_list):.4f}")
         
         if self.visualize and grasp_list:
             # Pass the original object point cloud (ensure it's numpy)
@@ -151,7 +155,7 @@ class GraspPredictor:
         object_to_world = Transform(
             translation=object_pose.position,
             rotation=object_pose.quaternion,
-            parent_frame="world",
+            parent_frame=constants.WORLD_FRAME,
             child_frame="object_local"
         )
         
@@ -275,7 +279,7 @@ class GraspPredictor:
         world_to_object = Transform(
             translation=object_pose.position,
             rotation=object_pose.quaternion,
-            parent_frame="world",
+            parent_frame=constants.WORLD_FRAME,
             child_frame="object_local"
         ).inverse()  # We want world -> object_local, so invert object -> world
         

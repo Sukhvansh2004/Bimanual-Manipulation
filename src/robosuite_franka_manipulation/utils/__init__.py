@@ -41,8 +41,6 @@ from robosuite_franka_manipulation.utils.pointcloud import (
 from robosuite_franka_manipulation.utils.serialization import (
     to_json_serializable,
     from_json_to_numpy,
-    convert_grasps_to_json,
-    convert_detections_to_json,
     convert_pose_to_json,
     numpy_to_list,
     ensure_numpy,
@@ -94,8 +92,6 @@ __all__ = [
     # Serialization utilities
     'to_json_serializable',
     'from_json_to_numpy',
-    'convert_grasps_to_json',
-    'convert_detections_to_json',
     'convert_pose_to_json',
     'numpy_to_list',
     'ensure_numpy',

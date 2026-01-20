@@ -22,9 +22,9 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
 from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.utils.serialization import convert_detections_to_json
 from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+from robosuite_franka_manipulation.schema import FastSAMRequest, FastSAMResponse, DetectionSchema, ResponseStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -193,7 +193,7 @@ class FastSAMService:
             if self.env_lock:
                 self.env_lock.release()
 
-    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[Dict[str, Any]]:
+    def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[DetectionSchema]:
         """
         Process RGB image through FastSAM and extract detections with point clouds.
 
@@ -202,7 +202,7 @@ class FastSAMService:
             depth_image: Depth image from camera (required)
 
         Returns:
-            List of detection dictionaries with masks, point clouds, etc.
+            List of detection schemas with masks, point clouds, etc.
         """
         if depth_image is None:
             raise ValueError("Depth image is required for object detection")
@@ -223,14 +223,8 @@ class FastSAMService:
         cam_pos = cam_T_world[:3, 3]
         cam_rot = R.from_matrix(cam_T_world[:3, :3])
 
-        # Run object detection
-        detections = self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
-
-        # ObjectDetector returns detections with:
-        # - 'pcd'  : point cloud in world frame
-        # - 'pose' : object pose in world frame
-        # Keep the service contract consistent: use 'pcd' everywhere.
-        return [dict(detection) for detection in detections]
+        # Run object detection (returns List[DetectionSchema])
+        return self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
     def _continuous_detection_loop(self) -> None:
         """Main detection loop that continuously processes camera feed."""
@@ -250,20 +244,12 @@ class FastSAMService:
                 if self.tf_manager is not None:
                     for det in detections:
                         try:
-                            object_id = str(det.get('id', det.get('name', '0')))
-                            pose = det.get('pose')
-                            if pose is None:
-                                continue
-                            if isinstance(pose, StampedPose):
-                                pose_sp = pose
-                            else:
-                                pose_sp = StampedPose(
-                                    position=np.array(pose['pos']),
-                                    quaternion=np.array(pose['quat']),
-                                    frame_id='world',
-                                )
-                            self.tf_manager.update_object_frame(object_id=object_id, pose=pose_sp)
-                        except Exception:
+                            # det is DetectionSchema
+                            object_id = str(det.id)
+                            # pose is StampedPose (which is a Pydantic model now)
+                            self.tf_manager.update_object_frame(object_id=object_id, pose=det.pose)
+                        except Exception as e:
+                            logger.debug(f"Failed to update object frame: {e}")
                             continue
 
                 logger.debug(f"Processed {len(detections)} detections")
@@ -299,39 +285,45 @@ class FastSAMService:
         Returns:
             Response dictionary
         """
-        command = request.get('command', '').upper()
+        try:
+            req = FastSAMRequest(**request)
+        except Exception as e:
+            return ResponseStatus(status="error", message=str(e)).model_dump()
+
+        command = req.command.upper()
 
         if command == 'SET_PROMPT':
-            new_prompt = request.get('prompt', 'object')
+            new_prompt = req.prompt or 'object'
             self.current_prompt = new_prompt
             with self.detector_lock:
                 self.object_detector.set_prompt(new_prompt)
-            return {
-                'status': 'success',
-                'message': f'Prompt updated to: {new_prompt}'
-            }
+            return FastSAMResponse(
+                status='success', 
+                message=f'Prompt updated to: {new_prompt}'
+            ).model_dump()
 
         elif command == 'GET_PROMPT':
-            return {
-                'status': 'success',
-                'prompt': self.current_prompt
-            }
+            return FastSAMResponse(
+                status='success', 
+                prompt=self.current_prompt
+            ).model_dump()
 
         elif command == 'GET_LATEST_DETECTION':
-            # Convert detections to JSON-serializable format using utility
+            # Return schemas directly (List[DetectionSchema])
             with self.detector_lock:
-                json_detections = convert_detections_to_json(self.latest_detections)
-            return {
-                'status': 'success',
-                'detections': json_detections,
-                'timestamp': time.time()
-            }
+                detections = self.latest_detections
+            
+            return FastSAMResponse(
+                status='success', 
+                detections=detections,
+                timestamp=time.time()
+            ).model_dump()
 
         else:
-            return {
-                'status': 'error',
-                'message': f'Unknown command: {command}'
-            }
+            return ResponseStatus(
+                status='error', 
+                message=f'Unknown command: {command}'
+            ).model_dump()
 
     def start(self) -> None:
         """Start the FastSAM service."""

@@ -18,6 +18,8 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils import env_step
 
+import time
+
 logger = logging.getLogger(__name__)
 
 class KeyboardOverride(Keyboard):
@@ -37,9 +39,10 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None) -> None:
+    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None, automation_event: Optional[threading.Event] = None) -> None:
         self.env = env
         self.env_lock = env_lock
+        self.automation_event = automation_event
         self.device = KeyboardOverride(
             env=env,
             pos_sensitivity=pos_sensitivity,
@@ -87,6 +90,8 @@ class KeyboardTeleop:
         self.device.start_control()
 
         while self.running:
+            if self.automation_event and self.automation_event.is_set():
+                time.sleep(0.1)
 
             active_robot_idx = self.device.active_robot
             active_robot = self.env.robots[active_robot_idx]

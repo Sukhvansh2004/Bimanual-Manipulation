@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/robosuite_franka_manipulation/__init__.py
+src/robosuite_franka_manipulation/schema.py
 src/robosuite_franka_manipulation.egg-info/PKG-INFO
 src/robosuite_franka_manipulation.egg-info/SOURCES.txt
 src/robosuite_franka_manipulation.egg-info/dependency_links.txt

@@ -55,6 +55,10 @@ class TestPerception:
                 assert 'name' in det
                 assert 'pose' in det
                 assert 'id' in det
+                # Verify pose is serialized StampedPose
+                pose = det['pose']
+                assert 'pos' in pose or 'position' in pose
+                assert 'quat' in pose or 'quaternion' in pose
     
     def test_grasp_prediction_in_service(self, perception_services):
         """Test that the FastSAM service returns detections with point clouds."""

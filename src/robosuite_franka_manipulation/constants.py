@@ -43,9 +43,6 @@ GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
 # Gripper Configuration
 # =============================================================================
 
-# Supported gripper types
-GRIPPER_TYPES = ['franka_panda', 'single_suction_cup_30mm']
-
 # Default gripper type
 DEFAULT_GRIPPER_TYPE = 'franka_panda'
 
@@ -54,6 +51,9 @@ GRIPPER_TYPE_MAPPING = {
     'finger': 'franka_panda',
     'suction': 'single_suction_cup_30mm'
 }
+
+# Supported gripper types
+GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.keys())
 
 # Gripper grasp offset transforms
 # These offsets are applied to predicted grasps to align them with the gripper frame
@@ -146,10 +146,35 @@ DEFAULT_RENDER_CAMERA = 'free'
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
-DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
+DEFAULT_TABLE_SIZE = (0.6, 0.6, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
 DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
+
+# Robot base configurations (position, quaternion) from world frame
+# quaternions are [x, y, z, w]
+ROBOT_CONFIGURATIONS = {
+    'opposed': [
+        {
+            'position': np.array([0.0, -0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
+        },
+        {
+            'position': np.array([0.0, 0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
+        }
+    ],
+    'parallel': [
+        {
+            'position': np.array([0.0, -0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
+        },
+        {
+            'position': np.array([0.0, 0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
+        }
+    ],
+}
 
 # Renderer settings
 DEFAULT_HAS_RENDERER = True
@@ -163,9 +188,9 @@ DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
 DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
 DEFAULT_INPUT_TYPE = 'delta'
 
-DEFAULT_KP = 500  # Position stiffness (default is ~150)
+DEFAULT_KP = 1000  # Position stiffness (default is ~150)
 DEFAULT_DAMPING_RATIO = 1.0  # Critical damping (default is ~1.0)
-DEFAULT_KP_LIMITS = [0, 500]  # Allow higher stiffness values
+DEFAULT_KP_LIMITS = [0, 1000]  # Allow higher stiffness values
 DEFAULT_DAMPING_RATIO_LIMITS = [0, 2]  # Allow higher damping
 
 # =============================================================================
@@ -200,7 +225,7 @@ MESHCAT_VISUALIZE_GEOMETRY = True
 
 def get_project_root() -> Path:
     """Get the project root directory."""
-    return Path(__file__).parent.parent.parent.parent
+    return Path(__file__).parent.parent.parent
 
 def get_graspgen_config_path(gripper_type: str) -> Path:
     """Get full path to GraspGen config for a gripper type."""

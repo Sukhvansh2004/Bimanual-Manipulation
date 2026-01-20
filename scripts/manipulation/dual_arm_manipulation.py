@@ -124,6 +124,7 @@ class DualArmManipulationSystem:
         # Shutdown coordination
         self._stop_lock = threading.Lock()
         self._shutdown_requested = threading.Event()
+        self.automation_event = threading.Event()
 
     def _is_quit_key(self, key: Any) -> bool:
         """Best-effort check for 'q' across different key callback signatures."""
@@ -207,10 +208,10 @@ class DualArmManipulationSystem:
         # Load arm and gripper controllers
         logger.info("\n1b. Loading arm and gripper controllers...")
         self.left_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
+            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize, automation_event=self.automation_event
         )
         self.right_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
+            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize, automation_event=self.automation_event
         )
         self.left_gripper = RobosuiteGripperController(
             self.env, arm_id="right", robot_id=0, env_lock=self.env_lock
@@ -226,7 +227,7 @@ class DualArmManipulationSystem:
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")
-        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
+        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock, automation_event=self.automation_event)
         if start_teleop_thread:
             self.run_teleop(blocking=False)
             logger.info("   ✓ Teleoperation started (thread)")
