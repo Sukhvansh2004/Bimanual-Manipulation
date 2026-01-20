@@ -16,7 +16,7 @@ import torch
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils import transform_point_cloud
-
+from robosuite_franka_manipulation.schema import GraspSchema
 
 class TestGraspTransformations:
     """Test grasp transformation logic without requiring GraspGen model."""
@@ -143,45 +143,39 @@ class TestGraspTransformations:
         assert angle_diff < 1e-6
 
 
-class TestGraspDictFormat:
-    """Test grasp dictionary format consistency."""
 
-    def test_grasp_dict_has_required_keys(self):
-        """Test that expected grasp dict format is correct."""
-        # This is the format returned by GraspPredictor.predict_grasps
-        grasp = {
-            "pos": np.array([0.5, 0.1, 0.3]),
-            "quat": np.array([0, 0, 0, 1]),
-            "score": 0.95,
-            "frame_id": "world"
-        }
-        
-        assert "pos" in grasp
-        assert "quat" in grasp
-        assert "score" in grasp
-        assert "frame_id" in grasp
-        
-        assert grasp["frame_id"] == "world"
-        assert len(grasp["pos"]) == 3
-        assert len(grasp["quat"]) == 4
+class TestGraspSchemaFormat:
+    """Test GraspSchema format consistency."""
 
-    def test_grasp_dict_to_stamped_pose(self):
-        """Test converting grasp dict to StampedPose."""
-        grasp = {
-            "pos": [0.5, 0.1, 0.3],
-            "quat": [0, 0, 0, 1],
-            "score": 0.95,
-            "frame_id": "world"
-        }
+    def test_grasp_schema_creation(self):
+        """Test that GraspSchema has required fields."""
+        grasp = GraspSchema(
+            pos=[0.5, 0.1, 0.3],
+            quat=[0, 0, 0, 1],
+            score=0.95,
+            id=0,
+            frame_id="world"
+        )
         
-        pose = StampedPose.from_dict({
-            'pos': grasp['pos'],
-            'quat': grasp['quat'],
-            'frame_id': grasp['frame_id']
-        })
+        assert grasp.score == 0.95
+        assert grasp.frame_id == "world"
+        np.testing.assert_array_almost_equal(grasp.position, [0.5, 0.1, 0.3])
+
+    def test_grasp_schema_serialization(self):
+        """Test serializing GraspSchema to dict."""
+        grasp = GraspSchema(
+            pos=[0.5, 0.1, 0.3],
+            quat=[0, 0, 0, 1],
+            score=0.95,
+            id=0,
+            frame_id="world"
+        )
         
-        assert pose.frame_id == "world"
-        np.testing.assert_array_almost_equal(pose.position, [0.5, 0.1, 0.3])
+        d = grasp.model_dump(by_alias=True)
+        assert "pos" in d
+        assert "quat" in d
+        assert "score" in d
+        assert d["frame_id"] == "world"
 
 
 class TestPointCloudPreprocessing:
@@ -289,8 +283,6 @@ class TestGraspPredictorMocked:
     def mock_grasp_predictor(self):
         """Create a mock grasp predictor for testing transformation logic."""
         # We'll test the transformation methods directly without model inference
-        from robosuite_franka_manipulation.transforms import StampedPose, Transform
-        
         class MockGraspPredictor:
             def _transform_grasp_to_world(self, grasp_local: StampedPose, object_pose: StampedPose) -> StampedPose:
                 """Same logic as GraspPredictor._transform_grasp_to_world"""
@@ -430,29 +422,29 @@ class TestGraspScoreHandling:
     def test_grasp_list_sorting_by_score(self):
         """Test sorting grasps by score."""
         grasps = [
-            {"pos": [0, 0, 0], "quat": [0, 0, 0, 1], "score": 0.5, "frame_id": "world"},
-            {"pos": [1, 0, 0], "quat": [0, 0, 0, 1], "score": 0.9, "frame_id": "world"},
-            {"pos": [0, 1, 0], "quat": [0, 0, 0, 1], "score": 0.7, "frame_id": "world"},
+            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world"),
+            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.9, id=2, frame_id="world"),
+            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world"),
         ]
         
-        sorted_grasps = sorted(grasps, key=lambda g: g["score"], reverse=True)
+        sorted_grasps = sorted(grasps, key=lambda g: g.score, reverse=True)
         
-        assert sorted_grasps[0]["score"] == 0.9
-        assert sorted_grasps[1]["score"] == 0.7
-        assert sorted_grasps[2]["score"] == 0.5
+        assert sorted_grasps[0].score == 0.9
+        assert sorted_grasps[1].score == 0.7
+        assert sorted_grasps[2].score == 0.5
 
     def test_best_grasp_selection(self):
         """Test selecting best grasp by score."""
         grasps = [
-            {"pos": [0, 0, 0], "quat": [0, 0, 0, 1], "score": 0.5, "frame_id": "world"},
-            {"pos": [1, 0, 0], "quat": [0, 0, 0, 1], "score": 0.95, "frame_id": "world"},
-            {"pos": [0, 1, 0], "quat": [0, 0, 0, 1], "score": 0.7, "frame_id": "world"},
+            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world"),
+            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.95, id=2, frame_id="world"),
+            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world"),
         ]
         
-        best_grasp = max(grasps, key=lambda g: g["score"])
+        best_grasp = max(grasps, key=lambda g: g.score)
         
-        assert best_grasp["score"] == 0.95
-        np.testing.assert_array_almost_equal(best_grasp["pos"], [1, 0, 0])
+        assert best_grasp.score == 0.95
+        np.testing.assert_array_almost_equal(best_grasp.position, [1, 0, 0])
 
 
 if __name__ == "__main__":

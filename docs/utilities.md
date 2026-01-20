@@ -13,7 +13,8 @@ from robosuite_franka_manipulation.utils import (
     downsample_point_cloud, transform_point_cloud, validate_point_cloud,
     deproject_depth_to_point_cloud, estimate_pose_from_point_cloud,
     # Serialization
-    to_json_serializable, convert_grasps_to_json, convert_detections_to_json,
+    to_json_serializable, from_json_to_numpy, convert_pose_to_json,
+    numpy_to_list, ensure_numpy
 )
 ```
 
@@ -152,8 +153,6 @@ The `serialization` module handles JSON/numpy conversion for ZMQ communication.
 from robosuite_franka_manipulation.utils import (
     to_json_serializable,
     from_json_to_numpy,
-    convert_grasps_to_json,
-    convert_detections_to_json,
     convert_pose_to_json,
     numpy_to_list,
     ensure_numpy,
@@ -166,13 +165,9 @@ json_data = to_json_serializable(data)
 # Convert JSON back to numpy
 numpy_data = from_json_to_numpy(json_data)
 
-# Convert grasp list for ZMQ transmission
-grasps = [{'pos': np.array([0, 0, 0]), 'quat': np.array([0, 0, 0, 1]), 'score': 0.9}]
-json_grasps = convert_grasps_to_json(grasps)
-
-# Convert detections for ZMQ transmission
-detections = [{'pose': {'pos': [...], 'quat': [...]}, 'pcd': np.array([...])}]
-json_detections = convert_detections_to_json(detections)
+# Convert StampedPose for ZMQ transmission
+pose = StampedPose(pos=[0,0,0], quat=[0,0,0,1])
+json_pose = convert_pose_to_json(pose)
 
 # Ensure value is numpy array
 arr = ensure_numpy([1, 2, 3])  # Returns np.array([1, 2, 3])
@@ -191,9 +186,9 @@ from robosuite_franka_manipulation.utils import (
     pose_to_SE3,
     SE3_to_pose,
     interpolate_SE3,
-    convert_grasps_to_json,
+    to_json_serializable,
 )
-from robosuite_franka_manipulation.transforms import Transform
+from robosuite_franka_manipulation.transforms import Transform, StampedPose
 
 # Get point cloud from depth
 pcd_camera = deproject_depth_to_point_cloud(depth, mask, fx, fy, cx, cy)
@@ -220,7 +215,7 @@ for alpha in np.linspace(0, 1, 10):
     waypoints.append({'pos': pos, 'quat': quat})
 
 # Convert for transmission
-json_waypoints = convert_grasps_to_json(waypoints)
+json_waypoints = to_json_serializable(waypoints)
 ```
 
 ## Performance Notes

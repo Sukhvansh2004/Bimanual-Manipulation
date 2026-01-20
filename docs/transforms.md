@@ -41,15 +41,20 @@ tf_manager.print_frame_tree()
 
 ### StampedPose
 
-A pose (position + orientation) with an associated coordinate frame and timestamp. Similar to `geometry_msgs/PoseStamped` in ROS.
+A pose (position + orientation) with an associated coordinate frame and timestamp. It is a Pydantic model.
 
 ```python
-@dataclass
-class StampedPose:
-    position: np.ndarray    # [x, y, z]
-    quaternion: np.ndarray  # [x, y, z, w] - scipy convention
-    frame_id: str          # Frame this pose is expressed in
-    timestamp: float       # Time of creation
+class StampedPose(BaseModel):
+    pos: np.ndarray         # [x, y, z]
+    quat: np.ndarray        # [x, y, z, w] - scipy convention
+    frame_id: str = "world" # Frame this pose is expressed in
+    timestamp: float        # Time of creation
+
+    # Properties for backward compatibility
+    @property
+    def position(self) -> np.ndarray: ...
+    @property
+    def quaternion(self) -> np.ndarray: ...
 ```
 
 Usage:
@@ -57,12 +62,16 @@ Usage:
 ```python
 from robosuite_franka_manipulation.transforms import StampedPose
 
-# Create a pose in the agentview camera frame
+# Create a pose (using aliases or property names)
 camera_pose = StampedPose(
-    position=[0.5, 0.0, 0.3],
-    quaternion=[0, 0, 0, 1],
+    pos=[0.5, 0.0, 0.3],
+    quat=[0, 0, 0, 1],
     frame_id="agentview"
 )
+
+# Access fields
+print(camera_pose.pos)
+print(camera_pose.position)  # Same as .pos
 
 # Create from dictionary
 detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': 'world'}
