@@ -12,7 +12,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Microservices Architecture**: Distributed services (FastSAM, Grasp, EEF) with ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
-- **Comprehensive Test Suite**: 96 pytest tests covering all modules
+- **Comprehensive Test Suite**: 69 pytest tests covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
