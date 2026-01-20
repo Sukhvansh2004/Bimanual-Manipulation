@@ -146,8 +146,9 @@ DEFAULT_RENDER_CAMERA = 'free'
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
-DEFAULT_TABLE_SIZE = (0.8, 0.8, 0.05)
+DEFAULT_TABLE_SIZE = (0.6, 0.6, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
+DEFAULT_ROBOT_OFFSET = 0.20  # Distance from table center for each robot (Y-axis)
 DEFAULT_USE_OBJECT_OBS = True
 DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
 

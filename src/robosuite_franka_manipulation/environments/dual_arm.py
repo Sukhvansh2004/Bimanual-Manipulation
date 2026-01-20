@@ -131,7 +131,8 @@ class DualArmEnvironment(TwoArmEnv):
         else:
             if self.env_configuration == "opposed":
                 # Set up robots facing towards each other
-                for robot, rotation, offset in zip(self.robots, (np.pi / 2, -np.pi / 2), (-0.25, 0.25)):
+                offset_val = constants.DEFAULT_ROBOT_OFFSET
+                for robot, rotation, offset in zip(self.robots, (np.pi / 2, -np.pi / 2), (-offset_val, offset_val)):
                     xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
                     rot = np.array((0, 0, rotation))
                     xpos = T.euler2mat(rot) @ np.array(xpos)
@@ -430,7 +431,8 @@ def make_dual_arm_env(
             if isinstance(ycb_spec, str):
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
-                pos = [-0.1 + 0.1 * i, -0.45, 0.90]
+                # Use safer default position closer to table center (Y=0.0)
+                pos = [-0.1 + 0.1 * i, 0.0, 0.90]
                 ycb_spec = {'ycb_name': ycb_name, 'instance_name': instance_name, 'pos': pos}
             
             ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))
