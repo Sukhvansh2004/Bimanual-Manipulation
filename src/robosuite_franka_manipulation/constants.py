@@ -148,9 +148,33 @@ DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.6, 0.6, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
-DEFAULT_ROBOT_OFFSET = 0.20  # Distance from table center for each robot (Y-axis)
 DEFAULT_USE_OBJECT_OBS = True
 DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
+
+# Robot base configurations (position, quaternion) from world frame
+# quaternions are [x, y, z, w]
+ROBOT_CONFIGURATIONS = {
+    'opposed': [
+        {
+            'position': np.array([0.0, -0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
+        },
+        {
+            'position': np.array([0.0, 0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
+        }
+    ],
+    'parallel': [
+        {
+            'position': np.array([0.0, -0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
+        },
+        {
+            'position': np.array([0.0, 0.20, 0.0]),
+            'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
+        }
+    ],
+}
 
 # Renderer settings
 DEFAULT_HAS_RENDERER = True

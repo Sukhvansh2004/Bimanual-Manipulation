@@ -124,27 +124,39 @@ class DualArmEnvironment(TwoArmEnv):
         # 1. Initialize robots via super class
         super()._load_model()
 
-        # 2. Adjust robot base positions (Logic from TwoArmHandover)
-        if self.env_configuration == "single-robot":
-            xpos = self.robots[0].robot_model.base_xpos_offset["table"](self.table_full_size[0])
-            self.robots[0].robot_model.set_base_xpos(xpos)
+        # 2. Adjust robot base positions
+        if self.env_configuration in constants.ROBOT_CONFIGURATIONS:
+            configs = constants.ROBOT_CONFIGURATIONS[self.env_configuration]
+            
+            for i, robot in enumerate(self.robots):
+                if i >= len(configs):
+                    break
+                
+                cfg = configs[i]
+                
+                # Get default mounting position on table edge (usually center of edge)
+                xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
+                
+                # Convert config quaternion to rotation matrix
+                # Config quat is [x, y, z, w]
+                # robosuite T.quat2mat expects [w, x, y, z], scipy R.from_quat expects [x, y, z, w]
+                # Let's use scipy to match the convention in constants.py
+                quat_xyzw = cfg['quaternion']
+                rot_obj = R.from_quat(quat_xyzw)
+                rot_mat = rot_obj.as_matrix()
+                
+                # Rotate the mounting point vector (e.g. for opposed config)
+                xpos = rot_mat @ np.array(xpos)
+                
+                # Add offset
+                xpos += cfg['position']
+                
+                # Set base position and orientation
+                robot.robot_model.set_base_xpos(xpos)
+                # set_base_ori expects euler angles (radians), not a rotation matrix
+                robot.robot_model.set_base_ori(rot_obj.as_euler('xyz'))
         else:
-            if self.env_configuration == "opposed":
-                # Set up robots facing towards each other
-                offset_val = constants.DEFAULT_ROBOT_OFFSET
-                for robot, rotation, offset in zip(self.robots, (np.pi / 2, -np.pi / 2), (-offset_val, offset_val)):
-                    xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
-                    rot = np.array((0, 0, rotation))
-                    xpos = T.euler2mat(rot) @ np.array(xpos)
-                    xpos += np.array((0, offset, 0))
-                    robot.robot_model.set_base_xpos(xpos)
-                    robot.robot_model.set_base_ori(rot)
-            else:  # "parallel" configuration setting
-                # Set up robots parallel to each other but offset from the center
-                for robot, offset in zip(self.robots, (-0.6, 0.6)):
-                    xpos = robot.robot_model.base_xpos_offset["table"](self.table_full_size[0])
-                    xpos = np.array(xpos) + np.array((0, offset, 0))
-                    robot.robot_model.set_base_xpos(xpos)
+            raise ValueError(f"Unknown env_configuration '{self.env_configuration}', skipping base setup.")
 
         # 3. Load Table Arena
         self.mujoco_arena = TableArena(
