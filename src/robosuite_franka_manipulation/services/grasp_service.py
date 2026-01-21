@@ -196,8 +196,8 @@ class GraspService:
                 ).model_dump()
 
         # Scenario 2: No inputs, query FastSAM
-        elif pcd_data is None and object_pose_stamped is None:
-            logger.info("No pcd/pose/mesh provided, querying FastSAM service")
+        elif pcd_data is None or object_pose_stamped is None:
+            logger.info("No pcd/pose/mesh provided, querying FastSAM service for pcd and object pose.")
             fastsam_data = self._query_fastsam_service()
             if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
                 # Use the first detection
