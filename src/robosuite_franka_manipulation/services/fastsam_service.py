@@ -23,7 +23,7 @@ from robosuite_franka_manipulation.perception.object_detector import ObjectDetec
 from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
-from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation.schema import FastSAMRequest, FastSAMResponse, DetectionSchema, ResponseStatus
 
 # Configure logging
