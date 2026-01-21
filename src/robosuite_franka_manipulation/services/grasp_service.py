@@ -17,6 +17,7 @@ from robosuite_franka_manipulation.services.service_manager import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
+from robosuite_franka_manipulation.utils.env_utils import resolve_mesh_path
 from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, GraspSchema, ResponseStatus
 
 # Configure logging
@@ -101,54 +102,6 @@ class GraspService:
         """Validate point cloud data using utility function."""
         return validate_point_cloud(pcd, max_range=constants.MAX_POINTCLOUD_RANGE)
 
-    def _predict_grasps_for_pointcloud(self, pcd: np.ndarray,
-                                     object_pose: StampedPose,
-                                     num_grasps: int = constants.DEFAULT_NUM_GRASPS,
-                                     gripper_type: str = constants.GRIPPER_TYPES[0]) -> List[GraspSchema]:
-        """
-        Predict grasps for a single point cloud.
-
-        Args:
-            pcd: Nx3 point cloud array
-            object_pose: Object pose in world frame
-            num_grasps: Number of grasps to predict
-            gripper_type: Type of gripper ('finger' or 'suction')
-
-        Returns:
-            List of grasp dictionaries
-        """
-        # Select predictor based on gripper type
-        if gripper_type in constants.GRIPPER_TYPE_MAPPING:
-            full_gripper_type = constants.GRIPPER_TYPE_MAPPING[gripper_type]
-            predictor = self.grasp_predictors.get(full_gripper_type)
-        else:
-            logger.error(f"Unknown gripper type: {gripper_type}")
-            return []
-        
-        try:
-            if not self._validate_point_cloud(pcd):
-                logger.warning("Invalid point cloud provided")
-                return []
-
-            # Predict grasps using GraspGen
-            grasps = predictor.predict_grasps(
-                object_pcd=pcd,
-                object_pose=object_pose,
-                num_grasps=num_grasps
-            )
-
-            if not grasps:
-                logger.info("No grasps predicted for point cloud")
-                return []
-            
-            logger.debug(f"Predicted {len(grasps)} grasps for point cloud with {len(pcd)} points")
-
-            return grasps
-
-        except Exception as e:
-            logger.error(f"Grasp prediction failed: {e}")
-            return []
-
     def _query_fastsam_service(self) -> Optional[Dict[str, Any]]:
         """
         Query the FastSAM service for the latest detections via service manager.
@@ -200,6 +153,10 @@ class GraspService:
         logger.info("Server loop stopped")
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:
+        """
+        Unified handler for grasp prediction requests.
+        Handles both point cloud input and mesh/object name input.
+        """
         simplified_type = req.gripper_type
         num_grasps = req.num_grasps
         
@@ -220,15 +177,25 @@ class GraspService:
                 message=f'Grasp predictor for {simplified_type} gripper not loaded'
             ).model_dump()
         
-        # Check if pcd and pose are provided
+        # Check available inputs
         pcd_data = req.pcd
         object_pose_data = req.object_pose
+        object_name = req.object_name
         
-        object_id: Optional[str] = None
+        object_id: Optional[str] = object_name
+        mesh_path: Optional[str] = None
+        
+        # Scenario 1: Object Name provided (try to find mesh)
+        if object_name:
+            mesh_path = resolve_mesh_path(object_name)
+            if not mesh_path:
+                 logger.warning(f"Could not resolve mesh for object {object_name}, falling back to PCD if available")
+            else:
+                 logger.info(f"Resolved mesh path for {object_name}: {mesh_path}")
 
-        # If not provided, query FastSAM service
-        if pcd_data is None or object_pose_data is None:
-            logger.info("No pcd/pose provided, querying FastSAM service")
+        # Scenario 2: No inputs, query FastSAM
+        if pcd_data is None and object_pose_data is None and mesh_path is None:
+            logger.info("No pcd/pose/mesh provided, querying FastSAM service")
             fastsam_data = self._query_fastsam_service()
             if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
                 # Use the first detection
@@ -243,34 +210,39 @@ class GraspService:
                     message='No pcd/pose provided and FastSAM service returned no detections'
                 ).model_dump()
 
-        if not pcd_data:
-            return ResponseStatus(status='error', message='No pcd data available').model_dump()
-
         if not object_pose_data:
             return ResponseStatus(status='error', message='No object pose available').model_dump()
 
-        # Convert data
+        # Parse Object Pose
         try:
-            pcd = np.array(pcd_data, dtype=np.float32)
-            
             # Handle StampedPose input (dict or StampedPose object)
             if isinstance(object_pose_data, dict):
-                object_pose_stamped = StampedPose.from_dict(object_pose_data, frame_id=constants.WORLD_FRAME)
+                object_pose_stamped = StampedPose.from_dict(object_pose_data)
             elif isinstance(object_pose_data, StampedPose):
                 object_pose_stamped = object_pose_data
             else:
                 return ResponseStatus(status='error', message='Invalid pose format').model_dump()
-                
         except (KeyError, ValueError, AttributeError) as e:
-            return ResponseStatus(
-                status='error',
-                message=f'Invalid data format: {e}'
-            ).model_dump()
+            return ResponseStatus(status='error', message=f'Invalid data format: {e}').model_dump()
 
-        # Ensure object frames are registered in the shared TF manager.
+        # Parse Point Cloud (if available and needed)
+        pcd_np = None
+        if pcd_data:
+            try:
+                pcd_np = np.array(pcd_data, dtype=np.float32)
+                if not self._validate_point_cloud(pcd_np):
+                     logger.warning("Invalid point cloud provided")
+                     pcd_np = None # Fallback or fail?
+            except Exception as e:
+                logger.warning(f"Error parsing point cloud: {e}")
+
+        if pcd_np is None and mesh_path is None:
+             return ResponseStatus(status='error', message='No valid point cloud or mesh available').model_dump()
+
+        # Update TF Manager
         if self.tf_manager is not None:
             try:
-                if object_id is not None:
+                if object_id:
                     self.tf_manager.update_object_frame(object_id=object_id, pose=object_pose_stamped)
 
                 self.tf_manager.add_static_transform(
@@ -285,128 +257,47 @@ class GraspService:
             except Exception as e:
                 logger.debug("Failed to register object frames in TF manager: %s", e)
 
-        # Predict grasps using the appropriate predictor
-        grasps = self._predict_grasps_for_pointcloud(
-            pcd, object_pose_stamped, num_grasps, simplified_type
-        )
-
-        # Publish grasp poses as TF frames for MeshCat / TF debugging.
-        if self.tf_manager is not None:
-            try:
-                for i, grasp in enumerate(grasps):
-                    # grasp is GraspSchema which inherits StampedPose
-                    pos = grasp.position
-                    quat = grasp.quaternion
-                    if pos is None or quat is None:
-                        continue
-                    self.tf_manager.add_static_transform(
-                        Transform(
-                            translation=np.asarray(pos, dtype=np.float64),
-                            rotation=np.asarray(quat, dtype=np.float64),
-                            parent_frame=constants.WORLD_FRAME,
-                            child_frame=f"grasp_{i}",
-                            is_static=False,
-                        )
-                    )
-            except Exception as e:
-                logger.debug("Failed to publish grasp frames to TF manager: %s", e)
-
-        # grasps is already List[GraspSchema]
-        return GraspResponse(
-            status='success',
-            grasps=grasps,
-            num_grasps_predicted=len(grasps),
-            pcd_size=len(pcd),
-            gripper_type=simplified_type
-        ).model_dump()
-
-    def _get_grasps_mesh(self, req: GraspRequest) -> GraspResponse:
-        """
-        Handle GET_GRASP_MESH request.
-        """
-        simplified_type = req.gripper_type
-        num_grasps = req.num_grasps
-        object_name = req.object_name
-        object_pose_data = req.object_pose
-        
-        # Validate inputs
-        if simplified_type not in constants.GRIPPER_TYPE_MAPPING:
-             return ResponseStatus(
-                status='error', 
-                message=f'Invalid gripper type: {simplified_type}. Use amongst {constants.GRIPPER_TYPES}'
-            ).model_dump()
-            
-        full_gripper_type = constants.GRIPPER_TYPE_MAPPING[simplified_type]
-        if full_gripper_type not in self.grasp_predictors:
-            return ResponseStatus(
-                status='error',
-                message=f'Grasp predictor for {simplified_type} gripper not loaded'
-            ).model_dump()
-            
-        if not object_name:
-            return ResponseStatus(status='error', message='No object name provided').model_dump()
-            
-        if not object_pose_data:
-             return ResponseStatus(status='error', message='No object pose provided').model_dump()
-             
-        # Parse pose
-        try:
-            if isinstance(object_pose_data, dict):
-                object_pose_stamped = StampedPose.from_dict(object_pose_data, frame_id=constants.WORLD_FRAME)
-            elif isinstance(object_pose_data, StampedPose):
-                object_pose_stamped = object_pose_data
-            else:
-                return ResponseStatus(status='error', message='Invalid pose format').model_dump()
-        except Exception as e:
-            return ResponseStatus(status='error', message=f'Invalid data format: {e}').model_dump()
-            
-        # Locate Mesh File
-        mesh_path = self._resolve_mesh_path(object_name)
-        if not mesh_path:
-             return ResponseStatus(status='error', message=f'Could not find mesh for object: {object_name}').model_dump()
-             
-        # Register object frame
-        if self.tf_manager is not None:
-             try:
-                self.tf_manager.update_object_frame(object_id=object_name, pose=object_pose_stamped)
-                # We can also visualize the mesh if we want, but predictor handles grasp vis
-             except Exception as e:
-                logger.debug("Failed to register object frames: %s", e)
-
-        # Predict
+        # Predict Grasps
         try:
             predictor = self.grasp_predictors[full_gripper_type]
-            grasps = predictor.predict_grasps_from_mesh(
-                mesh_file=str(mesh_path),
+            grasps = predictor.predict_grasps(
                 object_pose=object_pose_stamped,
-                num_grasps=num_grasps
+                num_grasps=num_grasps,
+                object_pcd=pcd_np,
+                mesh_file=mesh_path
             )
-            
-            # Publish grasp frames
+
+            # Publish grasp poses as TF frames
             if self.tf_manager is not None:
-                for i, grasp in enumerate(grasps):
-                    if grasp.position is not None and grasp.quaternion is not None:
-                         self.tf_manager.add_static_transform(
+                try:
+                    for i, grasp in enumerate(grasps):
+                        pos = grasp.position
+                        quat = grasp.quaternion
+                        if pos is None or quat is None:
+                            continue
+                        self.tf_manager.add_static_transform(
                             Transform(
-                                translation=np.asarray(grasp.position, dtype=np.float64),
-                                rotation=np.asarray(grasp.quaternion, dtype=np.float64),
+                                translation=np.asarray(pos, dtype=np.float64),
+                                rotation=np.asarray(quat, dtype=np.float64),
                                 parent_frame=constants.WORLD_FRAME,
                                 child_frame=f"grasp_{i}",
                                 is_static=False,
                             )
                         )
-            
+                except Exception as e:
+                    logger.debug("Failed to publish grasp frames to TF manager: %s", e)
+
             return GraspResponse(
                 status='success',
                 grasps=grasps,
                 num_grasps_predicted=len(grasps),
-                pcd_size=0, # Mesh based
+                pcd_size=len(pcd_np) if pcd_np is not None else 0,
                 gripper_type=simplified_type
             ).model_dump()
-            
+
         except Exception as e:
-             logger.error(f"Grasp prediction from mesh failed: {e}")
-             return ResponseStatus(status='error', message=f'Prediction failed: {e}').model_dump()
+            logger.error(f"Grasp prediction failed: {e}")
+            return ResponseStatus(status='error', message=str(e)).model_dump()
         
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -427,45 +318,11 @@ class GraspService:
 
         if command == 'GET_GRASPS':
             return self._get_grasps(req)
-        elif command == 'GET_GRASP_MESH':
-            return self._get_grasps_mesh(req)
         else:
             return ResponseStatus(
                 status='error', 
                 message=f'Unknown command: {command}'
             ).model_dump()
-        
-    def _resolve_mesh_path(self, object_name: str) -> Optional[str]:
-        """
-        Resolve the mesh path for a given object name.
-        Check YCB dataset path first.
-        """
-        # 1. Try to look up in environment if available
-        # The environment might map instance name "apple_0" to YCB name "apple"
-        ycb_name = object_name
-        
-        # If we have access to the env and its added objects
-        # We can try to infer the ycb name from the object name if it follows conventions
-        # But simple heuristic: check if file exists in YCB dataset
-        
-        # If object_name is "apple_0", try "apple"
-        candidates = [object_name]
-        if "_" in object_name:
-            candidates.append(object_name.rsplit('_', 1)[0]) # Remove suffix
-        
-        for name in candidates:
-            # Check YCB path
-            # Standard YCB structure: YCB_DATASET_PATH / name / google_16k / textured.obj
-            # Or just check if name exists in YCB folder
-            
-            ycb_obj_dir = constants.YCB_DATASET_PATH / name
-            if ycb_obj_dir.exists():
-                # Check for textured.obj
-                mesh_path = ycb_obj_dir / "textured.obj"
-                if mesh_path.exists():
-                    return str(mesh_path)
-                
-        return None
 
     def start(self) -> None:
         """Start the Grasp service."""

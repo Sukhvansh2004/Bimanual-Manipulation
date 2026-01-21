@@ -51,10 +51,13 @@ from robosuite_franka_manipulation.utils.env_utils import (
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
+    resolve_mesh_path,
     # Object specification helpers
     create_ycb_object,
     create_primitive_object,
 )
+
+from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 from robosuite_franka_manipulation.utils.primitives import (
     compute_approach_pose,
@@ -100,9 +103,12 @@ __all__ = [
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
+    'resolve_mesh_path',
     # Object specification helpers
     'create_ycb_object',
     'create_primitive_object',
+    # Mesh utils
+    'load_mesh_and_sample',
     # Motion primitives
     'compute_approach_pose',
     'compute_retreat_pose',

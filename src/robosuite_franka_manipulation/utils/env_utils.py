@@ -42,6 +42,34 @@ def list_ycb_objects() -> None:
     print("-" * 40)
 
 
+def resolve_mesh_path(object_name: str) -> Optional[str]:
+    """
+    Resolve the mesh path for a given object name.
+    
+    Args:
+        object_name: Name of the object (e.g., 'apple', 'apple_0')
+        
+    Returns:
+        Path to the mesh file if found, None otherwise.
+    """
+    # 1. Check YCB dataset path
+    # Standard YCB structure: YCB_DATASET_PATH / name / google_16k / textured.obj
+    
+    candidates = [object_name]
+    if "_" in object_name:
+        candidates.append(object_name.rsplit('_', 1)[0]) # Remove suffix (e.g. apple_0 -> apple)
+    
+    for name in candidates:
+        ycb_obj_dir = constants.YCB_DATASET_PATH / name
+        if ycb_obj_dir.exists():
+            # Check for textured.obj (standard YCB)
+            mesh_path = ycb_obj_dir / "textured.obj"
+            if mesh_path.exists():
+                return str(mesh_path)
+                    
+    return None
+
+
 # =============================================================================
 # Object Specification Helpers
 # =============================================================================
