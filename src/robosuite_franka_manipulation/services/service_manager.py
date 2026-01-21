@@ -87,7 +87,7 @@ class ServiceClient:
             'description': description
         }
         response = self._call_manager(request)
-        return response.get('status') == 'success'
+        return response
 
     def lookup(self, service_name: str) -> Optional[Dict[str, Any]]:
         """Look up a service by name."""
@@ -243,6 +243,13 @@ class ServiceManager:
                 'description': description,
                 'registered_at': time.time()
             }
+
+            if name in self.services:
+                logger.warning(f"Service {name} is already registered.")
+                return {
+                    'status': 'error',
+                    'message': f'Service {name} is already registered'
+                }
 
             self.services[name] = service_info
 

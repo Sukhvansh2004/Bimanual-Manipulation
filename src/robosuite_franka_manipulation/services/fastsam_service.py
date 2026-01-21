@@ -335,13 +335,19 @@ class FastSAMService:
         self.running = True
 
         # Register with service manager
-        self.service_client.register(
+        response = self.service_client.register(
             name="fastsam_service",
             host=self.host,
             port=self.port,
             service_type="detection",
             description="FastSAM object detection with camera feed"
         )
+
+        if response.get('status') != 'success':
+            logger.error("Failed to register with service manager: %s", response.get('message'))
+            self.running = False
+            return
+        
         logger.info("Registered with service manager")
 
         # Start threads

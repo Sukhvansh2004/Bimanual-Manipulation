@@ -49,15 +49,17 @@ class EEFService:
         self.running = True
         
         # Register with Service Manager
-        registration_success = self.service_client.register(
+        response = self.service_client.register(
             "eef_service",
             self.host,
             self.port,
             "eef",
             "End-effector coordinates service"
         )
-        if not registration_success:
-            logger.warning("Failed to register EEF service with Service Manager.")
+        if response.get('status') != 'success':
+            logger.warning("Failed to register EEF service with Service Manager: %s", response.get('message'))
+            self.running = False
+            return
 
         self.thread = threading.Thread(target=self._run_server, daemon=True)
         self.thread.start()

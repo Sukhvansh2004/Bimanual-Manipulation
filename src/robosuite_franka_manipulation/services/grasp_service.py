@@ -355,17 +355,20 @@ class GraspService:
         self.running = True
 
         # Register with service manager
-        try:
-            self.service_client.register(
-                name="grasp_service",
-                host=self.host,
-                port=self.port,
-                service_type="grasp_prediction",
-                description="GraspGen grasp prediction from point clouds"
-            )
-            logger.info("Registered with service manager")
-        except Exception as e:
-            logger.warning(f"Failed to register with service manager: {e}")
+        response = self.service_client.register(
+            name="grasp_service",
+            host=self.host,
+            port=self.port,
+            service_type="grasp_prediction",
+            description="GraspGen grasp prediction from point clouds"
+        )
+        
+        if response.get('status') != 'success':
+            logger.warning("Failed to register with service manager: %s", response.get('message'))
+            self.running = False
+            return
+        
+        logger.info("Registered with service manager")
 
         # Start server thread
         self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
