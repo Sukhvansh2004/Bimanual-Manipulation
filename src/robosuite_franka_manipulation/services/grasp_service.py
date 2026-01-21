@@ -179,7 +179,7 @@ class GraspService:
         
         # Check available inputs
         pcd_data = req.pcd
-        object_pose_data = req.object_pose
+        object_pose_stamped = req.object_pose
         object_name = req.object_name
         
         object_id: Optional[str] = object_name
@@ -194,7 +194,7 @@ class GraspService:
                  logger.info(f"Resolved mesh path for {object_name}: {mesh_path}")
 
         # Scenario 2: No inputs, query FastSAM
-        if pcd_data is None and object_pose_data is None and mesh_path is None:
+        if pcd_data is None and object_pose_stamped is None and mesh_path is None:
             logger.info("No pcd/pose/mesh provided, querying FastSAM service")
             fastsam_data = self._query_fastsam_service()
             if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
@@ -202,7 +202,14 @@ class GraspService:
                 detection = fastsam_data['detections'][0]
                 object_id = str(detection.get('id', detection.get('name', '0')))
                 pcd_data = detection.get('pcd', [])
-                object_pose_data = detection.get('pose', {})
+                
+                # Parse pose from detection
+                pose_dict = detection.get('pose', {})
+                try:
+                    object_pose_stamped = StampedPose.from_dict(pose_dict)
+                except Exception:
+                    logger.warning("Failed to parse pose from FastSAM detection")
+                
                 logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
             else:
                 return ResponseStatus(
@@ -210,20 +217,28 @@ class GraspService:
                     message='No pcd/pose provided and FastSAM service returned no detections'
                 ).model_dump()
 
-        if not object_pose_data:
+        if not object_pose_stamped:
             return ResponseStatus(status='error', message='No object pose available').model_dump()
 
-        # Parse Object Pose
-        try:
-            # Handle StampedPose input (dict or StampedPose object)
-            if isinstance(object_pose_data, dict):
-                object_pose_stamped = StampedPose.from_dict(object_pose_data)
-            elif isinstance(object_pose_data, StampedPose):
-                object_pose_stamped = object_pose_data
+        # Enforce World Frame
+        if object_pose_stamped.frame_id != constants.WORLD_FRAME:
+            if self.tf_manager:
+                try:
+                    # Transform pose to world frame
+                    object_pose_stamped = self.tf_manager.transform_pose(
+                        object_pose_stamped, 
+                        constants.WORLD_FRAME
+                    )
+                except Exception as e:
+                    return ResponseStatus(
+                        status='error', 
+                        message=f'Failed to transform pose to world frame: {e}'
+                    ).model_dump()
             else:
-                return ResponseStatus(status='error', message='Invalid pose format').model_dump()
-        except (KeyError, ValueError, AttributeError) as e:
-            return ResponseStatus(status='error', message=f'Invalid data format: {e}').model_dump()
+                return ResponseStatus(
+                    status='error', 
+                    message=f'Object pose is in {object_pose_stamped.frame_id}, but needs to be in {constants.WORLD_FRAME} and no TransformManager is available.'
+                ).model_dump()
 
         # Parse Point Cloud (if available and needed)
         pcd_np = None
