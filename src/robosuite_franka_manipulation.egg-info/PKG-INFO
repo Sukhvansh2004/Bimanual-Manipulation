@@ -63,7 +63,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Microservices Architecture**: Distributed services (FastSAM, Grasp, EEF) with ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
-- **Comprehensive Test Suite**: 96 pytest tests covering all modules
+- **Comprehensive Test Suite**: 69 pytest tests covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
@@ -147,7 +147,7 @@ pip install -e .
 │   ├── demos/                            # Demo scripts (go_to_pose, gripper_move, launch_env)
 │   ├── manipulation/                     # Main manipulation script
 │   └── teleop/                           # Standalone teleoperation
-├── tests/                                # Pytest test suite (96 tests)
+├── tests/                                # Pytest test suite (69 tests)
 ├── docs/                                 # Documentation
 ├── models/                               # Pre-trained models (FastSAM-x.pt)
 └── deps/                                 # Dependencies (GraspGen, GraspGenModels)
@@ -368,7 +368,7 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (96 tests)
+# Run all tests (69 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules

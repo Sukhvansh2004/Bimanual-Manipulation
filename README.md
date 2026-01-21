@@ -96,7 +96,7 @@ pip install -e .
 │   ├── demos/                            # Demo scripts (go_to_pose, gripper_move, launch_env)
 │   ├── manipulation/                     # Main manipulation script
 │   └── teleop/                           # Standalone teleoperation
-├── tests/                                # Pytest test suite (96 tests)
+├── tests/                                # Pytest test suite (69 tests)
 ├── docs/                                 # Documentation
 ├── models/                               # Pre-trained models (FastSAM-x.pt)
 └── deps/                                 # Dependencies (GraspGen, GraspGenModels)
@@ -317,7 +317,7 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (96 tests)
+# Run all tests (69 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules
