@@ -5,6 +5,9 @@ import torch
 from scipy.spatial.transform import Rotation as R
 import meshcat
 import meshcat.geometry as g
+import trimesh
+import open3d as o3d
+import trimesh.transformations as tra
 
 from robosuite_franka_manipulation import constants
 
@@ -137,6 +140,134 @@ class GraspPredictor:
             pcd_for_vis = object_pcd.cpu().numpy() if isinstance(object_pcd, torch.Tensor) else object_pcd
             self._visualize_grasps(pcd_for_vis, grasp_list, object_pose)
         
+        return grasp_list
+
+    def predict_grasps_from_mesh(self, mesh_file: str, object_pose: StampedPose, num_grasps: int = 10, mesh_scale: float = 1.0) -> List[GraspSchema]:
+        """
+        Predict grasp poses for an object using a mesh file.
+        
+        Args:
+            mesh_file: Path to the mesh file (.obj, .stl, etc.)
+            object_pose: Pose of the object in world frame
+            num_grasps: Number of grasps to predict
+            mesh_scale: Scale factor to apply to the mesh
+            
+        Returns:
+            List of grasp poses as GraspSchema
+        """
+        logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for mesh: {mesh_file}")
+        
+        # Load mesh
+        try:
+            if mesh_file.endswith("ply"):
+                pcd_o3d = o3d.io.read_point_cloud(mesh_file)
+                pcd_local = np.array(pcd_o3d.points).astype(np.float32)
+                # Simple downsampling if needed
+                if len(pcd_local) > 2000:
+                    indices = np.random.choice(len(pcd_local), 2000, replace=False)
+                    pcd_local = pcd_local[indices]
+            else:
+                mesh = trimesh.load(mesh_file)
+                if isinstance(mesh, trimesh.Scene):
+                     # Handle scenes by concatenating all geometries
+                     # or just taking the first one. For YCB, it's usually a single mesh.
+                     if len(mesh.geometry) == 0:
+                         raise ValueError("Loaded mesh scene has no geometry")
+                     # If it is a scene, we dump it to a single mesh
+                     mesh = mesh.dump(concatenate=True)
+                
+                mesh.apply_scale(mesh_scale)
+                # Sample points from surface
+                pcd_local, _ = trimesh.sample.sample_surface(mesh, 2048) # Sample 2048 points
+                pcd_local = np.array(pcd_local).astype(np.float32)
+                
+        except Exception as e:
+            logger.error(f"Failed to load mesh {mesh_file}: {e}")
+            return []
+
+        # Center point cloud (this is what GraspGen expects as input)
+        centroid = pcd_local.mean(axis=0)
+        T_subtract_pc_mean = tra.translation_matrix(-centroid)
+        pcd_centered = tra.transform_points(pcd_local, T_subtract_pc_mean)
+        
+        # Convert to torch tensor
+        pcd_tensor = torch.from_numpy(pcd_centered).float()
+        
+        # Move to device
+        device = next(self.sampler.model.parameters()).device
+        pcd_tensor = pcd_tensor.to(device)
+        
+        # Run Inference
+        grasps, grasp_conf = GraspGenSampler.run_inference(
+            pcd_tensor,
+            self.sampler,
+            grasp_threshold=-1.0,
+            topk_num_grasps=num_grasps,
+            min_grasps=1,
+            max_tries=3,
+            remove_outliers=False 
+        )
+        
+        grasp_list: List[GraspSchema] = []
+        if len(grasps) > 0:
+            # Transform grasps back to object-local frame (undo centering)
+            # grasp_in_centered -> grasp_in_local -> grasp_in_world
+            
+            # Inverse of T_subtract_pc_mean is just adding the centroid
+            T_add_pc_mean = tra.inverse_matrix(T_subtract_pc_mean)
+            
+            grasps_np = grasps.cpu().numpy()
+            
+            for i in range(len(grasps)):
+                # 1. Transform from centered frame to object-local frame
+                # G_local = T_add_pc_mean @ G_centered
+                grasp_centered_mat = grasps_np[i] # 4x4
+                grasp_local_mat = T_add_pc_mean @ grasp_centered_mat
+                
+                # Extract pos/quat from local grasp
+                pos_local = grasp_local_mat[:3, 3]
+                rot_local = grasp_local_mat[:3, :3]
+                quat_local = R.from_matrix(rot_local).as_quat()
+                
+                grasp_local = StampedPose(
+                    position=pos_local,
+                    quaternion=quat_local,
+                    frame_id="object_local"
+                )
+                
+                # 2. Transform from object-local to world using object_pose
+                world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
+                
+                # 3. Apply gripper offset
+                world_grasp = self._apply_gripper_offset(world_grasp)
+                
+                grasp_schema = GraspSchema(
+                    pos=world_grasp.position.tolist(),
+                    quat=world_grasp.quaternion.tolist(),
+                    score=float(grasp_conf[i].cpu().numpy()),
+                    id=i,
+                    frame_id=constants.WORLD_FRAME,
+                    pcd_size=len(pcd_local)
+                )
+                grasp_list.append(grasp_schema)
+                
+        logger.debug(f"GraspGen generated {len(grasp_list)} grasps from mesh")
+        
+        if self.visualize and grasp_list:
+            # For visualization, we want to show the points in World Frame
+            # pcd_local is in object frame.
+            # Transform pcd_local to world
+            object_to_world = Transform(
+                translation=object_pose.position,
+                rotation=object_pose.quaternion,
+                parent_frame=constants.WORLD_FRAME,
+                child_frame="object_local"
+            )
+            transform_matrix = object_to_world.to_matrix()
+            pcd_world = transform_point_cloud(pcd_local, transform_matrix)
+            
+            self._visualize_grasps(pcd_world, grasp_list, object_pose)
+
         return grasp_list
 
     def _transform_grasp_to_world(self, grasp_local: StampedPose, object_pose: StampedPose) -> StampedPose:

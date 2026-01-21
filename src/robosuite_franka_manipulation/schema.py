@@ -58,6 +58,7 @@ class GraspRequest(BaseSchema):
     command: str
     pcd: Optional[List[List[float]]] = None
     object_pose: Optional[Union[StampedPose, Dict[str, Any]]] = None
+    object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
     gripper_type: str = "finger"
 

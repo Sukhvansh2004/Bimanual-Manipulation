@@ -319,6 +319,94 @@ class GraspService:
             pcd_size=len(pcd),
             gripper_type=simplified_type
         ).model_dump()
+
+    def _get_grasps_mesh(self, req: GraspRequest) -> GraspResponse:
+        """
+        Handle GET_GRASP_MESH request.
+        """
+        simplified_type = req.gripper_type
+        num_grasps = req.num_grasps
+        object_name = req.object_name
+        object_pose_data = req.object_pose
+        
+        # Validate inputs
+        if simplified_type not in constants.GRIPPER_TYPE_MAPPING:
+             return ResponseStatus(
+                status='error', 
+                message=f'Invalid gripper type: {simplified_type}. Use amongst {constants.GRIPPER_TYPES}'
+            ).model_dump()
+            
+        full_gripper_type = constants.GRIPPER_TYPE_MAPPING[simplified_type]
+        if full_gripper_type not in self.grasp_predictors:
+            return ResponseStatus(
+                status='error',
+                message=f'Grasp predictor for {simplified_type} gripper not loaded'
+            ).model_dump()
+            
+        if not object_name:
+            return ResponseStatus(status='error', message='No object name provided').model_dump()
+            
+        if not object_pose_data:
+             return ResponseStatus(status='error', message='No object pose provided').model_dump()
+             
+        # Parse pose
+        try:
+            if isinstance(object_pose_data, dict):
+                object_pose_stamped = StampedPose.from_dict(object_pose_data, frame_id=constants.WORLD_FRAME)
+            elif isinstance(object_pose_data, StampedPose):
+                object_pose_stamped = object_pose_data
+            else:
+                return ResponseStatus(status='error', message='Invalid pose format').model_dump()
+        except Exception as e:
+            return ResponseStatus(status='error', message=f'Invalid data format: {e}').model_dump()
+            
+        # Locate Mesh File
+        mesh_path = self._resolve_mesh_path(object_name)
+        if not mesh_path:
+             return ResponseStatus(status='error', message=f'Could not find mesh for object: {object_name}').model_dump()
+             
+        # Register object frame
+        if self.tf_manager is not None:
+             try:
+                self.tf_manager.update_object_frame(object_id=object_name, pose=object_pose_stamped)
+                # We can also visualize the mesh if we want, but predictor handles grasp vis
+             except Exception as e:
+                logger.debug("Failed to register object frames: %s", e)
+
+        # Predict
+        try:
+            predictor = self.grasp_predictors[full_gripper_type]
+            grasps = predictor.predict_grasps_from_mesh(
+                mesh_file=str(mesh_path),
+                object_pose=object_pose_stamped,
+                num_grasps=num_grasps
+            )
+            
+            # Publish grasp frames
+            if self.tf_manager is not None:
+                for i, grasp in enumerate(grasps):
+                    if grasp.position is not None and grasp.quaternion is not None:
+                         self.tf_manager.add_static_transform(
+                            Transform(
+                                translation=np.asarray(grasp.position, dtype=np.float64),
+                                rotation=np.asarray(grasp.quaternion, dtype=np.float64),
+                                parent_frame=constants.WORLD_FRAME,
+                                child_frame=f"grasp_{i}",
+                                is_static=False,
+                            )
+                        )
+            
+            return GraspResponse(
+                status='success',
+                grasps=grasps,
+                num_grasps_predicted=len(grasps),
+                pcd_size=0, # Mesh based
+                gripper_type=simplified_type
+            ).model_dump()
+            
+        except Exception as e:
+             logger.error(f"Grasp prediction from mesh failed: {e}")
+             return ResponseStatus(status='error', message=f'Prediction failed: {e}').model_dump()
         
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -339,11 +427,45 @@ class GraspService:
 
         if command == 'GET_GRASPS':
             return self._get_grasps(req)
+        elif command == 'GET_GRASP_MESH':
+            return self._get_grasps_mesh(req)
         else:
             return ResponseStatus(
                 status='error', 
                 message=f'Unknown command: {command}'
             ).model_dump()
+        
+    def _resolve_mesh_path(self, object_name: str) -> Optional[str]:
+        """
+        Resolve the mesh path for a given object name.
+        Check YCB dataset path first.
+        """
+        # 1. Try to look up in environment if available
+        # The environment might map instance name "apple_0" to YCB name "apple"
+        ycb_name = object_name
+        
+        # If we have access to the env and its added objects
+        # We can try to infer the ycb name from the object name if it follows conventions
+        # But simple heuristic: check if file exists in YCB dataset
+        
+        # If object_name is "apple_0", try "apple"
+        candidates = [object_name]
+        if "_" in object_name:
+            candidates.append(object_name.rsplit('_', 1)[0]) # Remove suffix
+        
+        for name in candidates:
+            # Check YCB path
+            # Standard YCB structure: YCB_DATASET_PATH / name / google_16k / textured.obj
+            # Or just check if name exists in YCB folder
+            
+            ycb_obj_dir = constants.YCB_DATASET_PATH / name
+            if ycb_obj_dir.exists():
+                # Check for textured.obj
+                mesh_path = ycb_obj_dir / "textured.obj"
+                if mesh_path.exists():
+                    return str(mesh_path)
+                
+        return None
 
     def start(self) -> None:
         """Start the Grasp service."""
