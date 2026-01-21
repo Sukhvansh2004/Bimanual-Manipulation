@@ -164,10 +164,17 @@ class EEFService:
         try:
             req = EEFRequest(**request)
         except Exception as e:
-            return EEFResponse(success=False, error=str(e)).model_dump()
+            return EEFResponse(status="error", message=str(e), success=False).model_dump()
 
         if req.command == "GET":
             response_data = self.get_eef_coordinates()
+            if not response_data.get("success", False):
+                return EEFResponse(
+                    status="error", 
+                    message=response_data.get("error", "Unknown error"),
+                    success=False
+                ).model_dump()
+            
             return EEFResponse(**response_data).model_dump()
         else:
-            return EEFResponse(success=False, error="Invalid command. Use 'GET'.").model_dump()
+            return EEFResponse(status="error", message="Invalid command. Use 'GET'.", success=False).model_dump()

@@ -206,7 +206,7 @@ class GraspService:
                 # Parse pose from detection
                 pose_dict = detection.get('pose', {})
                 try:
-                    object_pose_stamped = StampedPose.from_dict(pose_dict)
+                    object_pose_stamped = StampedPose(**pose_dict)
                 except Exception:
                     logger.warning("Failed to parse pose from FastSAM detection")
                 

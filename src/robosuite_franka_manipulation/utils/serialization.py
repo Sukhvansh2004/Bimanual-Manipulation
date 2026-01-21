@@ -29,7 +29,7 @@ def to_json_serializable(obj: Any) -> Any:
         JSON-serializable version of the object
     """
     if isinstance(obj, StampedPose):
-        return obj.to_dict()
+        return obj.model_dump()
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
     elif isinstance(obj, (np.integer, np.floating)):

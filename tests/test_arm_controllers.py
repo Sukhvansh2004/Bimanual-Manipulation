@@ -127,7 +127,7 @@ class TestArmControllerFrameHandling:
         }
         
         # Convert to StampedPose
-        grasp_pose = StampedPose.from_dict(grasp_dict, frame_id=grasp_dict['frame_id'])
+        grasp_pose = StampedPose(**grasp_dict)
         
         # Should not raise an error
         success = controller.move_to_pose(grasp_pose, timeout=50)

@@ -79,11 +79,9 @@ class GraspResponse(ResponseStatus):
 class EEFRequest(BaseSchema):
     command: str
 
-class EEFResponse(BaseSchema):
-    success: bool
-    error: Optional[str] = None
+class EEFResponse(ResponseStatus):
+    success: bool = True
     eef_coordinates: Optional[Dict[str, StampedPose]] = None
-    timestamp: float = Field(default_factory=time.time)
     frame: str = constants.WORLD_FRAME
 
 # --- Service Manager Schemas ---

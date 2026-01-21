@@ -26,7 +26,11 @@ class StampedPose(BaseModel):
         frame_id: The coordinate frame this pose is expressed in
         timestamp: Optional timestamp for the pose
     """
-    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, 
+        populate_by_name=True,
+        validate_assignment=True 
+    )
 
     pos: np.ndarray = Field(validation_alias=AliasChoices('pos', 'position'))
     quat: np.ndarray = Field(validation_alias=AliasChoices('quat', 'quaternion'))
@@ -39,7 +43,7 @@ class StampedPose(BaseModel):
     
     @position.setter
     def position(self, value: Any):
-        self.pos = self.convert_to_numpy(value)
+        self.pos = value
 
     @property
     def quaternion(self) -> np.ndarray:
@@ -47,13 +51,11 @@ class StampedPose(BaseModel):
     
     @quaternion.setter
     def quaternion(self, value: Any):
-        self.quat = self.convert_to_numpy(value)
+        self.quat = value
 
     @field_validator("pos", "quat", mode="before")
     @classmethod
     def convert_to_numpy(cls, v: Any) -> np.ndarray:
-        if isinstance(v, (list, tuple)):
-            return np.array(v, dtype=np.float64)
         return np.asarray(v, dtype=np.float64)
 
     @field_validator("pos")
@@ -76,29 +78,6 @@ class StampedPose(BaseModel):
     @field_serializer("pos", "quat")
     def serialize_numpy(self, v: np.ndarray, _info) -> list:
         return v.flatten().tolist()
-    
-    @classmethod
-    def from_dict(cls, data: dict, frame_id: Optional[str] = None) -> "StampedPose":
-        """
-        Create StampedPose from a dictionary.
-        
-        Args:
-            data: Dictionary with 'pos'/'position' and 'quat'/'quaternion' keys.
-            frame_id: Frame ID (overrides dict value if provided)
-            
-        Returns:
-            StampedPose instance
-        """
-        # Handle aliases manually for from_dict legacy support
-        pos = data.get('pos', data.get('position'))
-        quat = data.get('quat', data.get('quaternion'))
-        fid = frame_id if frame_id is not None else data.get('frame_id', constants.WORLD_FRAME)
-        ts = data.get('timestamp', time.time())
-        
-        if pos is None or quat is None:
-            raise ValueError("Dictionary must contain 'pos'/'position' and 'quat'/'quaternion' keys")
-            
-        return cls(pos=pos, quat=quat, frame_id=fid, timestamp=ts)
     
     def to_dict(self) -> dict:
         """Convert to dictionary format."""

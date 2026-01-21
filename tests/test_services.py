@@ -69,6 +69,16 @@ class TestServiceManager:
         eef_info = client.lookup("eef_service")
         assert eef_info is not None
 
+    def test_list_services(self, service_manager, eef_service_fixture):
+        """Test that list_services returns all registered services."""
+        client = ServiceClient(manager_host=service_manager.host, manager_port=service_manager.port)
+        response = client.list_services()
+        
+        assert response['status'] == 'success'
+        assert 'services' in response
+        assert 'eef_service' in response['services']
+        assert response['services']['eef_service']['name'] == 'eef_service'
+
 
 class TestEEFService:
     """Test cases for the EEFService."""
