@@ -82,7 +82,7 @@ class GraspPredictor:
         
         if mesh_file:
             logger.debug(f"Loading mesh from {mesh_file}")
-            pcd_local = load_mesh_and_sample(mesh_file, num_points=constants.GRASPGEN_POINTCLOUD, scale=mesh_scale)
+            pcd_local = load_mesh_and_sample(mesh_file, num_points=constants.GRASPGEN_POINTCLOUD_SIZE, scale=mesh_scale)
             if pcd_local is None:
                 logger.error(f"Failed to load mesh from {mesh_file}")
                 return []
@@ -114,8 +114,7 @@ class GraspPredictor:
              self._last_centroid_offset = np.zeros(3)
 
         # Run Prediction Core
-        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered, 
-                                         original_pcd=(object_pcd if object_pcd is not None else pcd_local if mesh_file else None),
+        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered,
                                          is_mesh_source=bool(mesh_file))
 
     def _predict_grasps_core(self, 
@@ -123,7 +122,6 @@ class GraspPredictor:
                              object_pose: StampedPose, 
                              num_grasps: int, 
                              is_centered_input: bool,
-                             original_pcd: Optional[np.ndarray] = None,
                              is_mesh_source: bool = False) -> List[GraspSchema]:
         """
         Core prediction logic.
@@ -192,14 +190,14 @@ class GraspPredictor:
                     score=float(grasp_conf[i].cpu().numpy()),
                     id=i,
                     frame_id=constants.WORLD_FRAME,
-                    pcd_size=len(original_pcd) if original_pcd is not None else 0
+                    pcd_size=len(pcd_processed)
                 ))
 
-        logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
+        logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")
         
-        if self.visualize and grasp_list and original_pcd is not None:
+        if self.visualize and grasp_list:
              # Visualization logic
-             pcd_for_vis = original_pcd
+             pcd_for_vis = pcd_processed
              if is_mesh_source:
                  # If mesh source, original_pcd is in object-local frame
                  # We need to transform to world for visualization
@@ -211,7 +209,7 @@ class GraspPredictor:
                  )
                  pcd_for_vis = transform_point_cloud(pcd_for_vis, object_to_world.to_matrix())
              
-             self._visualize_grasps(pcd_for_vis)
+             self._visualize_pcd(pcd_for_vis)
 
         return grasp_list
 
@@ -281,7 +279,7 @@ class GraspPredictor:
             frame_id=grasp_pose.frame_id
         )
 
-    def _visualize_grasps(self, pcd: np.ndarray) -> None:
+    def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """
         Visualize the object point cloud and predicted grasps.
 
