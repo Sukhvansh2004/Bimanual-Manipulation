@@ -189,12 +189,14 @@ class GraspService:
         if object_name:
             mesh_path = resolve_mesh_path(object_name)
             if not mesh_path:
-                 logger.warning(f"Could not resolve mesh for object {object_name}, falling back to PCD if available")
-            else:
-                 logger.info(f"Resolved mesh path for {object_name}: {mesh_path}")
+                logger.error(f"Could not resolve mesh for object {object_name}.")
+                return ResponseStatus(
+                    status='error',
+                    message=f'Could not resolve mesh for object {object_name}'
+                ).model_dump()
 
         # Scenario 2: No inputs, query FastSAM
-        if pcd_data is None and object_pose_stamped is None and mesh_path is None:
+        elif pcd_data is None and object_pose_stamped is None:
             logger.info("No pcd/pose/mesh provided, querying FastSAM service")
             fastsam_data = self._query_fastsam_service()
             if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
@@ -207,15 +209,20 @@ class GraspService:
                 pose_dict = detection.get('pose', {})
                 try:
                     object_pose_stamped = StampedPose(**pose_dict)
-                except Exception:
-                    logger.warning("Failed to parse pose from FastSAM detection")
+                except Exception as e:
+                    logger.error(f"Failed to parse pose from FastSAM detection: {e}")
                 
                 logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
             else:
+                logger.error("FastSAM service returned no detections")
                 return ResponseStatus(
                     status='error',
                     message='No pcd/pose provided and FastSAM service returned no detections'
                 ).model_dump()
+            
+        # Scenario 3: PCD and Pose provided directly - use as is
+        else:
+            logger.info("Using provided point cloud and object pose for grasp prediction. Ensure the pcd is in world frame for attaining valid grasps.") 
 
         if not object_pose_stamped:
             return ResponseStatus(status='error', message='No object pose available').model_dump()
