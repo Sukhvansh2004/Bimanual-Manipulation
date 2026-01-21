@@ -57,7 +57,8 @@ class FastSAMResponse(ResponseStatus):
 class GraspRequest(BaseSchema):
     command: str
     pcd: Optional[List[List[float]]] = None
-    object_pose: Optional[Union[StampedPose, Dict[str, Any]]] = None
+    object_pose: Optional[StampedPose] = None
+    object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
     gripper_type: str = "finger"
 
@@ -78,9 +79,44 @@ class GraspResponse(ResponseStatus):
 class EEFRequest(BaseSchema):
     command: str
 
-class EEFResponse(BaseSchema):
-    success: bool
-    error: Optional[str] = None
+class EEFResponse(ResponseStatus):
+    success: bool = True
     eef_coordinates: Optional[Dict[str, StampedPose]] = None
-    timestamp: float = Field(default_factory=time.time)
     frame: str = constants.WORLD_FRAME
+
+# --- Service Manager Schemas ---
+
+class ServiceInfo(BaseSchema):
+    """Information about a registered service."""
+    name: str
+    host: str
+    port: int
+    type: str
+    description: Optional[str] = ""
+    registered_at: float = Field(default_factory=time.time)
+
+class RegisterServiceRequest(BaseSchema):
+    command: str = "REGISTER"
+    name: str
+    host: str
+    port: int
+    type: str
+    description: Optional[str] = ""
+
+class LookupServiceRequest(BaseSchema):
+    command: str = "LOOKUP"
+    name: str
+
+class CallServiceRequest(BaseSchema):
+    command: str = "CALL_SERVICE"
+    service_name: str
+    request: Dict[str, Any]
+
+class ListServicesRequest(BaseSchema):
+    command: str = "LIST_SERVICES"
+
+class ServiceListResponse(ResponseStatus):
+    services: Dict[str, ServiceInfo] = {}
+
+class ServiceLookupResponse(ResponseStatus):
+    service: Optional[ServiceInfo] = None

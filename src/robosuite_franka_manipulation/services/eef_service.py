@@ -9,7 +9,7 @@ import threading
 import time
 import logging
 from typing import Dict, Any, Optional, cast, Union
-from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.schema import EEFRequest, EEFResponse
@@ -49,15 +49,17 @@ class EEFService:
         self.running = True
         
         # Register with Service Manager
-        registration_success = self.service_client.register(
+        response = self.service_client.register(
             "eef_service",
             self.host,
             self.port,
             "eef",
             "End-effector coordinates service"
         )
-        if not registration_success:
-            logger.warning("Failed to register EEF service with Service Manager.")
+        if response.get('status') != 'success':
+            logger.warning("Failed to register EEF service with Service Manager: %s", response.get('message'))
+            self.running = False
+            return
 
         self.thread = threading.Thread(target=self._run_server, daemon=True)
         self.thread.start()
@@ -162,10 +164,17 @@ class EEFService:
         try:
             req = EEFRequest(**request)
         except Exception as e:
-            return EEFResponse(success=False, error=str(e)).model_dump()
+            return EEFResponse(status="error", message=str(e), success=False).model_dump()
 
         if req.command == "GET":
             response_data = self.get_eef_coordinates()
+            if not response_data.get("success", False):
+                return EEFResponse(
+                    status="error", 
+                    message=response_data.get("error", "Unknown error"),
+                    success=False
+                ).model_dump()
+            
             return EEFResponse(**response_data).model_dump()
         else:
-            return EEFResponse(success=False, error="Invalid command. Use 'GET'.").model_dump()
+            return EEFResponse(status="error", message="Invalid command. Use 'GET'.", success=False).model_dump()

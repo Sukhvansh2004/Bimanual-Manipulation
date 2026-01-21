@@ -90,7 +90,7 @@ class TestStampedPose:
             'frame_id': 'world'
         }
         
-        pose = StampedPose.from_dict(data)
+        pose = StampedPose(**data)
         
         assert pose.frame_id == 'world'
         np.testing.assert_array_almost_equal(pose.position, [1.0, 2.0, 3.0])
@@ -102,25 +102,10 @@ class TestStampedPose:
             'quaternion': [0, 0, 0, 1],
         }
         
-        pose = StampedPose.from_dict(data, frame_id='custom')
+        pose = StampedPose(**data, frame_id='custom')
         
         assert pose.frame_id == 'custom'
         np.testing.assert_array_almost_equal(pose.position, [1.0, 2.0, 3.0])
-
-    def test_to_dict(self):
-        """Test converting StampedPose to dictionary."""
-        pose = StampedPose(
-            pos=[1.0, 2.0, 3.0],
-            quat=[0, 0, 0, 1],
-            frame_id="world"
-        )
-        
-        d = pose.to_dict()
-        
-        assert 'pos' in d
-        assert 'quat' in d
-        assert 'frame_id' in d
-        assert d['frame_id'] == 'world'
 
     def test_from_matrix(self):
         """Test creating StampedPose from 4x4 transformation matrix."""

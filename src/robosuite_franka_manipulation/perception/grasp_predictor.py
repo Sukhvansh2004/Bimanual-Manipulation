@@ -1,16 +1,18 @@
 import numpy as np
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import torch
 from scipy.spatial.transform import Rotation as R
 import meshcat
 import meshcat.geometry as g
+import trimesh.transformations as tra
 
 from robosuite_franka_manipulation import constants
 
 from robosuite_franka_manipulation.constants import get_graspgen_config_path
 from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation.utils import downsample_point_cloud, transform_point_cloud
+from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
 from robosuite_franka_manipulation.schema import GraspSchema
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
@@ -46,97 +48,169 @@ class GraspPredictor:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-    def predict_grasps(self, object_pcd: np.ndarray, object_pose: StampedPose, num_grasps: int = 10) -> List[GraspSchema]:
+    def predict_grasps(self, 
+                       object_pose: StampedPose, 
+                       num_grasps: int = 10, 
+                       object_pcd: Optional[np.ndarray] = None, 
+                       mesh_file: Optional[str] = None,
+                       mesh_scale: float = 1.0) -> List[GraspSchema]:
         """
-        Predict grasp poses for an object.
-
+        Predict grasp poses for an object using either a point cloud or a mesh file.
+        
         Args:
-            object_pcd: Point cloud of the object
             object_pose: Pose of the object in world frame
             num_grasps: Number of grasps to predict
-
+            object_pcd: Point cloud of the object (optional)
+            mesh_file: Path to the mesh file (optional)
+            mesh_scale: Scale factor for the mesh (default 1.0)
+            
         Returns:
             List of grasp poses as GraspSchema
         """
-        logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps for point cloud with {len(object_pcd)} points")
+        if object_pcd is None and mesh_file is None:
+             raise ValueError("Either object_pcd or mesh_file must be provided")
+
+        logger.debug(f"GraspPredictor: Predicting {num_grasps} grasps")
         logger.debug(f"Object pose: pos={object_pose.position}, quat={object_pose.quaternion}")
         
-        # Validate inputs
         if self.sampler is None:
             raise RuntimeError("GraspGen sampler not initialized")
-        if len(object_pcd) == 0:
-            raise ValueError("Empty point cloud provided")
+            
+        # Prepare Point Cloud
+        pcd_data = None
+        is_centered = False
         
-        # Preprocess point cloud to match GraspGen expectations
-        # GraspGen expects point clouds in object-local frame, centered at origin
-        object_pcd_processed = self._preprocess_point_cloud(object_pcd, object_pose)
+        if mesh_file:
+            logger.debug(f"Loading mesh from {mesh_file}")
+            pcd_local = load_mesh_and_sample(mesh_file, num_points=constants.GRASPGEN_POINTCLOUD_SIZE, scale=mesh_scale)
+            if pcd_local is None:
+                logger.error(f"Failed to load mesh from {mesh_file}")
+                return []
+            
+            # Mesh points are in object frame, but not necessarily centered at (0,0,0)
+            # GraspGen expects centered input.
+            centroid = pcd_local.mean(axis=0)
+            T_subtract_pc_mean = tra.translation_matrix(-centroid)
+            pcd_centered = tra.transform_points(pcd_local, T_subtract_pc_mean)
+            
+            pcd_data = pcd_centered
+            is_centered = True # We manually centered it
+            
+            # We need the centroid to un-center the grasps later
+            # Inverse is just translation by +centroid
+            self._last_centroid_offset = centroid
+            
+        else:
+             # Use provided point cloud (assumed to be in WORLD frame)
+             if len(object_pcd) == 0:
+                 raise ValueError("Empty point cloud provided")
+             
+             # Preprocess: World -> Object Local -> Centered/Downsampled
+             # self._preprocess_point_cloud does World -> Object Local and downsampling
+             # It assumes origin of object frame is the center? 
+             # Let's check _preprocess_point_cloud
+             pcd_data = self._preprocess_point_cloud(object_pcd, object_pose)
+             is_centered = False # _preprocess_point_cloud output is in object-local frame
+             self._last_centroid_offset = np.zeros(3)
+
+        # Run Prediction Core
+        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered,
+                                         is_mesh_source=bool(mesh_file))
+
+    def _predict_grasps_core(self, 
+                             pcd_processed: np.ndarray, 
+                             object_pose: StampedPose, 
+                             num_grasps: int, 
+                             is_centered_input: bool,
+                             is_mesh_source: bool = False) -> List[GraspSchema]:
+        """
+        Core prediction logic.
         
-        # Convert to torch tensor if needed
-        if isinstance(object_pcd_processed, np.ndarray):
-            object_pcd_processed = torch.from_numpy(object_pcd_processed).float()
+        Args:
+            pcd_processed: Preprocessed point cloud (tensor-ready)
+            object_pose: Object world pose
+            num_grasps: Number of grasps
+            is_centered_input: True if pcd_processed is already centered (mean subtracted)
+            original_pcd: Original/Local point cloud for visualization size
+            is_mesh_source: Flag if source was a mesh (affects vis coordinate frame)
+        """
+        # Convert to torch tensor
+        pcd_tensor = torch.from_numpy(pcd_processed).float()
         
-        # Move to same device as model
+        # Move to device
         device = next(self.sampler.model.parameters()).device
-        object_pcd_processed = object_pcd_processed.to(device)
+        pcd_tensor = pcd_tensor.to(device)
         
-        # Use GraspGen to predict grasps
-        # The run_inference method returns (grasps, grasp_conf)
-        # grasps: (N, 4, 4) transformation matrices in object-local frame
-        # grasp_conf: (N,) confidence scores
+        # Run Inference
         grasps, grasp_conf = GraspGenSampler.run_inference(
-            object_pcd_processed,
+            pcd_tensor,
             self.sampler,
-            grasp_threshold=-1.0,  # Use all grasps
-            topk_num_grasps=num_grasps,  # Return top k grasps
-            min_grasps=1,  # Minimum grasps to return
-            max_tries=3,  # Maximum inference attempts
-            remove_outliers=False  # We already did outlier removal in preprocessing
+            grasp_threshold=-1.0,
+            topk_num_grasps=num_grasps,
+            min_grasps=1,
+            max_tries=3,
+            remove_outliers=False 
         )
         
-        # Convert to list of GraspSchema
         grasp_list: List[GraspSchema] = []
         if len(grasps) > 0:
-            # object_pose is already a StampedPose, use it directly
+            grasps_np = grasps.cpu().numpy()
+            
             for i in range(len(grasps)):
-                # Extract position from translation part of matrix
-                pos = grasps[i][:3, 3].cpu().numpy()
+                grasp_mat = grasps_np[i]
                 
-                # Convert rotation matrix to quaternion using scipy directly
-                rot_matrix = grasps[i][:3, :3].cpu().numpy()
-                quat = R.from_matrix(rot_matrix).as_quat()  # Returns (x, y, z, w)
+                # If input was centered manually (mesh case), we need to un-center first
+                if is_centered_input:
+                    # Transform back to object-local frame
+                    # G_local = T_add_centroid @ G_centered
+                    # T_add_centroid is translation by self._last_centroid_offset
+                    T_add_centroid = tra.translation_matrix(self._last_centroid_offset)
+                    grasp_mat = T_add_centroid @ grasp_mat
                 
-                # Create grasp as StampedPose in object-local frame
+                # Extract pos/quat (now in object-local frame)
+                pos = grasp_mat[:3, 3]
+                rot_mat = grasp_mat[:3, :3]
+                quat = R.from_matrix(rot_mat).as_quat()
+                
                 grasp_local = StampedPose(
                     position=pos,
                     quaternion=quat,
                     frame_id="object_local"
                 )
                 
-                # Transform to world frame using object pose
+                # Transform to world frame
                 world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
                 
-                # Apply gripper-specific offset transform
+                # Apply gripper offset
                 world_grasp = self._apply_gripper_offset(world_grasp)
                 
-                grasp_schema = GraspSchema(
+                grasp_list.append(GraspSchema(
                     pos=world_grasp.position.tolist(),
                     quat=world_grasp.quaternion.tolist(),
                     score=float(grasp_conf[i].cpu().numpy()),
                     id=i,
                     frame_id=constants.WORLD_FRAME,
-                    pcd_size=len(object_pcd)
-                )
-                grasp_list.append(grasp_schema)
-        
-        logger.debug(f"GraspGen generated {len(grasp_list)} grasps")
-        if grasp_list:
-            logger.debug(f"Best grasp score: {max(g.score for g in grasp_list):.4f}")
+                    pcd_size=len(pcd_processed)
+                ))
+
+        logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")
         
         if self.visualize and grasp_list:
-            # Pass the original object point cloud (ensure it's numpy)
-            pcd_for_vis = object_pcd.cpu().numpy() if isinstance(object_pcd, torch.Tensor) else object_pcd
-            self._visualize_grasps(pcd_for_vis, grasp_list, object_pose)
-        
+             # Visualization logic
+             pcd_for_vis = pcd_processed
+             if is_mesh_source:
+                 # If mesh source, original_pcd is in object-local frame
+                 # We need to transform to world for visualization
+                 object_to_world = Transform(
+                    translation=object_pose.position,
+                    rotation=object_pose.quaternion,
+                    parent_frame=constants.WORLD_FRAME,
+                    child_frame="object_local"
+                 )
+                 pcd_for_vis = transform_point_cloud(pcd_for_vis, object_to_world.to_matrix())
+             
+             self._visualize_pcd(pcd_for_vis)
+
         return grasp_list
 
     def _transform_grasp_to_world(self, grasp_local: StampedPose, object_pose: StampedPose) -> StampedPose:
@@ -188,24 +262,32 @@ class GraspPredictor:
         if np.allclose(offset_quat, [0, 0, 0, 1]) and np.allclose(offset_pos, [0, 0, 0]):
             return grasp_pose
         
-        # Apply rotation offset: new_quat = grasp_quat * offset_quat
-        # This rotates in the local grasp frame
-        grasp_rot = R.from_quat(grasp_pose.quaternion)
-        offset_rot = R.from_quat(offset_quat)
-        new_rot = grasp_rot * offset_rot
-        new_quat = new_rot.as_quat()
+        # Create transform from world to predicted grasp frame
+        world_to_predicted = Transform(
+            translation=grasp_pose.position,
+            rotation=grasp_pose.quaternion,
+            parent_frame=grasp_pose.frame_id,
+            child_frame="predicted_grasp"
+        )
         
-        # Position offset is already in local grasp frame, add directly
-        # (Currently all offsets have zero position, so this is just grasp_pose.position)
-        new_pos = grasp_pose.position + offset_pos
+        # Create transform from predicted grasp frame to true grasp frame (offset)
+        predicted_to_true = Transform(
+            translation=offset_pos,
+            rotation=offset_quat,
+            parent_frame="predicted_grasp",
+            child_frame="true_grasp"
+        )
+        
+        # Compose: world -> predicted -> true
+        world_to_true = world_to_predicted.compose(predicted_to_true)
         
         return StampedPose(
-            position=new_pos,
-            quaternion=new_quat,
+            position=world_to_true.translation,
+            quaternion=world_to_true.rotation,
             frame_id=grasp_pose.frame_id
         )
 
-    def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
+    def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """
         Visualize the object point cloud and predicted grasps.
 
@@ -258,11 +340,6 @@ class GraspPredictor:
             )
         )
 
-        # NOTE: We intentionally do NOT draw grasp axes / frames here.
-        # Grasp frames are already published into the shared TransformManager by
-        # GraspService (e.g., grasp_0, grasp_1, ...), and are visualized via the
-        # MeshCat TF streamer. Keeping this view pointcloud-only avoids duplicates.
-
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
         """
         Preprocess point cloud for GraspGen.
@@ -289,8 +366,8 @@ class GraspPredictor:
         # Remove outliers
         pcd_filtered = self._remove_outliers(pcd_local)
         
-        # Downsample to ~2048 points (GraspGen standard) using utility function
-        pcd_downsampled = downsample_point_cloud(pcd_filtered, target_points=2048, method='random')
+        # Downsample to ~constants.GRASPGEN_POINTCLOUD points (GraspGen standard) using utility function
+        pcd_downsampled = downsample_point_cloud(pcd_filtered, target_points=constants.GRASPGEN_POINTCLOUD_SIZE, method='random')
         
         return pcd_downsampled
     

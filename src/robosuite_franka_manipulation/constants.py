@@ -104,6 +104,7 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Default number of grasps to predict
 DEFAULT_NUM_GRASPS = 5
+GRASPGEN_POINTCLOUD_SIZE = 2048  # Number of points for GraspGen input
 
 # =============================================================================
 # Control and Trajectory Configuration

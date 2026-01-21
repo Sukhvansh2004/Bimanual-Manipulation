@@ -38,23 +38,18 @@ from robosuite_franka_manipulation.utils.pointcloud import (
     ensure_depth_2d,
 )
 
-from robosuite_franka_manipulation.utils.serialization import (
-    to_json_serializable,
-    from_json_to_numpy,
-    convert_pose_to_json,
-    numpy_to_list,
-    ensure_numpy,
-)
-
 from robosuite_franka_manipulation.utils.env_utils import (
     env_step,
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
+    resolve_mesh_path,
     # Object specification helpers
     create_ycb_object,
     create_primitive_object,
 )
+
+from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 from robosuite_franka_manipulation.utils.primitives import (
     compute_approach_pose,
@@ -89,20 +84,17 @@ __all__ = [
     'deproject_depth_to_point_cloud',
     'parse_camera_intrinsics',
     'ensure_depth_2d',
-    # Serialization utilities
-    'to_json_serializable',
-    'from_json_to_numpy',
-    'convert_pose_to_json',
-    'numpy_to_list',
-    'ensure_numpy',
     # Env utils
     'env_step',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
+    'resolve_mesh_path',
     # Object specification helpers
     'create_ycb_object',
     'create_primitive_object',
+    # Mesh utils
+    'load_mesh_and_sample',
     # Motion primitives
     'compute_approach_pose',
     'compute_retreat_pose',

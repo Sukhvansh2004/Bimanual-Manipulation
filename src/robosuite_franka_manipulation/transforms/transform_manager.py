@@ -372,7 +372,7 @@ class TransformManager:
     
     def update_object_frame(self, object_id: str, pose: StampedPose) -> None:
         """
-        Update an existing object frame.
+        Update an object frame.
         
         Args:
             object_id: Object identifier

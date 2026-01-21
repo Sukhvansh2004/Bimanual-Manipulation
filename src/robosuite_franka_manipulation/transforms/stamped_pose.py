@@ -17,16 +17,17 @@ ArrayInput = Union[np.ndarray, Sequence[float], List[float]]
 class StampedPose(BaseModel):
     """
     A pose (position + orientation) with an associated coordinate frame.
-    
-    Similar to geometry_msgs/PoseStamped in ROS.
-    
     Attributes:
         pos: 3D position as numpy array [x, y, z]
         quat: Orientation as quaternion [x, y, z, w] (scipy convention)
         frame_id: The coordinate frame this pose is expressed in
         timestamp: Optional timestamp for the pose
     """
-    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, 
+        populate_by_name=True,
+        validate_assignment=True 
+    )
 
     pos: np.ndarray = Field(validation_alias=AliasChoices('pos', 'position'))
     quat: np.ndarray = Field(validation_alias=AliasChoices('quat', 'quaternion'))
@@ -39,7 +40,7 @@ class StampedPose(BaseModel):
     
     @position.setter
     def position(self, value: Any):
-        self.pos = self.convert_to_numpy(value)
+        self.pos = value
 
     @property
     def quaternion(self) -> np.ndarray:
@@ -47,14 +48,15 @@ class StampedPose(BaseModel):
     
     @quaternion.setter
     def quaternion(self, value: Any):
-        self.quat = self.convert_to_numpy(value)
+        self.quat = value
 
+    # --- Validators ---
     @field_validator("pos", "quat", mode="before")
     @classmethod
     def convert_to_numpy(cls, v: Any) -> np.ndarray:
-        if isinstance(v, (list, tuple)):
-            return np.array(v, dtype=np.float64)
-        return np.asarray(v, dtype=np.float64)
+        arr = np.asarray(v, dtype=np.float64)
+        arr.flags.writeable = False
+        return arr
 
     @field_validator("pos")
     @classmethod
@@ -68,92 +70,48 @@ class StampedPose(BaseModel):
     def validate_quaternion(cls, v: np.ndarray) -> np.ndarray:
         if v.shape != (4,):
             raise ValueError(f"Quaternion must be 4D, got shape {v.shape}")
+        
+        # Normalize to ensure valid rotation
         norm = np.linalg.norm(v)
         if norm > 1e-10:
             v = v / norm
+            v.flags.writeable = False # Re-lock after modification
         return v
 
+    # --- Serializers ---
     @field_serializer("pos", "quat")
     def serialize_numpy(self, v: np.ndarray, _info) -> list:
         return v.flatten().tolist()
     
-    @classmethod
-    def from_dict(cls, data: dict, frame_id: Optional[str] = None) -> "StampedPose":
-        """
-        Create StampedPose from a dictionary.
-        
-        Args:
-            data: Dictionary with 'pos'/'position' and 'quat'/'quaternion' keys.
-            frame_id: Frame ID (overrides dict value if provided)
-            
-        Returns:
-            StampedPose instance
-        """
-        # Handle aliases manually for from_dict legacy support
-        pos = data.get('pos', data.get('position'))
-        quat = data.get('quat', data.get('quaternion'))
-        fid = frame_id if frame_id is not None else data.get('frame_id', constants.WORLD_FRAME)
-        ts = data.get('timestamp', time.time())
-        
-        if pos is None or quat is None:
-            raise ValueError("Dictionary must contain 'pos'/'position' and 'quat'/'quaternion' keys")
-            
-        return cls(pos=pos, quat=quat, frame_id=fid, timestamp=ts)
-    
+    # --- Helpers ---
     def to_dict(self) -> dict:
-        """Convert to dictionary format."""
         return self.model_dump()
     
     @classmethod
     def from_matrix(cls, matrix: np.ndarray, frame_id: str) -> "StampedPose":
-        """
-        Create StampedPose from a 4x4 transformation matrix.
-        
-        Args:
-            matrix: 4x4 homogeneous transformation matrix
-            frame_id: The coordinate frame
-            
-        Returns:
-            StampedPose instance
-        """
         if matrix.shape != (4, 4):
             raise ValueError(f"Matrix must be 4x4, got shape {matrix.shape}")
         
-        position = matrix[:3, 3]
-        rotation = R.from_matrix(matrix[:3, :3])
-        quaternion = rotation.as_quat()
-        
-        return cls(pos=position, quat=quaternion, frame_id=frame_id)
+        return cls(
+            pos=matrix[:3, 3], 
+            quat=R.from_matrix(matrix[:3, :3]).as_quat(), 
+            frame_id=frame_id
+        )
     
     def to_matrix(self) -> np.ndarray:
-        """
-        Convert to 4x4 homogeneous transformation matrix.
-        
-        Returns:
-            4x4 transformation matrix
-        """
-        quat = np.asarray(self.quat)
-        pos = np.asarray(self.pos)
         matrix = np.eye(4)
-        matrix[:3, :3] = R.from_quat(quat).as_matrix()
-        matrix[:3, 3] = pos
+        matrix[:3, :3] = R.from_quat(self.quat).as_matrix()
+        matrix[:3, 3] = self.pos
         return matrix
     
-    def rotation(self) -> R:
-        """Get scipy Rotation object for the orientation."""
-        return R.from_quat(np.asarray(self.quat))
-    
     def copy(self) -> "StampedPose":
-        """Create a deep copy of this pose."""
         return self.model_copy(deep=True)
-    
-    def __repr__(self) -> str:
-        pos = np.asarray(self.pos)
-        quat = np.asarray(self.quat)
-        return (f"StampedPose(pos={pos.round(4).tolist()}, "
-                f"quat={quat.round(4).tolist()}, "
-                f"frame='{self.frame_id}')")
 
+    def __repr__(self) -> str:
+        # np.array2string makes the output cleaner than tolist() for debugging
+        pos_str = np.array2string(self.pos, precision=4, separator=',', suppress_small=True)
+        quat_str = np.array2string(self.quat, precision=4, separator=',', suppress_small=True)
+        return f"StampedPose(pos={pos_str}, quat={quat_str}, frame='{self.frame_id}')"
 
 @dataclass
 class Transform:

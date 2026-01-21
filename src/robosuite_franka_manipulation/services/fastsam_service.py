@@ -20,10 +20,10 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
-from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
-from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation.schema import FastSAMRequest, FastSAMResponse, DetectionSchema, ResponseStatus
 
 # Configure logging
@@ -335,13 +335,19 @@ class FastSAMService:
         self.running = True
 
         # Register with service manager
-        self.service_client.register(
+        response = self.service_client.register(
             name="fastsam_service",
             host=self.host,
             port=self.port,
             service_type="detection",
             description="FastSAM object detection with camera feed"
         )
+
+        if response.get('status') != 'success':
+            logger.error("Failed to register with service manager: %s", response.get('message'))
+            self.running = False
+            return
+        
         logger.info("Registered with service manager")
 
         # Start threads
