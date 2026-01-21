@@ -5,11 +5,14 @@ Service Manager - Central orchestrator for distributed services.
 
 import zmq
 import threading
-import time
 import logging
-from typing import Dict, Any, Optional, List, cast
+from typing import Dict, Any, Optional, cast
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.schema import (
+    RegisterServiceRequest, LookupServiceRequest, CallServiceRequest, ListServicesRequest,
+    ServiceListResponse, ServiceLookupResponse, ResponseStatus, ServiceInfo
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -59,10 +62,10 @@ class ServiceClient:
                 response = cast(Dict[str, Any], socket.recv_json())
                 return response
             else:
-                return {'status': 'error', 'message': 'Request timeout'}
+                return ResponseStatus(status='error', message='Request timeout').model_dump()
 
         except Exception as e:
-            return {'status': 'error', 'message': str(e)}
+            return ResponseStatus(status='error', message=str(e)).model_dump()
         finally:
             try:
                 if socket is not None:
@@ -76,38 +79,50 @@ class ServiceClient:
                 pass
 
     def register(self, name: str, host: str, port: int,
-                service_type: str, description: str = "") -> bool:
+                service_type: str, description: str = "") -> Dict[str, Any]:
         """Register a service with the manager."""
-        request = {
-            'command': 'REGISTER',
-            'name': name,
-            'host': host,
-            'port': port,
-            'type': service_type,
-            'description': description
-        }
-        response = self._call_manager(request)
-        return response
+        try:
+            req = RegisterServiceRequest(
+                name=name,
+                host=host,
+                port=port,
+                type=service_type,
+                description=description
+            )
+            response = self._call_manager(req.model_dump())
+            return response
+        except Exception as e:
+            return ResponseStatus(status='error', message=f"Registration failed: {e}").model_dump()
 
     def lookup(self, service_name: str) -> Optional[Dict[str, Any]]:
         """Look up a service by name."""
-        request = {
-            'command': 'LOOKUP',
-            'name': service_name
-        }
-        response = self._call_manager(request)
-        if response.get('status') == 'success':
-            return response.get('service')
-        return None
+        try:
+            req = LookupServiceRequest(name=service_name)
+            response = self._call_manager(req.model_dump())
+            if response.get('status') == 'success':
+                return response.get('service')
+            return None
+        except Exception:
+            return ResponseStatus(status='error', message=f"Lookup failed for {service_name}").model_dump()
+
+    def list_services(self) -> Dict[str, Any]:
+        """List all registered services."""
+        try:
+            req = ListServicesRequest()
+            return self._call_manager(req.model_dump())
+        except Exception as e:
+            return ResponseStatus(status='error', message=f"List services failed: {e}").model_dump()
 
     def call(self, service_name: str, service_request: Dict[str, Any]) -> Dict[str, Any]:
         """Call a service through the manager."""
-        request = {
-            'command': 'CALL_SERVICE',
-            'service_name': service_name,
-            'request': service_request
-        }
-        return self._call_manager(request)
+        try:
+            req = CallServiceRequest(
+                service_name=service_name,
+                request=service_request
+            )
+            return self._call_manager(req.model_dump())
+        except Exception as e:
+            return ResponseStatus(status='error', message=f"Service call prep failed: {e}").model_dump()
 
 
 class ServiceManager:
@@ -124,7 +139,7 @@ class ServiceManager:
         self.port = port
 
         # Service registry
-        self.services: Dict[str, Dict[str, Any]] = {}
+        self.services: Dict[str, ServiceInfo] = {}
 
         # State
         self.running = False
@@ -208,88 +223,95 @@ class ServiceManager:
             command = request.get('command', '').upper()
 
             if command == 'REGISTER':
-                return self._handle_register(request)
+                req = RegisterServiceRequest(**request)
+                return self._handle_register(req)
             elif command == 'LOOKUP':
-                return self._handle_lookup(request)
+                req = LookupServiceRequest(**request)
+                return self._handle_lookup(req)
+            elif command == 'LIST_SERVICES':
+                return self._handle_list_services()
             elif command == 'CALL_SERVICE':
-                return self._handle_call_service(request)
+                req = CallServiceRequest(**request)
+                return self._handle_call_service(req)
             else:
-                return {
-                    'status': 'error',
-                    'message': f'Unknown command: {command}'
-                }
+                return ResponseStatus(
+                    status='error',
+                    message=f'Unknown command: {command}'
+                ).model_dump()
 
         except Exception as e:
             logger.error(f"Request handling error: {e}")
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
+            return ResponseStatus(
+                status='error',
+                message=str(e)
+            ).model_dump()
 
-    def _handle_register(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_register(self, request: RegisterServiceRequest) -> Dict[str, Any]:
         """Handle service registration."""
         try:
-            name = request['name']
-            host = request['host']
-            port = request['port']
-            service_type = request['type']
-            description = request.get('description', '')
-
-            service_info = {
-                'name': name,
-                'host': host,
-                'port': port,
-                'type': service_type,
-                'description': description,
-                'registered_at': time.time()
-            }
-
+            name = request.name
+            
             if name in self.services:
                 logger.warning(f"Service {name} is already registered.")
-                return {
-                    'status': 'error',
-                    'message': f'Service {name} is already registered'
-                }
+                return ResponseStatus(
+                    status='error',
+                    message=f'Service {name} is already registered'
+                ).model_dump()
 
+            service_info = ServiceInfo(
+                name=request.name,
+                host=request.host,
+                port=request.port,
+                type=request.type,
+                description=request.description
+            )
+            
             self.services[name] = service_info
 
-            logger.info(f"Registered service: {name} ({service_type}) at {host}:{port}")
+            logger.info(f"Registered service: {name} ({request.type}) at {request.host}:{request.port}")
 
-            return {
-                'status': 'success',
-                'message': f'Service {name} registered successfully'
-            }
+            return ResponseStatus(
+                status='success',
+                message=f'Service {name} registered successfully'
+            ).model_dump()
 
-        except KeyError as e:
-            return {
-                'status': 'error',
-                'message': f'Missing required field: {e}'
-            }
+        except Exception as e:
+            return ResponseStatus(
+                status='error',
+                message=f'Registration failed: {e}'
+            ).model_dump()
 
-    def _handle_lookup(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_lookup(self, request: LookupServiceRequest) -> Dict[str, Any]:
         """Handle service lookup."""
-        name = request.get('name')
+        name = request.name
         if not name or name not in self.services:
-            return {
-                'status': 'error',
-                'message': f'Service {name} not found'
-            }
+            return ResponseStatus(
+                status='error',
+                message=f'Service {name} not found'
+            ).model_dump()
 
-        return {
-            'status': 'success',
-            'service': self.services[name]
-        }
+        return ServiceLookupResponse(
+            status='success',
+            service=self.services[name]
+        ).model_dump()
 
-    def _handle_call_service(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_list_services(self) -> Dict[str, Any]:
+        """Handle list services request."""
+        return ServiceListResponse(
+            status='success',
+            services=self.services
+        ).model_dump()
+
+    def _handle_call_service(self, request: CallServiceRequest) -> Dict[str, Any]:
         """Handle direct service calls."""
-        service_name = request.get('service_name')
-        service_request = request.get('request', {})
+        service_name = request.service_name
+        service_request = request.request
 
         if not service_name or service_name not in self.services:
-            return {
-                'status': 'error',
-                'message': f'Service {service_name} not found'
-            }
+            return ResponseStatus(
+                status='error',
+                message=f'Service {service_name} not found'
+            ).model_dump()
 
         service_info = self.services[service_name]
 
@@ -297,7 +319,7 @@ class ServiceManager:
         try:
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
-            socket.connect(f"tcp://{service_info['host']}:{service_info['port']}")
+            socket.connect(f"tcp://{service_info.host}:{service_info.port}")
 
             socket.send_json(service_request)
 
@@ -309,16 +331,16 @@ class ServiceManager:
             else:
                 socket.close()
                 context.term()
-                return {
-                    'status': 'error',
-                    'message': f'Service {service_name} timeout'
-                }
+                return ResponseStatus(
+                    status='error',
+                    message=f'Service {service_name} timeout'
+                ).model_dump()
 
         except Exception as e:
-            return {
-                'status': 'error',
-                'message': f'Service call failed: {e}'
-            }
+            return ResponseStatus(
+                status='error',
+                message=f'Service call failed: {e}'
+            ).model_dump()
 
     def __del__(self) -> None:
         """Cleanup on deletion."""

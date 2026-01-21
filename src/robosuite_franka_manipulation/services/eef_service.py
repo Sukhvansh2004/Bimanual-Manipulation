@@ -9,7 +9,7 @@ import threading
 import time
 import logging
 from typing import Dict, Any, Optional, cast, Union
-from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.schema import EEFRequest, EEFResponse

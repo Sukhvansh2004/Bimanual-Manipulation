@@ -61,7 +61,7 @@ from robosuite_franka_manipulation.controllers import RobosuiteArmController, Ro
 from robosuite_franka_manipulation.services.fastsam_service import FastSAMService
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
-from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
 

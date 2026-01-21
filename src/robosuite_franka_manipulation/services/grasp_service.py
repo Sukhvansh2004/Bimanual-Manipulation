@@ -13,7 +13,7 @@ import logging
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
-from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud

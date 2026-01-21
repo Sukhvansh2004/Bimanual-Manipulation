@@ -20,7 +20,7 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
-from robosuite_franka_manipulation.services.service_manager import ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.pointcloud import ensure_depth_2d
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose

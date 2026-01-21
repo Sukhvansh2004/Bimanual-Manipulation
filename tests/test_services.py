@@ -8,7 +8,7 @@ import pytest
 import time
 import zmq
 
-from robosuite_franka_manipulation.services.service_manager import ServiceManager, ServiceClient
+from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation import constants

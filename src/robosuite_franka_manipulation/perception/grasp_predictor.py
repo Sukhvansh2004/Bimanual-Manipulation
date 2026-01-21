@@ -82,7 +82,7 @@ class GraspPredictor:
         
         if mesh_file:
             logger.debug(f"Loading mesh from {mesh_file}")
-            pcd_local = load_mesh_and_sample(mesh_file, num_points=2048, scale=mesh_scale)
+            pcd_local = load_mesh_and_sample(mesh_file, num_points=constants.GRASPGEN_POINTCLOUD, scale=mesh_scale)
             if pcd_local is None:
                 logger.error(f"Failed to load mesh from {mesh_file}")
                 return []
@@ -360,8 +360,8 @@ class GraspPredictor:
         # Remove outliers
         pcd_filtered = self._remove_outliers(pcd_local)
         
-        # Downsample to ~2048 points (GraspGen standard) using utility function
-        pcd_downsampled = downsample_point_cloud(pcd_filtered, target_points=2048, method='random')
+        # Downsample to ~constants.GRASPGEN_POINTCLOUD points (GraspGen standard) using utility function
+        pcd_downsampled = downsample_point_cloud(pcd_filtered, target_points=constants.GRASPGEN_POINTCLOUD_SIZE, method='random')
         
         return pcd_downsampled
     
