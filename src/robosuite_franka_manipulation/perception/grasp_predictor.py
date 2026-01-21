@@ -262,24 +262,32 @@ class GraspPredictor:
         if np.allclose(offset_quat, [0, 0, 0, 1]) and np.allclose(offset_pos, [0, 0, 0]):
             return grasp_pose
         
-        # Apply rotation offset: new_quat = grasp_quat * offset_quat
-        # This rotates in the local grasp frame
-        grasp_rot = R.from_quat(grasp_pose.quaternion)
-        offset_rot = R.from_quat(offset_quat)
-        new_rot = grasp_rot * offset_rot
-        new_quat = new_rot.as_quat()
+        # Create transform from world to predicted grasp frame
+        world_to_predicted = Transform(
+            translation=grasp_pose.position,
+            rotation=grasp_pose.quaternion,
+            parent_frame=grasp_pose.frame_id,
+            child_frame="predicted_grasp"
+        )
         
-        # Position offset is already in local grasp frame, add directly
-        # (Currently all offsets have zero position, so this is just grasp_pose.position)
-        new_pos = grasp_pose.position + offset_pos
+        # Create transform from predicted grasp frame to true grasp frame (offset)
+        predicted_to_true = Transform(
+            translation=offset_pos,
+            rotation=offset_quat,
+            parent_frame="predicted_grasp",
+            child_frame="true_grasp"
+        )
+        
+        # Compose: world -> predicted -> true
+        world_to_true = world_to_predicted.compose(predicted_to_true)
         
         return StampedPose(
-            position=new_pos,
-            quaternion=new_quat,
+            position=world_to_true.translation,
+            quaternion=world_to_true.rotation,
             frame_id=grasp_pose.frame_id
         )
 
-    def _visualize_pcd(self, pcd: np.ndarray) -> None:
+    def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
         """
         Visualize the object point cloud and predicted grasps.
 
