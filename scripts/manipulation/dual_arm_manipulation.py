@@ -63,6 +63,7 @@ from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
+from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
 
 # Configure logging
@@ -467,6 +468,26 @@ def get_grasps(detection, num_grasps=5, gripper_type='finger'):
         print(f"Grasp generation failed: {response.get('message')}")
         return []
 
+def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=5, gripper_type='suction'):
+    assert system.service_client is not None, "Service client not initialized"
+    response = system.service_client.call('grasp_service', {
+        'command': 'GET_GRASPS',
+        'object_pose': pose,
+        'object_name': object_name,
+        'num_grasps': num_grasps,
+        'gripper_type': gripper_type  # Use simplified type: 'finger' or 'suction'
+    })
+    
+    if response.get('status') == 'success':
+        grasps = response.get('grasps', [])
+        print(f"\nGenerated {len(grasps)} grasp(s):")
+        for i, grasp in enumerate(grasps[:3]):  # Show top 3
+            print(f"  Grasp {i+1}: pos={grasp.get('pos')}, score={grasp.get('score', 'N/A'):.3f}")
+        return grasps
+    else:
+        print(f"Grasp generation failed: {response.get('message')}")
+        return []
+
 
 def get_eef():
     """Quick helper to get end-effector coordinates."""
@@ -604,6 +625,7 @@ Press Ctrl+D or type exit() to quit
                     'system': system,
                     'detect': detect,
                     'get_grasps': get_grasps,
+                    'get_grasps_mesh': get_grasps_mesh,
                     'get_eef': get_eef,
                     'set_prompt': set_prompt,
                     'env_step': env_step,
