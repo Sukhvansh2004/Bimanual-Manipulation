@@ -287,7 +287,7 @@ class GraspPredictor:
             frame_id=grasp_pose.frame_id
         )
 
-    def _visualize_grasps(self, pcd: np.ndarray, grasps: List[Dict], object_pose: StampedPose) -> None:
+    def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """
         Visualize the object point cloud and predicted grasps.
 
