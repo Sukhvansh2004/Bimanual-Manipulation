@@ -197,19 +197,15 @@ class GraspPredictor:
         
         if self.visualize and grasp_list:
              # Visualization logic
-             pcd_for_vis = pcd_processed
-             if is_mesh_source:
-                 # If mesh source, original_pcd is in object-local frame
-                 # We need to transform to world for visualization
-                 object_to_world = Transform(
-                    translation=object_pose.position,
-                    rotation=object_pose.quaternion,
-                    parent_frame=constants.WORLD_FRAME,
-                    child_frame="object_local"
-                 )
-                 pcd_for_vis = transform_point_cloud(pcd_for_vis, object_to_world.to_matrix())
-             
-             self._visualize_pcd(pcd_for_vis)
+            object_to_world = Transform(
+                translation=object_pose.position,
+                rotation=object_pose.quaternion,
+                parent_frame=constants.WORLD_FRAME,
+                child_frame="object_local"
+            )
+
+            pcd_for_vis = transform_point_cloud(pcd_processed, object_to_world.to_matrix()) 
+            self._visualize_pcd(pcd_for_vis)
 
         return grasp_list
 

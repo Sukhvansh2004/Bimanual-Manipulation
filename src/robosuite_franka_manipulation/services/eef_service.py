@@ -13,7 +13,10 @@ from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.schema import EEFRequest, EEFResponse
-from robosuite_franka_manipulation.transforms import StampedPose
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+from contextlib import nullcontext
+from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,7 @@ class EEFService:
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self.service_client = ServiceClient(manager_host, manager_port)
+        self.transform_manager = TransformManager(env, env_lock=self.env_lock)
 
     def start(self) -> None:
         """Start the EEF coordinates service."""
@@ -88,53 +92,65 @@ class EEFService:
 
     def get_eef_coordinates(self) -> Dict[str, Any]:
         """
-        Get current end-effector coordinates for all robots.
+        Get current end-effector coordinates for all arms of all robots.
 
         Returns:
-            Dict with positions and orientations in world frame
+            Dict with StampedPose objects in world frame
         """
-        lock = self.env_lock
-        try:
-            if lock:
-                lock.acquire()
-            # Get current observation
-            # robosuite exposes observation_spec() publicly; it returns the current
-            # observation dict (and internally handles viewer_get_obs if enabled).
-            obs = self.env.observation_spec()
+        with self.env_lock if self.env_lock else nullcontext():
+            try:
+                # Force MuJoCo to sync forward kinematics before reading
+                self.env.sim.forward()
 
-            eef_data = {}
+                eef_data = {}
 
-            # Extract EEF data for each robot
-            for robot_id in [0, 1]:  # Two robots
-                robot_key = f"robot{robot_id}"
+                # Iterate over all robots in the environment
+                for robot_id, robot in enumerate(self.env.robots):
+                    base_frame = f"robot{robot_id}_base"
+                    logger.debug(f"Getting EEF for robot {robot_id} with base frame {base_frame}")
 
-                if f"{robot_key}_eef_pos" in obs:
-                    pos = obs[f"{robot_key}_eef_pos"]
-                    quat = obs[f"{robot_key}_eef_quat"]
+                    # robot.robot_model.eef_name is typically a dict mapping arm_id to body_name
+                    # or a string for single-arm robots. We handle both for robustness.
+                    eef_info = robot.robot_model.eef_name
 
-                    # Use StampedPose object directly
-                    eef_data[f"robot_{robot_id}"] = StampedPose(
-                        position=pos,
-                        quaternion=quat,
-                        frame_id=constants.WORLD_FRAME,
-                        timestamp=time.time()
-                    )
+                    for arm_id, eef_body in eef_info.items():
+                        # Get pose in robot base frame using robosuite's public API
+                        pose4 = robot.pose_in_base_from_name(eef_body)
+                        
+                        pos = np.asarray(pose4[:3, 3], dtype=np.float64).copy()
+                        quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
+                        
+                        # Create pose in robot base frame
+                        stamped_pose_base = StampedPose(
+                            position=pos,
+                            quaternion=quat,
+                            frame_id=base_frame,
+                            timestamp=time.time()
+                        )
+                        
+                        # Transform to world frame
+                        stamped_pose_world = self.transform_manager.transform_pose(
+                            stamped_pose_base, 
+                            constants.WORLD_FRAME
+                        )
+                        
+                        logger.debug(f"Robot {robot_id} arm {arm_id} EEF pose in world frame: {stamped_pose_world}")
+                        # Store in dictionary with key: robot_{robot_id}_{arm_id}
+                        eef_data[f"robot_{robot_id}_{arm_id}"] = stamped_pose_world
 
-            return {
-                "success": True,
-                "eef_coordinates": eef_data,
-                "timestamp": time.time(),
-                "frame": constants.WORLD_FRAME
-            }
+                return {
+                    "success": True,
+                    "eef_coordinates": eef_data,
+                    "timestamp": time.time(),
+                    "frame": constants.WORLD_FRAME
+                }
 
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Failed to get EEF coordinates: {str(e)}"
-            }
-        finally:
-            if lock:
-                lock.release()
+            except Exception as e:
+                logger.error(f"Failed to get EEF coordinates: {e}")
+                return {
+                    "success": False,
+                    "error": f"Failed to get EEF coordinates: {str(e)}"
+                }
 
     def _run_server(self) -> None:
         """Run the ZMQ server loop."""
@@ -168,6 +184,7 @@ class EEFService:
 
         if req.command == "GET":
             response_data = self.get_eef_coordinates()
+            logger.info(f"EEF GET request processed: {response_data}")
             if not response_data.get("success", False):
                 return EEFResponse(
                     status="error", 
