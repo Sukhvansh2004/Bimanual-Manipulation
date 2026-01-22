@@ -42,7 +42,7 @@ sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-
 ```bash
 conda create -n dual_arm_manipulation python=3.10
 conda activate dual_arm_manipulation
-export MUJOCO_GL=osmesa
+export MUJOCO_GL="glx"
 ```
 
 3. **Install PyTorch** (adjust for your CUDA version):
