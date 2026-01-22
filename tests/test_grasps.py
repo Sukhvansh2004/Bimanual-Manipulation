@@ -446,6 +446,3 @@ class TestGraspScoreHandling:
         assert best_grasp.score == 0.95
         np.testing.assert_array_almost_equal(best_grasp.position, [1, 0, 0])
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

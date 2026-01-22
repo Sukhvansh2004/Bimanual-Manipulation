@@ -288,6 +288,3 @@ class TestTransformManager:
         np.testing.assert_array_almost_equal(t.translation, [0.5, 0, 0])
         assert t.is_static == False
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

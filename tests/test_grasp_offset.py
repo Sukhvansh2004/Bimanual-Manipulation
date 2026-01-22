@@ -99,5 +99,3 @@ class TestGraspOffset:
         assert offset_grasp_2.position[2] == 1.0 
         assert abs(offset_grasp_2.position[1] - 0.9) < 1e-6
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

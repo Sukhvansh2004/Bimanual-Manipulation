@@ -8,7 +8,7 @@ import zmq
 import threading
 import time
 import logging
-from typing import Dict, Any, Optional, cast, Union
+from typing import Dict, Any, Optional, cast
 from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -97,60 +97,71 @@ class EEFService:
         Returns:
             Dict with StampedPose objects in world frame
         """
-        with self.env_lock if self.env_lock else nullcontext():
-            try:
-                # Force MuJoCo to sync forward kinematics before reading
+        try:
+            # Force MuJoCo to sync forward kinematics before reading
+            # We lock just for the simulation update
+            if self.env_lock:
+                with self.env_lock:
+                    self.env.sim.forward()
+            else:
                 self.env.sim.forward()
 
-                eef_data = {}
+            eef_data = {}
 
-                # Iterate over all robots in the environment
-                for robot_id, robot in enumerate(self.env.robots):
-                    base_frame = f"robot{robot_id}_base"
-                    logger.debug(f"Getting EEF for robot {robot_id} with base frame {base_frame}")
+            # Iterate over all robots in the environment
+            for robot_id, robot in enumerate(self.env.robots):
+                base_frame = f"robot{robot_id}_base"
+                logger.debug(f"Getting EEF for robot {robot_id} with base frame {base_frame}")
 
-                    # robot.robot_model.eef_name is typically a dict mapping arm_id to body_name
-                    # or a string for single-arm robots. We handle both for robustness.
-                    eef_info = robot.robot_model.eef_name
+                # robot.robot_model.eef_name is typically a dict mapping arm_id to body_name
+                # or a string for single-arm robots. We handle both for robustness.
+                eef_info = robot.robot_model.eef_name
 
-                    for arm_id, eef_body in eef_info.items():
-                        # Get pose in robot base frame using robosuite's public API
+                for arm_id, eef_body in eef_info.items():
+                    # Get pose in robot base frame using robosuite's public API
+                    # We need the lock here to access simulation data safely
+                    if self.env_lock:
+                        with self.env_lock:
+                            pose4 = robot.pose_in_base_from_name(eef_body)
+                    else:
                         pose4 = robot.pose_in_base_from_name(eef_body)
-                        
-                        pos = np.asarray(pose4[:3, 3], dtype=np.float64).copy()
-                        quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
-                        
-                        # Create pose in robot base frame
-                        stamped_pose_base = StampedPose(
-                            position=pos,
-                            quaternion=quat,
-                            frame_id=base_frame,
-                            timestamp=time.time()
-                        )
-                        
-                        # Transform to world frame
-                        stamped_pose_world = self.transform_manager.transform_pose(
-                            stamped_pose_base, 
-                            constants.WORLD_FRAME
-                        )
-                        
-                        logger.debug(f"Robot {robot_id} arm {arm_id} EEF pose in world frame: {stamped_pose_world}")
-                        # Store in dictionary with key: robot_{robot_id}_{arm_id}
-                        eef_data[f"robot_{robot_id}_{arm_id}"] = stamped_pose_world
+                    
+                    pos = np.asarray(pose4[:3, 3], dtype=np.float64).copy()
+                    quat = R.from_matrix(np.asarray(pose4[:3, :3], dtype=np.float64)).as_quat()
+                    
+                    # Create pose in robot base frame
+                    stamped_pose_base = StampedPose(
+                        position=pos,
+                        quaternion=quat,
+                        frame_id=base_frame,
+                        timestamp=time.time()
+                    )
+                    
+                    # Transform to world frame
+                    # TransformManager handles its own locking if needed, so we must NOT hold the lock here
+                    # to avoid deadlock if the lock is non-reentrant.
+                    stamped_pose_world = self.transform_manager.transform_pose(
+                        stamped_pose_base, 
+                        constants.WORLD_FRAME
+                    )
+                    
+                    logger.debug(f"Robot {robot_id} arm {arm_id} EEF pose in world frame: {stamped_pose_world}")
+                    # Store in dictionary with key: robot_{robot_id}_{arm_id}
+                    eef_data[f"robot_{robot_id}_{arm_id}"] = stamped_pose_world
 
-                return {
-                    "success": True,
-                    "eef_coordinates": eef_data,
-                    "timestamp": time.time(),
-                    "frame": constants.WORLD_FRAME
-                }
+            return {
+                "success": True,
+                "eef_coordinates": eef_data,
+                "timestamp": time.time(),
+                "frame": constants.WORLD_FRAME
+            }
 
-            except Exception as e:
-                logger.error(f"Failed to get EEF coordinates: {e}")
-                return {
-                    "success": False,
-                    "error": f"Failed to get EEF coordinates: {str(e)}"
-                }
+        except Exception as e:
+            logger.error(f"Failed to get EEF coordinates: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to get EEF coordinates: {str(e)}"
+            }
 
     def _run_server(self) -> None:
         """Run the ZMQ server loop."""
