@@ -36,7 +36,7 @@ class RobosuiteArmController:
     to move the end-effector to that pose.
     """
     def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, 
-                 transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.Lock] = None,
+                 transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.RLock] = None,
                  visualize: bool = False) -> None:
         self.env = env
         self.env_lock = env_lock

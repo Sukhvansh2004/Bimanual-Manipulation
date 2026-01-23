@@ -59,18 +59,18 @@ class TransformManager:
     # Standard frame names (from constants)
     WORLD_FRAME = constants.WORLD_FRAME
     
-    def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
+    def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.RLock] = None):
         """
         Initialize TransformManager.
         
         Args:
             env: Robosuite environment instance (optional, can be set later)
             auto_discover: Whether to automatically discover frames from environment
-            env_lock: Optional threading.Lock used to guard access to MuJoCo sim.data
+            env_lock: Optional threading.RLock used to guard access to MuJoCo sim.data
         """
         self.env: DualArmEnvironment = env
         # Optional lock to guard simulation access when multiple threads use the env
-        self._env_lock: Optional[threading.Lock] = env_lock
+        self._env_lock: Optional[threading.RLock] = env_lock
         
         # Static transforms (don't change over time)
         self._static_transforms: Dict[Tuple[str, str], Transform] = {}

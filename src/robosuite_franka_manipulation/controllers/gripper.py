@@ -16,7 +16,7 @@ class RobosuiteGripperController:
     This class abstracts the control of a robot gripper in a robosuite environment.
     Supports both Parallel Jaw and Suction grippers.
     """
-    def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.Lock] = None) -> None:
+    def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.RLock] = None) -> None:
         self.env = env
         self.env_lock = env_lock
         self.arm_id = arm_id

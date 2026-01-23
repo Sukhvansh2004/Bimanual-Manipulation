@@ -415,7 +415,7 @@ def check_dual_arm_pose_feasibility(
 		eef_pose_robot1: Desired EEF pose for robot1, in ``input_frame``.
 		input_frame: Frame the input poses are expressed in (default: "world").
 		tf_manager: Optional TransformManager. If not provided, a temporary one is created.
-		env_lock: Optional threading.Lock used to guard sim state.
+		env_lock: Optional threading.RLock used to guard sim state.
 
 	Returns:
 		A list of entries: ``[q_arm0 ({DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.

@@ -41,7 +41,7 @@ class FastSAMService:
     """
 
     # Optional shared environment lock, set per instance
-    env_lock: Optional[threading.Lock] = None
+    env_lock: Optional[threading.RLock] = None
 
     def __init__(self,
                  env: DualArmEnvironment,
@@ -52,7 +52,7 @@ class FastSAMService:
                  camera_name: str = constants.DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
                  debug: bool = False,
-                 env_lock: Optional[threading.Lock] = None,
+                 env_lock: Optional[threading.RLock] = None,
                  tf_manager: Optional[TransformManager] = None):
         """
         Initialize FastSAM Service.
@@ -66,7 +66,7 @@ class FastSAMService:
             camera_name: Name of camera to use for detection
             visualize: Whether to show OpenCV visualization windows
             debug: Enable debug logging
-            env_lock: Optional threading lock for environment access
+            env_lock: Optional threading.RLock lock for environment access
         """
         self.env = env
         self.host = host

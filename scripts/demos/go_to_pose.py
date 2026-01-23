@@ -26,7 +26,7 @@ class DualArmPoseController:
     - Robot 0 (left side of table) 
     - Robot 1 (right side of table)
     """
-    def __init__(self, env: DualArmEnvironment, env_lock: threading.Lock, tf_manager: TransformManager):
+    def __init__(self, env: DualArmEnvironment, env_lock: threading.RLock, tf_manager: TransformManager):
         """
         Initializes the controller with the environment.
         """

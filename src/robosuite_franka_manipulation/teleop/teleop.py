@@ -8,7 +8,6 @@ import logging
 import threading
 from copy import deepcopy
 from typing import Any, Optional
-from threading import Lock
 from pynput import keyboard as pynput_keyboard
 from pynput.keyboard import Key
 
@@ -39,7 +38,7 @@ class KeyboardTeleop:
     """
     Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
     """
-    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: Lock = None) -> None:
+    def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: threading.RLock = None) -> None:
         self.env = env
         self.env_lock = env_lock
         self.device = KeyboardOverride(

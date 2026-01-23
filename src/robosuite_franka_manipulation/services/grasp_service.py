@@ -38,7 +38,7 @@ class GraspService:
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
                  env: Optional[DualArmEnvironment] = None,
-                 env_lock: Optional[threading.Lock] = None,
+                 env_lock: Optional[threading.RLock] = None,
                  tf_manager: Optional[TransformManager] = None,
                  debug: bool = False,
                  visualize: bool = False):
