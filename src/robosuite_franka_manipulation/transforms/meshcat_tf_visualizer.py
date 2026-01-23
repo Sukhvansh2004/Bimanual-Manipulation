@@ -8,8 +8,6 @@ Design goal: let callers pass their *own* `env` + `env_lock` so the visualizer
 reflects the same simulation instance they are working with.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 import time
 from typing import Optional

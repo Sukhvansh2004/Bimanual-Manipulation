@@ -10,8 +10,6 @@ Notes
 - End-effector sites are named ``gripper{robot_id}_right_grip_site``.
 """
 
-from __future__ import annotations
-
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
