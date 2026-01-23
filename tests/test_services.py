@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pytest-based test suite for microservices.
-Tests Prompt Service, Grasp Service, and EEF Service functionality.
+Tests Prompt Service, Grasp Service, and MoveToPose Service functionality.
 """
 
 import pytest

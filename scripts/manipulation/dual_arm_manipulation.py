@@ -4,14 +4,13 @@ Start Services and Interactive Teleoperation
 
 This script:
 1. Starts the dual-arm environment with teleoperation in a separate thread
-2. Starts all services (ServiceManager, FastSAM, GraspGen, EEF)
+2. Starts all services (ServiceManager, FastSAM, GraspGen, MoveToPose)
 3. Provides an interactive Python shell for service queries
 
 You can teleoperate the robot in the environment window using standard robosuite
 keyboard controls, while simultaneously using the Python terminal to:
 - Query detections: client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
 - Generate grasps: client.call('grasp_service', {'command': 'GET_GRASPS', ...})
-- Get EEF coords: client.call('eef_service', {'command': 'GET'})
 - Change prompts: client.call('fastsam_service', {'command': 'SET_PROMPT', 'prompt': 'cup'})
 
 Usage:
@@ -24,9 +23,6 @@ Usage:
     
     >>> # Change detection prompt
     >>> client.call('fastsam_service', {'command': 'SET_PROMPT', 'prompt': 'red cup'})
-    
-    >>> # Get end-effector coordinates
-    >>> client.call('eef_service', {'command': 'GET'})
     
     >>> # Generate grasps (after detecting objects)
     >>> detections = response['detections']
@@ -60,6 +56,7 @@ from robosuite_franka_manipulation.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 from robosuite_franka_manipulation.services.fastsam_service import FastSAMService
 from robosuite_franka_manipulation.services.grasp_service import GraspService
+from robosuite_franka_manipulation.services.move_to_pose_service import MoveToPoseService
 from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
@@ -116,6 +113,7 @@ class DualArmManipulationSystem:
         self.service_manager: Optional[ServiceManager] = None
         self.fastsam_service: Optional[FastSAMService] = None
         self.grasp_service: Optional[GraspService] = None
+        self.move_service: Optional[MoveToPoseService] = None
         self.service_client: Optional[ServiceClient] = None
             
         self.running = False
@@ -301,6 +299,19 @@ class DualArmManipulationSystem:
             time.sleep(0.5)
             logger.info("   ✓ Grasp service started")
             
+            # Start Move To Pose service
+            logger.info("   Starting Move To Pose service...")
+            self.move_service = MoveToPoseService()
+            # Register controllers
+            if self.left_arm:
+                self.move_service.register_controller(0, "right", self.left_arm)
+            if self.right_arm:
+                self.move_service.register_controller(1, "right", self.right_arm)
+            
+            self.move_service.start()
+            time.sleep(0.5)
+            logger.info("   ✓ Move To Pose service started")
+            
         except Exception as e:
             logger.error(f"Failed to start services: {e}")
             raise
@@ -376,6 +387,8 @@ class DualArmManipulationSystem:
         self._stop_teleop()
         
         # Stop services
+        if self.move_service:
+            self.move_service.stop()
         if self.fastsam_service:
             self.fastsam_service.stop()
         if self.grasp_service:
@@ -532,6 +545,41 @@ def set_prompt(prompt):
     else:
         print(f"Failed to change prompt: {response.get('message')}")
 
+def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False):
+    """Quick helper to move an arm to a pose."""
+    assert system.service_client is not None, "Service client not initialized"
+    
+    # StampedPose needs to be serialized to a dict for the service call
+    pose_dict = pose.model_dump()
+    
+    response = system.service_client.call('move_to_pose_service', {
+        'command': 'MOVE_TO_POSE',
+        'robot_id': robot_id,
+        'arm': arm_id,
+        'pose': pose_dict,
+        'gripper_action': gripper_action,
+        'approach': approach
+    })
+    
+    if response.get('status') == 'success':
+        print(f"Move command sent to robot {robot_id}, arm {arm_id}")
+    else:
+        print(f"Failed to send move command: {response.get('message')}")
+
+def cancel_move(robot_id: int, arm_id: str):
+    """Quick helper to cancel a move."""
+    assert system.service_client is not None, "Service client not initialized"
+    response = system.service_client.call('move_to_pose_service', {
+        'command': 'CANCEL_MOVE',
+        'robot_id': robot_id,
+        'arm': arm_id
+    })
+    
+    if response.get('status') == 'success':
+        print(f"Cancel command sent to robot {robot_id}, arm {arm_id}")
+    else:
+        print(f"Failed to send cancel command: {response.get('message')}")
+
 
 def main() -> int:
     """Main entry point."""
@@ -614,17 +662,20 @@ Available objects:
   system          - DualArmManipulationSystem instance
   
 Helper functions:
-  detect()                    - Detect objects
-  get_grasps(detection, n=5)  - Generate grasps for detection
-  get_eef()                   - Get end-effector coordinates
-  set_prompt(text)            - Change detection prompt
+  detect()                               - Detect objects
+  get_grasps(detection, n=5)             - Generate grasps for detection
+  get_eef()                              - Get end-effector coordinates
+  set_prompt(text)                       - Change detection prompt
+  go_to_pose(pose, robot_id, arm_id)     - Move an arm to a pose
+  cancel_move(robot_id, arm_id)          - Cancel a move command
 
 Example usage:
   >>> detections = detect()
   >>> if detections:
   ...     grasps = get_grasps(detections[0])
-  >>> get_eef()
-  >>> set_prompt('red cup')
+  >>> eef_pose = get_eef()['robot0_right_eef'] # get a pose
+  >>> go_to_pose(StampedPose(position=[eef_pose['position']['x'], eef_pose['position']['y']+0.1, eef_pose['position']['z']], quaternion=eef_pose['quaternion'], frame_id='world'), 0, 'right')
+  >>> cancel_move(0, 'right')
 
 Press Ctrl+D or type exit() to quit
 ========================================================
@@ -643,7 +694,10 @@ Press Ctrl+D or type exit() to quit
                     'get_grasps_mesh': get_grasps_mesh,
                     'get_eef': get_eef,
                     'set_prompt': set_prompt,
+                    'go_to_pose': go_to_pose,
+                    'cancel_move': cancel_move,
                     'env_step': env_step,
+                    'StampedPose': StampedPose,
                 }
                 code.interact(banner=banner, local=namespace)
             except SystemExit:

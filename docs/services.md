@@ -9,6 +9,7 @@ The system uses a distributed microservices architecture for robotic perception 
 | Service Manager | 5555 | Service discovery and registration |
 | FastSAM Service | 5551 | Object detection and segmentation |
 | Grasp Service | 5552 | 6-DOF grasp prediction |
+| MoveToPose Service | 5553 | Autonomous arm control |
 
 ## Architecture Diagram
 
@@ -17,16 +18,16 @@ The system uses a distributed microservices architecture for robotic perception 
 │                      Service Manager (5555)                      │
 │                   Service Discovery & Registry                   │
 └─────────────────────────────────────────────────────────────────┘
-         │                    │
-         ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐
-│ FastSAM Service │  │  Grasp Service  │
-│     (5551)      │  │     (5552)      │
-│                 │  │                 │
-│ - Detection     │  │ - GraspGen      │
-│ - Segmentation  │  │ - 6-DOF poses   │
-│ - Point clouds  │  │ - Scoring       │
-└─────────────────┘  └─────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ FastSAM Service │  │  Grasp Service  │  │ MoveToPose Svc  │
+│     (5551)      │  │     (5552)      │  │     (5553)      │
+│                 │  │                 │  │                 │
+│ - Detection     │  │ - GraspGen      │  │ - Arm control   │
+│ - Segmentation  │  │ - 6-DOF poses   │  │ - Move to pose  │
+│ - Point clouds  │  │ - Scoring       │  │ - Cancellation  │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
 ## Quick Start
@@ -42,7 +43,7 @@ This starts all services automatically and provides an interactive shell.
 ### Manual Service Startup
 
 ```python
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 # Create environment
@@ -60,6 +61,12 @@ fastsam.start()
 # Start Grasp Service
 grasp = GraspService()
 grasp.start()
+
+# Start MoveToPose Service
+move = MoveToPoseService()
+# Note: You must register controllers with the service
+move.register_controller(0, "right", arm_controller_0)
+move.start()
 ```
 
 ## Service Client API
@@ -182,6 +189,39 @@ response = client.call('grasp_service', {
 | `finger` | franka_panda |
 | `suction` | single_suction_cup_30mm |
 
+## MoveToPose Service (port 5553)
+
+Autonomous robot arm control.
+
+### Commands
+
+**MOVE_TO_POSE** - Move an arm to a target pose
+```python
+response = client.call('move_to_pose_service', {
+    'command': 'MOVE_TO_POSE',
+    'robot_id': 0,               # Robot index (0 or 1)
+    'arm': 'right',              # Arm ID
+    'pose': {                    # StampedPose dict
+        'pos': [x, y, z],
+        'quat': [qx, qy, qz, qw],
+        'frame_id': 'world'
+    },
+    'gripper_action': 0.0,       # Maintain gripper state
+    'approach': True             # Use approach motion
+})
+# Response: {'status': 'success', 'message': 'Move started'}
+```
+
+**CANCEL_MOVE** - Cancel current movement
+```python
+response = client.call('move_to_pose_service', {
+    'command': 'CANCEL_MOVE',
+    'robot_id': 0,
+    'arm': 'right'
+})
+# Response: {'status': 'success', 'message': 'Cancellation requested'}
+```
+
 ## Configuration Constants
 
 All service ports and timeouts are defined in `constants/__init__.py`:
@@ -192,6 +232,7 @@ DEFAULT_HOST = 'localhost'
 SERVICE_MANAGER_PORT = 5555
 FASTSAM_SERVICE_PORT = 5551
 GRASP_SERVICE_PORT = 5552
+MOVE_TO_POSE_SERVICE_PORT = 5553
 
 # ZMQ Timeouts (milliseconds)
 ZMQ_POLL_TIMEOUT = 1000
@@ -220,7 +261,7 @@ Common error scenarios:
 The manipulation system uses threading locks for environment access:
 
 ```python
-# FastSAM and EEF services accept an env_lock parameter
+# FastSAM and MoveToPose services accept an env_lock parameter
 fastsam = FastSAMService(env=env, env_lock=threading.Lock())
 ```
 

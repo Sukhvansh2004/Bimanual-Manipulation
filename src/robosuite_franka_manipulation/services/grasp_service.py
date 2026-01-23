@@ -6,8 +6,7 @@ Grasp Service - Grasp prediction service for segmented point clouds.
 import zmq
 import numpy as np
 import threading
-import time
-from typing import Dict, Any, List, Optional, cast
+from typing import Dict, Any, Optional, cast
 import logging
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -18,7 +17,7 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 from robosuite_franka_manipulation.utils.env_utils import resolve_mesh_path
-from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, GraspSchema, ResponseStatus
+from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, ResponseStatus
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -5,6 +5,7 @@ This class maintains a tree of coordinate frames and
 provides methods for transforming poses between frames.
 """
 
+from contextlib import nullcontext
 import numpy as np
 from typing import Dict, Optional, List, Set, Tuple, Callable
 from scipy.spatial.transform import Rotation as R
@@ -246,14 +247,7 @@ class TransformManager:
 
         # Static transform for eye-in-hand cameras
         if parent_frame != self.WORLD_FRAME:
-            # Get camera pose in world
-            if self._env_lock:
-                with self._env_lock:
-                    self.env.sim.forward()
-                    cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
-                    cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
-            else:
-                self.env.sim.forward()
+            with self._env_lock if self._env_lock else nullcontext():
                 cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
                 cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
             

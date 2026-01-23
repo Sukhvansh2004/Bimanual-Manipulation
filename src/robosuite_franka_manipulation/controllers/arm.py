@@ -68,6 +68,8 @@ class RobosuiteArmController:
         else:
             self.transform_manager = TransformManager(env, env_lock=self.env_lock)
 
+        self._stop_event = threading.Event()
+
     def _get_robot(self):
         """Get fresh robot reference from environment.
         
@@ -87,10 +89,6 @@ class RobosuiteArmController:
         Returns:
             (pos, quat): position (3,) and quaternion (x, y, z, w)
         """
-        # Ensure latest state
-        with self.env_lock if self.env_lock else nullcontext():
-            self.env.sim.forward()
-
         eef_frame = f"robot{self.robot_id}_{self.arm_id}_eef"
         
         # We want pose of eef_frame in base_frame
@@ -236,6 +234,11 @@ class RobosuiteArmController:
         
         return np.array(positions), np.array(quaternions)
 
+    def cancel_movement(self) -> None:
+        """Cancel the current movement."""
+        logger.info(f"Cancelling movement for robot{self.robot_id}_{self.arm_id}")
+        self._stop_event.set()
+
     def move_to_pose(self, target_pose: StampedPose, 
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     gripper_action: float = 0.0,
@@ -270,6 +273,9 @@ class RobosuiteArmController:
         Returns:
             bool: True if pose was reached within threshold, False otherwise
         """
+        # Clear stop event at start
+        self._stop_event.clear()
+
         # Handle approach motion: first move to approach pose, then to target
         if approach:
             logger.debug(f"Target pose before approach computation: pos={target_pose.position}, frame_id={target_pose.frame_id}")
@@ -304,11 +310,6 @@ class RobosuiteArmController:
         
         target_pos = np.asarray(target_pose.position)
         target_quat = np.asarray(target_pose.quaternion)
-
-        # Get FRESH current pose right before planning
-        # Force MuJoCo to sync forward kinematics before reading
-        with self.env_lock if self.env_lock else nullcontext():
-            self.env.sim.forward()  # Ensure FK is up to date
         
         current_pos, current_quat = self.get_eef_pose_in_base()
         
@@ -353,6 +354,11 @@ class RobosuiteArmController:
         steps_taken = 0
         
         while steps_taken < max_steps:
+            # Check for cancellation
+            if self._stop_event.is_set():
+                logger.info(f"Movement cancelled for robot{self.robot_id}_{self.arm_id}")
+                return False
+
             # Advance waypoint index to follow time-based trajectory
             if current_waypoint_idx < num_waypoints - 1:
                 current_waypoint_idx += 1

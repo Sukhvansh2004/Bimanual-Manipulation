@@ -3,6 +3,7 @@
 FastSAM Service - Continuous object detection service.
 """
 
+from contextlib import nullcontext
 import zmq
 import numpy as np
 import threading
@@ -214,11 +215,8 @@ class FastSAMService:
         # Get camera pose (guarded by env_lock to avoid concurrent MuJoCo access)
         # IMPORTANT: use robosuite's extrinsic matrix helper, which applies
         # the camera axis correction to match standard pinhole conventions.
-        if self.env_lock:
-            with self.env_lock:
+        with self.env_lock if self.env_lock else nullcontext():
                 cam_T_world = get_camera_extrinsic_matrix(self.env.sim, self.camera_name)
-        else:
-            cam_T_world = get_camera_extrinsic_matrix(self.env.sim, self.camera_name)
 
         cam_pos = cam_T_world[:3, 3]
         cam_rot = R.from_matrix(cam_T_world[:3, :3])

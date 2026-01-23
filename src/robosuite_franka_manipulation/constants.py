@@ -19,6 +19,7 @@ DEFAULT_HOST = 'localhost'
 SERVICE_MANAGER_PORT = 5555
 FASTSAM_SERVICE_PORT = 5551
 GRASP_SERVICE_PORT = 5552
+MOVE_TO_POSE_SERVICE_PORT = 5553
 
 # ZMQ timeouts (in milliseconds)
 ZMQ_POLL_TIMEOUT = 1000  # 1 second for service polling
