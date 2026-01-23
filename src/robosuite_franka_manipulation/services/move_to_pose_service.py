@@ -75,6 +75,22 @@ class MoveToPoseService:
         """Stop the service."""
         self.running = False
         
+        # Cancel all active movements
+        logger.info("Stopping Move To Pose service: cancelling all active moves")
+        for key, controller in self.controllers.items():
+            try:
+                controller.cancel_movement()
+            except Exception as e:
+                logger.warning(f"Failed to cancel movement for {key}: {e}")
+        
+        # Wait for all movement threads to finish
+        for key, thread in self.active_moves.items():
+            if thread.is_alive():
+                try:
+                    thread.join(timeout=1.0)
+                except Exception:
+                    logger.warning(f"Failed to join movement thread for {key}")
+        
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2.0)
         
@@ -82,12 +98,12 @@ class MoveToPoseService:
             try:
                 self.socket.close(linger=0)
             except Exception:
-                pass
+                logger.error("Failed to close ZMQ socket")
         if self.context:
             try:
                 self.context.term()
             except Exception:
-                pass
+                logger.error("Failed to terminate ZMQ context")
         logger.info("Move To Pose service stopped")
 
     def _run_server(self) -> None:
