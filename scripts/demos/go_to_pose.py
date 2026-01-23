@@ -124,15 +124,15 @@ class DualArmPoseController:
 if __name__ == '__main__':
     env = None
     try:
-        print("Creating dual-arm environment...")
-        env = make_dual_arm_env()
+        # Create environment
+        env = make_dual_arm_env(robots=['Panda', 'Panda'])
         env.reset()
 
-        # Create an environment lock for thread-safe access
-        env_lock = threading.Lock()
+        # Create reentrant lock for thread safety
+        env_lock = threading.RLock()
 
-        # Initialize TransformManager and MeshcatTFVisualizerConfig
-        tf_manager = TransformManager(env, env_lock=env_lock, auto_discover=True)
+        # Create TransformManager
+        tf_manager = TransformManager(env, env_lock=env_lock)
         vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True)
         stop_event = threading.Event()
 

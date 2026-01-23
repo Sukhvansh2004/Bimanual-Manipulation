@@ -162,7 +162,15 @@ class MoveToPoseService:
             if key in self.active_moves and self.active_moves[key].is_alive():
                 logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
                 controller.cancel_movement()
-                self.active_moves[key].join(timeout=1.0)
+                # Wait longer for the thread to finish and verify it actually stopped
+                self.active_moves[key].join(timeout=5.0)
+                
+                if self.active_moves[key].is_alive():
+                    logger.error(f"Failed to stop existing move for robot {robot_id}, arm {arm_id}. Aborting new request.")
+                    return ResponseStatus(
+                        status="error", 
+                        message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}. Try again."
+                    ).model_dump()
             
             thread = threading.Thread(target=move_task, daemon=True)
             self.active_moves[key] = thread

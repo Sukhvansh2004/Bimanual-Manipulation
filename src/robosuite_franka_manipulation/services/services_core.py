@@ -317,8 +317,9 @@ class ServiceManager:
 
         # Make direct ZMQ call to service
         try:
-            context = zmq.Context()
-            socket = context.socket(zmq.REQ)
+            # Reuse existing context
+            socket = self.context.socket(zmq.REQ)
+            socket.setsockopt(zmq.LINGER, 0)
             socket.connect(f"tcp://{service_info.host}:{service_info.port}")
 
             socket.send_json(service_request)
@@ -326,11 +327,9 @@ class ServiceManager:
             if socket.poll(timeout=constants.ZMQ_SERVICE_CALL_TIMEOUT):
                 response = cast(Dict[str, Any], socket.recv_json())
                 socket.close()
-                context.term()
                 return response
             else:
                 socket.close()
-                context.term()
                 return ResponseStatus(
                     status='error',
                     message=f'Service {service_name} timeout'

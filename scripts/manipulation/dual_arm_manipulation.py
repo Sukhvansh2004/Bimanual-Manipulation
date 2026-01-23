@@ -92,7 +92,8 @@ class DualArmManipulationSystem:
         self.debug = debug
         self.detection_prompt = detection_prompt
         self.meshcat_tf = meshcat_tf
-        self.env_lock = threading.Lock()
+        # Use RLock to prevent deadlocks (TransformManager re-acquires it)
+        self.env_lock = threading.RLock()
 
         if self.debug:
             logger.setLevel(logging.DEBUG)

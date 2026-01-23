@@ -352,6 +352,7 @@ class RobosuiteArmController:
         # Start at 0, will increment to 1 on first step
         current_waypoint_idx = 0 
         steps_taken = 0
+        start_time = time.time()
         
         while steps_taken < max_steps:
             # Check for cancellation
@@ -386,7 +387,12 @@ class RobosuiteArmController:
                 env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
             
             steps_taken += 1
-            time.sleep(dt)  # Maintain control frequency
+            
+            # Drift-correcting sleep
+            elapsed = time.time() - start_time
+            target_time = steps_taken * dt
+            sleep_time = max(0, target_time - elapsed)
+            time.sleep(sleep_time)
             
             # Check convergence if we are targeting the final waypoint
             if current_waypoint_idx == num_waypoints - 1:
