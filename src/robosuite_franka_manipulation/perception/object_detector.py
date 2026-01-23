@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Union
+from typing import List
 import sys
 import cv2
 import logging

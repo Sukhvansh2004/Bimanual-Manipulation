@@ -5,6 +5,7 @@ This class maintains a tree of coordinate frames and
 provides methods for transforming poses between frames.
 """
 
+from contextlib import nullcontext
 import numpy as np
 from typing import Dict, Optional, List, Set, Tuple, Callable
 from scipy.spatial.transform import Rotation as R
@@ -58,18 +59,18 @@ class TransformManager:
     # Standard frame names (from constants)
     WORLD_FRAME = constants.WORLD_FRAME
     
-    def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.Lock] = None):
+    def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.RLock] = None):
         """
         Initialize TransformManager.
         
         Args:
             env: Robosuite environment instance (optional, can be set later)
             auto_discover: Whether to automatically discover frames from environment
-            env_lock: Optional threading.Lock used to guard access to MuJoCo sim.data
+            env_lock: Optional threading.RLock used to guard access to MuJoCo sim.data
         """
         self.env: DualArmEnvironment = env
         # Optional lock to guard simulation access when multiple threads use the env
-        self._env_lock: Optional[threading.Lock] = env_lock
+        self._env_lock: Optional[threading.RLock] = env_lock
         
         # Static transforms (don't change over time)
         self._static_transforms: Dict[Tuple[str, str], Transform] = {}
@@ -246,14 +247,7 @@ class TransformManager:
 
         # Static transform for eye-in-hand cameras
         if parent_frame != self.WORLD_FRAME:
-            # Get camera pose in world
-            if self._env_lock:
-                with self._env_lock:
-                    self.env.sim.forward()
-                    cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
-                    cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
-            else:
-                self.env.sim.forward()
+            with self._env_lock if self._env_lock else nullcontext():
                 cam_pos_world = self.env.sim.data.get_camera_xpos(camera_name)
                 cam_rot_world = self.env.sim.data.get_camera_xmat(camera_name).reshape(3, 3)
             

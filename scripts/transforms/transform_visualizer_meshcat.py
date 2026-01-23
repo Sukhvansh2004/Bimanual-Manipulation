@@ -43,9 +43,13 @@ def main() -> None:
     parser.add_argument("--no-clear", action="store_true", help="Do not clear visualizer on start")
     args = parser.parse_args()
 
-    # Create environment (headless; no MuJoCo window required)
-    env_lock = threading.Lock()
-    env = make_dual_arm_env()
+    # Create environment
+    env = make_dual_arm_env(robots=["Panda", "Panda"])
+    
+    # Create a reentrant lock to guard the environment
+    # RLock is crucial because TransformManager might try to acquire it
+    # while we already hold it in a loop.
+    env_lock = threading.RLock()
 
     config = MeshcatTFVisualizerConfig(
         fps=float(args.fps),

@@ -14,6 +14,7 @@ import numpy as np
 import logging
 
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation.utils import (
     get_available_ycb_objects,
     list_ycb_objects,
@@ -43,18 +44,26 @@ def print_env_info(env):
     logger.info(f"Control frequency: {env.control_freq} Hz")
     logger.info(f"Horizon: {env.horizon} steps")
     
+    # Create local TransformManager for querying poses
+    tf_manager = TransformManager(env)
+    
     # Robot info
     for i, robot in enumerate(env.robots):
         logger.info(f"--- Robot {i} ({['Left', 'Right'][i]} side) ---")
         logger.info(f"  Robot name: {robot.name}")
         logger.info(f"  Robot model: {robot.robot_model.name}")
         
-        # Get EEF pose
-        eef_name = robot.robot_model.eef_name["right"]
-        pose = robot.pose_in_base_from_name(eef_name)
-        pos = pose[:3, 3]
-        logger.info(f"  EEF name: {eef_name}")
-        logger.info(f"  EEF position (base frame): [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+        # Get EEF pose using TransformManager
+        eef_frame = f"robot{i}_right_eef"
+        base_frame = f"robot{i}_base"
+        
+        try:
+            pose = tf_manager.get_frame_pose(eef_frame, base_frame)
+            pos = pose.position
+            logger.info(f"  EEF name: {eef_frame}")
+            logger.info(f"  EEF position (base frame): [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+        except Exception as e:
+            logger.warning(f"  Could not get EEF pose for {eef_frame}: {e}")
     
     # Custom objects info
     if hasattr(env, 'get_object_names'):

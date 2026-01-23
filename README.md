@@ -9,10 +9,10 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Grasp Generation**: GraspGen-powered 6-DOF grasp prediction
 - **SE(3) Trajectory Planning**: Proper Lie algebra-based trajectory interpolation for smooth robot motion
 - **Transforms Module**: ROS tf/tf2-like coordinate frame management
-- **Microservices Architecture**: Distributed services (FastSAM, Grasp, EEF) with ZMQ interfaces
+- **Microservices Architecture**: Distributed services (FastSAM, Grasp, MoveToPose) with ZMQ interfaces
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
-- **Comprehensive Test Suite**: 69 pytest tests covering all modules
+- **Comprehensive Test Suite**: 71 pytest tests covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
@@ -82,7 +82,7 @@ pip install -e .
 │   │   ├── service_manager.py           # Service discovery (port 5555)
 │   │   ├── fastsam_service.py           # FastSAM detection (port 5551)
 │   │   ├── grasp_service.py             # GraspGen prediction (port 5552)
-│   │   └── eef_service.py               # End-effector coordinates (port 5559)
+│   │   └── move_to_pose_service.py      # Move robot arm to pose (port 5553)
 │   ├── transforms/                       # Coordinate frame management (tf-like)
 │   │   ├── stamped_pose.py              # StampedPose and Transform classes
 │   │   ├── transform_manager.py         # Frame tree and transform lookup
@@ -96,7 +96,7 @@ pip install -e .
 │   ├── demos/                            # Demo scripts (go_to_pose, gripper_move, launch_env)
 │   ├── manipulation/                     # Main manipulation script
 │   └── teleop/                           # Standalone teleoperation
-├── tests/                                # Pytest test suite (69 tests)
+├── tests/                                # Pytest test suite (71 tests)
 ├── docs/                                 # Documentation
 ├── models/                               # Pre-trained models (FastSAM-x.pt)
 └── deps/                                 # Dependencies (GraspGen, GraspGenModels)
@@ -122,7 +122,7 @@ This starts:
 2. Service Manager for service discovery
 3. FastSAM Service for object detection
 4. Grasp Service for grasp prediction
-5. EEF Service for end-effector coordinates
+5. MoveToPose Service for autonomous arm control
 6. Keyboard teleoperation (main thread)
 7. Interactive Python shell (background thread)
 
@@ -142,6 +142,12 @@ Once the system is running, use these in the interactive shell:
 
 # Change detection prompt
 >>> set_prompt('red cup')
+
+# Move an arm to a pose
+>>> go_to_pose(pose, robot_id=0, arm_id='right')
+
+# Cancel a move
+>>> cancel_move(robot_id=0, arm_id='right')
 
 # Access controllers directly
 >>> system.left_arm.move_to_pose([0.5, -0.3, 0.4], [0, 0, 0, 1])
@@ -214,12 +220,27 @@ client.call('grasp_service', {
 })
 ```
 
-### EEF Service (port 5559)
-Real-time end-effector coordinates.
+### MoveToPose Service (port 5553)
+Autonomous robot arm control.
 
 **Commands**:
 ```python
-client.call('eef_service', {'command': 'GET'})
+# Move to pose
+client.call('move_to_pose_service', {
+    'command': 'MOVE_TO_POSE',
+    'robot_id': 0,
+    'arm': 'right',
+    'pose': pose_dict,
+    'gripper_action': 0.0,
+    'approach': True
+})
+
+# Cancel move
+client.call('move_to_pose_service', {
+    'command': 'CANCEL_MOVE',
+    'robot_id': 0,
+    'arm': 'right'
+})
 ```
 
 ## Configuration
@@ -303,7 +324,7 @@ from robosuite_franka_manipulation.utils import (
 ### Services
 
 ```python
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, EEFService
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
 
 # Start service manager
 manager = ServiceManager()
@@ -317,7 +338,7 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (69 tests)
+# Run all tests (71 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules

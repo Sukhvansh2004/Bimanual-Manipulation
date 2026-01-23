@@ -75,14 +75,22 @@ class GraspResponse(ResponseStatus):
     pcd_size: int = 0
     gripper_type: Optional[str] = None
 
-# EEF Service
-class EEFRequest(BaseSchema):
+# Move To Pose Service
+class MoveToPoseRequest(BaseSchema):
     command: str
+    robot_id: int = 0
+    arm: str = "right"
+    pose: StampedPose
+    gripper_action: float = 0.0
+    approach: bool = False
 
-class EEFResponse(ResponseStatus):
-    success: bool = True
-    eef_coordinates: Optional[Dict[str, StampedPose]] = None
-    frame: str = constants.WORLD_FRAME
+class CancelMoveRequest(BaseSchema):
+    command: str
+    robot_id: int = 0
+    arm: str = "right"
+
+class MoveToPoseResponse(ResponseStatus):
+    pass
 
 # --- Service Manager Schemas ---
 

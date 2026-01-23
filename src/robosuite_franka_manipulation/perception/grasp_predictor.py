@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Union
+from typing import List,Optional
 import torch
 from scipy.spatial.transform import Rotation as R
 import meshcat

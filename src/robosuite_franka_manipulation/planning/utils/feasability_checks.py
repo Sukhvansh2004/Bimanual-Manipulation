@@ -10,8 +10,6 @@ Notes
 - End-effector sites are named ``gripper{robot_id}_right_grip_site``.
 """
 
-from __future__ import annotations
-
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
@@ -24,6 +22,7 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation.constants import DEFAULT_ROBOT_ACTION_DIM
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
+from robosuite.utils.binding_utils import MjModel, MjData
 
 
 ArrayLike = Union[Sequence[float], np.ndarray]
@@ -110,16 +109,6 @@ def _eef_site_name(robot_id: int, arm: str = "right") -> str:
 	return f"gripper{robot_id}_{arm}_grip_site"
 
 
-def _raw_mujoco_model(model):
-	"""Return raw ``mujoco.MjModel`` from robosuite wrapper, if needed."""
-	return getattr(model, "_model", model)
-
-
-def _raw_mujoco_data(data):
-	"""Return raw ``mujoco.MjData`` from robosuite wrapper, if needed."""
-	return getattr(data, "_data", data)
-
-
 def _get_qpos(data, qpos_idx: np.ndarray) -> np.ndarray:
 	qpos = np.asarray(data.qpos)
 	if qpos.ndim == 2 and qpos.shape[1] == 1:
@@ -148,8 +137,8 @@ def _compute_site_error(model, data, site_id: int, target_pos: np.ndarray, targe
 
 
 def _solve_ik_dls(
-	model,
-	data,
+	model: MjModel,
+	data: MjData,
 	site_id: int,
 	joint_qpos_idx: np.ndarray,
 	joint_dof_idx: np.ndarray,
@@ -166,14 +155,13 @@ def _solve_ik_dls(
 	step_size: float,
 ) -> Optional[np.ndarray]:
 	"""Iterative IK using damped least squares on a MuJoCo site."""
-	raw_model = _raw_mujoco_model(model)
-	raw_data = _raw_mujoco_data(data)
+	# model and data are expected to be the public mujoco objects (env.sim.model, env.sim.data)
 
 	q = np.asarray(q_init, dtype=float).copy()
 	q = q.reshape(-1)
 	q = np.clip(q, joint_lo, joint_hi)
 	_set_qpos(data, joint_qpos_idx, q)
-	mujoco.mj_forward(raw_model, raw_data)
+	mujoco.mj_forward(model, data)
 
 	nv = int(model.nv)
 	jacp = np.zeros((3, nv), dtype=float)
@@ -186,7 +174,7 @@ def _solve_ik_dls(
 		if np.linalg.norm(pos_err) <= pos_tol and np.linalg.norm(rot_err) <= ori_tol:
 			return q
 
-		mujoco.mj_jacSite(raw_model, raw_data, jacp, jacr, site_id)
+		mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
 		J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])  # (6, 7)
 		err = np.concatenate([pos_err, rot_err], axis=0)
 
@@ -197,7 +185,7 @@ def _solve_ik_dls(
 
 		q = np.clip(q + dq, joint_lo, joint_hi)
 		_set_qpos(data, joint_qpos_idx, q)
-		mujoco.mj_forward(raw_model, raw_data)
+		mujoco.mj_forward(model, data)
 
 	# Final check
 	pos_err, rot_err = _compute_site_error(model, data, site_id, target_pos, target_quat)
@@ -248,8 +236,6 @@ def enumerate_ik_solutions_for_arm(
 	with ctx:
 		model = env.sim.model
 		data = env.sim.data
-		raw_model = _raw_mujoco_model(model)
-		raw_data = _raw_mujoco_data(data)
 
 		joint_ids = _get_arm_joint_ids(model, robot_id)
 		if len(joint_ids) != DEFAULT_ROBOT_ACTION_DIM:
@@ -334,7 +320,7 @@ def enumerate_ik_solutions_for_arm(
 		finally:
 			data.qpos[:] = qpos_backup
 			data.qvel[:] = qvel_backup
-			mujoco.mj_forward(raw_model, raw_data)
+			mujoco.mj_forward(model, data)
 
 		return solutions
 
@@ -415,7 +401,7 @@ def check_dual_arm_pose_feasibility(
 		eef_pose_robot1: Desired EEF pose for robot1, in ``input_frame``.
 		input_frame: Frame the input poses are expressed in (default: "world").
 		tf_manager: Optional TransformManager. If not provided, a temporary one is created.
-		env_lock: Optional threading.Lock used to guard sim state.
+		env_lock: Optional threading.RLock used to guard sim state.
 
 	Returns:
 		A list of entries: ``[q_arm0 ({DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
@@ -472,8 +458,6 @@ def check_dual_arm_pose_feasibility(
 	with ctx:
 		model = env.sim.model
 		data = env.sim.data
-		raw_model = _raw_mujoco_model(model)
-		raw_data = _raw_mujoco_data(data)
 
 		jids0 = _get_arm_joint_ids(model, 0)
 		jids1 = _get_arm_joint_ids(model, 1)
@@ -496,7 +480,7 @@ def check_dual_arm_pose_feasibility(
 					data.qvel[:] = qvel_backup
 					_set_qpos(data, qpos_idx0, np.asarray(q0, dtype=float))
 					_set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
-					mujoco.mj_forward(raw_model, raw_data)
+					mujoco.mj_forward(model, data)
 
 					feasible = not _in_collision(env, contact_dist_threshold=contact_dist_threshold, env_lock=None)
 					results.append([np.asarray(q0, dtype=float), np.asarray(q1, dtype=float), bool(feasible)])
@@ -506,7 +490,7 @@ def check_dual_arm_pose_feasibility(
 		finally:
 			data.qpos[:] = qpos_backup
 			data.qvel[:] = qvel_backup
-			mujoco.mj_forward(raw_model, raw_data)
+			mujoco.mj_forward(model, data)
 
 		return results
 
