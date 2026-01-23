@@ -295,6 +295,10 @@ class RobosuiteArmController:
                 approach=False  # Don't recurse
             )
             
+            if self._stop_event.is_set():
+                logger.info(f"Movement cancelled during approach for robot{self.robot_id}_{self.arm_id}")
+                return False
+            
             if not approach_success:
                 logger.warning("Failed to reach approach pose")
                 # Continue to try reaching target anyway
