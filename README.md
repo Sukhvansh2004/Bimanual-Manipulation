@@ -81,8 +81,7 @@ pip install -e .
 │   ├── services/                         # Microservices
 │   │   ├── service_manager.py           # Service discovery (port 5555)
 │   │   ├── fastsam_service.py           # FastSAM detection (port 5551)
-│   │   ├── grasp_service.py             # GraspGen prediction (port 5552)
-│   │   └── eef_service.py               # End-effector coordinates (port 5559)
+│   │   └── grasp_service.py             # GraspGen prediction (port 5552)
 │   ├── transforms/                       # Coordinate frame management (tf-like)
 │   │   ├── stamped_pose.py              # StampedPose and Transform classes
 │   │   ├── transform_manager.py         # Frame tree and transform lookup
@@ -122,9 +121,8 @@ This starts:
 2. Service Manager for service discovery
 3. FastSAM Service for object detection
 4. Grasp Service for grasp prediction
-5. EEF Service for end-effector coordinates
-6. Keyboard teleoperation (main thread)
-7. Interactive Python shell (background thread)
+5. Keyboard teleoperation (main thread)
+6. Interactive Python shell (background thread)
 
 ### Interactive Shell Commands
 
@@ -214,14 +212,6 @@ client.call('grasp_service', {
 })
 ```
 
-### EEF Service (port 5559)
-Real-time end-effector coordinates.
-
-**Commands**:
-```python
-client.call('eef_service', {'command': 'GET'})
-```
-
 ## Configuration
 
 Key constants are defined in `src/robosuite_franka_manipulation/constants/__init__.py`:
@@ -303,7 +293,7 @@ from robosuite_franka_manipulation.utils import (
 ### Services
 
 ```python
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, EEFService
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService
 
 # Start service manager
 manager = ServiceManager()

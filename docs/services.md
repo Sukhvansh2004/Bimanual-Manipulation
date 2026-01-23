@@ -9,7 +9,6 @@ The system uses a distributed microservices architecture for robotic perception 
 | Service Manager | 5555 | Service discovery and registration |
 | FastSAM Service | 5551 | Object detection and segmentation |
 | Grasp Service | 5552 | 6-DOF grasp prediction |
-| EEF Service | 5559 | End-effector coordinates |
 
 ## Architecture Diagram
 
@@ -18,16 +17,16 @@ The system uses a distributed microservices architecture for robotic perception 
 │                      Service Manager (5555)                      │
 │                   Service Discovery & Registry                   │
 └─────────────────────────────────────────────────────────────────┘
-         │                    │                    │
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ FastSAM Service │  │  Grasp Service  │  │   EEF Service   │
-│     (5551)      │  │     (5552)      │  │     (5559)      │
-│                 │  │                 │  │                 │
-│ - Detection     │  │ - GraspGen      │  │ - Robot EEF     │
-│ - Segmentation  │  │ - 6-DOF poses   │  │   coordinates   │
-│ - Point clouds  │  │ - Scoring       │  │ - Both arms     │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+         │                    │
+         ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐
+│ FastSAM Service │  │  Grasp Service  │
+│     (5551)      │  │     (5552)      │
+│                 │  │                 │
+│ - Detection     │  │ - GraspGen      │
+│ - Segmentation  │  │ - 6-DOF poses   │
+│ - Point clouds  │  │ - Scoring       │
+└─────────────────┘  └─────────────────┘
 ```
 
 ## Quick Start
@@ -43,7 +42,7 @@ This starts all services automatically and provides an interactive shell.
 ### Manual Service Startup
 
 ```python
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, EEFService
+from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 # Create environment
@@ -61,10 +60,6 @@ fastsam.start()
 # Start Grasp Service
 grasp = GraspService()
 grasp.start()
-
-# Start EEF Service
-eef = EEFService(env=env)
-eef.start()
 ```
 
 ## Service Client API
@@ -187,34 +182,6 @@ response = client.call('grasp_service', {
 | `finger` | franka_panda |
 | `suction` | single_suction_cup_30mm |
 
-## EEF Service (port 5559)
-
-Real-time end-effector coordinates for both robot arms.
-
-### Commands
-
-**GET** - Get end-effector coordinates
-```python
-response = client.call('eef_service', {
-    'command': 'GET'
-})
-# Response: {
-#   'success': True,
-#   'eef_coordinates': {
-#     'robot_0': {
-#       'position': {'x': 0.5, 'y': 0.0, 'z': 0.4},
-#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
-#       'frame': constants.WORLD_FRAME
-#     },
-#     'robot_1': {
-#       'position': {'x': -0.5, 'y': 0.0, 'z': 0.4},
-#       'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
-#       'frame': constants.WORLD_FRAME
-#     }
-#   }
-# }
-```
-
 ## Configuration Constants
 
 All service ports and timeouts are defined in `constants/__init__.py`:
@@ -225,7 +192,6 @@ DEFAULT_HOST = 'localhost'
 SERVICE_MANAGER_PORT = 5555
 FASTSAM_SERVICE_PORT = 5551
 GRASP_SERVICE_PORT = 5552
-EEF_SERVICE_PORT = 5559
 
 # ZMQ Timeouts (milliseconds)
 ZMQ_POLL_TIMEOUT = 1000

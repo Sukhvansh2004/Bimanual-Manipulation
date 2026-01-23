@@ -60,7 +60,6 @@ from robosuite_franka_manipulation.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 from robosuite_franka_manipulation.services.fastsam_service import FastSAMService
 from robosuite_franka_manipulation.services.grasp_service import GraspService
-from robosuite_franka_manipulation.services.eef_service import EEFService
 from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
@@ -117,7 +116,6 @@ class DualArmManipulationSystem:
         self.service_manager: Optional[ServiceManager] = None
         self.fastsam_service: Optional[FastSAMService] = None
         self.grasp_service: Optional[GraspService] = None
-        self.eef_service: Optional[EEFService] = None
         self.service_client: Optional[ServiceClient] = None
             
         self.running = False
@@ -125,7 +123,6 @@ class DualArmManipulationSystem:
         # Shutdown coordination
         self._stop_lock = threading.Lock()
         self._shutdown_requested = threading.Event()
-        self.automation_event = threading.Event()
 
     def _is_quit_key(self, key: Any) -> bool:
         """Best-effort check for 'q' across different key callback signatures."""
@@ -209,10 +206,10 @@ class DualArmManipulationSystem:
         # Load arm and gripper controllers
         logger.info("\n1b. Loading arm and gripper controllers...")
         self.left_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize, automation_event=self.automation_event
+            self.env, arm_id="right", robot_id=0, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
         )
         self.right_arm = RobosuiteArmController(
-            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize, automation_event=self.automation_event
+            self.env, arm_id="right", robot_id=1, env_lock=self.env_lock, transform_manager=self.tf_manager, visualize=self.visualize
         )
         self.left_gripper = RobosuiteGripperController(
             self.env, arm_id="right", robot_id=0, env_lock=self.env_lock
@@ -228,7 +225,7 @@ class DualArmManipulationSystem:
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")
-        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock, automation_event=self.automation_event)
+        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
         if start_teleop_thread:
             self.run_teleop(blocking=False)
             logger.info("   ✓ Teleoperation started (thread)")
@@ -303,13 +300,6 @@ class DualArmManipulationSystem:
             self.grasp_service.start()
             time.sleep(0.5)
             logger.info("   ✓ Grasp service started")
-            
-            # Start EEF service
-            logger.info("   Starting EEF service...")
-            self.eef_service = EEFService(env=self.env, env_lock=self.env_lock)
-            self.eef_service.start()
-            time.sleep(0.5)
-            logger.info("   ✓ EEF service started")
             
         except Exception as e:
             logger.error(f"Failed to start services: {e}")
@@ -386,8 +376,6 @@ class DualArmManipulationSystem:
         self._stop_teleop()
         
         # Stop services
-        if self.eef_service:
-            self.eef_service.stop()
         if self.fastsam_service:
             self.fastsam_service.stop()
         if self.grasp_service:
@@ -491,17 +479,44 @@ def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=5, gripper_t
 
 def get_eef():
     """Quick helper to get end-effector coordinates."""
-    assert system.service_client is not None, "Service client not initialized"
-    response = system.service_client.call('eef_service', {'command': 'GET'})
-    if response.get('success'):
-        eef_data = response.get('eef_coordinates', {})
+    if system.tf_manager is None:
+        print("TransformManager not initialized")
+        return None
+        
+    try:
+        eef_data = {}
+        # Iterate over known frames to find EEFs
+        # Convention: robot{id}_{arm}_eef
+        # We can also iterate robots from env
+        if system.env is None:
+            print("Environment not initialized")
+            return None
+            
+        for robot_idx, robot in enumerate(system.env.robots):
+            robot_name = f"robot{robot_idx}"
+            try:
+                arm_ids = list(robot.robot_model.eef_name.keys())
+            except Exception:
+                arm_ids = ["right"] # fallback
+            
+            for arm_id in arm_ids:
+                frame_name = f"{robot_name}_{arm_id}_eef"
+                if system.tf_manager.frame_exists(frame_name):
+                    pose = system.tf_manager.get_frame_pose(frame_name, "world")
+                    eef_data[frame_name] = {
+                        "position": {"x": pose.position[0], "y": pose.position[1], "z": pose.position[2]},
+                        "quaternion": {"x": pose.quaternion[0], "y": pose.quaternion[1], "z": pose.quaternion[2], "w": pose.quaternion[3]},
+                        "frame_id": pose.frame_id
+                    }
+        
         print("\nEnd-Effector Coordinates:")
-        for robot_key, data in eef_data.items():
+        for frame_name, data in eef_data.items():
             pos = data.get('position', {})
-            print(f"  {robot_key}: x={pos.get('x', 0):.4f}, y={pos.get('y', 0):.4f}, z={pos.get('z', 0):.4f}")
+            print(f"  {frame_name}: x={pos.get('x', 0):.4f}, y={pos.get('y', 0):.4f}, z={pos.get('z', 0):.4f}")
         return eef_data
-    else:
-        print(f"Failed to get EEF: {response.get('error')}")
+
+    except Exception as e:
+        print(f"Failed to get EEF: {e}")
         return None
 
 

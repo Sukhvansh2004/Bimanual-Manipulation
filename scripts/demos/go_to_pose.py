@@ -5,7 +5,7 @@ import threading
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers import RobosuiteArmController
-from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.environments import make_dual_arm_env, DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 
 import logging
@@ -26,11 +26,12 @@ class DualArmPoseController:
     - Robot 0 (left side of table) 
     - Robot 1 (right side of table)
     """
-    def __init__(self, env, env_lock, tf_manager):
+    def __init__(self, env: DualArmEnvironment, env_lock: threading.Lock, tf_manager: TransformManager):
         """
         Initializes the controller with the environment.
         """
         self.env = env
+        self.tf_manager = tf_manager
         # Robot 0 is on one side, Robot 1 is on the other
         # Both Panda robots have arm_id="right" (single-arm robots)
         self.left_arm = RobosuiteArmController(env, arm_id="right", robot_id=0, env_lock=env_lock, visualize=True, transform_manager=tf_manager)
@@ -42,16 +43,22 @@ class DualArmPoseController:
     
     def _print_arm_positions(self):
         """Print current arm positions for debugging."""
-        left_robot = self.env.robots[0]
-        right_robot = self.env.robots[1]
-        left_pose = left_robot.pose_in_base_from_name(left_robot.robot_model.eef_name["right"])
-        right_pose = right_robot.pose_in_base_from_name(right_robot.robot_model.eef_name["right"])
-        left_pos = left_pose[:3, 3].copy()
-        right_pos = right_pose[:3, 3].copy()
-        print(f"  Robot 0 (left) EEF position: {left_pos}")
-        print(f"  Robot 1 (right) EEF position: {right_pos}")
+        left_eef = "robot0_right_eef"
+        right_eef = "robot1_right_eef"
+        
+        try:
+            left_pose = self.tf_manager.get_frame_pose(left_eef, "robot0_base")
+            right_pose = self.tf_manager.get_frame_pose(right_eef, "robot1_base")
+            
+            left_pos = left_pose.position
+            right_pos = right_pose.position
+            
+            print(f"  Robot 0 (left) EEF position: {left_pos}")
+            print(f"  Robot 1 (right) EEF position: {right_pos}")
+        except Exception as e:
+            print(f"  Error getting arm positions: {e}")
 
-    def send_pose_goal(self, arm, position, orientation):
+    def send_pose_goal(self, arm: str, position: list, orientation: list):
         """
         Sends a pose goal to the specified arm.
 
@@ -76,12 +83,19 @@ class DualArmPoseController:
             return
 
         # Get initial position
-        robot = self.env.robots[robot_id]
-        pose4 = robot.pose_in_base_from_name(robot.robot_model.eef_name["right"])
-        initial_pos = pose4[:3, 3].copy()
-        print(f"Sending {robot_name} to position {pos}")
-        print(f"  Initial: {initial_pos}")
-        print(f"  Delta:   {pos - initial_pos}")
+        # robot = self.env.robots[robot_id]
+        eef_frame = f"robot{robot_id}_right_eef"
+        base_frame = f"robot{robot_id}_base"
+        
+        try:
+            pose = self.tf_manager.get_frame_pose(eef_frame, base_frame)
+            initial_pos = pose.position
+            print(f"Sending {robot_name} to position {pos}")
+            print(f"  Initial: {initial_pos}")
+            print(f"  Delta:   {pos - initial_pos}")
+        except Exception as e:
+            print(f"Error getting initial pose: {e}")
+            return
         
         target_pose = StampedPose(
             position=pos,
@@ -92,11 +106,14 @@ class DualArmPoseController:
         success = controller.move_to_pose(target_pose)
         
         # Print final position and error
-        pose4_final = robot.pose_in_base_from_name(robot.robot_model.eef_name["right"])
-        final_pos = pose4_final[:3, 3].copy()
-        error = pos - final_pos
-        print(f"  Final:   {final_pos}")
-        print(f"  Error:   {error} (norm: {np.linalg.norm(error):.4f}m)")
+        try:
+            final_pose = self.tf_manager.get_frame_pose(eef_frame, base_frame)
+            final_pos = final_pose.position
+            error = pos - final_pos
+            print(f"  Final:   {final_pos}")
+            print(f"  Error:   {error} (norm: {np.linalg.norm(error):.4f}m)")
+        except Exception as e:
+            print(f"Error getting final pose: {e}")
         
         if success:
             print(f"  ✓ {robot_name} reached target.")
@@ -137,17 +154,17 @@ if __name__ == '__main__':
         controller = DualArmPoseController(env, env_lock, tf_manager)
 
         # Get current positions to compute reasonable targets
-        robot0 = env.robots[0]
-        robot1 = env.robots[1]
+        # robot0 = env.robots[0]
+        # robot1 = env.robots[1]
         
-        left_current_pose = robot0.pose_in_base_from_name(robot0.robot_model.eef_name["right"])
-        right_current_pose = robot1.pose_in_base_from_name(robot1.robot_model.eef_name["right"])
+        pose0 = tf_manager.get_frame_pose("robot0_right_eef", "robot0_base")
+        pose1 = tf_manager.get_frame_pose("robot1_right_eef", "robot1_base")
         
-        left_current_pos = left_current_pose[:3, 3].copy()
-        right_current_pos = right_current_pose[:3, 3].copy()
+        left_current_pos = pose0.position
+        right_current_pos = pose1.position
         
-        left_current_quat = R.from_matrix(left_current_pose[:3, :3]).as_quat()
-        right_current_quat = R.from_matrix(right_current_pose[:3, :3]).as_quat()
+        # left_current_quat = pose0.quaternion
+        # right_current_quat = pose1.quaternion
         
         # Define relative movements from current position
         # Move left arm forward and up a bit
