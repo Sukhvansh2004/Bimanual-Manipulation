@@ -40,6 +40,9 @@ class MoveToPoseService:
         
         # Track active threads
         self.active_moves: Dict[Tuple[int, str], threading.Thread] = {}
+        
+        # Lock to protect active_moves and running state during threaded access
+        self.state_lock = threading.RLock()
 
     def register_controller(self, robot_id: int, arm_id: str, controller: RobosuiteArmController) -> None:
         """Register a controller for a specific robot arm."""
@@ -73,18 +76,22 @@ class MoveToPoseService:
 
     def stop(self) -> None:
         """Stop the service."""
-        self.running = False
-        
-        # Cancel all active movements
-        logger.info("Stopping Move To Pose service: cancelling all active moves")
-        for key, controller in self.controllers.items():
-            try:
-                controller.cancel_movement()
-            except Exception as e:
-                logger.warning(f"Failed to cancel movement for {key}: {e}")
-        
-        # Wait for all movement threads to finish
-        for key, thread in self.active_moves.items():
+        with self.state_lock:
+            self.running = False
+            
+            # Cancel all active movements
+            logger.info("Stopping Move To Pose service: cancelling all active moves")
+            for key, controller in self.controllers.items():
+                try:
+                    controller.cancel_movement()
+                except Exception as e:
+                    logger.warning(f"Failed to cancel movement for {key}: {e}")
+            
+            # Copy items to list to iterate safely even if threads finish/modify dict (though lock prevents modification)
+            active_threads = list(self.active_moves.items())
+
+        # Wait for all movement threads to finish (outside lock to allow threads to exit)
+        for key, thread in active_threads:
             if thread.is_alive():
                 try:
                     thread.join(timeout=1.0)
@@ -174,23 +181,39 @@ class MoveToPoseService:
 
             controller = self.controllers[key]
 
-            # Cancel existing move if any
-            if key in self.active_moves and self.active_moves[key].is_alive():
-                logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
-                controller.cancel_movement()
-                # Wait longer for the thread to finish and verify it actually stopped
-                self.active_moves[key].join(timeout=5.0)
+            with self.state_lock:
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                # cleanup finished threads to prevent memory leak
+                self.active_moves = {k: v for k, v in self.active_moves.items() if v.is_alive()}
+
+                # Cancel existing move if any
+                if key in self.active_moves and self.active_moves[key].is_alive():
+                    logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
+                    controller.cancel_movement()
+                    # Wait longer for the thread to finish and verify it actually stopped
+                    # We release the lock temporarily while joining to avoid blocking stop()
+                    self.state_lock.release()
+                    try:
+                        self.active_moves[key].join(timeout=5.0)
+                    finally:
+                        self.state_lock.acquire()
+                    
+                    if self.active_moves[key].is_alive():
+                        logger.error(f"Failed to stop existing move for robot {robot_id}, arm {arm_id}. Aborting new request.")
+                        return ResponseStatus(
+                            status="error", 
+                            message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}. Try again."
+                        ).model_dump()
                 
-                if self.active_moves[key].is_alive():
-                    logger.error(f"Failed to stop existing move for robot {robot_id}, arm {arm_id}. Aborting new request.")
-                    return ResponseStatus(
-                        status="error", 
-                        message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}. Try again."
-                    ).model_dump()
-            
-            thread = threading.Thread(target=move_task, daemon=True)
-            self.active_moves[key] = thread
-            thread.start()
+                # Double check running state after potential join delay
+                if not self.running:
+                     return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                thread = threading.Thread(target=move_task, daemon=True)
+                self.active_moves[key] = thread
+                thread.start()
             
             return MoveToPoseResponse(message="Move started").model_dump()
 
