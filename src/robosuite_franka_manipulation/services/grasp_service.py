@@ -286,6 +286,7 @@ class GraspService:
             valid_mask = np.ones(len(grasps), dtype=bool)
             if occupied_pcd_points:
                 try:
+                    logger.debug(f"Checking collisions for {len(grasps)} grasps for gripper {gripper_type_simple} against occupied space...")
                     scene_occupied = np.concatenate(occupied_pcd_points, axis=0)
                     gripper_collision_mesh = predictor.get_gripper_collision_mesh()
                     
@@ -343,6 +344,7 @@ class GraspService:
         self._update_tf_manager(object_id, object_pose_world)
         
         # 4. Predict and Filter
+        logger.debug(f"Predicting grasps with gripper types: {req.gripper_type}")
         all_grasps = self._predict_and_filter_grasps(
             gripper_types=req.gripper_type,
             object_pose=object_pose_world,

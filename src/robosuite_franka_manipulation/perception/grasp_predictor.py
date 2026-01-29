@@ -110,10 +110,6 @@ class GraspPredictor:
             pcd_data = pcd_centered
             is_centered = True # We manually centered it
             
-            # We need the centroid to un-center the grasps later
-            # Inverse is just translation by +centroid
-            self._last_centroid_offset = centroid
-            
         else:
              # Use provided point cloud (assumed to be in WORLD frame)
              if len(object_pcd) == 0:
@@ -121,11 +117,9 @@ class GraspPredictor:
              
              # Preprocess: World -> Object Local -> Centered/Downsampled
              # self._preprocess_point_cloud does World -> Object Local and downsampling
-             # It assumes origin of object frame is the center? 
-             # Let's check _preprocess_point_cloud
+             # It assumes origin of object frame is the center
              pcd_data = self._preprocess_point_cloud(object_pcd, object_pose)
              is_centered = False # _preprocess_point_cloud output is in object-local frame
-             self._last_centroid_offset = np.zeros(3)
 
         # Run Prediction Core
         return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered)
@@ -169,14 +163,6 @@ class GraspPredictor:
             
             for i in range(len(grasps)):
                 grasp_mat = grasps_np[i]
-                
-                # If input was centered manually (mesh case), we need to un-center first
-                if is_centered_input:
-                    # Transform back to object-local frame
-                    # G_local = T_add_centroid @ G_centered
-                    # T_add_centroid is translation by self._last_centroid_offset
-                    T_add_centroid = tra.translation_matrix(self._last_centroid_offset)
-                    grasp_mat = T_add_centroid @ grasp_mat
                 
                 # Extract pos/quat (now in object-local frame)
                 pos = grasp_mat[:3, 3]
