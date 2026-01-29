@@ -238,6 +238,106 @@ class GraspService:
         except Exception as e:
             logger.debug("Failed to publish grasp frames: %s", e)
 
+    def _collect_grasp_candidates(self,
+                                  gripper_types: List[str],
+                                  object_pose: StampedPose,
+                                  pcd_np: Optional[np.ndarray],
+                                  mesh_path: Optional[str],
+                                  num_grasps: int) -> List[GraspSchema]:
+        """Collect raw grasp predictions from all specified gripper types."""
+        candidates = []
+        for gripper_type_simple in gripper_types:
+            full_type = constants.GRIPPER_TYPE_MAPPING.get(gripper_type_simple)
+            # Fallback if mapping fails or simple type is already full type
+            if not full_type:
+                 full_type = gripper_type_simple
+
+            if full_type not in self.grasp_predictors:
+                logger.warning(f"Predictor not loaded for {gripper_type_simple}")
+                continue
+            
+            predictor = self.grasp_predictors[full_type]
+            logger.info(f"Predicting grasps for {gripper_type_simple}...")
+            
+            grasps = predictor.predict_grasps(
+                object_pose=object_pose,
+                num_grasps=num_grasps,
+                object_pcd=pcd_np,
+                mesh_file=mesh_path
+            )
+            if grasps:
+                candidates.extend(grasps)
+        return candidates
+
+    def _is_grasp_colliding(self, 
+                            grasp: GraspSchema, 
+                            occupied_pcd_points: List[np.ndarray]) -> bool:
+        """
+        Check if a single grasp collides with the currently occupied space.
+        Returns True if colliding (invalid), False otherwise.
+        """
+        if not occupied_pcd_points:
+            return False # No collision if space is empty
+
+        g_type = grasp.gripper_type
+        if not g_type or g_type not in self.grasp_predictors:
+            return True # Treat unknown type as invalid/colliding
+        
+        predictor = self.grasp_predictors[g_type]
+        
+        # Prepare pose matrix
+        t = Transform(
+            translation=grasp.position, 
+            rotation=grasp.quaternion,
+            parent_frame=grasp.frame_id,
+            child_frame="candidate"
+        )
+        grasp_pose_mat = t.to_matrix()
+        
+        try:
+            scene_occupied = np.concatenate(occupied_pcd_points, axis=0)
+            gripper_collision_mesh = predictor.get_gripper_collision_mesh()
+            
+            # Check collision
+            valid_mask = filter_colliding_grasps(
+                scene_pc=scene_occupied,
+                grasp_poses=np.array([grasp_pose_mat]),
+                gripper_collision_mesh=gripper_collision_mesh,
+                collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
+                num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
+            )
+            # valid_mask[0] is True if VALID (no collision).
+            return not valid_mask[0] 
+        except Exception as e:
+            logger.warning(f"Collision check failed for grasp {grasp.id}: {e}")
+            return True # Fail safe
+
+    def _update_occupied_space(self, 
+                               grasp: GraspSchema, 
+                               occupied_pcd_points: List[np.ndarray]):
+        """Sample points from the grasp's gripper mesh and add to occupied space."""
+        g_type = grasp.gripper_type
+        if not g_type or g_type not in self.grasp_predictors:
+            return
+
+        predictor = self.grasp_predictors[g_type]
+        
+        t = Transform(
+            translation=grasp.position, 
+            rotation=grasp.quaternion,
+            parent_frame=grasp.frame_id,
+            child_frame="candidate"
+        )
+        grasp_pose_mat = t.to_matrix()
+
+        try:
+            gripper_collision_mesh = predictor.get_gripper_collision_mesh()
+            points, _ = trimesh.sample.sample_surface(gripper_collision_mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
+            points_transformed = tra.transform_points(points, grasp_pose_mat)
+            occupied_pcd_points.append(points_transformed)
+        except Exception as e:
+            logger.warning(f"Failed to sample occupied points for grasp {grasp.id}: {e}")
+
     def _predict_and_filter_grasps(self, 
                                    gripper_types: List[str], 
                                    object_pose: StampedPose, 
@@ -245,84 +345,39 @@ class GraspService:
                                    mesh_path: Optional[str], 
                                    num_grasps: int) -> List[GraspSchema]:
         """
-        Core logic: Predict grasps for each gripper type in sequence, 
-        filtering collisions against previous grasps.
+        Core logic: Predict grasps for all gripper types, sort by score,
+        and filter collisions against higher-scoring grasps (both inter- and intra-type).
         """
-        all_grasps_flat: List[GraspSchema] = []
+        # 1. Collect all predictions
+        all_candidates = self._collect_grasp_candidates(
+            gripper_types, object_pose, pcd_np, mesh_path, num_grasps
+        )
+
+        # 2. Sort by score (descending)
+        all_candidates.sort(key=lambda g: g.score, reverse=True)
+        
+        # 3. Filter collisions sequentially
+        final_grasps: List[GraspSchema] = []
         occupied_pcd_points: List[np.ndarray] = []
         
-        for gripper_type_simple in gripper_types:
-            full_type = constants.GRIPPER_TYPE_MAPPING[gripper_type_simple]
-            if full_type not in self.grasp_predictors:
-                logger.warning(f"Predictor not loaded for {gripper_type_simple}")
+        logger.info(f"Filtering {len(all_candidates)} total candidates for collisions...")
+
+        for grasp in all_candidates:
+            # Check explicit type validity here or rely on helpers
+            if not grasp.gripper_type or grasp.gripper_type not in self.grasp_predictors:
+                logger.warning(f"Unknown gripper type {grasp.gripper_type}, skipping.")
+                continue
+
+            # Check collision
+            if self._is_grasp_colliding(grasp, occupied_pcd_points):
                 continue
             
-            predictor = self.grasp_predictors[full_type]
-            
-            logger.info(f"Predicting grasps for {gripper_type_simple}...")
-            grasps = predictor.predict_grasps(
-                object_pose=object_pose,
-                num_grasps=num_grasps,
-                object_pcd=pcd_np,
-                mesh_file=mesh_path
-            )
-            
-            if not grasps:
-                continue
-            
-            # Prepare for collision check
-            grasp_poses_mat = []
-            for g in grasps:
-                t = Transform(
-                    translation=g.position, 
-                    rotation=g.quaternion,
-                    parent_frame=g.frame_id,
-                    child_frame="candidate"
-                )
-                grasp_poses_mat.append(t.to_matrix())
-            grasp_poses_mat = np.array(grasp_poses_mat)
-            
-            # Filter if we have occupied space
-            valid_mask = np.ones(len(grasps), dtype=bool)
-            if occupied_pcd_points:
-                try:
-                    logger.debug(f"Checking collisions for {len(grasps)} grasps for gripper {gripper_type_simple} against occupied space...")
-                    scene_occupied = np.concatenate(occupied_pcd_points, axis=0)
-                    gripper_collision_mesh = predictor.get_gripper_collision_mesh()
-                    
-                    valid_mask = filter_colliding_grasps(
-                        scene_pc=scene_occupied,
-                        grasp_poses=grasp_poses_mat,
-                        gripper_collision_mesh=gripper_collision_mesh,
-                        collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
-                        num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
-                    )
-                except Exception as e:
-                    logger.warning(f"Collision check failed for {gripper_type_simple}: {e}")
-            
-            # Collect valid grasps and update occupied space
-            valid_grasps = []
-            valid_poses_mat = []
-            
-            for i, is_valid in enumerate(valid_mask):
-                if is_valid:
-                    valid_grasps.append(grasps[i])
-                    valid_poses_mat.append(grasp_poses_mat[i])
-            
-            logger.info(f"Kept {len(valid_grasps)}/{len(grasps)} grasps for {gripper_type_simple}")
-            all_grasps_flat.extend(valid_grasps)
-            
-            if valid_grasps:
-                try:
-                    gripper_collision_mesh = predictor.get_gripper_collision_mesh()
-                    points, _ = trimesh.sample.sample_surface(gripper_collision_mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
-                    for pose_mat in valid_poses_mat:
-                        points_transformed = tra.transform_points(points, pose_mat)
-                        occupied_pcd_points.append(points_transformed)
-                except Exception as e:
-                    logger.warning(f"Failed to sample occupied points: {e}")
-                    
-        return all_grasps_flat
+            # Valid -> Add and Update
+            final_grasps.append(grasp)
+            self._update_occupied_space(grasp, occupied_pcd_points)
+
+        logger.info(f"Final valid grasps: {len(final_grasps)}/{len(all_candidates)}")
+        return final_grasps
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:
         """Unified handler for grasp prediction requests."""
