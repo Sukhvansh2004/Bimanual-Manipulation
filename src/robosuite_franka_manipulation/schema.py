@@ -2,7 +2,7 @@
 Pydantic models for data validation and JSON serialization across services.
 """
 
-from typing import List, Optional, Dict, Any, Union, Literal
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import numpy as np
 import time
@@ -60,7 +60,15 @@ class GraspRequest(BaseSchema):
     object_pose: Optional[StampedPose] = None
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
-    gripper_type: List[Literal["finger", "suction"]] = Field(default_factory=lambda: ["finger"])
+    gripper_type: List[str] = Field(..., min_length=1)
+
+    @field_validator('gripper_type')
+    @classmethod
+    def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        for g_type in v:
+            if g_type not in constants.GRIPPER_TYPES:
+                raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
+        return v
 
     @field_validator('pcd', mode='before')
     @classmethod
@@ -70,10 +78,18 @@ class GraspRequest(BaseSchema):
         return v
 
 class GraspResponse(ResponseStatus):
-    grasps: Optional[List[GraspSchema]] = None
+    grasps: Optional[List[GraspSchema]]
     num_grasps_predicted: int = 0
     pcd_size: int = 0
-    gripper_type: Optional[str] = None
+    gripper_type: List[str] = Field(..., min_length=1)
+
+    @field_validator('gripper_type')
+    @classmethod
+    def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        for g_type in v:
+            if g_type not in constants.GRIPPER_TYPES:
+                raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
+        return v
 
 # Move To Pose Service
 class MoveToPoseRequest(BaseSchema):

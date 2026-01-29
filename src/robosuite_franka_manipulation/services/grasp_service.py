@@ -352,14 +352,15 @@ class GraspService:
         )
         
         # 6. Visualize
-        self._visualize_grasps(all_grasps)
+        if self.visualize:
+            self._visualize_grasps(all_grasps)
         
         return GraspResponse(
             status='success',
             grasps=all_grasps,
             num_grasps_predicted=len(all_grasps),
             pcd_size=len(pcd_np) if pcd_np is not None else 0,
-            gripper_type="mixed" if len(req.gripper_type) > 1 else req.gripper_type[0]
+            gripper_type=req.gripper_type
         ).model_dump()
 
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
