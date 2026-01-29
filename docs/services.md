@@ -162,8 +162,8 @@ response = client.call('grasp_service', {
     'command': 'GET_GRASPS',
     'pcd': detection['pcd'],                 # Nx3 list of points
     'object_pose': detection['pose'],       # {'pos': [...], 'quat': [...]}
-    'num_grasps': 5,                         # Number of grasps to generate
-    'gripper_type': 'finger'                 # 'finger' or 'suction'
+    'num_grasps': 50,                         # Number of grasps to generate
+    'gripper_type': ['finger', 'suction']    # List of gripper types to predict for
 })
 # Response: {
 #   'status': 'success',
@@ -181,6 +181,9 @@ response = client.call('grasp_service', {
 #   ]
 # }
 ```
+
+### Grasp Filtering Logic
+The service collects predictions from all requested gripper types, sorts them globally by confidence score (descending), and performs sequential collision checking. This ensures that the highest-scoring grasps are prioritized, and subsequent grasps are filtered against both the environment and any previously accepted grasps (preventing inter- and intra-gripper collisions).
 
 ### Supported Gripper Types
 
