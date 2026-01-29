@@ -100,10 +100,11 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 # =============================================================================
 
 # Default number of grasps to predict
-DEFAULT_NUM_GRASPS = 5
+DEFAULT_NUM_GRASPS = 50
 GRASPGEN_POINTCLOUD_SIZE = 2048  # Number of points for GraspGen input
 GRIPPER_COLLISION_MESH_SAMPLES = 1000  # Number of points to sample on gripper collision mesh for occupancy checking
 MESH_SCALE = 1.0  # Default scale for object meshes
+GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
 
 # =============================================================================
 # Control and Trajectory Configuration

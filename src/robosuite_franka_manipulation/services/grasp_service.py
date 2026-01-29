@@ -294,8 +294,8 @@ class GraspService:
                         scene_pc=scene_occupied,
                         grasp_poses=grasp_poses_mat,
                         gripper_collision_mesh=gripper_collision_mesh,
-                        collision_threshold=0.005,
-                        num_collision_samples=500
+                        collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
+                        num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
                     )
                 except Exception as e:
                     logger.warning(f"Collision check failed for {gripper_type_simple}: {e}")
