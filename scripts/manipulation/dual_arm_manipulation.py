@@ -470,7 +470,7 @@ def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS)
         print(f"Grasp generation failed: {response.get('message')}")
         return []
 
-def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=5, gripper_type='suction'):
+def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=constants.DEFAULT_NUM_GRASPS, gripper_type='suction'):
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('grasp_service', {
         'command': 'GET_GRASPS',

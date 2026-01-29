@@ -92,7 +92,6 @@ class GraspPredictor:
             
         # Prepare Point Cloud
         pcd_data = None
-        is_centered = False
         
         if mesh_file:
             logger.debug(f"Loading mesh from {mesh_file}")
