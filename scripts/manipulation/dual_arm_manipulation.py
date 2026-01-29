@@ -442,7 +442,7 @@ def detect():
         return []
 
 
-def get_grasps(detection, num_grasps=5, gripper_type='finger'):
+def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS):
     """Quick helper to generate grasps for a detection."""
     pcd = detection.get('pcd', [])
     pose = detection.get('pose', {})
@@ -456,8 +456,8 @@ def get_grasps(detection, num_grasps=5, gripper_type='finger'):
         'command': 'GET_GRASPS',
         'pcd': pcd,
         'object_pose': pose,
-        'num_grasps': num_grasps,
-        'gripper_type': gripper_type  # Use simplified type: 'finger' or 'suction'
+        'gripper_type': gripper_type,
+        'num_grasps': num_grasps
     })
     
     if response.get('status') == 'success':
