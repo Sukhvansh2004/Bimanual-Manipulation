@@ -567,13 +567,12 @@ def mock_grasp_service():
 
 def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_constants):
     """
-    Test that grasps are collected, sorted by score, and filtered sequentially.
+    Test that grasps are collected, sorted by score, and filtered recursively.
+    Scenario: A1(0.9) valid, B1(0.8) collides with A1, A2(0.7) valid.
     """
     # Setup mocks
     mock_predictor_a = MagicMock()
     mock_predictor_b = MagicMock()
-    
-    # Mock collision mesh (dummy)
     mock_mesh = MagicMock()
     mock_predictor_a.get_gripper_collision_mesh.return_value = mock_mesh
     mock_predictor_b.get_gripper_collision_mesh.return_value = mock_mesh
@@ -583,14 +582,9 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
         'gripper_b': mock_predictor_b
     }
     
-    # Define grasps: 
-    # A1 (0.9) - Valid
-    # B1 (0.8) - Collides with A1
-    # A2 (0.7) - Valid (does not collide with A1)
-    
-    # Note: construct valid StampedPose args
     pose_args = {'position': [0,0,0], 'quaternion': [0,0,0,1], 'frame_id': 'world'}
     
+    # A1(1), B1(2), A2(3)
     grasp_a1 = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
     grasp_b1 = GraspSchema(**pose_args, score=0.8, id=2, gripper_type='gripper_b')
     grasp_a2 = GraspSchema(**pose_args, score=0.7, id=3, gripper_type='gripper_a')
@@ -598,86 +592,124 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
     mock_predictor_a.predict_grasps.return_value = [grasp_a1, grasp_a2]
     mock_predictor_b.predict_grasps.return_value = [grasp_b1]
     
-    # Mock filter_colliding_grasps and trimesh sampling
-    with patch('robosuite_franka_manipulation.services.grasp_service.filter_colliding_grasps') as mock_filter, \
-         patch('robosuite_franka_manipulation.services.grasp_service.trimesh.sample.sample_surface') as mock_sample, \
-         patch('robosuite_franka_manipulation.services.grasp_service.tra.transform_points') as mock_transform:
+    # Mock sampling to return points containing the ID
+    # This allows us to check "collision" by looking for specific IDs in the scene cloud
+    def sample_side_effect(grasp):
+        # Return 10 points all equal to ID
+        return np.full((10, 3), grasp.id, dtype=float)
+    
+    mock_grasp_service._sample_grasp_points = MagicMock(side_effect=sample_side_effect)
+    
+    # Mock collision filter
+    # Check if scene_pc contains ID 1 (A1). If so, B1 (ID 2) collides.
+    def filter_side_effect(scene_pc, grasp_poses, **kwargs):
+        # grasp_poses corresponds to the batch being checked.
+        # But filter_colliding_grasps signature takes arrays.
+        # We need to deduce which grasps are being checked.
+        # Since we can't easily map back from pose matrix to ID in this mock without extra work,
+        # we'll assume the batching logic works and check the 'scene_pc'.
         
-        # mock_filter return value is [bool] (list of booleans for batch)
-        # Sequence:
-        # 1. A1: First grasp, occupied is empty -> Code logic: "if occupied_pcd_points: ..." 
-        #    so filter_colliding_grasps is NOT called for A1. A1 is auto-added.
-        # 2. B1: Checked against A1. We want it to FAIL. Return [False].
-        # 3. A2: Checked against A1. We want it to PASS. Return [True].
+        # scene_pc contains points from "already accepted" (L side) grasps.
+        scene_ids = np.unique(scene_pc)
         
-        mock_filter.side_effect = [
-            [False], # B1 check
-            [True]   # A2 check
-        ]
+        # We need to return a boolean mask of length == grasp_poses.shape[0]
+        num_grasps = grasp_poses.shape[0]
+        results = []
         
-        # Mock point sampling for occupied space
-        mock_sample.return_value = (np.zeros((10, 3)), None)
-        mock_transform.return_value = np.zeros((10, 3))
+        # Heuristic: We can't know EXACTLY which grasp is which index in 'grasp_poses' 
+        # without tracking. 
+        # BUT, we know the scenario:
+        # 1. Recursive(All) -> L=[A1], R=[B1, A2]
+        # 2. Recursive(R) -> L'=[B1], R'=[A2]
+        #    Check R' vs L': A2 vs B1. (A2 valid vs B1? Yes).
+        #    Return [B1, A2].
+        # 3. Back to top. Check R (B1, A2) vs L (A1).
+        #    Batch check: [B1, A2] vs Cloud(A1).
+        #    If cloud has A1 (ID 1):
+        #       B1 (ID 2) -> Collide? YES (per test req).
+        #       A2 (ID 3) -> Collide? NO.
         
-        # Act
-        result = mock_grasp_service._predict_and_filter_grasps(
-            gripper_types=['simple_a', 'simple_b'], 
-            object_pose=StampedPose(**pose_args),
-            pcd_np=None,
-            mesh_path=None,
-            num_grasps=10
-        )
+        # Since we can't easily identify B1 vs A2 from just pose matrix in this generic mock
+        # (unless we encoded ID in pose, which we didn't), 
+        # we will mock `_filter_batch_against_obstacles` instead of the low-level `filter_colliding_grasps`.
+        # This is easier because that method receives the GraspSchema objects.
+        return [True] * num_grasps # Default fallback if used
+
+    # Mocking the internal batch filter is safer for logic verification
+    original_batch_filter = mock_grasp_service._filter_batch_against_obstacles
+    
+    def batch_filter_side_effect(candidates, obstacle_points):
+        # obstacle_points contains IDs of L-side grasps
+        if obstacle_points.size == 0:
+            return candidates
+            
+        obstacle_ids = np.unique(obstacle_points)
+        survivors = []
         
-        # Assert
-        # Expected: [A1, A2] because B1 collided
-        assert len(result) == 2
-        assert result[0].id == 1
-        assert result[1].id == 3
-        
-        # Check sorting happened (A1 > B1 > A2 input order handled by sort)
-        # Even though B1 was filtered, the sort order determines check order.
-        
-        # Verify predict calls
-        mock_predictor_a.predict_grasps.assert_called()
-        mock_predictor_b.predict_grasps.assert_called()
-        
-        # Verify filter call count
-        assert mock_filter.call_count == 2
+        for g, pts in candidates:
+            is_valid = True
+            # Logic: B1 (ID 2) collides with A1 (ID 1)
+            if 1 in obstacle_ids and g.id == 2:
+                is_valid = False
+            
+            if is_valid:
+                survivors.append((g, pts))
+        return survivors
+
+    mock_grasp_service._filter_batch_against_obstacles = MagicMock(side_effect=batch_filter_side_effect)
+
+    # Act
+    result = mock_grasp_service._predict_and_filter_grasps(
+        gripper_types=['simple_a', 'simple_b'], 
+        object_pose=StampedPose(**pose_args),
+        pcd_np=None,
+        mesh_path=None,
+        num_grasps=10
+    )
+    
+    # Assert
+    # Expected: A1 (1) kept. B1 (2) dropped. A2 (3) kept.
+    assert len(result) == 2
+    assert result[0].id == 1
+    assert result[1].id == 3
 
 def test_intra_gripper_collision(mock_grasp_service, mock_constants):
-    """Test collision checking within same gripper type."""
+    """Test collision checking within same gripper type using recursive logic."""
     mock_predictor = MagicMock()
     mock_mesh = MagicMock()
     mock_predictor.get_gripper_collision_mesh.return_value = mock_mesh
-    
     mock_grasp_service.grasp_predictors = {'gripper_a': mock_predictor}
     
     pose_args = {'position': [0,0,0], 'quaternion': [0,0,0,1], 'frame_id': 'world'}
     
-    # Two grasps same gripper, G1 > G2
     g1 = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
     g2 = GraspSchema(**pose_args, score=0.8, id=2, gripper_type='gripper_a')
     
     mock_predictor.predict_grasps.return_value = [g2, g1] # Returned unsorted
     
-    with patch('robosuite_franka_manipulation.services.grasp_service.filter_colliding_grasps') as mock_filter, \
-         patch('robosuite_franka_manipulation.services.grasp_service.trimesh.sample.sample_surface') as mock_sample, \
-         patch('robosuite_franka_manipulation.services.grasp_service.tra.transform_points') as mock_transform:
-         
-         # G1 (0.9) comes first (sorted). Occupied empty -> Auto accepted.
-         # G2 (0.8) checked against G1. Let's make it collide -> [False]
-         mock_filter.side_effect = [[False]]
-         
-         mock_sample.return_value = (np.zeros((10, 3)), None)
-         mock_transform.return_value = np.zeros((10, 3))
-         
-         result = mock_grasp_service._predict_and_filter_grasps(
-            gripper_types=['simple_a'], 
-            object_pose=StampedPose(**pose_args),
-            pcd_np=None,
-            mesh_path=None,
-            num_grasps=10
-        )
-         
-         assert len(result) == 1
-         assert result[0].id == 1 # G1 kept
+    # Mock sampling
+    mock_grasp_service._sample_grasp_points = MagicMock(side_effect=lambda g: np.full((10, 3), g.id, dtype=float))
+    
+    # Mock batch filter
+    def batch_filter_side_effect(candidates, obstacle_points):
+        obstacle_ids = np.unique(obstacle_points)
+        survivors = []
+        for g, pts in candidates:
+            # Logic: G2 (ID 2) collides with G1 (ID 1)
+            if 1 in obstacle_ids and g.id == 2:
+                continue
+            survivors.append((g, pts))
+        return survivors
+
+    mock_grasp_service._filter_batch_against_obstacles = MagicMock(side_effect=batch_filter_side_effect)
+    
+    result = mock_grasp_service._predict_and_filter_grasps(
+        gripper_types=['simple_a'], 
+        object_pose=StampedPose(**pose_args),
+        pcd_np=None,
+        mesh_path=None,
+        num_grasps=10
+    )
+    
+    assert len(result) == 1
+    assert result[0].id == 1

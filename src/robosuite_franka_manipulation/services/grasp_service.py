@@ -248,7 +248,6 @@ class GraspService:
         candidates = []
         for gripper_type_simple in gripper_types:
             full_type = constants.GRIPPER_TYPE_MAPPING.get(gripper_type_simple)
-            # Fallback if mapping fails or simple type is already full type
             if not full_type:
                  full_type = gripper_type_simple
 
@@ -269,74 +268,130 @@ class GraspService:
                 candidates.extend(grasps)
         return candidates
 
-    def _is_grasp_colliding(self, 
-                            grasp: GraspSchema, 
-                            occupied_pcd_points: List[np.ndarray]) -> bool:
-        """
-        Check if a single grasp collides with the currently occupied space.
-        Returns True if colliding (invalid), False otherwise.
-        """
-        if not occupied_pcd_points:
-            return False # No collision if space is empty
-
+    def _sample_grasp_points(self, grasp: GraspSchema) -> Optional[np.ndarray]:
+        """Generate collision points for a grasp (gripper mesh sampled points)."""
         g_type = grasp.gripper_type
         if not g_type or g_type not in self.grasp_predictors:
-            return True # Treat unknown type as invalid/colliding
-        
+            return None
         predictor = self.grasp_predictors[g_type]
-        
-        # Prepare pose matrix
-        t = Transform(
-            translation=grasp.position, 
-            rotation=grasp.quaternion,
-            parent_frame=grasp.frame_id,
-            child_frame="candidate"
-        )
-        grasp_pose_mat = t.to_matrix()
-        
         try:
-            scene_occupied = np.concatenate(occupied_pcd_points, axis=0)
-            gripper_collision_mesh = predictor.get_gripper_collision_mesh()
+            # Get mesh and sample points
+            mesh = predictor.get_gripper_collision_mesh()
+            # Note: sample_surface returns (points, face_indices)
+            points, _ = trimesh.sample.sample_surface(mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
             
-            # Check collision
-            valid_mask = filter_colliding_grasps(
-                scene_pc=scene_occupied,
-                grasp_poses=np.array([grasp_pose_mat]),
-                gripper_collision_mesh=gripper_collision_mesh,
-                collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
-                num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
+            # Transform to grasp pose
+            t = Transform(
+                translation=grasp.position, 
+                rotation=grasp.quaternion,
+                parent_frame=grasp.frame_id,
+                child_frame="candidate"
             )
-            # valid_mask[0] is True if VALID (no collision).
-            return not valid_mask[0] 
+            return tra.transform_points(points, t.to_matrix())
         except Exception as e:
-            logger.warning(f"Collision check failed for grasp {grasp.id}: {e}")
-            return True # Fail safe
+            logger.warning(f"Failed to sample points for grasp {grasp.id}: {e}")
+            return None
 
-    def _update_occupied_space(self, 
-                               grasp: GraspSchema, 
-                               occupied_pcd_points: List[np.ndarray]):
-        """Sample points from the grasp's gripper mesh and add to occupied space."""
-        g_type = grasp.gripper_type
-        if not g_type or g_type not in self.grasp_predictors:
-            return
-
-        predictor = self.grasp_predictors[g_type]
+    def _filter_batch_against_obstacles(self, 
+                                        candidates: List[Tuple[GraspSchema, np.ndarray]], 
+                                        obstacle_points: np.ndarray) -> List[Tuple[GraspSchema, np.ndarray]]:
+        """
+        Filter a batch of grasps against a set of obstacle points.
+        Handles mixed gripper types by grouping them before checking.
+        """
+        if not candidates or obstacle_points.size == 0:
+            return candidates
+            
+        survivors = []
         
-        t = Transform(
-            translation=grasp.position, 
-            rotation=grasp.quaternion,
-            parent_frame=grasp.frame_id,
-            child_frame="candidate"
-        )
-        grasp_pose_mat = t.to_matrix()
+        # Group candidates by gripper type to allow batch checking
+        by_type: Dict[str, List[Tuple[GraspSchema, np.ndarray]]] = {}
+        for item in candidates:
+            g = item[0]
+            gt = g.gripper_type or "unknown"
+            if gt not in by_type:
+                by_type[gt] = []
+            by_type[gt].append(item)
+            
+        for gt, sub_candidates in by_type.items():
+            if gt not in self.grasp_predictors:
+                logger.warning(f"Predictor not loaded for {gt}, removing the candidates.")
+                continue
+            
+            predictor = self.grasp_predictors[gt]
+            
+            # Prepare pose matrices for this batch
+            sub_poses = []
+            for g, _ in sub_candidates:
+                t = Transform(
+                    translation=g.position, 
+                    rotation=g.quaternion,
+                    parent_frame=g.frame_id,
+                    child_frame="candidate"
+                )
+                sub_poses.append(t.to_matrix())
+            
+            try:
+                mesh = predictor.get_gripper_collision_mesh()
+                
+                # Check collisions
+                valid_mask = filter_colliding_grasps(
+                    scene_pc=obstacle_points,
+                    grasp_poses=np.array(sub_poses),
+                    gripper_collision_mesh=mesh,
+                    collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
+                    num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
+                )
+                
+                # Collect valid grasps
+                for i, is_valid in enumerate(valid_mask):
+                    if is_valid:
+                        survivors.append(sub_candidates[i])
+                        
+            except Exception as e:
+                logger.warning(f"Batch collision check failed for {gt}: {e}")
+                # Drop candidates on error to be safe
+                
+        # Re-sort survivors by score to maintain order
+        survivors.sort(key=lambda item: item[0].score, reverse=True)
+        return survivors
 
-        try:
-            gripper_collision_mesh = predictor.get_gripper_collision_mesh()
-            points, _ = trimesh.sample.sample_surface(gripper_collision_mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
-            points_transformed = tra.transform_points(points, grasp_pose_mat)
-            occupied_pcd_points.append(points_transformed)
-        except Exception as e:
-            logger.warning(f"Failed to sample occupied points for grasp {grasp.id} and type {grasp.gripper_type}: {e}")
+    def _recursive_filter(self, candidates: List[Tuple[GraspSchema, np.ndarray]]) -> List[Tuple[GraspSchema, np.ndarray]]:
+        """
+        Recursively filter grasps using a divide-and-conquer strategy.
+        Splits list, filters halves, then filters the second half against the first half's occupied space.
+        """
+        # Base case
+        if len(candidates) <= 1:
+            return candidates
+            
+        mid = len(candidates) // 2
+        # Split: L (higher scores), R (lower scores)
+        L = candidates[:mid]
+        R = candidates[mid:]
+        
+        # Filter halves independently first (intra-half collisions)
+        valid_L = self._recursive_filter(L)
+        valid_R = self._recursive_filter(R)
+        
+        # Optimization: If L is empty, R doesn't need checking against L
+        if len(valid_L) == 0:
+            return valid_R
+            
+        # Construct obstacle cloud from valid_L
+        # We use the cached sampled points
+        l_clouds = [pts for _, pts in valid_L if pts is not None]
+        
+        if len(l_clouds) == 0:
+            # If L has no points (e.g. sampling failed), it doesn't block R
+            return valid_L + valid_R
+            
+        obstacle_cloud = np.concatenate(l_clouds, axis=0)
+        
+        # Filter R against L's cloud
+        surviving_R = self._filter_batch_against_obstacles(valid_R, obstacle_cloud)
+        
+        return valid_L + surviving_R
 
     def _predict_and_filter_grasps(self, 
                                    gripper_types: List[str], 
@@ -345,38 +400,37 @@ class GraspService:
                                    mesh_path: Optional[str], 
                                    num_grasps: int) -> List[GraspSchema]:
         """
-        Core logic: Predict grasps for all gripper types, sort by score,
-        and filter collisions against higher-scoring grasps (both inter- and intra-type).
+        Core logic: Predict grasps, sort by score, and filter collisions using
+        an optimized recursive batching strategy.
         """
         # 1. Collect all predictions
-        all_candidates = self._collect_grasp_candidates(
+        raw_candidates = self._collect_grasp_candidates(
             gripper_types, object_pose, pcd_np, mesh_path, num_grasps
         )
 
         # 2. Sort by score (descending)
-        all_candidates.sort(key=lambda g: g.score, reverse=True)
+        raw_candidates.sort(key=lambda g: g.score, reverse=True)
         
-        # 3. Filter collisions sequentially
-        final_grasps: List[GraspSchema] = []
-        occupied_pcd_points: List[np.ndarray] = []
+        # 3. Prepare data with sampled points (cache them)
+        logger.info(f"Processing {len(raw_candidates)} candidates for collision filtering...")
+        candidates_with_points = []
+        for g in raw_candidates:
+            pts = self._sample_grasp_points(g)
+            if pts is not None:
+                candidates_with_points.append((g, pts))
+            else:
+                # If sampling fails, we might still want to keep it if we can't check collisions?
+                # But if we can't sample, we can't check it as an obstacle either.
+                # Let's drop it to be safe (invalid geometry).
+                pass
+
+        # 4. Recursive Batch Filter
+        final_results = self._recursive_filter(candidates_with_points)
         
-        logger.info(f"Filtering {len(all_candidates)} total candidates for collisions...")
+        # 5. Extract schemas
+        final_grasps = [item[0] for item in final_results]
 
-        for grasp in all_candidates:
-            # Check explicit type validity here or rely on helpers
-            if not grasp.gripper_type or grasp.gripper_type not in self.grasp_predictors:
-                logger.warning(f"Unknown gripper type {grasp.gripper_type}, skipping.")
-                continue
-
-            # Check collision
-            if self._is_grasp_colliding(grasp, occupied_pcd_points):
-                continue
-            
-            # Valid -> Add and Update
-            final_grasps.append(grasp)
-            self._update_occupied_space(grasp, occupied_pcd_points)
-
-        logger.info(f"Final valid grasps: {len(final_grasps)}/{len(all_candidates)}")
+        logger.info(f"Final valid grasps: {len(final_grasps)}/{len(raw_candidates)}")
         return final_grasps
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:

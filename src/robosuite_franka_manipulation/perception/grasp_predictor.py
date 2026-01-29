@@ -146,11 +146,8 @@ class GraspPredictor:
         grasps, grasp_conf = GraspGenSampler.run_inference(
             pcd_tensor,
             self.sampler,
-            grasp_threshold=-1.0,
-            topk_num_grasps=num_grasps,
-            min_grasps=1,
-            max_tries=3,
-            remove_outliers=False 
+            grasp_threshold=constants.GRASPGEN_PREDICTION_THRESHOLD,
+            num_grasps=num_grasps
         )
         
         grasp_list: List[GraspSchema] = []
