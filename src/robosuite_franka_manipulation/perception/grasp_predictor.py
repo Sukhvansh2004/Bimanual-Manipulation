@@ -64,10 +64,10 @@ class GraspPredictor:
 
     def predict_grasps(self, 
                        object_pose: StampedPose, 
-                       num_grasps: int = 10, 
+                       num_grasps: int, 
                        object_pcd: Optional[np.ndarray] = None, 
                        mesh_file: Optional[str] = None,
-                       mesh_scale: float = 1.0) -> List[GraspSchema]:
+                       mesh_scale: float = constants.MESH_SCALE) -> List[GraspSchema]:
         """
         Predict grasp poses for an object using either a point cloud or a mesh file.
         
@@ -76,7 +76,7 @@ class GraspPredictor:
             num_grasps: Number of grasps to predict
             object_pcd: Point cloud of the object (optional)
             mesh_file: Path to the mesh file (optional)
-            mesh_scale: Scale factor for the mesh (default 1.0)
+            mesh_scale: Scale factor for the mesh
             
         Returns:
             List of grasp poses as GraspSchema
@@ -128,15 +128,13 @@ class GraspPredictor:
              self._last_centroid_offset = np.zeros(3)
 
         # Run Prediction Core
-        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered,
-                                         is_mesh_source=bool(mesh_file))
+        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered)
 
     def _predict_grasps_core(self, 
                              pcd_processed: np.ndarray, 
                              object_pose: StampedPose, 
                              num_grasps: int, 
-                             is_centered_input: bool,
-                             is_mesh_source: bool = False) -> List[GraspSchema]:
+                             is_centered_input: bool) -> List[GraspSchema]:
         """
         Core prediction logic.
         
@@ -146,7 +144,6 @@ class GraspPredictor:
             num_grasps: Number of grasps
             is_centered_input: True if pcd_processed is already centered (mean subtracted)
             original_pcd: Original/Local point cloud for visualization size
-            is_mesh_source: Flag if source was a mesh (affects vis coordinate frame)
         """
         # Convert to torch tensor
         pcd_tensor = torch.from_numpy(pcd_processed).float()

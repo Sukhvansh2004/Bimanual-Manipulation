@@ -314,7 +314,7 @@ class GraspService:
             if valid_grasps:
                 try:
                     gripper_collision_mesh = predictor.get_gripper_collision_mesh()
-                    points, _ = trimesh.sample.sample_surface(gripper_collision_mesh, 1000)
+                    points, _ = trimesh.sample.sample_surface(gripper_collision_mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
                     for pose_mat in valid_poses_mat:
                         points_transformed = tra.transform_points(points, pose_mat)
                         occupied_pcd_points.append(points_transformed)
