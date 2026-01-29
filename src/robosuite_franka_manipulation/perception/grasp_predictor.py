@@ -108,7 +108,6 @@ class GraspPredictor:
             pcd_centered = tra.transform_points(pcd_local, T_subtract_pc_mean)
             
             pcd_data = pcd_centered
-            is_centered = True # We manually centered it
             
         else:
              # Use provided point cloud (assumed to be in WORLD frame)
@@ -119,16 +118,14 @@ class GraspPredictor:
              # self._preprocess_point_cloud does World -> Object Local and downsampling
              # It assumes origin of object frame is the center
              pcd_data = self._preprocess_point_cloud(object_pcd, object_pose)
-             is_centered = False # _preprocess_point_cloud output is in object-local frame
 
         # Run Prediction Core
-        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered)
+        return self._predict_grasps_core(pcd_data, object_pose, num_grasps)
 
     def _predict_grasps_core(self, 
                              pcd_processed: np.ndarray, 
                              object_pose: StampedPose, 
-                             num_grasps: int, 
-                             is_centered_input: bool) -> List[GraspSchema]:
+                             num_grasps: int) -> List[GraspSchema]:
         """
         Core prediction logic.
         
