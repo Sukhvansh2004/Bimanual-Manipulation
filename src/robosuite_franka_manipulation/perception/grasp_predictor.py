@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 import meshcat
 import meshcat.geometry as g
 import trimesh.transformations as tra
+import trimesh
 
 from robosuite_franka_manipulation import constants
 
@@ -17,6 +18,7 @@ from robosuite_franka_manipulation.schema import GraspSchema
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
+from grasp_gen.robot import get_gripper_info
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -47,6 +49,18 @@ class GraspPredictor:
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
+
+    def get_gripper_collision_mesh(self) -> trimesh.Trimesh:
+        """
+        Get the collision mesh for the loaded gripper type.
+        """
+        # The gripper_type passed to init (e.g. 'franka_panda') matches the name expected by get_gripper_info
+        try:
+            info = get_gripper_info(self.gripper_type)
+            return info.collision_mesh
+        except Exception as e:
+            logger.error(f"Failed to load gripper collision mesh for {self.gripper_type}: {e}")
+            raise
 
     def predict_grasps(self, 
                        object_pose: StampedPose, 
@@ -190,7 +204,8 @@ class GraspPredictor:
                     score=float(grasp_conf[i].cpu().numpy()),
                     id=i,
                     frame_id=constants.WORLD_FRAME,
-                    pcd_size=len(pcd_processed)
+                    pcd_size=len(pcd_processed),
+                    gripper_type=self.gripper_type
                 ))
 
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")

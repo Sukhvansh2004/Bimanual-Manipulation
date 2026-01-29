@@ -2,7 +2,7 @@
 Pydantic models for data validation and JSON serialization across services.
 """
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Literal
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import numpy as np
 import time
@@ -34,8 +34,8 @@ class GraspSchema(StampedPose):
     score: float
     id: int
     pcd_size: int = 0
-    # prediction_timestamp is covered by StampedPose.timestamp
-
+    gripper_type: Optional[str] = None
+    
 # --- Service Request/Response Models ---
 
 class ResponseStatus(BaseSchema):
@@ -60,7 +60,7 @@ class GraspRequest(BaseSchema):
     object_pose: Optional[StampedPose] = None
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
-    gripper_type: str = "finger"
+    gripper_type: List[Literal["finger", "suction"]] = Field(default_factory=lambda: ["finger"])
 
     @field_validator('pcd', mode='before')
     @classmethod
