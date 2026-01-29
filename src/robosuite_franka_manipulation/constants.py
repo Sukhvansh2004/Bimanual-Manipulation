@@ -43,9 +43,6 @@ GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
 # Gripper Configuration
 # =============================================================================
 
-# Default gripper type
-DEFAULT_GRIPPER_TYPE = 'franka_panda'
-
 # Gripper action mappings
 GRIPPER_TYPE_MAPPING = {
     'finger': 'franka_panda',

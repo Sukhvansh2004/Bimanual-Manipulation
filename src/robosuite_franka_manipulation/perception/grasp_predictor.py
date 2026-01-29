@@ -29,7 +29,7 @@ class GraspPredictor:
     """
     def __init__(
         self,
-        gripper_type: str = constants.DEFAULT_GRIPPER_TYPE,
+        gripper_type: str,
         model_path: str = "",
         debug: bool = False,
         visualize: bool = False,
