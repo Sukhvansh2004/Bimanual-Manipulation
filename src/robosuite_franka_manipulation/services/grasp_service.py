@@ -6,7 +6,7 @@ Grasp Service - Grasp prediction service for segmented point clouds.
 import zmq
 import numpy as np
 import threading
-from typing import Dict, Any, Optional, cast, List, Tuple, Union
+from typing import Dict, Any, Optional, cast, List, Tuple
 import logging
 import trimesh
 import trimesh.transformations as tra
