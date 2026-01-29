@@ -336,7 +336,7 @@ class GraspService:
             points_transformed = tra.transform_points(points, grasp_pose_mat)
             occupied_pcd_points.append(points_transformed)
         except Exception as e:
-            logger.warning(f"Failed to sample occupied points for grasp {grasp.id}: {e}")
+            logger.warning(f"Failed to sample occupied points for grasp {grasp.id} and type {grasp.gripper_type}: {e}")
 
     def _predict_and_filter_grasps(self, 
                                    gripper_types: List[str], 
