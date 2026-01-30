@@ -95,5 +95,4 @@ class GraspGenerator:
             return []
 
     def __del__(self):
-        if hasattr(self, 'service_client'):
-            self.service_client.close()
+        self.service_client.close()
