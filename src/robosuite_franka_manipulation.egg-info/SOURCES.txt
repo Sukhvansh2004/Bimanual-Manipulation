@@ -41,10 +41,9 @@ src/robosuite_franka_manipulation/utils/se3.py
 src/robosuite_franka_manipulation/utils/suction_weld.py
 tests/test_arm_controllers.py
 tests/test_environments.py
-tests/test_grasp_offset.py
+tests/test_fastsam_detection.py
 tests/test_grasps.py
 tests/test_move_to_pose_service.py
-tests/test_perception.py
 tests/test_services.py
 tests/test_trajectory_planning.py
 tests/test_transforms.py

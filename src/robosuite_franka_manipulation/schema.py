@@ -32,10 +32,10 @@ class DetectionSchema(BaseSchema):
 class GraspSchema(StampedPose):
     """Schema for a predicted grasp."""
     score: float
-    id: int
+    id: Union[int, str]
     pcd_size: int = 0
-    # prediction_timestamp is covered by StampedPose.timestamp
-
+    gripper_type: Optional[str] = None
+    
 # --- Service Request/Response Models ---
 
 class ResponseStatus(BaseSchema):
@@ -60,7 +60,17 @@ class GraspRequest(BaseSchema):
     object_pose: Optional[StampedPose] = None
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
-    gripper_type: str = "finger"
+    filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING
+    visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH
+    gripper_type: List[str] = Field(..., min_length=1)
+
+    @field_validator('gripper_type')
+    @classmethod
+    def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        for g_type in v:
+            if g_type not in constants.GRIPPER_TYPES:
+                raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
+        return v
 
     @field_validator('pcd', mode='before')
     @classmethod
@@ -70,10 +80,18 @@ class GraspRequest(BaseSchema):
         return v
 
 class GraspResponse(ResponseStatus):
-    grasps: Optional[List[GraspSchema]] = None
+    grasps: Optional[List[GraspSchema]]
     num_grasps_predicted: int = 0
     pcd_size: int = 0
-    gripper_type: Optional[str] = None
+    gripper_type: List[str] = Field(..., min_length=1)
+
+    @field_validator('gripper_type')
+    @classmethod
+    def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        for g_type in v:
+            if g_type not in constants.GRIPPER_TYPES:
+                raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
+        return v
 
 # Move To Pose Service
 class MoveToPoseRequest(BaseSchema):

@@ -6,8 +6,10 @@ Grasp Service - Grasp prediction service for segmented point clouds.
 import zmq
 import numpy as np
 import threading
-from typing import Dict, Any, Optional, cast
+from typing import Dict, Any, Optional, cast, List, Tuple
 import logging
+import trimesh
+import trimesh.transformations as tra
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
@@ -17,7 +19,9 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import StampedPose, Transform, TransformManager
 from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 from robosuite_franka_manipulation.utils.env_utils import resolve_mesh_path
-from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, ResponseStatus
+from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, ResponseStatus, GraspSchema
+
+from grasp_gen.utils.point_cloud_utils import filter_colliding_grasps
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -44,21 +48,13 @@ class GraspService:
                  visualize: bool = False):
         """
         Initialize Grasp Service.
-
-        Args:
-            host: Service host address
-            port: Service port
-            manager_host: Service manager host
-            manager_port: Service manager port
-            debug: Enable debug logging
-            visualize: Enable grasp visualization
         """
         self.host = host
         self.port = port
         self.debug = debug
         self.visualize = visualize
 
-        # Optional shared TF manager (preferred). If not provided, create one when env is available.
+        # Optional shared TF manager
         self.tf_manager: Optional[TransformManager] = tf_manager
         if self.tf_manager is None and env is not None:
             try:
@@ -69,7 +65,7 @@ class GraspService:
         # Service state
         self.running = False
 
-        # Initialize grasp predictors for different gripper types
+        # Initialize grasp predictors
         self.grasp_predictors: Dict[str, GraspPredictor] = {}
         gripper_types = constants.GRIPPER_TYPE_MAPPING.values()
         
@@ -85,7 +81,7 @@ class GraspService:
         # Threading
         self.server_thread: Optional[threading.Thread] = None
 
-        # ZMQ setup for service
+        # ZMQ setup
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
 
@@ -102,22 +98,14 @@ class GraspService:
         return validate_point_cloud(pcd, max_range=constants.MAX_POINTCLOUD_RANGE)
 
     def _query_fastsam_service(self) -> Optional[Dict[str, Any]]:
-        """
-        Query the FastSAM service for the latest detections via service manager.
-        
-        Returns:
-            FastSAM response dictionary or None if failed
-        """
+        """Query the FastSAM service for the latest detections."""
         try:
-            # Query FastSAM service through service manager
             response = self.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
-            
             if response.get('status') == 'success':
                 return response
             else:
                 logger.warning(f"FastSAM service error: {response.get('message', 'Unknown error')}")
                 return None
-                
         except Exception as e:
             logger.error(f"Failed to query FastSAM service: {e}")
             return None
@@ -125,22 +113,17 @@ class GraspService:
     def _server_loop(self) -> None:
         """ZMQ server loop for handling client requests."""
         logger.info(f"Starting ZMQ server on tcp://{self.host}:{self.port}")
-
         try:
             self.socket.bind(f"tcp://{self.host}:{self.port}")
-
             while self.running:
                 try:
-                    # Wait for request with timeout
                     if self.socket.poll(timeout=constants.ZMQ_POLL_TIMEOUT):
                         message = cast(Dict[str, Any], self.socket.recv_json())
                         response = self._handle_request(message)
                         self.socket.send_json(response)
-
                 except zmq.ZMQError as e:
-                    if self.running:  # Only log if we're still supposed to be running
+                    if self.running:
                         logger.error(f"ZMQ error: {e}")
-
         except Exception as e:
             logger.error(f"Server loop error: {e}")
         finally:
@@ -148,35 +131,13 @@ class GraspService:
                 self.socket.close(linger=0)
             except Exception:
                 pass
-
         logger.info("Server loop stopped")
 
-    def _get_grasps(self, req: GraspRequest) -> GraspResponse:
+    def _resolve_input_data(self, req: GraspRequest) -> Tuple[Optional[np.ndarray], Optional[StampedPose], Optional[str], Optional[str]]:
         """
-        Unified handler for grasp prediction requests.
-        Handles both point cloud input and mesh/object name input.
+        Resolve input data from request or FastSAM service.
+        Returns: (pcd_np, object_pose_stamped, object_id, mesh_path)
         """
-        simplified_type = req.gripper_type
-        num_grasps = req.num_grasps
-        
-        # Validate simplified gripper type
-        if simplified_type not in constants.GRIPPER_TYPE_MAPPING:
-            return ResponseStatus(
-                status='error', 
-                message=f'Invalid gripper type: {simplified_type}. Use amongst {constants.GRIPPER_TYPES}'
-            ).model_dump()
-        
-        # Map simplified type to full gripper type for predictor lookup
-        full_gripper_type = constants.GRIPPER_TYPE_MAPPING[simplified_type]
-        
-        # Check if gripper type predictor is loaded
-        if full_gripper_type not in self.grasp_predictors:
-            return ResponseStatus(
-                status='error',
-                message=f'Grasp predictor for {simplified_type} gripper not loaded'
-            ).model_dump()
-        
-        # Check available inputs
         pcd_data = req.pcd
         object_pose_stamped = req.object_pose
         object_name = req.object_name
@@ -184,152 +145,381 @@ class GraspService:
         object_id: Optional[str] = object_name
         mesh_path: Optional[str] = None
         
-        # Scenario 1: Object Name provided (try to find mesh)
         if object_name:
             mesh_path = resolve_mesh_path(object_name)
             if not mesh_path:
                 logger.error(f"Could not resolve mesh for object {object_name}.")
-                return ResponseStatus(
-                    status='error',
-                    message=f'Could not resolve mesh for object {object_name}'
-                ).model_dump()
-
-        # Scenario 2: No inputs, query FastSAM
+                # Return partial data, caller handles missing mesh_path if strictly needed
+        
         elif pcd_data is None or object_pose_stamped is None:
-            logger.info("No pcd/pose/mesh provided, querying FastSAM service for pcd and object pose.")
+            logger.info("No pcd/pose/mesh provided, querying FastSAM service.")
             fastsam_data = self._query_fastsam_service()
             if fastsam_data and 'detections' in fastsam_data and len(fastsam_data['detections']) > 0:
-                # Use the first detection
                 detection = fastsam_data['detections'][0]
                 object_id = str(detection.get('id', detection.get('name', '0')))
                 pcd_data = detection.get('pcd', [])
-                
-                # Parse pose from detection
                 pose_dict = detection.get('pose', {})
                 try:
                     object_pose_stamped = StampedPose(**pose_dict)
                 except Exception as e:
                     logger.error(f"Failed to parse pose from FastSAM detection: {e}")
-                
                 logger.info(f"Using detection from FastSAM: {len(pcd_data)} points")
-            else:
-                logger.error("FastSAM service returned no detections")
-                return ResponseStatus(
-                    status='error',
-                    message='No pcd/pose provided and FastSAM service returned no detections'
-                ).model_dump()
-            
-        # Scenario 3: PCD and Pose provided directly - use as is
-        else:
-            logger.info("Using provided point cloud and object pose for grasp prediction. Ensure the pcd is in world frame for attaining valid grasps.") 
-
-        if not object_pose_stamped:
-            return ResponseStatus(status='error', message='No object pose available').model_dump()
-
-        # Enforce World Frame
-        if object_pose_stamped.frame_id != constants.WORLD_FRAME:
-            if self.tf_manager:
-                try:
-                    # Transform pose to world frame
-                    object_pose_stamped = self.tf_manager.transform_pose(
-                        object_pose_stamped, 
-                        constants.WORLD_FRAME
-                    )
-                except Exception as e:
-                    return ResponseStatus(
-                        status='error', 
-                        message=f'Failed to transform pose to world frame: {e}'
-                    ).model_dump()
-            else:
-                return ResponseStatus(
-                    status='error', 
-                    message=f'Object pose is in {object_pose_stamped.frame_id}, but needs to be in {constants.WORLD_FRAME} and no TransformManager is available.'
-                ).model_dump()
-
-        # Parse Point Cloud (if available and needed)
+        
         pcd_np = None
         if pcd_data:
             try:
                 pcd_np = np.array(pcd_data, dtype=np.float32)
                 if not self._validate_point_cloud(pcd_np):
-                     logger.warning("Invalid point cloud provided")
-                     pcd_np = None # Fallback or fail?
+                    logger.warning("Invalid point cloud provided")
+                    # Should we invalidate pcd_np? keeping for now but logging
             except Exception as e:
                 logger.warning(f"Error parsing point cloud: {e}")
+                
+        return pcd_np, object_pose_stamped, object_id, mesh_path
 
-        if pcd_np is None and mesh_path is None:
-             return ResponseStatus(status='error', message='No valid point cloud or mesh available').model_dump()
+    def _transform_pose_to_world(self, pose: StampedPose) -> Optional[StampedPose]:
+        """Transform pose to world frame if needed."""
+        if pose.frame_id == constants.WORLD_FRAME:
+            return pose
+        
+        if self.tf_manager:
+            try:
+                return self.tf_manager.transform_pose(pose, constants.WORLD_FRAME)
+            except Exception as e:
+                logger.error(f"Failed to transform pose: {e}")
+                return None
+        return None
 
-        # Update TF Manager
-        if self.tf_manager is not None:
+    def _update_tf_manager(self, object_id: Optional[str], pose: StampedPose):
+        """Update object frame in TF manager."""
+        if self.tf_manager:
             try:
                 if object_id:
-                    self.tf_manager.update_object_frame(object_id=object_id, pose=object_pose_stamped)
-
+                    self.tf_manager.update_object_frame(object_id=object_id, pose=pose)
+                
                 self.tf_manager.add_static_transform(
                     Transform(
-                        translation=object_pose_stamped.position,
-                        rotation=object_pose_stamped.quaternion,
-                        parent_frame=object_pose_stamped.frame_id,
+                        translation=pose.position,
+                        rotation=pose.quaternion,
+                        parent_frame=pose.frame_id,
                         child_frame="object_local",
                         is_static=False,
                     )
                 )
             except Exception as e:
-                logger.debug("Failed to register object frames in TF manager: %s", e)
+                logger.debug("Failed to update TF: %s", e)
 
-        # Predict Grasps
+    def _clear_visualization(self):
+        """Clear previous grasp frames and gripper meshes."""
+        if self.tf_manager:
+            try:
+                known_frames = self.tf_manager.get_known_frames()
+                for frame in known_frames:
+                    if frame.startswith("grasp_"):
+                        self.tf_manager.remove_frame(frame)
+            except Exception as e:
+                logger.debug("Failed to clear grasp frames: %s", e)
+        
+        # Clear gripper meshes
+        for predictor in self.grasp_predictors.values():
+            try:
+                predictor.clear_visualizations()
+            except Exception as e:
+                logger.debug("Failed to clear gripper visualization: %s", e)
+
+    def _visualize_grasps(self, grasps: List[GraspSchema]):
+        """Publish grasp poses to TF manager for visualization."""
+        if not self.tf_manager:
+            return
+
         try:
-            predictor = self.grasp_predictors[full_gripper_type]
+            # We need to track indices per gripper type to generate unique names
+            # assuming grasps come in a list, we can just use global index or type-based
+            type_counters: Dict[str, int] = {}
+            
+            for grasp in grasps:
+                g_type = grasp.gripper_type or "unknown"
+                if g_type not in type_counters:
+                    type_counters[g_type] = 0
+                idx = type_counters[g_type]
+                type_counters[g_type] += 1
+                
+                self.tf_manager.add_static_transform(
+                    Transform(
+                        translation=np.asarray(grasp.position, dtype=np.float64),
+                        rotation=np.asarray(grasp.quaternion, dtype=np.float64),
+                        parent_frame=constants.WORLD_FRAME,
+                        child_frame=f"grasp_{g_type}_{idx}",
+                        is_static=False,
+                    )
+                )
+        except Exception as e:
+            logger.debug("Failed to publish grasp frames: %s", e)
+
+    def _sample_grasp_points(self, grasp: GraspSchema) -> Optional[np.ndarray]:
+        """Generate collision points for a grasp (gripper mesh sampled points)."""
+        g_type = grasp.gripper_type
+        if not g_type or g_type not in self.grasp_predictors:
+            return None
+        predictor = self.grasp_predictors[g_type]
+        try:
+            # Get mesh and sample points
+            mesh = predictor.get_gripper_collision_mesh()
+            # Note: sample_surface returns (points, face_indices)
+            points, _ = trimesh.sample.sample_surface(mesh, constants.GRIPPER_COLLISION_MESH_SAMPLES)
+            
+            # Transform to grasp pose
+            t = Transform(
+                translation=grasp.position, 
+                rotation=grasp.quaternion,
+                parent_frame=grasp.frame_id,
+                child_frame="candidate"
+            )
+            return tra.transform_points(points, t.to_matrix())
+        except Exception as e:
+            logger.warning(f"Failed to sample points for grasp {grasp.id}: {e}")
+            return None
+
+    def _filter_batch_against_obstacles(self, 
+                                        candidates: List[Tuple[GraspSchema, np.ndarray]], 
+                                        obstacle_points: np.ndarray) -> List[Tuple[GraspSchema, np.ndarray]]:
+        """
+        Filter a batch of grasps against a set of obstacle points.
+        Handles mixed gripper types by grouping them before checking.
+        """
+        if not candidates or obstacle_points.size == 0:
+            return candidates
+            
+        survivors = []
+        
+        # Group candidates by gripper type to allow batch checking
+        by_type: Dict[str, List[Tuple[GraspSchema, np.ndarray]]] = {}
+        for item in candidates:
+            g = item[0]
+            gt = g.gripper_type or "unknown"
+            if gt not in by_type:
+                by_type[gt] = []
+            by_type[gt].append(item)
+            
+        for gt, sub_candidates in by_type.items():
+            if gt not in self.grasp_predictors:
+                logger.warning(f"Predictor not loaded for {gt}, removing the candidates.")
+                continue
+            
+            predictor = self.grasp_predictors[gt]
+            
+            # Prepare pose matrices for this batch
+            sub_poses = []
+            for g, _ in sub_candidates:
+                t = Transform(
+                    translation=g.position, 
+                    rotation=g.quaternion,
+                    parent_frame=g.frame_id,
+                    child_frame="candidate"
+                )
+                sub_poses.append(t.to_matrix())
+            
+            try:
+                mesh = predictor.get_gripper_collision_mesh()
+                
+                # Check collisions
+                valid_mask = filter_colliding_grasps(
+                    scene_pc=obstacle_points,
+                    grasp_poses=np.array(sub_poses),
+                    gripper_collision_mesh=mesh,
+                    collision_threshold=constants.GRIPPER_COLLISION_THRESHOLD,
+                    num_collision_samples=constants.GRIPPER_COLLISION_MESH_SAMPLES
+                )
+                
+                # Collect valid grasps
+                for i, is_valid in enumerate(valid_mask):
+                    if is_valid:
+                        survivors.append(sub_candidates[i])
+                        
+            except Exception as e:
+                logger.warning(f"Batch collision check failed for {gt}: {e}")
+                # Drop candidates on error to be safe
+                
+        # Re-sort survivors by score to maintain order
+        survivors.sort(key=lambda item: item[0].score, reverse=True)
+        return survivors
+
+    def _recursive_filter(self, candidates: List[Tuple[GraspSchema, np.ndarray]]) -> List[Tuple[GraspSchema, np.ndarray]]:
+        """
+        Recursively filter grasps using a divide-and-conquer strategy.
+        Splits list, filters halves, then filters the second half against the first half's occupied space.
+        """
+        # Base case
+        if len(candidates) <= 1:
+            return candidates
+            
+        mid = len(candidates) // 2
+        # Split: L (higher scores), R (lower scores)
+        L = candidates[:mid]
+        R = candidates[mid:]
+        
+        # Filter halves independently first (intra-half collisions)
+        valid_L = self._recursive_filter(L)
+        valid_R = self._recursive_filter(R)
+        
+        # Optimization: If L is empty, R doesn't need checking against L
+        if len(valid_L) == 0:
+            return valid_R
+            
+        # Construct obstacle cloud from valid_L
+        # We use the cached sampled points
+        l_clouds = [pts for _, pts in valid_L if pts is not None]
+        
+        if len(l_clouds) == 0:
+            # If L has no points (e.g. sampling failed), it doesn't block R
+            return valid_L + valid_R
+            
+        obstacle_cloud = np.concatenate(l_clouds, axis=0)
+        
+        # Filter R against L's cloud
+        surviving_R = self._filter_batch_against_obstacles(valid_R, obstacle_cloud)
+        
+        return valid_L + surviving_R
+
+    def _predict_and_filter_grasps(self, 
+                                   gripper_types: List[str], 
+                                   object_pose: StampedPose, 
+                                   pcd_np: Optional[np.ndarray], 
+                                   mesh_path: Optional[str], 
+                                   num_grasps: int,
+                                   filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING,
+                                   visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
+        """
+        Predict grasps sequentially for each requested gripper type.
+        Prioritizes the order in `gripper_types` list.
+        Filters against previously accepted grasps (inter-type) and self (intra-type).
+        """
+        final_grasps: List[GraspSchema] = []
+        occupied_pcd_points: List[np.ndarray] = []
+        
+        for i, gripper_type_simple in enumerate(gripper_types):
+            full_type = constants.GRIPPER_TYPE_MAPPING.get(gripper_type_simple)
+            if not full_type:
+                 full_type = gripper_type_simple
+
+            if full_type not in self.grasp_predictors:
+                logger.warning(f"Predictor not loaded for {gripper_type_simple}")
+                continue
+            
+            predictor = self.grasp_predictors[full_type]
+            logger.info(f"Predicting grasps for {gripper_type_simple} (Index {i})...")
+            
+            # Predict
             grasps = predictor.predict_grasps(
-                object_pose=object_pose_stamped,
+                object_pose=object_pose,
                 num_grasps=num_grasps,
                 object_pcd=pcd_np,
                 mesh_file=mesh_path
             )
+            
+            if not grasps:
+                continue
 
-            # Publish grasp poses as TF frames
-            if self.tf_manager is not None:
-                try:
-                    for i, grasp in enumerate(grasps):
-                        pos = grasp.position
-                        quat = grasp.quaternion
-                        if pos is None or quat is None:
-                            continue
-                        self.tf_manager.add_static_transform(
-                            Transform(
-                                translation=np.asarray(pos, dtype=np.float64),
-                                rotation=np.asarray(quat, dtype=np.float64),
-                                parent_frame=constants.WORLD_FRAME,
-                                child_frame=f"grasp_{i}",
-                                is_static=False,
-                            )
-                        )
-                except Exception as e:
-                    logger.debug("Failed to publish grasp frames to TF manager: %s", e)
+            # Sort by score (descending) within this batch
+            grasps.sort(key=lambda g: g.score, reverse=True)
 
-            return GraspResponse(
-                status='success',
-                grasps=grasps,
-                num_grasps_predicted=len(grasps),
-                pcd_size=len(pcd_np) if pcd_np is not None else 0,
-                gripper_type=simplified_type
-            ).model_dump()
+            # Assign unique IDs: "listIndex_graspIndex"
+            for j, g in enumerate(grasps):
+                g.id = f"{i}_{j}"
+            
+            # Prepare candidates with points
+            candidates_with_points = []
+            for g in grasps:
+                pts = self._sample_grasp_points(g)
+                if pts is not None:
+                    candidates_with_points.append((g, pts))
+            
+            if not candidates_with_points:
+                continue
 
-        except Exception as e:
-            logger.error(f"Grasp prediction failed: {e}")
-            return ResponseStatus(status='error', message=str(e)).model_dump()
+            valid_candidates = candidates_with_points
+
+            # 1. Filter against PREVIOUSLY occupied space (Inter-Gripper / Inter-Batch)
+            if occupied_pcd_points:
+                logger.debug(f"Doing inter-gripper for gripper {gripper_type_simple} #{i} filtering against existing occupied space.")
+                scene_obstacle = np.concatenate(occupied_pcd_points, axis=0)
+                valid_candidates = self._filter_batch_against_obstacles(valid_candidates, scene_obstacle)
+                logger.debug(f"After inter-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+            
+            # 2. Filter internally (Intra-Gripper) using recursive logic
+            if filter_intra_collision:
+                logger.debug(f"Doing intra-gripper filtering for gripper {gripper_type_simple} #{i}.")
+                valid_candidates = self._recursive_filter(valid_candidates)
+                logger.debug(f"After intra-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+
+            # Add to final list and update occupied space
+            for g, pts in valid_candidates:
+                if g.gripper_type in self.grasp_predictors:
+                    predictor_for_offset = self.grasp_predictors[g.gripper_type]
+                    
+                    if self.visualize and visualize_gripper_mesh:
+                        logger.debug(f"Visualizing gripper mesh for grasp {g.id}")
+                        predictor_for_offset.visualize_gripper(g, name_suffix=str(g.id))
+
+                    offset_pose = predictor_for_offset.apply_gripper_offset(g)
+                    g.position = offset_pose.position
+                    g.quaternion = offset_pose.quaternion
+
+                final_grasps.append(g)
+                occupied_pcd_points.append(pts)
+                
+            logger.info(f"Kept {len(valid_candidates)}/{len(grasps)} grasps for {gripper_type_simple} #{i}")
+
+        return final_grasps
+
+    def _get_grasps(self, req: GraspRequest) -> GraspResponse:
+        """Unified handler for grasp prediction requests."""
+        if self.visualize:
+            self._clear_visualization()
+
+        # 1. Resolve Input Data
+        pcd_np, object_pose_stamped, object_id, mesh_path = self._resolve_input_data(req)
         
+        if pcd_np is None and mesh_path is None:
+            return ResponseStatus(status='error', message='No valid point cloud or mesh available').model_dump()
+        
+        if not object_pose_stamped:
+            return ResponseStatus(status='error', message='No object pose available').model_dump()
+            
+        # 2. Transform Pose to World
+        object_pose_world = self._transform_pose_to_world(object_pose_stamped)
+        if not object_pose_world:
+             return ResponseStatus(status='error', message='Failed to transform pose to world frame').model_dump()
+             
+        # 3. Update TF Manager
+        self._update_tf_manager(object_id, object_pose_world)
+        
+        # 4. Predict and Filter
+        logger.debug(f"Predicting grasps with gripper types: {req.gripper_type}")
+        all_grasps = self._predict_and_filter_grasps(
+            gripper_types=req.gripper_type,
+            object_pose=object_pose_world,
+            pcd_np=pcd_np,
+            mesh_path=mesh_path,
+            num_grasps=req.num_grasps,
+            filter_intra_collision=req.filter_intra_collision,
+            visualize_gripper_mesh=req.visualize_gripper_mesh
+        )
+        
+        # 6. Visualize
+        if self.visualize:
+            self._visualize_grasps(all_grasps)
+        
+        return GraspResponse(
+            status='success',
+            grasps=all_grasps,
+            num_grasps_predicted=len(all_grasps),
+            pcd_size=len(pcd_np) if pcd_np is not None else 0,
+            gripper_type=req.gripper_type
+        ).model_dump()
+
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle incoming ZMQ requests.
-
-        Args:
-            request: Request dictionary
-
-        Returns:
-            Response dictionary
-        """
+        """Handle incoming ZMQ requests."""
         try:
             req = GraspRequest(**request)
         except Exception as e:
@@ -354,7 +544,6 @@ class GraspService:
         logger.info("Starting Grasp Service...")
         self.running = True
 
-        # Register with service manager
         response = self.service_client.register(
             name="grasp_service",
             host=self.host,
@@ -368,12 +557,8 @@ class GraspService:
             self.running = False
             return
         
-        logger.info("Registered with service manager")
-
-        # Start server thread
         self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
         self.server_thread.start()
-
         logger.info("Grasp Service started successfully")
 
     def stop(self) -> None:
@@ -384,11 +569,9 @@ class GraspService:
         logger.info("Stopping Grasp Service...")
         self.running = False
 
-        # Wait for server thread to finish
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=2.0)
 
-        # Close ZMQ
         if self.socket:
             try:
                 self.socket.close(linger=0)
@@ -399,7 +582,6 @@ class GraspService:
                 self.context.term()
             except Exception:
                 pass
-
         logger.info("Grasp Service stopped")
 
     def __del__(self) -> None:

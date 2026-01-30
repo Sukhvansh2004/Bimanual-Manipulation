@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 import meshcat
 import meshcat.geometry as g
 import trimesh.transformations as tra
+import trimesh
 
 from robosuite_franka_manipulation import constants
 
@@ -17,6 +18,7 @@ from robosuite_franka_manipulation.schema import GraspSchema
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
 from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
+from grasp_gen.robot import get_gripper_info
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ class GraspPredictor:
     """
     def __init__(
         self,
-        gripper_type: str = constants.DEFAULT_GRIPPER_TYPE,
+        gripper_type: str,
         model_path: str = "",
         debug: bool = False,
         visualize: bool = False,
@@ -48,12 +50,24 @@ class GraspPredictor:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
+    def get_gripper_collision_mesh(self) -> trimesh.Trimesh:
+        """
+        Get the collision mesh for the loaded gripper type.
+        """
+        # The gripper_type passed to init (e.g. 'franka_panda') matches the name expected by get_gripper_info
+        try:
+            info = get_gripper_info(self.gripper_type)
+            return info.collision_mesh
+        except Exception as e:
+            logger.error(f"Failed to load gripper collision mesh for {self.gripper_type}: {e}")
+            raise
+
     def predict_grasps(self, 
                        object_pose: StampedPose, 
-                       num_grasps: int = 10, 
+                       num_grasps: int, 
                        object_pcd: Optional[np.ndarray] = None, 
                        mesh_file: Optional[str] = None,
-                       mesh_scale: float = 1.0) -> List[GraspSchema]:
+                       mesh_scale: float = constants.MESH_SCALE) -> List[GraspSchema]:
         """
         Predict grasp poses for an object using either a point cloud or a mesh file.
         
@@ -62,7 +76,7 @@ class GraspPredictor:
             num_grasps: Number of grasps to predict
             object_pcd: Point cloud of the object (optional)
             mesh_file: Path to the mesh file (optional)
-            mesh_scale: Scale factor for the mesh (default 1.0)
+            mesh_scale: Scale factor for the mesh
             
         Returns:
             List of grasp poses as GraspSchema
@@ -78,7 +92,6 @@ class GraspPredictor:
             
         # Prepare Point Cloud
         pcd_data = None
-        is_centered = False
         
         if mesh_file:
             logger.debug(f"Loading mesh from {mesh_file}")
@@ -94,11 +107,6 @@ class GraspPredictor:
             pcd_centered = tra.transform_points(pcd_local, T_subtract_pc_mean)
             
             pcd_data = pcd_centered
-            is_centered = True # We manually centered it
-            
-            # We need the centroid to un-center the grasps later
-            # Inverse is just translation by +centroid
-            self._last_centroid_offset = centroid
             
         else:
              # Use provided point cloud (assumed to be in WORLD frame)
@@ -107,22 +115,16 @@ class GraspPredictor:
              
              # Preprocess: World -> Object Local -> Centered/Downsampled
              # self._preprocess_point_cloud does World -> Object Local and downsampling
-             # It assumes origin of object frame is the center? 
-             # Let's check _preprocess_point_cloud
+             # It assumes origin of object frame is the center
              pcd_data = self._preprocess_point_cloud(object_pcd, object_pose)
-             is_centered = False # _preprocess_point_cloud output is in object-local frame
-             self._last_centroid_offset = np.zeros(3)
 
         # Run Prediction Core
-        return self._predict_grasps_core(pcd_data, object_pose, num_grasps, is_centered,
-                                         is_mesh_source=bool(mesh_file))
+        return self._predict_grasps_core(pcd_data, object_pose, num_grasps)
 
     def _predict_grasps_core(self, 
                              pcd_processed: np.ndarray, 
                              object_pose: StampedPose, 
-                             num_grasps: int, 
-                             is_centered_input: bool,
-                             is_mesh_source: bool = False) -> List[GraspSchema]:
+                             num_grasps: int) -> List[GraspSchema]:
         """
         Core prediction logic.
         
@@ -132,7 +134,6 @@ class GraspPredictor:
             num_grasps: Number of grasps
             is_centered_input: True if pcd_processed is already centered (mean subtracted)
             original_pcd: Original/Local point cloud for visualization size
-            is_mesh_source: Flag if source was a mesh (affects vis coordinate frame)
         """
         # Convert to torch tensor
         pcd_tensor = torch.from_numpy(pcd_processed).float()
@@ -145,11 +146,8 @@ class GraspPredictor:
         grasps, grasp_conf = GraspGenSampler.run_inference(
             pcd_tensor,
             self.sampler,
-            grasp_threshold=-1.0,
-            topk_num_grasps=num_grasps,
-            min_grasps=1,
-            max_tries=3,
-            remove_outliers=False 
+            grasp_threshold=constants.GRASPGEN_PREDICTION_THRESHOLD,
+            num_grasps=num_grasps
         )
         
         grasp_list: List[GraspSchema] = []
@@ -158,14 +156,6 @@ class GraspPredictor:
             
             for i in range(len(grasps)):
                 grasp_mat = grasps_np[i]
-                
-                # If input was centered manually (mesh case), we need to un-center first
-                if is_centered_input:
-                    # Transform back to object-local frame
-                    # G_local = T_add_centroid @ G_centered
-                    # T_add_centroid is translation by self._last_centroid_offset
-                    T_add_centroid = tra.translation_matrix(self._last_centroid_offset)
-                    grasp_mat = T_add_centroid @ grasp_mat
                 
                 # Extract pos/quat (now in object-local frame)
                 pos = grasp_mat[:3, 3]
@@ -181,16 +171,14 @@ class GraspPredictor:
                 # Transform to world frame
                 world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
                 
-                # Apply gripper offset
-                world_grasp = self._apply_gripper_offset(world_grasp)
-                
                 grasp_list.append(GraspSchema(
                     pos=world_grasp.position.tolist(),
                     quat=world_grasp.quaternion.tolist(),
                     score=float(grasp_conf[i].cpu().numpy()),
                     id=i,
                     frame_id=constants.WORLD_FRAME,
-                    pcd_size=len(pcd_processed)
+                    pcd_size=len(pcd_processed),
+                    gripper_type=self.gripper_type
                 ))
 
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")
@@ -232,7 +220,7 @@ class GraspPredictor:
         # Apply transform to get grasp in world frame
         return object_to_world.apply_to_pose(grasp_local)
     
-    def _apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
+    def apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
         """
         Apply gripper-specific offset transform to a grasp pose.
         
@@ -282,6 +270,60 @@ class GraspPredictor:
             quaternion=world_to_true.rotation,
             frame_id=grasp_pose.frame_id
         )
+
+    def visualize_gripper(self, grasp_pose: StampedPose, name_suffix: str = "") -> None:
+        """
+        Visualize the gripper collision mesh at the given pose.
+        
+        Args:
+            grasp_pose: Pose to place the gripper mesh
+            name_suffix: Unique suffix for the meshcat path
+        """
+        if not self.visualize:
+            return
+
+        if self._meshcat_vis is None:
+            self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+            
+        vis = self._meshcat_vis
+        # Use a separate path for gripper visualizations
+        path = f"perception/predicted_grippers/{self.gripper_type}/{name_suffix}"
+        
+        try:
+            mesh = self.get_gripper_collision_mesh()
+            # Convert trimesh to meshcat geometry
+            # We can use the utility or convert manually. 
+            # Simple manual conversion:
+            vertices = mesh.vertices
+            faces = mesh.faces
+            geom = g.TriangularMeshGeometry(vertices=vertices, faces=faces)
+            
+            # Simple material (transparent red?)
+            material = g.MeshPhongMaterial(color=0xFF0000, opacity=0.5, transparent=True)
+            
+            vis[path].set_object(geom, material)
+            
+            # Set transform
+            T = Transform(
+                translation=grasp_pose.position,
+                rotation=grasp_pose.quaternion,
+                parent_frame=grasp_pose.frame_id,
+                child_frame=f"gripper_{name_suffix}_mesh"
+            ).to_matrix()
+            vis[path].set_transform(T)
+            
+        except Exception as e:
+            logger.warning(f"Failed to visualize gripper mesh: {e}")
+
+    def clear_visualizations(self) -> None:
+        """Clear visualized gripper meshes from MeshCat."""
+        if self._meshcat_vis is None:
+            return
+        
+        try:
+            self._meshcat_vis["perception/predicted_grippers"].delete()
+        except Exception:
+            pass
 
     def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """

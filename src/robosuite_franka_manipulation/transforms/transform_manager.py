@@ -330,6 +330,26 @@ class TransformManager:
         self._known_frames.add(transform.child_frame)
         
         logger.debug(f"Added static transform: {transform.parent_frame} -> {transform.child_frame}")
+
+    def remove_frame(self, frame_id: str) -> None:
+        """
+        Remove a frame and its associated static transform.
+        Note: This does not remove children of the frame.
+        """
+        if frame_id not in self._known_frames:
+            return
+
+        # Remove from _frame_parents
+        parent = self._frame_parents.pop(frame_id, None)
+        
+        # Remove from _static_transforms
+        if parent:
+            key = (parent, frame_id)
+            self._static_transforms.pop(key, None)
+            
+        # Remove from _known_frames
+        self._known_frames.discard(frame_id)
+        logger.debug(f"Removed frame: {frame_id}")
     
     def add_object_frame(self, object_id: str, pose: StampedPose, 
                         parent_frame: Optional[str] = None) -> str:
