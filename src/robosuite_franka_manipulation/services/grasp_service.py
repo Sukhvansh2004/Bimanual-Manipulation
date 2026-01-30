@@ -209,6 +209,24 @@ class GraspService:
             except Exception as e:
                 logger.debug("Failed to update TF: %s", e)
 
+    def _clear_visualization(self):
+        """Clear previous grasp frames and gripper meshes."""
+        if self.tf_manager:
+            try:
+                known_frames = self.tf_manager.get_known_frames()
+                for frame in known_frames:
+                    if frame.startswith("grasp_"):
+                        self.tf_manager.remove_frame(frame)
+            except Exception as e:
+                logger.debug("Failed to clear grasp frames: %s", e)
+        
+        # Clear gripper meshes
+        for predictor in self.grasp_predictors.values():
+            try:
+                predictor.clear_visualizations()
+            except Exception as e:
+                logger.debug("Failed to clear gripper visualization: %s", e)
+
     def _visualize_grasps(self, grasps: List[GraspSchema]):
         """Publish grasp poses to TF manager for visualization."""
         if not self.tf_manager:
@@ -456,6 +474,9 @@ class GraspService:
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:
         """Unified handler for grasp prediction requests."""
+        if self.visualize:
+            self._clear_visualization()
+
         # 1. Resolve Input Data
         pcd_np, object_pose_stamped, object_id, mesh_path = self._resolve_input_data(req)
         

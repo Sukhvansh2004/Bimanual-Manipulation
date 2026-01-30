@@ -315,6 +315,16 @@ class GraspPredictor:
         except Exception as e:
             logger.warning(f"Failed to visualize gripper mesh: {e}")
 
+    def clear_visualizations(self) -> None:
+        """Clear visualized gripper meshes from MeshCat."""
+        if self._meshcat_vis is None:
+            return
+        
+        try:
+            self._meshcat_vis["perception/predicted_grippers"].delete()
+        except Exception:
+            pass
+
     def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """
         Visualize the object point cloud and predicted grasps.

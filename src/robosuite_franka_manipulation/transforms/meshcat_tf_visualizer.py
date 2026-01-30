@@ -195,6 +195,7 @@ def stream_transforms_to_meshcat(
     drawn: set[str] = set()
     drawn_labels: set[str] = set()
     configured_visibility: set[str] = set()
+    drawn_frame_ids: set[str] = set()
 
     def _ensure_visibility(frame_id: str, configured: set[str]) -> None:
         if frame_id in configured:
@@ -208,10 +209,12 @@ def stream_transforms_to_meshcat(
         
         configured.add(frame_id)
 
+    # Initial population
     for frame_id in tfm.get_known_frames():
         _ensure_frame_drawn(frame_id, drawn)
         _ensure_label_drawn(frame_id, drawn_labels)
         _ensure_visibility(frame_id, configured_visibility)
+        drawn_frame_ids.add(frame_id)
 
     dt = 1.0 / max(float(config.fps), 1e-6)
     logger.info("Streaming TF frames to MeshCat. Ctrl+C to stop.")
@@ -240,12 +243,31 @@ def stream_transforms_to_meshcat(
                 except Exception:
                     pass
 
-            for frame_id in tfm.get_known_frames():
+            current_frames = set(tfm.get_known_frames())
+            
+            # Handle removed frames
+            removed_frames = drawn_frame_ids - current_frames
+            for frame_id in removed_frames:
+                try:
+                    # Delete from MeshCat
+                    vis[_frame_path(frame_id)].delete()
+                    
+                    # Update tracking sets
+                    drawn.discard(_axes_path(frame_id))
+                    drawn_labels.discard(_label_path(frame_id))
+                    configured_visibility.discard(frame_id)
+                    drawn_frame_ids.remove(frame_id)
+                except Exception:
+                    pass
+
+            # Handle new/existing frames
+            for frame_id in current_frames:
                 _ensure_frame_drawn(frame_id, drawn)
                 _ensure_label_drawn(frame_id, drawn_labels)
                 _ensure_visibility(frame_id, configured_visibility)
+                drawn_frame_ids.add(frame_id)
 
-            for frame_id in tfm.get_known_frames():
+            for frame_id in current_frames:
                 try:
                     pose_w = tfm.get_frame_pose(frame_id, reference_frame="world")
                     T = pose_w.to_matrix().astype(float)
