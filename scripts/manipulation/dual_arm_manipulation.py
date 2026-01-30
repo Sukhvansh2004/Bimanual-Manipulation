@@ -476,7 +476,7 @@ def get_grasps_mesh(
         num_grasps=constants.DEFAULT_NUM_GRASPS, 
         gripper_type='suction', 
         intra_gripper_collision_check=False,
-        visualize_gripper_mesh=False
+        visualize_gripper_mesh=True
         ):
     """Quick helper to generate grasps given an object pose."""
     
