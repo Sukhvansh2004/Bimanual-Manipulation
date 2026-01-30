@@ -567,8 +567,10 @@ def mock_grasp_service():
 
 def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_constants):
     """
-    Test that grasps are collected, sorted by score, and filtered recursively.
-    Scenario: A1(0.9) valid, B1(0.8) collides with A1, A2(0.7) valid.
+    Test that grasps are collected, sorted by score, and filtered sequentially.
+    Scenario: A1(0.9) valid, A2(0.7) valid. B1(0.8) collides with A1.
+    Service processes A first (index 0), then B (index 1).
+    A1 -> ID "0_0". A2 -> ID "0_1". B1 -> ID "1_0".
     """
     # Setup mocks
     mock_predictor_a = MagicMock()
@@ -584,72 +586,40 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
     
     pose_args = {'position': [0,0,0], 'quaternion': [0,0,0,1], 'frame_id': 'world'}
     
-    # A1(1), B1(2), A2(3)
+    # A1, B1, A2
+    # Note: IDs provided here will be overwritten by service
     grasp_a1 = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
     grasp_b1 = GraspSchema(**pose_args, score=0.8, id=2, gripper_type='gripper_b')
     grasp_a2 = GraspSchema(**pose_args, score=0.7, id=3, gripper_type='gripper_a')
     
+    # Predictors return lists. Service sorts them by score.
+    # A returns [A1, A2] (already sorted or not, service will sort)
     mock_predictor_a.predict_grasps.return_value = [grasp_a1, grasp_a2]
     mock_predictor_b.predict_grasps.return_value = [grasp_b1]
     
-    # Mock sampling to return points containing the ID
-    # This allows us to check "collision" by looking for specific IDs in the scene cloud
+    # Mock sampling to return points based on SCORE (since ID is overwritten)
+    # Return 10 points: [score, 0, 0]
     def sample_side_effect(grasp):
-        # Return 10 points all equal to ID
-        return np.full((10, 3), grasp.id, dtype=float)
+        return np.full((10, 3), [grasp.score, 0, 0], dtype=float)
     
     mock_grasp_service._sample_grasp_points = MagicMock(side_effect=sample_side_effect)
     
-    # Mock collision filter
-    # Check if scene_pc contains ID 1 (A1). If so, B1 (ID 2) collides.
-    def filter_side_effect(scene_pc, grasp_poses, **kwargs):
-        # grasp_poses corresponds to the batch being checked.
-        # But filter_colliding_grasps signature takes arrays.
-        # We need to deduce which grasps are being checked.
-        # Since we can't easily map back from pose matrix to ID in this mock without extra work,
-        # we'll assume the batching logic works and check the 'scene_pc'.
-        
-        # scene_pc contains points from "already accepted" (L side) grasps.
-        scene_ids = np.unique(scene_pc)
-        
-        # We need to return a boolean mask of length == grasp_poses.shape[0]
-        num_grasps = grasp_poses.shape[0]
-        results = []
-        
-        # Heuristic: We can't know EXACTLY which grasp is which index in 'grasp_poses' 
-        # without tracking. 
-        # BUT, we know the scenario:
-        # 1. Recursive(All) -> L=[A1], R=[B1, A2]
-        # 2. Recursive(R) -> L'=[B1], R'=[A2]
-        #    Check R' vs L': A2 vs B1. (A2 valid vs B1? Yes).
-        #    Return [B1, A2].
-        # 3. Back to top. Check R (B1, A2) vs L (A1).
-        #    Batch check: [B1, A2] vs Cloud(A1).
-        #    If cloud has A1 (ID 1):
-        #       B1 (ID 2) -> Collide? YES (per test req).
-        #       A2 (ID 3) -> Collide? NO.
-        
-        # Since we can't easily identify B1 vs A2 from just pose matrix in this generic mock
-        # (unless we encoded ID in pose, which we didn't), 
-        # we will mock `_filter_batch_against_obstacles` instead of the low-level `filter_colliding_grasps`.
-        # This is easier because that method receives the GraspSchema objects.
-        return [True] * num_grasps # Default fallback if used
-
-    # Mocking the internal batch filter is safer for logic verification
-    original_batch_filter = mock_grasp_service._filter_batch_against_obstacles
-    
+    # Mock collision filter logic
+    # obstacle_points contains points from previously accepted grasps.
+    # We detect collision if obstacle contains points with score 0.9 (A1) and we are checking 0.8 (B1).
     def batch_filter_side_effect(candidates, obstacle_points):
-        # obstacle_points contains IDs of L-side grasps
         if obstacle_points.size == 0:
             return candidates
             
-        obstacle_ids = np.unique(obstacle_points)
-        survivors = []
+        # Extract scores from obstacle points (first column)
+        obstacle_scores = np.unique(obstacle_points[:, 0])
         
+        survivors = []
         for g, pts in candidates:
             is_valid = True
-            # Logic: B1 (ID 2) collides with A1 (ID 1)
-            if 1 in obstacle_ids and g.id == 2:
+            # Logic: B1 (score 0.8) collides if A1 (score 0.9) is in obstacles
+            # Floating point comparison warning: use close approximation or simple check
+            if any(np.isclose(obstacle_scores, 0.9)) and np.isclose(g.score, 0.8):
                 is_valid = False
             
             if is_valid:
@@ -659,6 +629,7 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
     mock_grasp_service._filter_batch_against_obstacles = MagicMock(side_effect=batch_filter_side_effect)
 
     # Act
+    # gripper_types order matters: A then B
     result = mock_grasp_service._predict_and_filter_grasps(
         gripper_types=['simple_a', 'simple_b'], 
         object_pose=StampedPose(**pose_args),
@@ -668,10 +639,15 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
     )
     
     # Assert
-    # Expected: A1 (1) kept. B1 (2) dropped. A2 (3) kept.
+    # A1 (0.9) and A2 (0.7) should be kept. B1 (0.8) rejected.
     assert len(result) == 2
-    assert result[0].id == 1
-    assert result[1].id == 3
+    # Verify IDs are updated correctly "typeIdx_graspIdx"
+    # A1 was first in A list -> "0_0"
+    # A2 was second in A list -> "0_1"
+    assert result[0].id == "0_0"
+    assert result[0].score == 0.9
+    assert result[1].id == "0_1"
+    assert result[1].score == 0.7
 
 def test_intra_gripper_collision(mock_grasp_service, mock_constants):
     """Test collision checking within same gripper type using recursive logic."""
@@ -682,24 +658,21 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
     
     pose_args = {'position': [0,0,0], 'quaternion': [0,0,0,1], 'frame_id': 'world'}
     
-    g1 = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
-    g2 = GraspSchema(**pose_args, score=0.8, id=2, gripper_type='gripper_a')
+    g_high = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
+    g_low = GraspSchema(**pose_args, score=0.8, id=2, gripper_type='gripper_a')
     
-    mock_predictor.predict_grasps.return_value = [g2, g1] # Returned unsorted
+    # Predictor returns SORTED [high, low] to ensure ID assignment is deterministic "0_0", "0_1"
+    mock_predictor.predict_grasps.return_value = [g_high, g_low]
     
-    # Mock sampling
-    mock_grasp_service._sample_grasp_points = MagicMock(side_effect=lambda g: np.full((10, 3), g.id, dtype=float))
+    # Mock sampling (return valid points)
+    mock_grasp_service._sample_grasp_points = MagicMock(side_effect=lambda g: np.ones((10, 3)))
     
-    # Mock batch filter
+    # Mock batch filter: If obstacles exist, assume collision (drop everything).
     def batch_filter_side_effect(candidates, obstacle_points):
-        obstacle_ids = np.unique(obstacle_points)
-        survivors = []
-        for g, pts in candidates:
-            # Logic: G2 (ID 2) collides with G1 (ID 1)
-            if 1 in obstacle_ids and g.id == 2:
-                continue
-            survivors.append((g, pts))
-        return survivors
+        print(f"DEBUG: Checking {len(candidates)} candidates against {obstacle_points.size} obstacle points")
+        if obstacle_points.size > 0:
+            return []
+        return candidates
 
     mock_grasp_service._filter_batch_against_obstacles = MagicMock(side_effect=batch_filter_side_effect)
     
@@ -708,8 +681,11 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
         object_pose=StampedPose(**pose_args),
         pcd_np=None,
         mesh_path=None,
-        num_grasps=10
+        num_grasps=10,
+        filter_intra_collision=True
     )
     
+    # g_high (0.9) should survive. g_low (0.8) should be filtered.
     assert len(result) == 1
-    assert result[0].id == 1
+    assert result[0].score == 0.9
+    assert result[0].id == "0_0"

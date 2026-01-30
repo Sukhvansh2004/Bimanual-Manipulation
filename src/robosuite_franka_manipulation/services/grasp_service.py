@@ -238,36 +238,6 @@ class GraspService:
         except Exception as e:
             logger.debug("Failed to publish grasp frames: %s", e)
 
-    def _collect_grasp_candidates(self,
-                                  gripper_types: List[str],
-                                  object_pose: StampedPose,
-                                  pcd_np: Optional[np.ndarray],
-                                  mesh_path: Optional[str],
-                                  num_grasps: int) -> List[GraspSchema]:
-        """Collect raw grasp predictions from all specified gripper types."""
-        candidates = []
-        for gripper_type_simple in gripper_types:
-            full_type = constants.GRIPPER_TYPE_MAPPING.get(gripper_type_simple)
-            if not full_type:
-                 full_type = gripper_type_simple
-
-            if full_type not in self.grasp_predictors:
-                logger.warning(f"Predictor not loaded for {gripper_type_simple}")
-                continue
-            
-            predictor = self.grasp_predictors[full_type]
-            logger.info(f"Predicting grasps for {gripper_type_simple}...")
-            
-            grasps = predictor.predict_grasps(
-                object_pose=object_pose,
-                num_grasps=num_grasps,
-                object_pcd=pcd_np,
-                mesh_file=mesh_path
-            )
-            if grasps:
-                candidates.extend(grasps)
-        return candidates
-
     def _sample_grasp_points(self, grasp: GraspSchema) -> Optional[np.ndarray]:
         """Generate collision points for a grasp (gripper mesh sampled points)."""
         g_type = grasp.gripper_type
@@ -398,39 +368,78 @@ class GraspService:
                                    object_pose: StampedPose, 
                                    pcd_np: Optional[np.ndarray], 
                                    mesh_path: Optional[str], 
-                                   num_grasps: int) -> List[GraspSchema]:
+                                   num_grasps: int,
+                                   filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING) -> List[GraspSchema]:
         """
-        Core logic: Predict grasps, sort by score, and filter collisions using
-        an optimized recursive batching strategy.
+        Predict grasps sequentially for each requested gripper type.
+        Prioritizes the order in `gripper_types` list.
+        Filters against previously accepted grasps (inter-type) and self (intra-type).
         """
-        # 1. Collect all predictions
-        raw_candidates = self._collect_grasp_candidates(
-            gripper_types, object_pose, pcd_np, mesh_path, num_grasps
-        )
-
-        # 2. Sort by score (descending)
-        raw_candidates.sort(key=lambda g: g.score, reverse=True)
+        final_grasps: List[GraspSchema] = []
+        occupied_pcd_points: List[np.ndarray] = []
         
-        # 3. Prepare data with sampled points (cache them)
-        logger.info(f"Processing {len(raw_candidates)} candidates for collision filtering...")
-        candidates_with_points = []
-        for g in raw_candidates:
-            pts = self._sample_grasp_points(g)
-            if pts is not None:
-                candidates_with_points.append((g, pts))
-            else:
-                # If sampling fails, we might still want to keep it if we can't check collisions?
-                # But if we can't sample, we can't check it as an obstacle either.
-                # Let's drop it to be safe (invalid geometry).
-                pass
+        for i, gripper_type_simple in enumerate(gripper_types):
+            full_type = constants.GRIPPER_TYPE_MAPPING.get(gripper_type_simple)
+            if not full_type:
+                 full_type = gripper_type_simple
 
-        # 4. Recursive Batch Filter
-        final_results = self._recursive_filter(candidates_with_points)
-        
-        # 5. Extract schemas
-        final_grasps = [item[0] for item in final_results]
+            if full_type not in self.grasp_predictors:
+                logger.warning(f"Predictor not loaded for {gripper_type_simple}")
+                continue
+            
+            predictor = self.grasp_predictors[full_type]
+            logger.info(f"Predicting grasps for {gripper_type_simple} (Index {i})...")
+            
+            # Predict
+            grasps = predictor.predict_grasps(
+                object_pose=object_pose,
+                num_grasps=num_grasps,
+                object_pcd=pcd_np,
+                mesh_file=mesh_path
+            )
+            
+            if not grasps:
+                continue
 
-        logger.info(f"Final valid grasps: {len(final_grasps)}/{len(raw_candidates)}")
+            # Assign unique IDs: "listIndex_graspIndex"
+            for j, g in enumerate(grasps):
+                g.id = f"{i}_{j}"
+            
+            # Sort by score (descending) within this batch
+            grasps.sort(key=lambda g: g.score, reverse=True)
+            
+            # Prepare candidates with points
+            candidates_with_points = []
+            for g in grasps:
+                pts = self._sample_grasp_points(g)
+                if pts is not None:
+                    candidates_with_points.append((g, pts))
+            
+            if not candidates_with_points:
+                continue
+
+            valid_candidates = candidates_with_points
+
+            # 1. Filter against PREVIOUSLY occupied space (Inter-Gripper / Inter-Batch)
+            if occupied_pcd_points:
+                logger.debug(f"Doing inter-gripper for gripper {gripper_type_simple} #{i} filtering against existing occupied space.")
+                scene_obstacle = np.concatenate(occupied_pcd_points, axis=0)
+                valid_candidates = self._filter_batch_against_obstacles(valid_candidates, scene_obstacle)
+                logger.debug(f"After inter-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+            
+            # 2. Filter internally (Intra-Gripper) using recursive logic
+            if filter_intra_collision:
+                logger.debug(f"Doing intra-gripper filtering for gripper {gripper_type_simple} #{i}.")
+                valid_candidates = self._recursive_filter(valid_candidates)
+                logger.debug(f"After intra-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+
+            # Add to final list and update occupied space
+            for g, pts in valid_candidates:
+                final_grasps.append(g)
+                occupied_pcd_points.append(pts)
+                
+            logger.info(f"Kept {len(valid_candidates)}/{len(grasps)} grasps for {gripper_type_simple} #{i}")
+
         return final_grasps
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:
@@ -459,7 +468,8 @@ class GraspService:
             object_pose=object_pose_world,
             pcd_np=pcd_np,
             mesh_path=mesh_path,
-            num_grasps=req.num_grasps
+            num_grasps=req.num_grasps,
+            filter_intra_collision=req.filter_intra_collision
         )
         
         # 6. Visualize

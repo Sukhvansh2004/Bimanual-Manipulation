@@ -162,8 +162,9 @@ response = client.call('grasp_service', {
     'command': 'GET_GRASPS',
     'pcd': detection['pcd'],                 # Nx3 list of points
     'object_pose': detection['pose'],       # {'pos': [...], 'quat': [...]}
-    'num_grasps': 50,                         # Number of grasps to generate
-    'gripper_type': ['finger', 'suction']    # List of gripper types to predict for
+    'num_grasps': 50,                         # Number of grasps to sample per gripper
+    'gripper_type': ['finger', 'suction'],   # List of gripper types to predict for
+    'filter_intra_collision': True           # Enable/disable intra-gripper collision checks (recursive filtering)
 })
 # Response: {
 #   'status': 'success',

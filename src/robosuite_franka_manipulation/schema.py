@@ -32,7 +32,7 @@ class DetectionSchema(BaseSchema):
 class GraspSchema(StampedPose):
     """Schema for a predicted grasp."""
     score: float
-    id: int
+    id: Union[int, str]
     pcd_size: int = 0
     gripper_type: Optional[str] = None
     
@@ -60,6 +60,7 @@ class GraspRequest(BaseSchema):
     object_pose: Optional[StampedPose] = None
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
+    filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING
     gripper_type: List[str] = Field(..., min_length=1)
 
     @field_validator('gripper_type')
