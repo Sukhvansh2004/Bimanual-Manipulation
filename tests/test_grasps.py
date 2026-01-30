@@ -474,7 +474,7 @@ class TestGraspOffset:
             frame_id="world"
         )
         
-        offset_grasp = predictor._apply_gripper_offset(grasp_pose)
+        offset_grasp = predictor.apply_gripper_offset(grasp_pose)
         
         # Position should be unchanged
         np.testing.assert_array_almost_equal(offset_grasp.position, [1.0, 2.0, 3.0])
@@ -504,7 +504,7 @@ class TestGraspOffset:
             frame_id="world"
         )
         
-        offset_grasp_1 = predictor._apply_gripper_offset(grasp_pose_identity)
+        offset_grasp_1 = predictor.apply_gripper_offset(grasp_pose_identity)
         # Expected: [1, 1, 1+0.1]
         np.testing.assert_array_almost_equal(offset_grasp_1.position, [1.0, 1.0, 1.1])
         
@@ -518,7 +518,7 @@ class TestGraspOffset:
             frame_id="world"
         )
         
-        offset_grasp_2 = predictor._apply_gripper_offset(grasp_pose_rotated)
+        offset_grasp_2 = predictor.apply_gripper_offset(grasp_pose_rotated)
         
         # Expected: [1, 1-0.1, 1] because World Y -> Grasp Z is [0, 1, 0] -> [0, 0, 1]?
         # Let's trace:
@@ -597,6 +597,11 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
     mock_predictor_a.predict_grasps.return_value = [grasp_a1, grasp_a2]
     mock_predictor_b.predict_grasps.return_value = [grasp_b1]
     
+    # Mock apply_gripper_offset to return the input grasp (identity)
+    # This ensures return value has valid .position/.quaternion for Pydantic
+    mock_predictor_a.apply_gripper_offset.side_effect = lambda g: g
+    mock_predictor_b.apply_gripper_offset.side_effect = lambda g: g
+    
     # Mock sampling to return points based on SCORE (since ID is overwritten)
     # Return 10 points: [score, 0, 0]
     def sample_side_effect(grasp):
@@ -663,6 +668,9 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
     
     # Predictor returns SORTED [high, low] to ensure ID assignment is deterministic "0_0", "0_1"
     mock_predictor.predict_grasps.return_value = [g_high, g_low]
+    
+    # Mock apply_gripper_offset
+    mock_predictor.apply_gripper_offset.side_effect = lambda g: g
     
     # Mock sampling (return valid points)
     mock_grasp_service._sample_grasp_points = MagicMock(side_effect=lambda g: np.ones((10, 3)))

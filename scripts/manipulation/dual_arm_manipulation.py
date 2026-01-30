@@ -470,7 +470,16 @@ def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS)
         print(f"Grasp generation failed: {response.get('message')}")
         return []
 
-def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=constants.DEFAULT_NUM_GRASPS, gripper_type='suction', intra_gripper_collision_check=False):
+def get_grasps_mesh(
+        pose: StampedPose, 
+        object_name: str, 
+        num_grasps=constants.DEFAULT_NUM_GRASPS, 
+        gripper_type='suction', 
+        intra_gripper_collision_check=False,
+        visualize_gripper_mesh=False
+        ):
+    """Quick helper to generate grasps given an object pose."""
+    
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('grasp_service', {
         'command': 'GET_GRASPS',
@@ -478,7 +487,8 @@ def get_grasps_mesh(pose: StampedPose, object_name: str, num_grasps=constants.DE
         'object_name': object_name,
         'num_grasps': num_grasps,
         'gripper_type': gripper_type,  # Use simplified type: 'finger' or 'suction'
-        'filter_intra_collision': intra_gripper_collision_check
+        'filter_intra_collision': intra_gripper_collision_check,
+        'visualize_gripper_mesh': visualize_gripper_mesh
     })
     
     if response.get('status') == 'success':

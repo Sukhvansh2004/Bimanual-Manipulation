@@ -369,7 +369,8 @@ class GraspService:
                                    pcd_np: Optional[np.ndarray], 
                                    mesh_path: Optional[str], 
                                    num_grasps: int,
-                                   filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING) -> List[GraspSchema]:
+                                   filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING,
+                                   visualize_gripper_mesh: bool = constants.VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
         """
         Predict grasps sequentially for each requested gripper type.
         Prioritizes the order in `gripper_types` list.
@@ -401,12 +402,12 @@ class GraspService:
             if not grasps:
                 continue
 
+            # Sort by score (descending) within this batch
+            grasps.sort(key=lambda g: g.score, reverse=True)
+
             # Assign unique IDs: "listIndex_graspIndex"
             for j, g in enumerate(grasps):
                 g.id = f"{i}_{j}"
-            
-            # Sort by score (descending) within this batch
-            grasps.sort(key=lambda g: g.score, reverse=True)
             
             # Prepare candidates with points
             candidates_with_points = []
@@ -435,6 +436,17 @@ class GraspService:
 
             # Add to final list and update occupied space
             for g, pts in valid_candidates:
+                if g.gripper_type in self.grasp_predictors:
+                    predictor_for_offset = self.grasp_predictors[g.gripper_type]
+                    
+                    if self.visualize and visualize_gripper_mesh:
+                        logger.debug(f"Visualizing gripper mesh for grasp {g.id}")
+                        predictor_for_offset.visualize_gripper(g, name_suffix=str(g.id))
+
+                    offset_pose = predictor_for_offset.apply_gripper_offset(g)
+                    g.position = offset_pose.position
+                    g.quaternion = offset_pose.quaternion
+
                 final_grasps.append(g)
                 occupied_pcd_points.append(pts)
                 
@@ -469,7 +481,8 @@ class GraspService:
             pcd_np=pcd_np,
             mesh_path=mesh_path,
             num_grasps=req.num_grasps,
-            filter_intra_collision=req.filter_intra_collision
+            filter_intra_collision=req.filter_intra_collision,
+            visualize_gripper_mesh=req.visualize_gripper_mesh
         )
         
         # 6. Visualize

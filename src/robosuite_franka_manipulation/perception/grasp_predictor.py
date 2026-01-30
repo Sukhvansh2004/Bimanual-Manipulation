@@ -171,9 +171,6 @@ class GraspPredictor:
                 # Transform to world frame
                 world_grasp = self._transform_grasp_to_world(grasp_local, object_pose)
                 
-                # Apply gripper offset
-                world_grasp = self._apply_gripper_offset(world_grasp)
-                
                 grasp_list.append(GraspSchema(
                     pos=world_grasp.position.tolist(),
                     quat=world_grasp.quaternion.tolist(),
@@ -223,7 +220,7 @@ class GraspPredictor:
         # Apply transform to get grasp in world frame
         return object_to_world.apply_to_pose(grasp_local)
     
-    def _apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
+    def apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
         """
         Apply gripper-specific offset transform to a grasp pose.
         
@@ -273,6 +270,49 @@ class GraspPredictor:
             quaternion=world_to_true.rotation,
             frame_id=grasp_pose.frame_id
         )
+
+    def visualize_gripper(self, grasp_pose: StampedPose, name_suffix: str = "") -> None:
+        """
+        Visualize the gripper collision mesh at the given pose.
+        
+        Args:
+            grasp_pose: Pose to place the gripper mesh
+            name_suffix: Unique suffix for the meshcat path
+        """
+        if not self.visualize:
+            return
+
+        if self._meshcat_vis is None:
+            self._meshcat_vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+            
+        vis = self._meshcat_vis
+        # Use a separate path for gripper visualizations
+        path = f"perception/predicted_grippers/{self.gripper_type}_{name_suffix}"
+        
+        try:
+            mesh = self.get_gripper_collision_mesh()
+            # Convert trimesh to meshcat geometry
+            # We can use the utility or convert manually. 
+            # Simple manual conversion:
+            vertices = mesh.vertices.T
+            faces = mesh.faces.T
+            geom = g.TriangularMeshGeometry(vertices=vertices, faces=faces)
+            
+            # Simple material (transparent red?)
+            material = g.MeshPhongMaterial(color=0xFF0000, opacity=0.5, transparent=True)
+            
+            vis[path].set_object(geom, material)
+            
+            # Set transform
+            T = Transform(
+                translation=grasp_pose.position,
+                rotation=grasp_pose.quaternion,
+                parent_frame=grasp_pose.frame_id
+            ).to_matrix()
+            vis[path].set_transform(T)
+            
+        except Exception as e:
+            logger.warning(f"Failed to visualize gripper mesh: {e}")
 
     def _visualize_pcd(self, pcd: np.ndarray) -> None:
         """
