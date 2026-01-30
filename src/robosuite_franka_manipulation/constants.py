@@ -110,6 +110,15 @@ GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using 
 DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
 
 # =============================================================================
+# Planning Configuration
+# =============================================================================
+
+DEFAULT_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
+DEFAULT_FEASIBILITY_MAX_PAIRS = 1  # Max pairs to check for dual-arm feasibility (1 = just need existence)
+DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
+DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
+
+# =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
 

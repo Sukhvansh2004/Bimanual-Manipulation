@@ -35,6 +35,15 @@ class DualArmFeasibilityResult:
 	feasible: bool
 
 
+def _get_native_mj_object(obj):
+    """Helper to unwrap Robosuite MjModel/MjData wrappers to native MuJoCo objects."""
+    if hasattr(obj, '_data'):
+        return obj._data
+    if hasattr(obj, '_model'):
+        return obj._model
+    return obj
+
+
 def _as_stamped_pose(pose: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike], frame_id: str) -> StampedPose:
 	"""Normalize pose input into a StampedPose.
 
@@ -64,7 +73,7 @@ def _as_stamped_pose(pose: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike],
 	return StampedPose(position=arr[:3], quaternion=arr[3:], frame_id=frame_id)
 
 
-def _get_arm_joint_ids(model, robot_id: int) -> List[int]:
+def get_arm_joint_ids(model, robot_id: int) -> List[int]:
 	prefix = f"robot{robot_id}_joint"
 	joint_ids = [j for j in range(model.njnt) if (model.joint(j).name or "").startswith(prefix)]
 	# Ensure ordering joint1..joint7
@@ -72,7 +81,7 @@ def _get_arm_joint_ids(model, robot_id: int) -> List[int]:
 	return joint_ids
 
 
-def _get_joint_qpos_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
+def get_joint_qpos_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
 	idx: List[int] = []
 	for j in joint_ids:
 		qposadr = model.joint(j).qposadr
@@ -116,7 +125,7 @@ def _get_qpos(data, qpos_idx: np.ndarray) -> np.ndarray:
 	return np.asarray(qpos[qpos_idx], dtype=float)
 
 
-def _set_qpos(data, qpos_idx: np.ndarray, q: np.ndarray) -> None:
+def set_qpos(data, qpos_idx: np.ndarray, q: np.ndarray) -> None:
 	q = np.asarray(q, dtype=float).reshape(-1)
 	qpos = data.qpos
 	if np.asarray(qpos).ndim == 2:
@@ -160,8 +169,10 @@ def _solve_ik_dls(
 	q = np.asarray(q_init, dtype=float).copy()
 	q = q.reshape(-1)
 	q = np.clip(q, joint_lo, joint_hi)
-	_set_qpos(data, joint_qpos_idx, q)
-	mujoco.mj_forward(model, data)
+	set_qpos(data, joint_qpos_idx, q)
+	
+	# Unwrap for native call
+	mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
 
 	nv = int(model.nv)
 	jacp = np.zeros((3, nv), dtype=float)
@@ -174,7 +185,9 @@ def _solve_ik_dls(
 		if np.linalg.norm(pos_err) <= pos_tol and np.linalg.norm(rot_err) <= ori_tol:
 			return q
 
-		mujoco.mj_jacSite(model, data, jacp, jacr, site_id)
+		# Unwrap for native call
+		mujoco.mj_jacSite(_get_native_mj_object(model), _get_native_mj_object(data), jacp, jacr, site_id)
+		
 		J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])  # (6, 7)
 		err = np.concatenate([pos_err, rot_err], axis=0)
 
@@ -184,8 +197,10 @@ def _solve_ik_dls(
 		dq = step_size * dq
 
 		q = np.clip(q + dq, joint_lo, joint_hi)
-		_set_qpos(data, joint_qpos_idx, q)
-		mujoco.mj_forward(model, data)
+		set_qpos(data, joint_qpos_idx, q)
+		
+		# Unwrap for native call
+		mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
 
 	# Final check
 	pos_err, rot_err = _compute_site_error(model, data, site_id, target_pos, target_quat)
@@ -237,11 +252,11 @@ def enumerate_ik_solutions_for_arm(
 		model = env.sim.model
 		data = env.sim.data
 
-		joint_ids = _get_arm_joint_ids(model, robot_id)
+		joint_ids = get_arm_joint_ids(model, robot_id)
 		if len(joint_ids) != DEFAULT_ROBOT_ACTION_DIM:
 			raise RuntimeError(f"Expected {DEFAULT_ROBOT_ACTION_DIM} arm joints for robot{robot_id}, found {len(joint_ids)}.")
 
-		joint_qpos_idx = _get_joint_qpos_indices(model, joint_ids)
+		joint_qpos_idx = get_joint_qpos_indices(model, joint_ids)
 		joint_dof_idx = _get_joint_dof_indices(model, joint_ids)
 		joint_lo, joint_hi = _get_joint_limits(model, joint_ids)
 
@@ -320,7 +335,9 @@ def enumerate_ik_solutions_for_arm(
 		finally:
 			data.qpos[:] = qpos_backup
 			data.qvel[:] = qvel_backup
-			mujoco.mj_forward(model, data)
+			
+			# Unwrap for native call
+			mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
 
 		return solutions
 
@@ -335,7 +352,7 @@ def _geom_belongs_to_robot(geom_name: str) -> Optional[int]:
 	return None
 
 
-def _in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-6, env_lock=None) -> bool:
+def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-6, env_lock=None) -> bool:
 	"""Return True if either robot has any contacts below the threshold."""
 
 	ctx = env_lock if env_lock is not None else nullcontext()
@@ -459,10 +476,10 @@ def check_dual_arm_pose_feasibility(
 		model = env.sim.model
 		data = env.sim.data
 
-		jids0 = _get_arm_joint_ids(model, 0)
-		jids1 = _get_arm_joint_ids(model, 1)
-		qpos_idx0 = _get_joint_qpos_indices(model, jids0)
-		qpos_idx1 = _get_joint_qpos_indices(model, jids1)
+		jids0 = get_arm_joint_ids(model, 0)
+		jids1 = get_arm_joint_ids(model, 1)
+		qpos_idx0 = get_joint_qpos_indices(model, jids0)
+		qpos_idx1 = get_joint_qpos_indices(model, jids1)
 
 		qpos_backup = np.array(data.qpos, copy=True)
 		qvel_backup = np.array(data.qvel, copy=True)
@@ -478,11 +495,13 @@ def check_dual_arm_pose_feasibility(
 
 					data.qpos[:] = qpos_backup
 					data.qvel[:] = qvel_backup
-					_set_qpos(data, qpos_idx0, np.asarray(q0, dtype=float))
-					_set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
-					mujoco.mj_forward(model, data)
+					set_qpos(data, qpos_idx0, np.asarray(q0, dtype=float))
+					set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
+					
+					# Unwrap for native call
+					mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
 
-					feasible = not _in_collision(env, contact_dist_threshold=contact_dist_threshold, env_lock=None)
+					feasible = not in_collision(env, contact_dist_threshold=contact_dist_threshold, env_lock=None)
 					results.append([np.asarray(q0, dtype=float), np.asarray(q1, dtype=float), bool(feasible)])
 
 				if pair_count > int(max_pairs):
@@ -490,7 +509,8 @@ def check_dual_arm_pose_feasibility(
 		finally:
 			data.qpos[:] = qpos_backup
 			data.qvel[:] = qvel_backup
-			mujoco.mj_forward(model, data)
+			
+			# Unwrap for native call
+			mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
 
 		return results
-
