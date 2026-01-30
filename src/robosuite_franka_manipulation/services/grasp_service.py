@@ -370,7 +370,7 @@ class GraspService:
                                    mesh_path: Optional[str], 
                                    num_grasps: int,
                                    filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING,
-                                   visualize_gripper_mesh: bool = constants.VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
+                                   visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
         """
         Predict grasps sequentially for each requested gripper type.
         Prioritizes the order in `gripper_types` list.

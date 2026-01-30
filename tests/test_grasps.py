@@ -697,3 +697,53 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
     assert len(result) == 1
     assert result[0].score == 0.9
     assert result[0].id == "0_0"
+
+def test_visualization_flag_handling(mock_grasp_service, mock_constants):
+    """Test that visualize_gripper is called when flags are enabled."""
+    mock_predictor = MagicMock()
+    mock_mesh = MagicMock()
+    mock_predictor.get_gripper_collision_mesh.return_value = mock_mesh
+    mock_grasp_service.grasp_predictors = {'gripper_a': mock_predictor}
+    
+    # Mock apply_gripper_offset (identity)
+    mock_predictor.apply_gripper_offset.side_effect = lambda g: g
+    
+    # Enable service-level visualization
+    mock_grasp_service.visualize = True
+    
+    # Predictor returns one grasp
+    pose_args = {'position': [0,0,0], 'quaternion': [0,0,0,1], 'frame_id': 'world'}
+    grasp = GraspSchema(**pose_args, score=0.9, id=1, gripper_type='gripper_a')
+    mock_predictor.predict_grasps.return_value = [grasp]
+    
+    # Mock sampling/filtering to pass everything
+    mock_grasp_service._sample_grasp_points = MagicMock(return_value=np.ones((10, 3)))
+    mock_grasp_service._filter_batch_against_obstacles = MagicMock(side_effect=lambda c, o: c)
+    mock_grasp_service._recursive_filter = MagicMock(side_effect=lambda c: c)
+    
+    # Call with visualize_gripper_mesh=True
+    mock_grasp_service._predict_and_filter_grasps(
+        gripper_types=['simple_a'], 
+        object_pose=StampedPose(**pose_args),
+        pcd_np=None,
+        mesh_path=None,
+        num_grasps=1,
+        visualize_gripper_mesh=True
+    )
+    
+    # Assert visualize_gripper was called
+    mock_predictor.visualize_gripper.assert_called()
+    
+    # Reset and call with False
+    mock_predictor.visualize_gripper.reset_mock()
+    mock_grasp_service._predict_and_filter_grasps(
+        gripper_types=['simple_a'], 
+        object_pose=StampedPose(**pose_args),
+        pcd_np=None,
+        mesh_path=None,
+        num_grasps=1,
+        visualize_gripper_mesh=False
+    )
+    
+    # Assert NOT called
+    mock_predictor.visualize_gripper.assert_not_called()

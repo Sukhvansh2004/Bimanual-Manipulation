@@ -287,15 +287,15 @@ class GraspPredictor:
             
         vis = self._meshcat_vis
         # Use a separate path for gripper visualizations
-        path = f"perception/predicted_grippers/{self.gripper_type}_{name_suffix}"
+        path = f"perception/predicted_grippers/{self.gripper_type}/{name_suffix}"
         
         try:
             mesh = self.get_gripper_collision_mesh()
             # Convert trimesh to meshcat geometry
             # We can use the utility or convert manually. 
             # Simple manual conversion:
-            vertices = mesh.vertices.T
-            faces = mesh.faces.T
+            vertices = mesh.vertices
+            faces = mesh.faces
             geom = g.TriangularMeshGeometry(vertices=vertices, faces=faces)
             
             # Simple material (transparent red?)
@@ -307,7 +307,8 @@ class GraspPredictor:
             T = Transform(
                 translation=grasp_pose.position,
                 rotation=grasp_pose.quaternion,
-                parent_frame=grasp_pose.frame_id
+                parent_frame=grasp_pose.frame_id,
+                child_frame=f"gripper_{name_suffix}_mesh"
             ).to_matrix()
             vis[path].set_transform(T)
             

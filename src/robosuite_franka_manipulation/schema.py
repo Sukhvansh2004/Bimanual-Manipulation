@@ -61,7 +61,7 @@ class GraspRequest(BaseSchema):
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
     filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING
-    visualize_gripper_mesh: bool = constants.VISUALIZE_GRIPPER_MESH
+    visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH
     gripper_type: List[str] = Field(..., min_length=1)
 
     @field_validator('gripper_type')

@@ -63,8 +63,8 @@ GRIPPER_GRASP_OFFSETS = {
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
-        'position': np.array([0.0, 0.0, 0.11]),
-        'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),  # 180 deg around Y
+        'position': np.array([0.0, 0.0, -0.11]),
+        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 180 deg around Y
     },
 }
 
@@ -103,11 +103,11 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEFAULT_NUM_GRASPS = 200
 DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING = False
 GRASPGEN_POINTCLOUD_SIZE = 2048  # Number of points for GraspGen input
-GRIPPER_COLLISION_MESH_SAMPLES = 1000  # Number of points to sample on gripper collision mesh for occupancy checking
+GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper collision mesh for occupancy checking
 MESH_SCALE = 1.0  # Default scale for object meshes
 GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
 GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using GraspGen
-VISUALIZE_GRIPPER_MESH = False  # Whether to visualize gripper mesh during grasp prediction
+DEFAULT_VISUALIZE_GRIPPER_MESH = False  # Whether to visualize gripper mesh during grasp prediction
 
 # =============================================================================
 # Control and Trajectory Configuration
