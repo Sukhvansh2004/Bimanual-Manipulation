@@ -20,16 +20,16 @@ from typing import List, Dict, Any
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bimanual.feasibility_checker import (
+from robosuite_franka_manipulation.planning.feasibility_checker import (
     Cuboid,
     check_trajectory_feasibility,
 )
-from bimanual.visualization_utils import (
+from robosuite_franka_manipulation.planning.visualization_utils import (
     HAS_MATPLOTLIB,
     draw_plate,
     draw_gripper_cuboid,
 )
-from bimanual.collision_checker import (
+from robosuite_franka_manipulation.planning.collision_checker import (
     SUCTION_GEOMETRY,
     PARALLEL_JAW_GEOMETRY,
 )

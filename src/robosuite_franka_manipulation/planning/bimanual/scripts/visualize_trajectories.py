@@ -16,11 +16,11 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bimanual.grasp_generator import PlateGraspGenerator, GraspPose
-from bimanual.suction_grasp_generator import SuctionGraspGenerator
-from bimanual.collision_checker import find_feasible_grasp_pairs
-from bimanual.trajectory_generator import generate_trajectories_for_all_pairs
-from bimanual.visualization_utils import visualize_trajectories, HAS_MATPLOTLIB
+from robosuite_franka_manipulation.planning.grasp_generator import PlateGraspGenerator, GraspPose
+from robosuite_franka_manipulation.planning.suction_grasp_generator import SuctionGraspGenerator
+from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
+from robosuite_franka_manipulation.planning.trajectory_generator import generate_trajectories_for_all_pairs
+from robosuite_franka_manipulation.planning.visualization_utils import visualize_trajectories, HAS_MATPLOTLIB
 
 
 def load_grasps_from_file(filename: str) -> list:

@@ -16,16 +16,16 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bimanual.grasp_generator import PlateGraspGenerator, GraspPose
-from bimanual.suction_grasp_generator import SuctionGraspGenerator
-from bimanual.collision_checker import (
+from robosuite_franka_manipulation.planning.grasp_generator import PlateGraspGenerator, GraspPose
+from robosuite_franka_manipulation.planning.suction_grasp_generator import SuctionGraspGenerator
+from robosuite_franka_manipulation.planning.collision_checker import (
     find_feasible_grasp_pairs,
     find_infeasible_grasp_pairs,
     SUCTION_GEOMETRY,
     PARALLEL_JAW_GEOMETRY,
     PlateGeometry,
 )
-from bimanual.visualization_utils import (
+from robosuite_franka_manipulation.planning.visualization_utils import (
     draw_gripper_cuboid,
     draw_parallel_jaw_gripper,
     draw_suction_gripper,

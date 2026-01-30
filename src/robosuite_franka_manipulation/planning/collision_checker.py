@@ -7,7 +7,7 @@ Parallel jaw gripper: thinner cuboidal shape
 
 import numpy as np
 from typing import List, Tuple, Optional
-from .grasp_generator import GraspPose
+from robosuite_franka_manipulation.planning.grasp_generator import GraspPose
 
 
 class GripperGeometry:

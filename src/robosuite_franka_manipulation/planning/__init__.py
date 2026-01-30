@@ -1,8 +1,8 @@
-"""Bimanual manipulation package."""
+"""robosuite_franka_manipulation.planning manipulation package."""
 
-from .grasp_generator import PlateGraspGenerator, GraspPose
-from .suction_grasp_generator import SuctionGraspGenerator
-from .collision_checker import (
+from robosuite_franka_manipulation.planning.grasp_generator import PlateGraspGenerator, GraspPose
+from robosuite_franka_manipulation.planning.suction_grasp_generator import SuctionGraspGenerator
+from robosuite_franka_manipulation.planning.collision_checker import (
     find_feasible_grasp_pairs,
     find_infeasible_grasp_pairs,
     filter_grasps_no_plate_collision,
@@ -10,7 +10,7 @@ from .collision_checker import (
     PARALLEL_JAW_GEOMETRY,
     PlateGeometry,
 )
-from .visualization_utils import (
+from robosuite_franka_manipulation.planning.visualization_utils import (
     draw_parallel_jaw_gripper,
     draw_suction_gripper,
     draw_gripper_cuboid,

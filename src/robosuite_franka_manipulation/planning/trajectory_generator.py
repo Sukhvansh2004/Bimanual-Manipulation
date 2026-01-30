@@ -9,8 +9,8 @@ import json
 import numpy as np
 from typing import List, Tuple, Dict, Any
 from scipy.spatial.transform import Rotation as R
-from .grasp_generator import GraspPose
-from .collision_checker import find_feasible_grasp_pairs
+from robosuite_franka_manipulation.planning.grasp_generator import GraspPose
+from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
 
 
 def load_trajectory_from_json(filepath: str) -> List[Dict[str, Any]]:
@@ -175,9 +175,9 @@ def main():
     # Add parent directory to path for imports
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
     
-    from bimanual.grasp_generator import PlateGraspGenerator
-    from bimanual.suction_grasp_generator import SuctionGraspGenerator
-    from bimanual.collision_checker import find_feasible_grasp_pairs
+    from robosuite_franka_manipulation.planning.grasp_generator import PlateGraspGenerator
+    from robosuite_franka_manipulation.planning.suction_grasp_generator import SuctionGraspGenerator
+    from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
     
     # Configuration
     trajectory_filepath = os.path.join(

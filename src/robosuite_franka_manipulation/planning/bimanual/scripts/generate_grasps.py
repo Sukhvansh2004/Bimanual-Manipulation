@@ -13,9 +13,9 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from bimanual.grasp_generator import PlateGraspGenerator, GraspPose
-from bimanual.suction_grasp_generator import SuctionGraspGenerator
-from bimanual.visualization_utils import (
+from robosuite_franka_manipulation.planning.grasp_generator import PlateGraspGenerator, GraspPose
+from robosuite_franka_manipulation.planning.suction_grasp_generator import SuctionGraspGenerator
+from robosuite_franka_manipulation.planning.visualization_utils import (
     visualize_grasps,
     HAS_MATPLOTLIB,
 )

@@ -9,7 +9,7 @@ Suction gripper can only grab from the top and bottom (not from the sides).
 import numpy as np
 from typing import List
 from dataclasses import dataclass
-from .grasp_generator import GraspPose
+from robosuite_franka_manipulation.planning.grasp_generator import GraspPose
 
 
 class SuctionGraspGenerator:

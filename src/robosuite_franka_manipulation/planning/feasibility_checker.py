@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from scipy.spatial.transform import Rotation as R
 
-from .collision_checker import (
+from robosuite_franka_manipulation.planning.collision_checker import (
     GripperGeometry, 
     SUCTION_GEOMETRY, 
     PARALLEL_JAW_GEOMETRY,
