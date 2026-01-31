@@ -4,7 +4,7 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 """
 
 import numpy as np
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Union
 import logging
 from robosuite_franka_manipulation.planning.utils.feasability_checks import (
     check_dual_arm_pose_feasibility, 
@@ -14,6 +14,7 @@ from robosuite_franka_manipulation.planning.utils.feasability_checks import (
     get_arm_joint_ids,
     get_joint_qpos_indices
 )
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation import constants
@@ -31,7 +32,7 @@ def _get_native_mj_object(obj):
     return obj
 
 def check_single_grasp_feasibility(
-    env,
+    env: DualArmEnvironment,
     grasp: Union[GraspSchema, StampedPose],
     robot_id: int,
     arm: str = "right"
@@ -92,7 +93,7 @@ def check_single_grasp_feasibility(
     return feasible
 
 def find_feasible_grasp_pairs(
-    env,
+    env: DualArmEnvironment,
     grasps_robot0: List[GraspSchema],
     grasps_robot1: List[GraspSchema],
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
