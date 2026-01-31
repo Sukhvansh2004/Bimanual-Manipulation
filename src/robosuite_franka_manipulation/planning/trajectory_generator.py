@@ -9,7 +9,6 @@ from typing import List, Tuple, Dict, Any
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
-from scipy.spatial.transform import Rotation as R
 
 
 def generate_end_effector_trajectory(
