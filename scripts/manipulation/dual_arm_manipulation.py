@@ -627,10 +627,17 @@ def main() -> int:
     ycb_objects = []
 
     # Create the dictionary spec for this object
-    obj = create_ycb_object(
+    plate = create_ycb_object(
         ycb_name="plate",
     )
-    ycb_objects.append(obj)
+    shelf = create_ycb_object(
+        ycb_name="shelf",
+        position = [-0.7, 0.0, 0.0],
+        quaternion = [0.0, 0.0, 0.70710678, 0.70710678],
+    )
+    
+    ycb_objects.append(plate)
+    ycb_objects.append(shelf)
 
     # Create and start system
     global system

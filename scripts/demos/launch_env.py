@@ -145,12 +145,19 @@ def get_sample_ycb_objects(ycb_names=None):
         
         # Position objects in a row on the table
         pos = [-0.1 + i * 0.3, 0.0, 0.90]
+        quat = None
         
+        # Special handling for shelf: place it on the floor, in front/behind the table
+        if name == 'shelf':
+            pos = [-0.8, 0.0, 0.0]
+            quat = [0.0, 0.0, 0.70710678, 0.70710678]
+
         # Create the dictionary spec for this object
         obj_spec = create_ycb_object(
             ycb_name=name,
             instance_name=f"{name}_{i}",  # Unique instance name
-            position=pos
+            position=pos,
+            quaternion=quat
         )
         objects.append(obj_spec)
     
