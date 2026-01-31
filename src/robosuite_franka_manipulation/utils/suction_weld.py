@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import mujoco
+import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite.utils.binding_utils import MjSim
 
@@ -11,16 +12,6 @@ from robosuite_franka_manipulation import constants
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
-
-
-def _quat_wxyz_to_xyzw(q_wxyz: np.ndarray) -> np.ndarray:
-    """Convert quaternion from MuJoCo (w,x,y,z) to scipy (x,y,z,w) convention."""
-    return np.array([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]], dtype=np.float64)
-
-
-def _quat_xyzw_to_wxyz(q_xyzw: np.ndarray) -> np.ndarray:
-    """Convert quaternion from scipy (x,y,z,w) to MuJoCo (w,x,y,z) convention."""
-    return np.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]], dtype=np.float64)
 
 
 @dataclass
@@ -263,8 +254,8 @@ def _compute_relative_pose_wxyz(
         (p_rel, q_rel_wxyz): Relative position and quaternion (MuJoCo convention)
     """
     # Convert to scipy convention (x,y,z,w)
-    q1_xyzw = _quat_wxyz_to_xyzw(q1_wxyz)
-    q2_xyzw = _quat_wxyz_to_xyzw(q2_wxyz)
+    q1_xyzw = T.convert_quat(q1_wxyz, to="xyzw")
+    q2_xyzw = T.convert_quat(q2_wxyz, to="xyzw")
     
     # Create scipy Rotation objects
     rot1 = R.from_quat(q1_xyzw)
@@ -277,7 +268,7 @@ def _compute_relative_pose_wxyz(
     p_rel = rot1.inv().apply(p2 - p1)
     
     # Convert back to MuJoCo convention (w,x,y,z)
-    q_rel_wxyz = _quat_xyzw_to_wxyz(rot_rel.as_quat())
+    q_rel_wxyz = T.convert_quat(rot_rel.as_quat(), to="wxyz")
     
     return p_rel, q_rel_wxyz
 

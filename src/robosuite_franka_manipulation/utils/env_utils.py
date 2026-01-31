@@ -73,6 +73,7 @@ def create_ycb_object(
     ycb_name: str,
     instance_name: Optional[str] = None,
     position: Optional[List[float]] = None,
+    quaternion: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Create a YCB object specification for the environment.
@@ -81,6 +82,7 @@ def create_ycb_object(
         ycb_name: Name of the YCB object (e.g., 'apple', 'mug', 'banana')
         instance_name: Optional unique instance name (defaults to ycb_name)
         position: Optional [x, y, z] position for the object (default: on table)
+        quaternion: Optional [x, y, z, w] quaternion for orientation (default: identity)
     
     Returns:
         Dictionary with object specification
@@ -94,6 +96,7 @@ def create_ycb_object(
         'instance_name': instance_name,
         'name': instance_name,
         'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
+        'quat': quaternion if quaternion else constants.DEFAULT_OBJECT_QUATERNION.copy(),
     }
 
 
@@ -102,6 +105,7 @@ def create_primitive_object(
     name: str,
     size: List[float],
     position: Optional[List[float]] = None,
+    quat: Optional[List[float]] = None,
     rgba: Optional[List[float]] = None,
     density: float = 500.0,
 ) -> Dict[str, Any]:
@@ -113,6 +117,7 @@ def create_primitive_object(
         name: Unique name for the object
         size: Size parameters (varies by type)
         position: Optional [x, y, z] position for the object (default: on table)
+        quat: Optional [x, y, z, w] quaternion for orientation (default: identity)
         rgba: Optional [r, g, b, a] color values
         density: Object density in kg/m³
     
@@ -124,6 +129,7 @@ def create_primitive_object(
         'name': name,
         'size': size,
         'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
+        'quat': quat if quat else [0.0, 0.0, 0.0, 1.0],
         'rgba': rgba if rgba else [0.5, 0.5, 0.5, 1.0],
         'density': density,
     }
