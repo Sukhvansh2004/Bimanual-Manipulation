@@ -6,10 +6,10 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 import numpy as np
 from typing import List, Tuple, Union
 import logging
-from robosuite_franka_manipulation.planning.utils.feasability_checks import (
-    check_dual_arm_pose_feasibility, 
-    enumerate_ik_solutions_for_arm,
-    in_collision,
+from robosuite_franka_manipulation.planning.utils.feasability_checks import check_dual_arm_pose_feasibility
+from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
+from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
+from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
     get_arm_joint_ids,
     get_joint_qpos_indices
