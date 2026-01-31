@@ -372,8 +372,8 @@ def main() -> None:
         env_lock=env_lock
     )
     
-    grasps_0 = [g for g in all_grasps if g.gripper_type == 'finger']
-    grasps_1 = [g for g in all_grasps if g.gripper_type == 'suction']
+    grasps_0 = [g for g in all_grasps if g.gripper_type in ('finger', 'franka_panda')]
+    grasps_1 = [g for g in all_grasps if g.gripper_type in ('suction', 'single_suction_cup_30mm')]
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
@@ -407,7 +407,8 @@ def main() -> None:
                 eef_trajectory=traj0_eef,
                 object_trajectory=object_trajectory,
                 object_name="plate_target",
-                env_lock=env_lock
+                env_lock=env_lock,
+                tf_manager=tf_manager
             )
             
             if joint_traj0 is None:
@@ -422,7 +423,8 @@ def main() -> None:
                 eef_trajectory=traj1_eef,
                 object_trajectory=object_trajectory,
                 object_name="plate_target",
-                env_lock=env_lock
+                env_lock=env_lock,
+                tf_manager=tf_manager
             )
             
             if joint_traj1 is None:
