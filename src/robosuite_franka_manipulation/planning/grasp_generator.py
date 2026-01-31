@@ -5,8 +5,9 @@ Uses the Grasp Service (via ServiceClient) to generate grasps.
 """
 
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, Union
 import logging
+from contextlib import nullcontext
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.services.services_core import ServiceClient
@@ -33,10 +34,13 @@ class GraspGenerator:
         self.env = env
         self.service_client = service_client if service_client is not None else ServiceClient()
 
-    def _get_object_pose_stamped(self, object_name: str) -> Optional[StampedPose]:
+    def _get_object_pose_stamped(self, object_name: str, env_lock=None) -> Optional[StampedPose]:
         """Get object pose as StampedPose."""
-        # env.get_object_pose returns a 4x4 matrix
-        pose_mat = self.env.get_object_pose(object_name)
+        ctx = env_lock if env_lock is not None else nullcontext()
+        with ctx:
+            # env.get_object_pose returns a 4x4 matrix
+            pose_mat = self.env.get_object_pose(object_name)
+            
         if pose_mat is None:
             return None
             
@@ -45,36 +49,42 @@ class GraspGenerator:
     def generate_grasps(
         self,
         object_name: str,
-        gripper_type: str,
+        gripper_types: Union[str, List[str]],
         num_grasps: int = constants.DEFAULT_NUM_GRASPS,
+        env_lock=None
     ) -> List[GraspSchema]:
         """
-        Generate grasps for a specific object and gripper type using the Grasp Service.
+        Generate grasps for a specific object and gripper type(s) using the Grasp Service.
         
         Args:
             object_name: Name of the object in the environment.
-            gripper_type: Type of gripper ('parallel_jaw', 'suction', 'franka_panda', etc.).
+            gripper_types: Type of gripper(s) ('parallel_jaw', 'suction', 'franka_panda', etc.).
             num_grasps: Number of grasps to generate.
+            env_lock: Optional lock for environment access.
             
         Returns:
             List of GraspSchema objects.
         """
         # 1. Resolve Object Data
-        pose = self._get_object_pose_stamped(object_name)
+        pose = self._get_object_pose_stamped(object_name, env_lock=env_lock)
         if pose is None:
             logger.error(f"Could not get pose for object: {object_name}")
             return []
             
+        if isinstance(gripper_types, str):
+            g_types = [gripper_types]
+        else:
+            g_types = gripper_types
         
         req = GraspRequest(
             command="GET_GRASPS",
             object_name=object_name,
             object_pose=pose,
-            gripper_type=[gripper_type],
+            gripper_type=g_types,
             num_grasps=num_grasps,
         )
         
-        logger.info(f"Requesting {num_grasps} grasps for {object_name} ({gripper_type}) from Grasp Service...")
+        logger.info(f"Requesting {num_grasps} grasps for {object_name} ({g_types}) from Grasp Service...")
         
         response_dict = self.service_client.call("grasp_service", req.model_dump())
         

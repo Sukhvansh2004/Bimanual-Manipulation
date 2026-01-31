@@ -6,6 +6,8 @@ This script:
 1. Initializes the DualArmEnvironment with a shelf and a plate.
 2. Plans a simple trajectory for the plate from the table to a rack slot in the shelf.
 3. Visualizes the planning context and the generated trajectory using Meshcat.
+4. Generates grasps for the object and computes/filters feasible EEF trajectories.
+5. Saves the object and feasible robot trajectories to disk.
 """
 
 import numpy as np
@@ -29,6 +31,16 @@ from robosuite_franka_manipulation.utils import create_ycb_object
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+
+# Services and Planning
+from robosuite_franka_manipulation.services.grasp_service import GraspService
+from robosuite_franka_manipulation.services.services_core import ServiceManager
+from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
+
+# NEW: Planning Modules
+from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
+from robosuite_franka_manipulation.planning.trajectory_generator import generate_end_effector_trajectory
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import check_trajectory_feasibility
 
 # Configure logging
 logging.basicConfig(
@@ -134,7 +146,7 @@ def visualize_trajectory(vis: meshcat.Visualizer, trajectory: List[StampedPose],
             make_frame(vis, frame_name, h=0.05, radius=0.002, o=1.0)
             vis[frame_name].set_transform(mat)
 
-def save_trajectory(trajectory: List[StampedPose], output_dir: str = "data", filename: str = "trajectory_data.npz") -> None:
+def save_trajectory(trajectory: List[StampedPose], output_dir: str, filename: str) -> None:
     """Save trajectory to npz file.
     
     Args:
@@ -171,7 +183,7 @@ def main() -> None:
     
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
     parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
-    parser.add_argument("--output-dir", type=str, default = constants.get_project_root() / constants.DATA_DIR, help="Output directory for data")
+    parser.add_argument("--output-dir", type=str, default=constants.DATA_DIR, help="Output directory for data")
     parser.add_argument("--filename", type=str, default="shelf_trajectory.npz", help="Output filename")
     
     # Pose arguments
@@ -279,6 +291,7 @@ def main() -> None:
             start_quat = np.array(plate_quat)
     
     start_pose_vec = np.concatenate([start_pos, start_quat])
+    start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id="world")
     
     # Determine Target Pose
     target_pos = np.array(args.target_pos)
@@ -287,13 +300,16 @@ def main() -> None:
     
     logger.info(f"Planning from {start_pose_vec[:3]} to {target_pose_vec[:3]}")
     
-    # 4. Generate Trajectory
+    # 4. Generate Object Trajectory
     # ----------------------
-    trajectory = generate_trajectory(start_pose_vec, target_pose_vec, num_steps=100)
+    object_trajectory = generate_trajectory(start_pose_vec, target_pose_vec, num_steps=100)
     
-    # 5. Visualize Trajectory
+    # Convert object trajectory to matrices for utilities
+    object_traj_matrices = [p.to_matrix() for p in object_trajectory]
+    
+    # 5. Visualize Object Trajectory
     # -----------------------
-    visualize_trajectory(vis, trajectory, name="planned_path")
+    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     # Visualize Target
     vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
@@ -306,28 +322,139 @@ def main() -> None:
     T_target[:3, :3] = r[:3, :3]
     vis["target_pose"].set_transform(T_target)
     
-    logger.info("Plan visualized.")
+    logger.info("Object trajectory generated and visualized.")
     
-    # 6. Save Trajectory (Interactive or Automatic)
+    # 6. Generate Grasps and Feasible EEF Trajectories
+    # ------------------------------------------------
+    logger.info("Initializing Service Architecture...")
+    
+    # Initialize Service Manager
+    service_manager = ServiceManager()
+    service_manager.start()
+    
+    # Initialize Grasp Service (it registers itself)
+    grasp_service = GraspService(
+        env=env,
+        env_lock=env_lock,
+        tf_manager=tf_manager,
+        visualize=False 
+    )
+    grasp_service.start()
+    
+    # Initialize Grasp Generator
+    grasp_generator = GraspGenerator(env=env)
+    
+    # Step 6a: Get grasps for both robots together
+    logger.info("Generating grasps for Robot 0 (Finger) and Robot 1 (Suction)...")
+    all_grasps = grasp_generator.generate_grasps(
+        object_name="plate_target", 
+        gripper_types=["finger", "suction"], 
+        num_grasps=40,
+        env_lock=env_lock
+    )
+    
+    grasps_0 = [g for g in all_grasps if g.gripper_type == 'finger']
+    grasps_1 = [g for g in all_grasps if g.gripper_type == 'suction']
+    
+    logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
+
+    if not grasps_0 or not grasps_1:
+        logger.error("Failed to generate grasps for one or both robots.")
+    else:
+        # Step 6b: Find feasible grasp pairs (Collision Free Grasp Configuration)
+        logger.info("Finding feasible grasp pairs (checking mutual collisions)...")
+        feasible_pairs = find_feasible_grasp_pairs(env, grasps_0, grasps_1, env_lock=env_lock)
+        
+        logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
+        
+        # Step 6c: Generate and Check Trajectories for each pair
+        valid_trajectories = [] # List of tuples (traj0, traj1)
+        
+        for i, (g0, g1) in enumerate(feasible_pairs):
+            if i >= 5: break # Limit to checking first 5 pairs to save time
+            
+            logger.info(f"Checking pair {i}...")
+            
+            # Generate EEF trajectories (Matrices)
+            traj0_mat = generate_end_effector_trajectory(object_traj_matrices, g0)
+            traj1_mat = generate_end_effector_trajectory(object_traj_matrices, g1)
+            
+            # Check Feasibility for Robot 0
+            # Note: We check object collision by passing object_trajectory and object_name
+            # This ensures the object doesn't collide with environment while moving
+            logger.info("  Checking Robot 0 trajectory...")
+            joint_traj0 = check_trajectory_feasibility(
+                env=env,
+                robot_id=0,
+                eef_trajectory=traj0_mat,
+                object_trajectory=object_traj_matrices,
+                object_name="plate_target",
+                env_lock=env_lock
+            )
+            
+            if joint_traj0 is None:
+                logger.info("  -> Robot 0 trajectory infeasible.")
+                continue
+                
+            # Check Feasibility for Robot 1
+            logger.info("  Checking Robot 1 trajectory...")
+            joint_traj1 = check_trajectory_feasibility(
+                env=env,
+                robot_id=1,
+                eef_trajectory=traj1_mat,
+                object_trajectory=object_traj_matrices,
+                object_name="plate_target",
+                env_lock=env_lock
+            )
+            
+            if joint_traj1 is None:
+                logger.info("  -> Robot 1 trajectory infeasible.")
+                continue
+                
+            logger.info("  -> Pair Valid!")
+            
+            # Convert matrices back to StampedPose for visualization/saving
+            traj0_stamped = [StampedPose.from_matrix(m, "world") for m in traj0_mat]
+            traj1_stamped = [StampedPose.from_matrix(m, "world") for m in traj1_mat]
+            
+            valid_trajectories.append((traj0_stamped, traj1_stamped))
+            
+            # Visualize
+            visualize_trajectory(vis, traj0_stamped, name=f"robot0_traj_{i}", color=0x0000ff)
+            visualize_trajectory(vis, traj1_stamped, name=f"robot1_traj_{i}", color=0xff00ff)
+
+    # 7. Save Trajectories
     # ---------------------------------------------
     should_save = args.save_traj
     
     if not should_save:
         try:
-            # Check if running interactively
             if sys.stdin.isatty():
-                user_input = input("Save trajectory? [y/N]: ").strip().lower()
+                user_input = input("Save trajectories? [y/N]: ").strip().lower()
                 if user_input in ('y', 'yes'):
                     should_save = True
         except EOFError:
-            pass # Non-interactive mode
+            pass
             
-    if should_save:
-        save_trajectory(trajectory, args.output_dir, args.filename)
-    
+    if should_save and 'valid_trajectories' in locals() and valid_trajectories:
+        # Save object trajectory
+        save_trajectory(object_trajectory, args.output_dir, "object_trajectory.npz")
+        
+        # Save feasible robot trajectories
+        for i, (traj0, traj1) in enumerate(valid_trajectories):
+            save_trajectory(traj0, args.output_dir, f"robot0_trajectory_{i}.npz")
+            save_trajectory(traj1, args.output_dir, f"robot1_trajectory_{i}.npz")
+            
     logger.info("Closing simulation...")
     stop_event.set()
     vis_thread.join(timeout=2.0)
+    
+    # Stop Services
+    if grasp_service:
+        grasp_service.stop()
+    if service_manager:
+        service_manager.stop()
+        
     env.close()
     sys.exit(0)
 

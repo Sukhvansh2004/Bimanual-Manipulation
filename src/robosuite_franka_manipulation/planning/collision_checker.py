@@ -35,7 +35,8 @@ def check_single_grasp_feasibility(
     env: DualArmEnvironment,
     grasp: Union[GraspSchema, StampedPose],
     robot_id: int,
-    arm: str = "right"
+    arm: str = "right",
+    env_lock = None
 ) -> bool:
     """
     Check if a single grasp is feasible (reachable via IK and collision-free).
@@ -44,6 +45,7 @@ def check_single_grasp_feasibility(
         env: DualArmEnvironment
         grasp: GraspSchema or StampedPose (must be in WORLD frame or convertible).
         robot_id: ID of robot (0 or 1)
+        env_lock: Optional threading.RLock
         
     Returns:
         True if feasible
@@ -60,35 +62,41 @@ def check_single_grasp_feasibility(
         robot_id=robot_id,
         target_pose=grasp,
         arm=arm,
-        max_solutions=constants.DEFAULT_IK_MAX_SOLUTIONS
+        max_solutions=constants.DEFAULT_IK_MAX_SOLUTIONS,
+        env_lock=env_lock
     )
     
     if not solutions:
         return False
         
     # Check collisions for solutions
-    model = env.sim.model
-    data = env.sim.data
+    # We need to lock while modifying/stepping sim
+    from contextlib import nullcontext
+    ctx = env_lock if env_lock is not None else nullcontext()
     
-    jids = get_arm_joint_ids(model, robot_id)
-    qpos_idx = get_joint_qpos_indices(model, jids)
-    
-    qpos_backup = np.array(data.qpos, copy=True)
-    qvel_backup = np.array(data.qvel, copy=True)
-    
-    feasible = False
-    try:
-        for q in solutions:
-            set_qpos(data, qpos_idx, q)
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        
+        jids = get_arm_joint_ids(model, robot_id)
+        qpos_idx = get_joint_qpos_indices(model, jids)
+        
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+        
+        feasible = False
+        try:
+            for q in solutions:
+                set_qpos(data, qpos_idx, q)
+                mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
+                
+                if not in_collision(env, env_lock=None): # Already locked by ctx
+                    feasible = True
+                    break
+        finally:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
             mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
-            
-            if not in_collision(env):
-                feasible = True
-                break
-    finally:
-        data.qpos[:] = qpos_backup
-        data.qvel[:] = qvel_backup
-        mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
         
     return feasible
 
@@ -96,6 +104,7 @@ def find_feasible_grasp_pairs(
     env: DualArmEnvironment,
     grasps_robot0: List[GraspSchema],
     grasps_robot1: List[GraspSchema],
+    env_lock = None
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
     """
     Find feasible pairs of grasps (one for each robot).
@@ -104,6 +113,7 @@ def find_feasible_grasp_pairs(
         env: DualArmEnvironment
         grasps_robot0: List of grasps for robot 0
         grasps_robot1: List of grasps for robot 1
+        env_lock: Optional threading.RLock
         
     Returns:
         List of (grasp0, grasp1) tuples that are simultaneously feasible.
@@ -112,11 +122,11 @@ def find_feasible_grasp_pairs(
     
     # Pre-filter single grasps to reduce N*M checks
     logger.info(f"Pre-filtering {len(grasps_robot0)} grasps for Robot 0...")
-    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(env, g, 0)]
+    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(env, g, 0, env_lock=env_lock)]
     logger.info(f"  -> {len(valid_grasps0)} valid grasps for Robot 0")
     
     logger.info(f"Pre-filtering {len(grasps_robot1)} grasps for Robot 1...")
-    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(env, g, 1)]
+    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(env, g, 1, env_lock=env_lock)]
     logger.info(f"  -> {len(valid_grasps1)} valid grasps for Robot 1")
     
     if not valid_grasps0 or not valid_grasps1:
@@ -135,7 +145,8 @@ def find_feasible_grasp_pairs(
                 env, 
                 eef_pose_robot0=g0,
                 eef_pose_robot1=g1,
-                max_pairs=constants.DEFAULT_FEASIBILITY_MAX_PAIRS
+                max_pairs=constants.DEFAULT_FEASIBILITY_MAX_PAIRS,
+                env_lock=env_lock
             )
             
             # results is list of [q0, q1, feasible]

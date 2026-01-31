@@ -6,14 +6,14 @@ Generates simple pick-and-lift trajectories for feasible grasps.
 
 import numpy as np
 from typing import List, Tuple, Dict, Any
-from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
 
 def generate_end_effector_trajectory(
     object_trajectory: List[np.ndarray],
-    grasp: GraspSchema,
+    grasp: StampedPose,
 ) -> List[np.ndarray]:
     """
     Generate end effector trajectory from object trajectory and a grasp pose.
@@ -49,7 +49,7 @@ def generate_end_effector_trajectory(
 
 def generate_lift_trajectory(
     env: DualArmEnvironment,
-    feasible_pairs: List[Tuple[GraspSchema, GraspSchema]],
+    feasible_pairs: List[Tuple[StampedPose, StampedPose]],
     object_name: str,
     lift_height: float = constants.DEFAULT_LIFT_HEIGHT,
     steps: int = constants.DEFAULT_LIFT_STEPS
