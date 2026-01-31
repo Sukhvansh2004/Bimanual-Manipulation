@@ -335,3 +335,27 @@ def interpolate_SE3(T_start: np.ndarray, T_end: np.ndarray, s: float) -> np.ndar
     T_interp = T_start @ SE3_exp(s * twist)
     
     return T_interp
+
+
+def interpolate_pose(start_pos: np.ndarray, start_quat: np.ndarray, 
+                     end_pos: np.ndarray, end_quat: np.ndarray, 
+                     t: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Interpolate between two poses using SE(3) geodesic interpolation.
+    
+    Args:
+        start_pos: Start position [x, y, z]
+        start_quat: Start quaternion [x, y, z, w]
+        end_pos: End position [x, y, z]
+        end_quat: End quaternion [x, y, z, w]
+        t: Interpolation parameter in [0, 1]
+        
+    Returns:
+        Tuple of (position, quaternion)
+    """
+    T_start = pose_to_SE3(start_pos, start_quat)
+    T_end = pose_to_SE3(end_pos, end_quat)
+    
+    T_interp = interpolate_SE3(T_start, T_end, t)
+    
+    return SE3_to_pose(T_interp)
