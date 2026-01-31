@@ -5,45 +5,64 @@ Generates simple pick-and-lift trajectories for feasible grasps.
 """
 
 import numpy as np
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
+import logging
+
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from robosuite_franka_manipulation.transforms import TransformManager
 
+logger = logging.getLogger(__name__)
 
 def generate_end_effector_trajectory(
-    object_trajectory: List[np.ndarray],
+    object_trajectory: List[StampedPose],
     grasp: StampedPose,
-) -> List[np.ndarray]:
+    tf_manager: Optional[TransformManager] = None
+) -> List[StampedPose]:
     """
     Generate end effector trajectory from object trajectory and a grasp pose.
     
     Args:
-        object_trajectory: List of object poses (4x4 matrices) in world frame.
-        grasp: Grasp pose (GraspSchema/StampedPose) in WORLD frame.
+        object_trajectory: List of object poses (StampedPose).
+        grasp: Grasp pose (GraspSchema/StampedPose).
+        tf_manager: Optional TransformManager to handle frame conversions.
         
     Returns:
-        List of 4x4 transformation matrices representing end effector poses in world frame.
+        List of StampedPose objects representing end effector poses in world frame.
     """
+    if not object_trajectory:
+        return []
+
+    # 1. Ensure Grasp is in World Frame
+    if grasp.frame_id != "world":
+        if tf_manager:
+            grasp = tf_manager.transform_pose(grasp, "world")
+        else:
+            logger.warning(f"Grasp frame is '{grasp.frame_id}', expected 'world'. No tf_manager provided.")
+            # Proceeding, assuming caller knows what they are doing or matrix math handles it implicitly if consistent
+            # But the logic below assumes world frame logic for T_obj_grasp derivation if T_world_obj_start is world.
+
+    # 2. Ensure Object Trajectory is in World Frame\
+    if object_trajectory[0].frame_id != "world":
+        if tf_manager:
+            object_trajectory = [tf_manager.transform_pose(p, "world") for p in object_trajectory]
+        else:
+            logger.warning(f"Object trajectory frame is '{object_trajectory[0].frame_id}', expected 'world'.")
+
     # Assumption: object_trajectory[0] corresponds to the object pose at the time 'grasp' was generated.
-    # So T_world_obj_0 = object_trajectory[0]
-    # T_world_grasp = grasp.to_matrix()
-    # T_obj_grasp = inv(T_world_obj_0) @ T_world_grasp
-    
-    # Then for any T_world_obj_i in trajectory:
-    # T_world_eef_i = T_world_obj_i @ T_obj_grasp
-    
-    T_world_obj_start = object_trajectory[0]
+    T_world_obj_start = object_trajectory[0].to_matrix()
     T_world_grasp = grasp.to_matrix()
     
     T_obj_grasp = np.linalg.inv(T_world_obj_start) @ T_world_grasp
     
     end_effector_trajectory = []
     
-    for T_object in object_trajectory:
+    for obj_pose in object_trajectory:
+        T_object = obj_pose.to_matrix()
         # Transform to end effector frame: T_world_end_eff = T_world_obj * T_obj_grasp
         T_end_effector = T_object @ T_obj_grasp
-        end_effector_trajectory.append(T_end_effector)
+        end_effector_trajectory.append(StampedPose.from_matrix(T_end_effector, frame_id="world"))
     
     return end_effector_trajectory
 
@@ -73,7 +92,7 @@ def generate_lift_trajectory(
         raise ValueError(f"Could not get pose for {object_name}")
     
     # Generate object trajectory (linear lift)
-    object_trajectory_matrices = []
+    object_trajectory = []
     start_pos = T_obj_start_mat[:3, 3]
     start_rot = T_obj_start_mat[:3, :3]
     
@@ -83,23 +102,23 @@ def generate_lift_trajectory(
         T_step = np.eye(4)
         T_step[:3, :3] = start_rot
         T_step[:3, 3] = pos
-        object_trajectory_matrices.append(T_step)
+        object_trajectory.append(StampedPose.from_matrix(T_step, frame_id="world"))
         
     all_trajectories = []
     
     for i, (grasp0, grasp1) in enumerate(feasible_pairs):
         # Generate trajectory for robot 0
-        traj0 = generate_end_effector_trajectory(object_trajectory_matrices, grasp0)
+        traj0 = generate_end_effector_trajectory(object_trajectory, grasp0)
         
         # Generate trajectory for robot 1
-        traj1 = generate_end_effector_trajectory(object_trajectory_matrices, grasp1)
+        traj1 = generate_end_effector_trajectory(object_trajectory, grasp1)
         
         all_trajectories.append({
             'grasp_robot0': grasp0,
             'grasp_robot1': grasp1,
             'trajectory_robot0': traj0,
             'trajectory_robot1': traj1,
-            'object_trajectory': object_trajectory_matrices,
+            'object_trajectory': object_trajectory,
         })
         
     return all_trajectories

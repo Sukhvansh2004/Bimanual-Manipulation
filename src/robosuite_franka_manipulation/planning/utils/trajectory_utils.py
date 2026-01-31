@@ -21,14 +21,18 @@ from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
 
+from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from robosuite_franka_manipulation.transforms import TransformManager
+
 def check_trajectory_feasibility(
     env: DualArmEnvironment,
     robot_id: int,
-    eef_trajectory: List[np.ndarray],
-    object_trajectory: Optional[List[np.ndarray]] = None,
+    eef_trajectory: List[StampedPose],
+    object_trajectory: Optional[List[StampedPose]] = None,
     object_name: Optional[str] = None,
     check_collisions: bool = True,
-    env_lock = None
+    env_lock = None,
+    tf_manager: Optional[TransformManager] = None
 ) -> Optional[List[np.ndarray]]:
     """
     Check if an end-effector trajectory is feasible (IK reachable + Collision Free).
@@ -36,11 +40,12 @@ def check_trajectory_feasibility(
     Args:
         env: Environment instance
         robot_id: Robot ID (0 or 1)
-        eef_trajectory: List of 4x4 matrices representing EEF poses in World frame.
-        object_trajectory: Optional list of 4x4 matrices for object poses.
+        eef_trajectory: List of StampedPose objects representing EEF poses in World frame.
+        object_trajectory: Optional list of StampedPose objects for object poses.
         object_name: Name of the object (required if object_trajectory is provided).
         check_collisions: Whether to check collisions.
         env_lock: Optional threading.RLock
+        tf_manager: Optional TransformManager to handle frame conversions.
         
     Returns:
         List of joint configurations (qpos) if feasible, None otherwise.
@@ -48,6 +53,19 @@ def check_trajectory_feasibility(
     if object_trajectory and len(object_trajectory) != len(eef_trajectory):
         logger.error("Object trajectory length mismatch")
         return None
+
+    # Ensure frames are World
+    if eef_trajectory and eef_trajectory[0].frame_id != "world":
+        if tf_manager:
+            eef_trajectory = [tf_manager.transform_pose(p, "world") for p in eef_trajectory]
+        else:
+            logger.warning(f"EEF trajectory frame is {eef_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
+
+    if object_trajectory and object_trajectory[0].frame_id != "world":
+        if tf_manager:
+            object_trajectory = [tf_manager.transform_pose(p, "world") for p in object_trajectory]
+        else:
+            logger.warning(f"Object trajectory frame is {object_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
 
     # Locking context
     from contextlib import nullcontext
@@ -80,31 +98,24 @@ def check_trajectory_feasibility(
         joint_trajectory = []
         
         try:
-            for i, pose_mat in enumerate(eef_trajectory):
+            for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:
                     obj_pose = object_trajectory[i]
-                    pos = obj_pose[:3, 3]
-                    # Robosuite T.mat2quat returns w,x,y,z. MuJoCo free joint expects pos, quat(w,x,y,z).
-                    quat = T.mat2quat(obj_pose[:3, :3]) 
+                    
+                    # Robosuite StampedPose uses xyzw. MuJoCo free joint expects pos, quat(wxyz).
+                    pos = obj_pose.position
+                    quat = T.convert_quat(obj_pose.quaternion, to="wxyz")
                     
                     data.qpos[obj_joint_addr:obj_joint_addr+3] = pos
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Solve IK
-                pos = pose_mat[:3, 3]
-                quat_wxyz = T.mat2quat(pose_mat[:3, :3])
-                quat_xyzw = T.convert_quat(quat_wxyz, to="xyzw")
-                
-                # Pass env_lock=None because we are already holding the lock via `with ctx:`
-                # BUT wait, does enumerate_ik re-acquire? RLock allows re-acquire.
-                # Ideally we pass `env_lock` to it if it expects it to be released or if it uses it.
-                # ik_utils uses `with env_lock:` internally. So passing it is fine (re-entrant).
-                
+                # Using StampedPose directly as target_pose
                 solutions = enumerate_ik_solutions_for_arm(
                     env=env,
                     robot_id=robot_id,
-                    target_pose=(pos, quat_xyzw),
+                    target_pose=pose,
                     target_frame="world",
                     arm="right",
                     num_seed_configs=8,

@@ -19,7 +19,7 @@ import meshcat.geometry as g
 import argparse
 import os
 import sys
-from typing import List
+from typing import List, Tuple, Optional, Dict
 
 import meshcat.transformations as tf
 from grasp_gen.utils.meshcat_utils import make_frame
@@ -28,7 +28,7 @@ import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.utils import create_ycb_object
-from robosuite_franka_manipulation.utils.se3 import interpolate_pose
+from robosuite_franka_manipulation.utils.se3 import interpolate_pose, pose_to_SE3, SE3_to_pose
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -50,25 +50,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def generate_trajectory(start_pose: np.ndarray, target_pose: np.ndarray, num_steps: int = 50, frame_id: str = "world") -> List[StampedPose]:
+def generate_trajectory(
+    start_pose: StampedPose, 
+    target_pose: StampedPose, 
+    num_steps: int = 50, 
+    tf_manager: Optional[TransformManager] = None
+) -> List[StampedPose]:
     """Generate a trajectory using SE(3) interpolation through waypoints.
     
     Args:
-        start_pose: Start pose as [x, y, z, qx, qy, qz, qw]
-        target_pose: Target pose as [x, y, z, qx, qy, qz, qw]
+        start_pose: Start pose as StampedPose
+        target_pose: Target pose as StampedPose
         num_steps: Number of steps for the trajectory
-        frame_id: Frame ID for the StampedPoses
+        tf_manager: Optional TransformManager for frame conversion
         
     Returns:
         List of StampedPose objects representing the trajectory
     """
+    # Normalize frames to world if possible
+    if tf_manager:
+        if start_pose.frame_id != "world":
+            start_pose = tf_manager.transform_pose(start_pose, "world")
+        if target_pose.frame_id != "world":
+            target_pose = tf_manager.transform_pose(target_pose, "world")
+            
+    # If still mismatch (and no manager), warn
+    if start_pose.frame_id != target_pose.frame_id:
+        logger.warning(f"Frame mismatch in generate_trajectory: {start_pose.frame_id} vs {target_pose.frame_id}")
+        
+    frame_id = start_pose.frame_id # Use common frame
+    
     trajectory_points = []
     
-    start_pos = np.array(start_pose[:3])
-    start_quat = np.array(start_pose[3:])
+    start_pos = start_pose.position
+    start_quat = start_pose.quaternion
     
-    end_pos = np.array(target_pose[:3])
-    end_quat = np.array(target_pose[3:])
+    end_pos = target_pose.position
+    end_quat = target_pose.quaternion
     
     # Define waypoints in SE(3)
     # 1. Lift up (same orientation as start)
@@ -290,22 +308,23 @@ def main() -> None:
             start_pos = np.array(plate_pos)
             start_quat = np.array(plate_quat)
     
-    start_pose_vec = np.concatenate([start_pos, start_quat])
     start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id="world")
     
     # Determine Target Pose
     target_pos = np.array(args.target_pos)
     target_quat = np.array(args.target_quat)
-    target_pose_vec = np.concatenate([target_pos, target_quat])
+    target_pose_stamped = StampedPose(position=target_pos, quaternion=target_quat, frame_id="world")
     
-    logger.info(f"Planning from {start_pose_vec[:3]} to {target_pose_vec[:3]}")
+    logger.info(f"Planning from {start_pose_stamped.position} to {target_pose_stamped.position}")
     
     # 4. Generate Object Trajectory
     # ----------------------
-    object_trajectory = generate_trajectory(start_pose_vec, target_pose_vec, num_steps=100)
-    
-    # Convert object trajectory to matrices for utilities
-    object_traj_matrices = [p.to_matrix() for p in object_trajectory]
+    object_trajectory = generate_trajectory(
+        start_pose_stamped, 
+        target_pose_stamped, 
+        num_steps=100,
+        tf_manager=tf_manager
+    )
     
     # 5. Visualize Object Trajectory
     # -----------------------
@@ -314,10 +333,10 @@ def main() -> None:
     # Visualize Target
     vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
     T_target = np.eye(4)
-    T_target[:3, 3] = target_pos
+    T_target[:3, 3] = target_pose_stamped.position
     
     # Convert target_quat (xyzw) to wxyz for meshcat
-    target_quat_wxyz = T.convert_quat(target_quat, to="wxyz")
+    target_quat_wxyz = T.convert_quat(target_pose_stamped.quaternion, to="wxyz")
     r = tf.quaternion_matrix(target_quat_wxyz)
     T_target[:3, :3] = r[:3, :3]
     vis["target_pose"].set_transform(T_target)
@@ -371,13 +390,12 @@ def main() -> None:
         valid_trajectories = [] # List of tuples (traj0, traj1)
         
         for i, (g0, g1) in enumerate(feasible_pairs):
-            if i >= 5: break # Limit to checking first 5 pairs to save time
-            
             logger.info(f"Checking pair {i}...")
             
-            # Generate EEF trajectories (Matrices)
-            traj0_mat = generate_end_effector_trajectory(object_traj_matrices, g0)
-            traj1_mat = generate_end_effector_trajectory(object_traj_matrices, g1)
+            # Generate EEF trajectories
+            # PASS tf_manager to check/fix frames
+            traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
+            traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
             
             # Check Feasibility for Robot 0
             # Note: We check object collision by passing object_trajectory and object_name
@@ -386,8 +404,8 @@ def main() -> None:
             joint_traj0 = check_trajectory_feasibility(
                 env=env,
                 robot_id=0,
-                eef_trajectory=traj0_mat,
-                object_trajectory=object_traj_matrices,
+                eef_trajectory=traj0_eef,
+                object_trajectory=object_trajectory,
                 object_name="plate_target",
                 env_lock=env_lock
             )
@@ -401,8 +419,8 @@ def main() -> None:
             joint_traj1 = check_trajectory_feasibility(
                 env=env,
                 robot_id=1,
-                eef_trajectory=traj1_mat,
-                object_trajectory=object_traj_matrices,
+                eef_trajectory=traj1_eef,
+                object_trajectory=object_trajectory,
                 object_name="plate_target",
                 env_lock=env_lock
             )
@@ -413,15 +431,11 @@ def main() -> None:
                 
             logger.info("  -> Pair Valid!")
             
-            # Convert matrices back to StampedPose for visualization/saving
-            traj0_stamped = [StampedPose.from_matrix(m, "world") for m in traj0_mat]
-            traj1_stamped = [StampedPose.from_matrix(m, "world") for m in traj1_mat]
-            
-            valid_trajectories.append((traj0_stamped, traj1_stamped))
+            valid_trajectories.append((traj0_eef, traj1_eef))
             
             # Visualize
-            visualize_trajectory(vis, traj0_stamped, name=f"robot0_traj_{i}", color=0x0000ff)
-            visualize_trajectory(vis, traj1_stamped, name=f"robot1_traj_{i}", color=0xff00ff)
+            visualize_trajectory(vis, traj0_eef, name=f"robot0_traj_{i}", color=0x0000ff)
+            visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
 
     # 7. Save Trajectories
     # ---------------------------------------------
