@@ -171,7 +171,7 @@ def main() -> None:
     
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
     parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
-    parser.add_argument("--output-dir", type=str, default="data", help="Output directory for data")
+    parser.add_argument("--output-dir", type=str, default = constants.get_project_root() / constants.DATA_DIR, help="Output directory for data")
     parser.add_argument("--filename", type=str, default="shelf_trajectory.npz", help="Output filename")
     
     # Pose arguments

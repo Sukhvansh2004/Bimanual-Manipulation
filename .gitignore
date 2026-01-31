@@ -3,5 +3,6 @@
 .vscode**
 models/**
 scratch/**
+data/**
 MUJOCO_LOG.TXT
 pytest_output.log

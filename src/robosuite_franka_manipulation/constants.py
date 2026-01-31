@@ -35,6 +35,7 @@ ZMQ_SERVICE_CALL_TIMEOUT = 5 * 60 * 1000  # 5 mins... seconds for service calls
 FASTSAM_MODEL_PATH = 'models/FastSAM-x.pt'
 GRASPGEN_MODELS_DIR = 'deps/GraspGenModels/checkpoints'
 GRASPGEN_DEPS_DIR = 'deps/GraspGen'
+DATA_DIR = 'data'
 
 # GraspGen config file template
 GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
