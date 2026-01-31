@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence, Tuple, Union, Iterable
 import numpy as np
 import mujoco
 
-from robosuite_franka_manipulation.constants import DEFAULT_ROBOT_ACTION_DIM
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite.utils.binding_utils import MjModel, MjData
@@ -95,7 +95,7 @@ def enumerate_ik_solutions_for_arm(
     *,
     robot_id: int,
     target_pose: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
-    target_frame: str = "world",
+    target_frame: str = constants.WORLD_FRAME,
     arm: str = "right",
     tf_manager: Optional[TransformManager] = None,
     env_lock: threading.RLock = None,
@@ -117,7 +117,7 @@ def enumerate_ik_solutions_for_arm(
     - Run DLS IK from each seed; keep converged solutions; de-duplicate.
 
     Returns:
-        List of joint angle arrays of shape (f{DEFAULT_ROBOT_ACTION_DIM},).
+        List of joint angle arrays of shape (f{constants.DEFAULT_ROBOT_ACTION_DIM},).
     """
 
     ctx = env_lock if env_lock is not None else nullcontext()
@@ -126,8 +126,8 @@ def enumerate_ik_solutions_for_arm(
         data = env.sim.data
 
         joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
-        if len(joint_ids) != DEFAULT_ROBOT_ACTION_DIM:
-            raise RuntimeError(f"Expected {DEFAULT_ROBOT_ACTION_DIM} arm joints for robot{robot_id}, found {len(joint_ids)}.")
+        if len(joint_ids) != constants.DEFAULT_ROBOT_ACTION_DIM:
+            raise RuntimeError(f"Expected {constants.DEFAULT_ROBOT_ACTION_DIM} arm joints for robot{robot_id}, found {len(joint_ids)}.")
 
         joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
         joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
@@ -138,8 +138,8 @@ def enumerate_ik_solutions_for_arm(
         if tf_manager is None:
             tf_manager = TransformManager(env, env_lock=env_lock)
         pose_sp = as_stamped_pose(target_pose, target_frame)
-        if pose_sp.frame_id != "world":
-            pose_sp = tf_manager.transform_pose(pose_sp, "world")
+        if pose_sp.frame_id != constants.WORLD_FRAME:
+            pose_sp = tf_manager.transform_pose(pose_sp, constants.WORLD_FRAME)
 
         target_pos = np.asarray(pose_sp.position, dtype=float)
         target_quat = np.asarray(pose_sp.quaternion, dtype=float)

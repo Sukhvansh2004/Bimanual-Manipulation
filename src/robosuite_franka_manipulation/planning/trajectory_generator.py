@@ -35,18 +35,18 @@ def generate_end_effector_trajectory(
         return []
 
     # 1. Ensure Grasp is in World Frame
-    if grasp.frame_id != "world":
+    if grasp.frame_id != constants.WORLD_FRAME:
         if tf_manager:
-            grasp = tf_manager.transform_pose(grasp, "world")
+            grasp = tf_manager.transform_pose(grasp, constants.WORLD_FRAME)
         else:
             logger.warning(f"Grasp frame is '{grasp.frame_id}', expected 'world'. No tf_manager provided.")
             # Proceeding, assuming caller knows what they are doing or matrix math handles it implicitly if consistent
             # But the logic below assumes world frame logic for T_obj_grasp derivation if T_world_obj_start is world.
 
-    # 2. Ensure Object Trajectory is in World Frame\
-    if object_trajectory[0].frame_id != "world":
+    # 2. Ensure Object Trajectory is in World Frame
+    if object_trajectory[0].frame_id != constants.WORLD_FRAME:
         if tf_manager:
-            object_trajectory = [tf_manager.transform_pose(p, "world") for p in object_trajectory]
+            object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
         else:
             logger.warning(f"Object trajectory frame is '{object_trajectory[0].frame_id}', expected 'world'.")
 
@@ -62,7 +62,7 @@ def generate_end_effector_trajectory(
         T_object = obj_pose.to_matrix()
         # Transform to end effector frame: T_world_end_eff = T_world_obj * T_obj_grasp
         T_end_effector = T_object @ T_obj_grasp
-        end_effector_trajectory.append(StampedPose.from_matrix(T_end_effector, frame_id="world"))
+        end_effector_trajectory.append(StampedPose.from_matrix(T_end_effector, frame_id=constants.WORLD_FRAME))
     
     return end_effector_trajectory
 
@@ -102,7 +102,7 @@ def generate_lift_trajectory(
         T_step = np.eye(4)
         T_step[:3, :3] = start_rot
         T_step[:3, 3] = pos
-        object_trajectory.append(StampedPose.from_matrix(T_step, frame_id="world"))
+        object_trajectory.append(StampedPose.from_matrix(T_step, frame_id=constants.WORLD_FRAME))
         
     all_trajectories = []
     

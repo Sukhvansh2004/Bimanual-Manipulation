@@ -69,10 +69,10 @@ def generate_trajectory(
     """
     # Normalize frames to world if possible
     if tf_manager:
-        if start_pose.frame_id != "world":
-            start_pose = tf_manager.transform_pose(start_pose, "world")
-        if target_pose.frame_id != "world":
-            target_pose = tf_manager.transform_pose(target_pose, "world")
+        if start_pose.frame_id != constants.WORLD_FRAME:
+            start_pose = tf_manager.transform_pose(start_pose, constants.WORLD_FRAME)
+        if target_pose.frame_id != constants.WORLD_FRAME:
+            target_pose = tf_manager.transform_pose(target_pose, constants.WORLD_FRAME)
             
     # If still mismatch (and no manager), warn
     if start_pose.frame_id != target_pose.frame_id:
@@ -308,12 +308,12 @@ def main() -> None:
             start_pos = np.array(plate_pos)
             start_quat = np.array(plate_quat)
     
-    start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id="world")
+    start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
     
     # Determine Target Pose
     target_pos = np.array(args.target_pos)
     target_quat = np.array(args.target_quat)
-    target_pose_stamped = StampedPose(position=target_pos, quaternion=target_quat, frame_id="world")
+    target_pose_stamped = StampedPose(position=target_pos, quaternion=target_quat, frame_id=constants.WORLD_FRAME)
     
     logger.info(f"Planning from {start_pose_stamped.position} to {target_pose_stamped.position}")
     
@@ -372,8 +372,8 @@ def main() -> None:
         env_lock=env_lock
     )
     
-    grasps_0 = [g for g in all_grasps if g.gripper_type in ('finger', 'franka_panda')]
-    grasps_1 = [g for g in all_grasps if g.gripper_type in ('suction', 'single_suction_cup_30mm')]
+    grasps_0 = [g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])]
+    grasps_1 = [g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])]
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
@@ -460,7 +460,9 @@ def main() -> None:
         for i, (traj0, traj1) in enumerate(valid_trajectories):
             save_trajectory(traj0, args.output_dir, f"robot0_trajectory_{i}.npz")
             save_trajectory(traj1, args.output_dir, f"robot1_trajectory_{i}.npz")
-            
+    else:
+        logger.info("No trajectories saved.")
+        
     logger.info("Closing simulation...")
     stop_event.set()
     vis_thread.join(timeout=2.0)

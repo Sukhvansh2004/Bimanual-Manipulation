@@ -55,15 +55,15 @@ def check_trajectory_feasibility(
         return None
 
     # Ensure frames are World
-    if eef_trajectory and eef_trajectory[0].frame_id != "world":
+    if eef_trajectory and eef_trajectory[0].frame_id != constants.WORLD_FRAME:
         if tf_manager:
-            eef_trajectory = [tf_manager.transform_pose(p, "world") for p in eef_trajectory]
+            eef_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in eef_trajectory]
         else:
             logger.warning(f"EEF trajectory frame is {eef_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
 
-    if object_trajectory and object_trajectory[0].frame_id != "world":
+    if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
         if tf_manager:
-            object_trajectory = [tf_manager.transform_pose(p, "world") for p in object_trajectory]
+            object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
         else:
             logger.warning(f"Object trajectory frame is {object_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
 
@@ -116,7 +116,7 @@ def check_trajectory_feasibility(
                     env=env,
                     robot_id=robot_id,
                     target_pose=pose,
-                    target_frame="world",
+                    target_frame=constants.WORLD_FRAME,
                     arm="right",
                     num_seed_configs=8,
                     max_solutions=1,
