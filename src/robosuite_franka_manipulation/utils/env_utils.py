@@ -50,9 +50,6 @@ def resolve_mesh_path(object_name: str) -> Optional[str]:
     Returns:
         Path to the mesh file if found, None otherwise.
     """
-    # 1. Check YCB dataset path
-    # Standard YCB structure: YCB_DATASET_PATH / name / google_16k / textured.obj
-    
     candidates = [object_name]
     if "_" in object_name:
         candidates.append(object_name.rsplit('_', 1)[0]) # Remove suffix (e.g. apple_0 -> apple)
