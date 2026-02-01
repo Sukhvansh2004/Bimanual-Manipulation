@@ -20,6 +20,7 @@ import meshcat.transformations as tf
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
@@ -63,13 +64,19 @@ class RobotMeshVisualizer:
             env: DualArmEnvironment instance
             env_lock: Optional threading lock for env access
             tf_manager: Optional TransformManager for frame conversions
-            base_path: Base path in MeshCat hierarchy for all trajectory visualizations
+            base_path: Base path in MeshCat hierarchy for all trajectory visualizations.
+                       If None, uses constants.VIS_PLANNING_ROOT/constants.VIS_ROBOT_CONFIG_PATH
         """
         self.vis = vis
         self.env = env
         self.env_lock = env_lock
         self.tf_manager = tf_manager or TransformManager(env, env_lock=env_lock)
-        self.base_path = base_path
+        # Use planning root path for organization
+        if base_path == "trajectory_configs":
+            # Default value - use constants
+            self.base_path = f"{constants.VIS_PLANNING_ROOT}/{constants.VIS_ROBOT_CONFIG_PATH}"
+        else:
+            self.base_path = base_path
         
         # Cache for mesh data to avoid reloading
         self._mesh_cache: Dict[str, g.Geometry] = {}

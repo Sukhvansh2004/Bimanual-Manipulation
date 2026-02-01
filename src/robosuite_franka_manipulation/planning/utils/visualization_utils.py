@@ -11,6 +11,7 @@ from typing import List
 from grasp_gen.utils.meshcat_utils import make_frame
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,13 @@ def visualize_trajectory(vis: meshcat.Visualizer, trajectory: List[StampedPose],
     if not trajectory:
         return
 
+    # Use planning root path for organization
+    full_path = f"{constants.VIS_PLANNING_ROOT}/{constants.VIS_TRAJECTORY_PATH}/{name}"
+    
     points = np.array([p.position for p in trajectory]).T
     
     # Draw line
-    vis[name].set_object(g.Line(
+    vis[full_path].set_object(g.Line(
         g.PointsGeometry(points),
         g.LineBasicMaterial(linewidth=5, color=color)
     ))
@@ -37,7 +41,7 @@ def visualize_trajectory(vis: meshcat.Visualizer, trajectory: List[StampedPose],
     # Draw key frames
     for i, pose in enumerate(trajectory):
         if i % 5 == 0: # Draw every 5th frame
-            frame_name = f"{name}/frame_{i}"
+            frame_name = f"{full_path}/frame_{i}"
             
             # Construct transform matrix
             mat = np.eye(4)

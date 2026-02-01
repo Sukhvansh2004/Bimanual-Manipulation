@@ -170,6 +170,9 @@ GRIPPER_OPEN_WIDTH = 1.0
 GRIPPER_CLOSE_WIDTH = 0.0
 
 # Visualization defaults
+VIS_PLANNING_ROOT = "planning"  # Root path in MeshCat for all planning visualizations
+VIS_TRAJECTORY_PATH = "trajectories"  # Subpath for trajectory visualizations
+VIS_ROBOT_CONFIG_PATH = "robot_configs"  # Subpath for robot mesh configurations
 VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
 VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
 
