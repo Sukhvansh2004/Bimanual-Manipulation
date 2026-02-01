@@ -20,6 +20,7 @@ import argparse
 import sys
 
 import meshcat.transformations as tf
+import scipy.spatial.transform as strans
 
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
@@ -172,7 +173,6 @@ def main() -> None:
             if plate_pose_mat is not None:
                 start_pos = plate_pose_mat[:3, 3]
                 # Convert matrix to quat [x, y, z, w]
-                import scipy.spatial.transform as strans
                 start_quat = strans.Rotation.from_matrix(plate_pose_mat[:3, :3]).as_quat()
                 logger.info(f"Detected plate pose: pos={start_pos}")
             else:
