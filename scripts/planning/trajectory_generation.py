@@ -17,12 +17,9 @@ import logging
 import meshcat
 import meshcat.geometry as g
 import argparse
-import os
 import sys
-from typing import List, Tuple, Optional, Dict
 
 import meshcat.transformations as tf
-from grasp_gen.utils.meshcat_utils import make_frame
 
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
@@ -54,7 +51,7 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     # Default values
     default_target_pos = [-0.65, 0.05, 1.35]
-    default_target_quat = [0.0, 0.70710678, 0.0, 0.70710678]
+    default_target_quat = [0.70710678, 0.0, 0.0, 0.70710678]
     
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
     parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
