@@ -12,8 +12,80 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
 logger = logging.getLogger(__name__)
+
+def generate_object_trajectory(
+    start_pose: StampedPose, 
+    target_pose: StampedPose, 
+    num_steps: int = 50, 
+    tf_manager: Optional[TransformManager] = None
+) -> List[StampedPose]:
+    """Generate a trajectory using SE(3) interpolation through waypoints for object insertion.
+    
+    Args:
+        start_pose: Start pose as StampedPose
+        target_pose: Target pose as StampedPose
+        num_steps: Number of steps for the trajectory
+        tf_manager: Optional TransformManager for frame conversion
+        
+    Returns:
+        List of StampedPose objects representing the trajectory
+    """
+    # Normalize frames to world if possible
+    if tf_manager:
+        if start_pose.frame_id != constants.WORLD_FRAME:
+            start_pose = tf_manager.transform_pose(start_pose, constants.WORLD_FRAME)
+        if target_pose.frame_id != constants.WORLD_FRAME:
+            target_pose = tf_manager.transform_pose(target_pose, constants.WORLD_FRAME)
+            
+    # If still mismatch (and no manager), warn
+    if start_pose.frame_id != target_pose.frame_id:
+        logger.warning(f"Frame mismatch in generate_object_trajectory: {start_pose.frame_id} vs {target_pose.frame_id}")
+        
+    frame_id = start_pose.frame_id # Use common frame
+    
+    trajectory_points = []
+    
+    start_pos = start_pose.position
+    start_quat = start_pose.quaternion
+    
+    end_pos = target_pose.position
+    end_quat = target_pose.quaternion
+    
+    # Define waypoints in SE(3)
+    # 1. Lift up (same orientation as start)
+    lift_height = 0.2
+    lift_pos = start_pos.copy()
+    lift_pos[2] += lift_height
+    lift_quat = start_quat.copy()
+    
+    # 2. Approach object (pre-align orientation with target)
+    # Move to approach position, and start rotating towards target orientation
+    approach_pos = end_pos.copy()
+    approach_pos[0] += 0.3 # Stand back from object
+    approach_quat = end_quat.copy() 
+    
+    # Define segments as (start_p, start_q, end_p, end_q, steps)
+    segments = [
+        (start_pos, start_quat, lift_pos, lift_quat, int(num_steps * 0.2)),
+        (lift_pos, lift_quat, approach_pos, approach_quat, int(num_steps * 0.5)),
+        (approach_pos, approach_quat, end_pos, end_quat, int(num_steps * 0.3))
+    ]
+    
+    for p_start, q_start, p_end, q_end, steps in segments:
+        for i in range(steps):
+            t = i / float(steps)
+            # Use SE(3) interpolation utility
+            pos, quat = interpolate_pose(p_start, q_start, p_end, q_end, t)
+            trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
+            
+    # Ensure final point is included
+    trajectory_points.append(StampedPose(position=end_pos, quaternion=end_quat, frame_id=frame_id))
+            
+    return trajectory_points
+
 
 def generate_end_effector_trajectory(
     object_trajectory: List[StampedPose],

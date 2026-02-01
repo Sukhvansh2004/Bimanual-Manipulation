@@ -4,6 +4,7 @@ Trajectory verification utilities.
 
 import numpy as np
 import logging
+import os
 from typing import List, Optional, Union
 import mujoco
 
@@ -152,3 +153,30 @@ def check_trajectory_feasibility(
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
             mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+
+def save_trajectory(trajectory: List[StampedPose], output_dir: str, filename: str) -> None:
+    """Save trajectory to npz file.
+    
+    Args:
+        trajectory: List of StampedPose objects
+        output_dir: Output directory
+        filename: Output filename
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    filepath = os.path.join(output_dir, filename)
+    
+    # Extract data from StampedPose objects
+    positions = np.array([p.position for p in trajectory])
+    quaternions = np.array([p.quaternion for p in trajectory])
+    frame_ids = np.array([p.frame_id for p in trajectory])
+    
+    # Save as npz
+    np.savez(
+        filepath,
+        positions=positions,
+        quaternions=quaternions,
+        frame_ids=frame_ids
+    )
+    logger.info(f"Trajectory saved to {filepath}")

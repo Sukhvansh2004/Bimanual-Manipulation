@@ -69,15 +69,15 @@ def stream_transforms_to_meshcat(
 
     # Always honor config.zmq_url (and therefore constants.MESHCAT_ZMQ_URL).
     # The helper in grasp_gen hardcodes its own zmq url, so we avoid it here.
+    logger.info("Waiting for meshcat server... start one with: meshcat-server")
+    logger.info("Then open: http://127.0.0.1:7000")
+    
     vis = meshcat.Visualizer(zmq_url=str(config.zmq_url))
     if config.clear:
         try:
             vis.delete()
         except Exception:
             pass
-
-    logger.info("Waiting for meshcat server... start one with: meshcat-server")
-    logger.info("Then open: http://127.0.0.1:7000")
 
     tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
     
