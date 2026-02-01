@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 def generate_object_trajectory(
     start_pose: StampedPose, 
     target_pose: StampedPose, 
-    num_steps: int = 50, 
-    tf_manager: Optional[TransformManager] = None
+    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS, 
+    tf_manager: Optional[TransformManager] = None,
+    lift_height: float = constants.OBJECT_TRAJ_LIFT_HEIGHT,
+    approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
 ) -> List[StampedPose]:
     """Generate a trajectory using SE(3) interpolation through waypoints for object insertion.
     
@@ -29,6 +31,8 @@ def generate_object_trajectory(
         target_pose: Target pose as StampedPose
         num_steps: Number of steps for the trajectory
         tf_manager: Optional TransformManager for frame conversion
+        lift_height: Height to lift object during trajectory
+        approach_offset: Offset distance for approach phase
         
     Returns:
         List of StampedPose objects representing the trajectory
@@ -56,7 +60,6 @@ def generate_object_trajectory(
     
     # Define waypoints in SE(3)
     # 1. Lift up (same orientation as start)
-    lift_height = 0.2
     lift_pos = start_pos.copy()
     lift_pos[2] += lift_height
     lift_quat = start_quat.copy()
@@ -64,19 +67,20 @@ def generate_object_trajectory(
     # 2. Approach object (pre-align orientation with target)
     # Move to approach position, and start rotating towards target orientation
     approach_pos = end_pos.copy()
-    approach_pos[0] += 0.3 # Stand back from object
+    approach_pos[0] += approach_offset  # Stand back from object
     approach_quat = end_quat.copy() 
     
     # Define segments as (start_p, start_q, end_p, end_q, steps)
+    # Use configurable ratios from constants
     segments = [
-        (start_pos, start_quat, lift_pos, lift_quat, int(num_steps * 0.2)),
-        (lift_pos, lift_quat, approach_pos, approach_quat, int(num_steps * 0.5)),
-        (approach_pos, approach_quat, end_pos, end_quat, int(num_steps * 0.3))
+        (start_pos, start_quat, lift_pos, lift_quat, int(num_steps * constants.OBJECT_TRAJ_LIFT_RATIO)),
+        (lift_pos, lift_quat, approach_pos, approach_quat, int(num_steps * constants.OBJECT_TRAJ_APPROACH_RATIO)),
+        (approach_pos, approach_quat, end_pos, end_quat, int(num_steps * constants.OBJECT_TRAJ_INSERT_RATIO))
     ]
     
     for p_start, q_start, p_end, q_end, steps in segments:
         for i in range(steps):
-            t = i / float(steps)
+            t = i / float(steps) if steps > 0 else 0
             # Use SE(3) interpolation utility
             pos, quat = interpolate_pose(p_start, q_start, p_end, q_end, t)
             trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
@@ -95,9 +99,12 @@ def generate_end_effector_trajectory(
     """
     Generate end effector trajectory from object trajectory and a grasp pose.
     
+    The grasp pose is assumed to already be at the robot's grip_site frame
+    (i.e., the grasp service has already applied any necessary offsets).
+    
     Args:
         object_trajectory: List of object poses (StampedPose).
-        grasp: Grasp pose (GraspSchema/StampedPose).
+        grasp: Grasp pose (GraspSchema/StampedPose) - already at grip_site frame.
         tf_manager: Optional TransformManager to handle frame conversions.
         
     Returns:
@@ -112,8 +119,6 @@ def generate_end_effector_trajectory(
             grasp = tf_manager.transform_pose(grasp, constants.WORLD_FRAME)
         else:
             logger.warning(f"Grasp frame is '{grasp.frame_id}', expected 'world'. No tf_manager provided.")
-            # Proceeding, assuming caller knows what they are doing or matrix math handles it implicitly if consistent
-            # But the logic below assumes world frame logic for T_obj_grasp derivation if T_world_obj_start is world.
 
     # 2. Ensure Object Trajectory is in World Frame
     if object_trajectory[0].frame_id != constants.WORLD_FRAME:
@@ -122,10 +127,13 @@ def generate_end_effector_trajectory(
         else:
             logger.warning(f"Object trajectory frame is '{object_trajectory[0].frame_id}', expected 'world'.")
 
+    # Grasp is already at grip_site frame (no offset needed)
+    T_world_grasp = grasp.to_matrix()
+
     # Assumption: object_trajectory[0] corresponds to the object pose at the time 'grasp' was generated.
     T_world_obj_start = object_trajectory[0].to_matrix()
-    T_world_grasp = grasp.to_matrix()
     
+    # Compute grasp pose relative to object
     T_obj_grasp = np.linalg.inv(T_world_obj_start) @ T_world_grasp
     
     end_effector_trajectory = []

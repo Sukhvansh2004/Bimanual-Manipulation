@@ -12,7 +12,8 @@ from robosuite_franka_manipulation.planning.utils.collision_utils import in_coll
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
     get_arm_joint_ids,
-    get_joint_qpos_indices
+    get_joint_qpos_indices,
+    get_native_mj_object
 )
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
@@ -24,13 +25,6 @@ from contextlib import nullcontext
 # Configure logging
 logger = logging.getLogger(__name__)
 
-def _get_native_mj_object(obj):
-    """Helper to unwrap Robosuite MjModel/MjData wrappers to native MuJoCo objects."""
-    if hasattr(obj, '_data'):
-        return obj._data
-    if hasattr(obj, '_model'):
-        return obj._model
-    return obj
 
 def check_single_grasp_feasibility(
     env: DualArmEnvironment,
@@ -89,7 +83,7 @@ def check_single_grasp_feasibility(
         try:
             for q in solutions:
                 set_qpos(data, qpos_idx, q)
-                mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
+                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
                 
                 if not in_collision(env, env_lock=None): # Already locked by ctx
                     feasible = True
@@ -97,7 +91,7 @@ def check_single_grasp_feasibility(
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
-            mujoco.mj_forward(_get_native_mj_object(model), _get_native_mj_object(data))
+            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
         
     return feasible
 

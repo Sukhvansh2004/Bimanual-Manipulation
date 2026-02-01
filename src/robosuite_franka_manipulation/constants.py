@@ -119,9 +119,40 @@ DEFAULT_FEASIBILITY_MAX_PAIRS = 1  # Max pairs to check for dual-arm feasibility
 DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
 DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 
+# IK Solver Parameters
+IK_NUM_SEED_CONFIGS = 24  # Number of random seed configurations for IK
+IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
+IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
+IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
+IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
+IK_MAX_ITERATIONS = 200  # Maximum IK iterations
+IK_DAMPING = 1e-2  # Damping factor for DLS IK
+IK_STEP_SIZE = 0.6  # Step size for IK updates
+IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
+IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
+
+# Trajectory Feasibility Check Parameters
+TRAJ_IK_NUM_SEED_CONFIGS = 16  # Fewer seeds for trajectory waypoints (faster)
+TRAJ_IK_MAX_SOLUTIONS = 1  # Only need one solution per waypoint
+
+# Collision Checking Parameters
+COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
+
+# Dual-Arm Feasibility Parameters
+DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
+
 # =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
+
+# Object Trajectory Generation
+OBJECT_TRAJ_NUM_STEPS = 100  # Default number of steps for object trajectory
+OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
+OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
+# Segment ratios for object trajectory (lift, approach, insert)
+OBJECT_TRAJ_LIFT_RATIO = 0.2
+OBJECT_TRAJ_APPROACH_RATIO = 0.5
+OBJECT_TRAJ_INSERT_RATIO = 0.3
 
 # Trajectory planning - number of waypoints
 TRAJECTORY_NUM_POINTS = 200  # Number of waypoints for quintic polynomial trajectory
@@ -137,6 +168,10 @@ DEFAULT_APPROACH_AXIS = 'z'  # Default approach axis for pre-grasp
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0
 GRIPPER_CLOSE_WIDTH = 0.0
+
+# Visualization defaults
+VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
+VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
 
 # =============================================================================
 # Teleoperation Configuration

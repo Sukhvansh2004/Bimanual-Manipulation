@@ -125,8 +125,8 @@ def check_trajectory_feasibility(
                     target_pose=pose,
                     target_frame=constants.WORLD_FRAME,
                     arm="right",
-                    num_seed_configs=16,
-                    max_solutions=1,
+                    num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
+                    max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
                     env_lock=None,  # Already locked
                     tf_manager=tf_manager
                 )
@@ -174,29 +174,64 @@ def check_trajectory_feasibility(
     return results, all_feasible
 
 
-def save_trajectory(trajectory: List[StampedPose], output_dir: str, filename: str) -> None:
-    """Save trajectory to npz file.
+def save_trajectory(
+    output_dir: str, 
+    filename: str,
+    eef_trajectory: Optional[List[StampedPose]] = None,
+    object_trajectory: Optional[List[StampedPose]] = None,
+    waypoint_results: Optional[List[WaypointFeasibilityResult]] = None,
+) -> None:
+    """Save trajectory to npz file with optional feasibility results.
     
     Args:
-        trajectory: List of StampedPose objects
         output_dir: Output directory
         filename: Output filename
+        eef_trajectory: List of end-effector StampedPose objects (optional if waypoint_results provided)
+        object_trajectory: List of object StampedPose objects (optional)
+        waypoint_results: List of WaypointFeasibilityResult with joint configs and feasibility (optional)
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
     filepath = os.path.join(output_dir, filename)
     
-    # Extract data from StampedPose objects
-    positions = np.array([p.position for p in trajectory])
-    quaternions = np.array([p.quaternion for p in trajectory])
-    frame_ids = np.array([p.frame_id for p in trajectory])
+    data_dict = {}
+    
+    # Save EEF trajectory poses
+    if eef_trajectory:
+        data_dict['eef_positions'] = np.array([p.position for p in eef_trajectory])
+        data_dict['eef_quaternions'] = np.array([p.quaternion for p in eef_trajectory])
+        data_dict['eef_frame_ids'] = np.array([p.frame_id for p in eef_trajectory])
+    
+    # Save object trajectory poses
+    if object_trajectory:
+        data_dict['object_positions'] = np.array([p.position for p in object_trajectory])
+        data_dict['object_quaternions'] = np.array([p.quaternion for p in object_trajectory])
+        data_dict['object_frame_ids'] = np.array([p.frame_id for p in object_trajectory])
+    
+    # Save waypoint results with feasibility info
+    if waypoint_results:
+        # Feasibility flags (1 = feasible, 0 = infeasible)
+        data_dict['is_feasible'] = np.array([int(r.is_feasible) for r in waypoint_results], dtype=np.int32)
+        data_dict['ik_success'] = np.array([int(r.ik_success) for r in waypoint_results], dtype=np.int32)
+        data_dict['collision_free'] = np.array([int(r.collision_free) for r in waypoint_results], dtype=np.int32)
+        
+        # Joint configurations (NaN for failed IK)
+        joint_configs = []
+        for r in waypoint_results:
+            if r.joint_config is not None:
+                joint_configs.append(r.joint_config)
+            else:
+                # Use NaN array for failed IK
+                joint_configs.append(np.full(constants.DEFAULT_ROBOT_ACTION_DIM, np.nan))
+        data_dict['joint_configs'] = np.array(joint_configs)
+        
+        # EEF poses from results (in case eef_trajectory not separately provided)
+        if not eef_trajectory:
+            data_dict['eef_positions'] = np.array([r.eef_pose.position for r in waypoint_results])
+            data_dict['eef_quaternions'] = np.array([r.eef_pose.quaternion for r in waypoint_results])
+            data_dict['eef_frame_ids'] = np.array([r.eef_pose.frame_id for r in waypoint_results])
     
     # Save as npz
-    np.savez(
-        filepath,
-        positions=positions,
-        quaternions=quaternions,
-        frame_ids=frame_ids
-    )
+    np.savez(filepath, **data_dict)
     logger.info(f"Trajectory saved to {filepath}")

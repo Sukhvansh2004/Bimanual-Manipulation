@@ -99,15 +99,15 @@ def enumerate_ik_solutions_for_arm(
     arm: str = "right",
     tf_manager: Optional[TransformManager] = None,
     env_lock: threading.RLock = None,
-    num_seed_configs: int = 24,
-    elbow_discretization: int = 8,
-    max_solutions: int = 32,
-    pos_tol: float = 1e-3,
-    ori_tol: float = 5e-3,
-    max_iters: int = 200,
-    damping: float = 1e-2,
-    step_size: float = 0.6,
-    unique_atol: float = 1e-3,
+    num_seed_configs: int = constants.IK_NUM_SEED_CONFIGS,
+    elbow_discretization: int = constants.IK_ELBOW_DISCRETIZATION,
+    max_solutions: int = constants.IK_MAX_SOLUTIONS,
+    pos_tol: float = constants.IK_POS_TOLERANCE,
+    ori_tol: float = constants.IK_ORI_TOLERANCE,
+    max_iters: int = constants.IK_MAX_ITERATIONS,
+    damping: float = constants.IK_DAMPING,
+    step_size: float = constants.IK_STEP_SIZE,
+    unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
 ) -> List[np.ndarray]:
     f"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
 
@@ -139,7 +139,7 @@ def enumerate_ik_solutions_for_arm(
             tf_manager = TransformManager(env, env_lock=env_lock)
 
         pose_sp = as_stamped_pose(target_pose, target_frame)
-        
+
         if pose_sp.frame_id != constants.WORLD_FRAME:
             pose_sp = tf_manager.transform_pose(pose_sp, constants.WORLD_FRAME)
 
@@ -167,7 +167,7 @@ def enumerate_ik_solutions_for_arm(
         # 2) Random perturbation seeds
         rng = np.random.default_rng(0)
         for _ in range(max(0, int(num_seed_configs))):
-            q0 = q_current + rng.normal(scale=0.25, size=q_current.shape)
+            q0 = q_current + rng.normal(scale=constants.IK_RANDOM_PERTURBATION_SCALE, size=q_current.shape)
             q0 = np.clip(q0, joint_lo, joint_hi)
             seeds.append(q0)
 

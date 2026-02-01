@@ -24,6 +24,7 @@ from robosuite_franka_manipulation.planning.utils.common import ArrayLike
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 from robosuite_franka_manipulation.planning.utils import ik_utils
 from robosuite_franka_manipulation.planning.utils import collision_utils
+from robosuite_franka_manipulation import constants
 
 
 def check_dual_arm_pose_feasibility(
@@ -31,24 +32,24 @@ def check_dual_arm_pose_feasibility(
     eef_pose_robot0: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
     eef_pose_robot1: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
     *,
-    input_frame: str = "world",
+    input_frame: str = constants.WORLD_FRAME,
     tf_manager: Optional[TransformManager] = None,
     env_lock=None,
     arm: str = "right",
     # IK discretization / search params
-    num_seed_configs: int = 24,
-    elbow_discretization: int = 8,
-    max_solutions_per_arm: int = 24,
+    num_seed_configs: int = constants.IK_NUM_SEED_CONFIGS,
+    elbow_discretization: int = constants.IK_ELBOW_DISCRETIZATION,
+    max_solutions_per_arm: int = constants.IK_NUM_SEED_CONFIGS,
     # IK solver params
-    pos_tol: float = 1e-3,
-    ori_tol: float = 5e-3,
-    max_iters: int = 200,
-    damping: float = 1e-2,
-    step_size: float = 0.6,
+    pos_tol: float = constants.IK_POS_TOLERANCE,
+    ori_tol: float = constants.IK_ORI_TOLERANCE,
+    max_iters: int = constants.IK_MAX_ITERATIONS,
+    damping: float = constants.IK_DAMPING,
+    step_size: float = constants.IK_STEP_SIZE,
     # Collision params
-    contact_dist_threshold: float = 1e-6,
+    contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
     # Pairing caps
-    max_pairs: int = 256,
+    max_pairs: int = constants.DUAL_ARM_MAX_PAIRS,
 ) -> List[List[Union[np.ndarray, bool]]]:
     f"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
 
