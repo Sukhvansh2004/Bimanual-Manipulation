@@ -246,7 +246,7 @@ def main() -> None:
     else:
         # Step 6b: Find feasible grasp pairs (Collision Free Grasp Configuration)
         logger.info("Finding feasible grasp pairs (checking mutual collisions)...")
-        feasible_pairs = find_feasible_grasp_pairs(env, grasps_0, grasps_1, env_lock=env_lock)
+        feasible_pairs = find_feasible_grasp_pairs(env, grasps_0, grasps_1, env_lock=env_lock, tf_manager=tf_manager)
         
         logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
         

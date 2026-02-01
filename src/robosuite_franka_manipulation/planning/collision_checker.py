@@ -15,7 +15,7 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_joint_qpos_indices
 )
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation import constants
 import mujoco
@@ -36,7 +36,8 @@ def check_single_grasp_feasibility(
     grasp: Union[GraspSchema, StampedPose],
     robot_id: int,
     arm: str = "right",
-    env_lock = None
+    env_lock = None,
+    tf_manager: Union[TransformManager, None] = None
 ) -> bool:
     """
     Check if a single grasp is feasible (reachable via IK and collision-free).
@@ -46,6 +47,7 @@ def check_single_grasp_feasibility(
         grasp: GraspSchema or StampedPose (must be in WORLD frame or convertible).
         robot_id: ID of robot (0 or 1)
         env_lock: Optional threading.RLock
+        tf_manager: Optional TransformManager
         
     Returns:
         True if feasible
@@ -63,7 +65,8 @@ def check_single_grasp_feasibility(
         target_pose=grasp,
         arm=arm,
         max_solutions=constants.DEFAULT_IK_MAX_SOLUTIONS,
-        env_lock=env_lock
+        env_lock=env_lock,
+        tf_manager=tf_manager
     )
     
     if not solutions:
@@ -104,7 +107,8 @@ def find_feasible_grasp_pairs(
     env: DualArmEnvironment,
     grasps_robot0: List[GraspSchema],
     grasps_robot1: List[GraspSchema],
-    env_lock = None
+    env_lock = None,
+    tf_manager: Union[TransformManager, None] = None
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
     """
     Find feasible pairs of grasps (one for each robot).
@@ -114,6 +118,7 @@ def find_feasible_grasp_pairs(
         grasps_robot0: List of grasps for robot 0
         grasps_robot1: List of grasps for robot 1
         env_lock: Optional threading.RLock
+        tf_manager: Optional TransformManager
         
     Returns:
         List of (grasp0, grasp1) tuples that are simultaneously feasible.
@@ -122,11 +127,11 @@ def find_feasible_grasp_pairs(
     
     # Pre-filter single grasps to reduce N*M checks
     logger.info(f"Pre-filtering {len(grasps_robot0)} grasps for Robot 0...")
-    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(env, g, 0, env_lock=env_lock)]
+    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(env, g, 0, env_lock=env_lock, tf_manager=tf_manager)]
     logger.info(f"  -> {len(valid_grasps0)} valid grasps for Robot 0")
     
     logger.info(f"Pre-filtering {len(grasps_robot1)} grasps for Robot 1...")
-    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(env, g, 1, env_lock=env_lock)]
+    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(env, g, 1, env_lock=env_lock, tf_manager=tf_manager)]
     logger.info(f"  -> {len(valid_grasps1)} valid grasps for Robot 1")
     
     if not valid_grasps0 or not valid_grasps1:
@@ -146,7 +151,8 @@ def find_feasible_grasp_pairs(
                 eef_pose_robot0=g0,
                 eef_pose_robot1=g1,
                 max_pairs=constants.DEFAULT_FEASIBILITY_MAX_PAIRS,
-                env_lock=env_lock
+                env_lock=env_lock,
+                tf_manager=tf_manager
             )
             
             # results is list of [q0, q1, feasible]

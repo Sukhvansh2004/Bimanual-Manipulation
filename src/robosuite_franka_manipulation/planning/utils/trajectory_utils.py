@@ -51,22 +51,19 @@ def check_trajectory_feasibility(
     Returns:
         List of joint configurations (qpos) if feasible, None otherwise.
     """
+    if tf_manager is None:
+        tf_manager = TransformManager(env, env_lock=env_lock)
+
     if object_trajectory and len(object_trajectory) != len(eef_trajectory):
         logger.error("Object trajectory length mismatch")
         return None
 
     # Ensure frames are World
     if eef_trajectory and eef_trajectory[0].frame_id != constants.WORLD_FRAME:
-        if tf_manager:
-            eef_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in eef_trajectory]
-        else:
-            logger.warning(f"EEF trajectory frame is {eef_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
+        eef_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in eef_trajectory]
 
     if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
-        if tf_manager:
-            object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
-        else:
-            logger.warning(f"Object trajectory frame is {object_trajectory[0].frame_id}, expected 'world'. No tf_manager provided.")
+        object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
 
     # Locking context
     from contextlib import nullcontext
@@ -121,7 +118,8 @@ def check_trajectory_feasibility(
                     arm="right",
                     num_seed_configs=16,
                     max_solutions=1,
-                    env_lock=env_lock 
+                    env_lock=env_lock,
+                    tf_manager=tf_manager
                 )
                 
                 if not solutions:
