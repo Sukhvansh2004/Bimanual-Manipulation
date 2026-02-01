@@ -19,6 +19,7 @@ from robosuite_franka_manipulation.transforms import StampedPose, TransformManag
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation import constants
 import mujoco
+from contextlib import nullcontext
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ def _get_native_mj_object(obj):
 
 def check_single_grasp_feasibility(
     env: DualArmEnvironment,
-    grasp: Union[GraspSchema, StampedPose],
+    grasp: StampedPose,
     robot_id: int,
     arm: str = "right",
     env_lock = None,
@@ -72,9 +73,6 @@ def check_single_grasp_feasibility(
     if not solutions:
         return False
         
-    # Check collisions for solutions
-    # We need to lock while modifying/stepping sim
-    from contextlib import nullcontext
     ctx = env_lock if env_lock is not None else nullcontext()
     
     with ctx:

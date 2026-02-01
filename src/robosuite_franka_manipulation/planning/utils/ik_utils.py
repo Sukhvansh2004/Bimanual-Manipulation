@@ -137,7 +137,9 @@ def enumerate_ik_solutions_for_arm(
         # Therefore, run IK in world coordinates.
         if tf_manager is None:
             tf_manager = TransformManager(env, env_lock=env_lock)
+
         pose_sp = as_stamped_pose(target_pose, target_frame)
+        
         if pose_sp.frame_id != constants.WORLD_FRAME:
             pose_sp = tf_manager.transform_pose(pose_sp, constants.WORLD_FRAME)
 
