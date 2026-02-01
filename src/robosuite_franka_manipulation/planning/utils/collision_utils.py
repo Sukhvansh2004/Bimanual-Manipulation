@@ -4,7 +4,7 @@ from contextlib import nullcontext
 import threading
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
-
+import logging
 
 def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-6, env_lock: threading.RLock =None, ignore_names: list = None) -> bool:
     """Return True if either robot has any contacts below the threshold, excluding ignored names."""
@@ -38,7 +38,6 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
             if r1 is None and r2 is None:
                 continue
             
-            import logging
             logger = logging.getLogger(__name__)
             logger.debug(f"Collision between {g1} and {g2}")
             return True
