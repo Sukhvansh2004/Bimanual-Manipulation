@@ -5,8 +5,10 @@ Trajectory verification utilities.
 import numpy as np
 import logging
 import os
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
+from dataclasses import dataclass
 import mujoco
+from contextlib import nullcontext
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
@@ -25,6 +27,17 @@ logger = logging.getLogger(__name__)
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import TransformManager
 
+
+@dataclass
+class WaypointFeasibilityResult:
+    """Result of feasibility check for a single trajectory waypoint."""
+    waypoint_index: int
+    eef_pose: StampedPose
+    joint_config: Optional[np.ndarray]  # None if IK failed
+    is_feasible: bool  # True if IK succeeded and no collision
+    ik_success: bool  # True if IK found a solution
+    collision_free: bool  # True if no collision detected
+
 def check_trajectory_feasibility(
     env: DualArmEnvironment,
     robot_id: int,
@@ -33,30 +46,35 @@ def check_trajectory_feasibility(
     object_name: Optional[str] = None,
     check_collisions: bool = True,
     env_lock = None,
-    tf_manager: Optional[TransformManager] = None
-) -> Optional[List[np.ndarray]]:
+    tf_manager: Optional[TransformManager] = None,
+    ignore_names: Optional[List[str]] = None
+) -> Tuple[List[WaypointFeasibilityResult], bool]:
     """
-    Check if an end-effector trajectory is feasible (IK reachable + Collision Free).
+    Check trajectory feasibility and return detailed per-waypoint results.
+    
+    Unlike check_trajectory_feasibility which returns None on first failure,
+    this function checks ALL waypoints and returns detailed results for each.
     
     Args:
         env: Environment instance
         robot_id: Robot ID (0 or 1)
-        eef_trajectory: List of StampedPose objects representing EEF poses in World frame.
+        eef_trajectory: List of StampedPose objects representing EEF poses.
         object_trajectory: Optional list of StampedPose objects for object poses.
         object_name: Name of the object (required if object_trajectory is provided).
         check_collisions: Whether to check collisions.
         env_lock: Optional threading.RLock
         tf_manager: Optional TransformManager to handle frame conversions.
+        ignore_names: List of geom names to ignore in collision checking.
         
     Returns:
-        List of joint configurations (qpos) if feasible, None otherwise.
+        Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
     """
     if tf_manager is None:
         tf_manager = TransformManager(env, env_lock=env_lock)
 
     if object_trajectory and len(object_trajectory) != len(eef_trajectory):
         logger.error("Object trajectory length mismatch")
-        return None
+        return [], False
 
     # Ensure frames are World
     if eef_trajectory and eef_trajectory[0].frame_id != constants.WORLD_FRAME:
@@ -65,20 +83,18 @@ def check_trajectory_feasibility(
     if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
         object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
 
-    # Locking context
-    from contextlib import nullcontext
     ctx = env_lock if env_lock is not None else nullcontext()
 
-    # We need to lock while accessing/modifying sim state
+    results: List[WaypointFeasibilityResult] = []
+    all_feasible = True
+
     with ctx:
         model = env.sim.model
         data = env.sim.data
         
-        # Get joint indices for this robot
         jids = get_arm_joint_ids(model, robot_id)
         qpos_idx = get_joint_qpos_indices(model, jids)
         
-        # Backup state
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
         
@@ -86,30 +102,23 @@ def check_trajectory_feasibility(
         obj_joint_addr = None
         if object_name:
             try:
-                # Assuming object is a free joint
                 obj_joint_id = model.joint(f"{object_name}_joint0").id
                 obj_qpos_addr = model.jnt_qposadr[obj_joint_id]
                 obj_joint_addr = obj_qpos_addr
             except Exception:
                 pass
 
-        joint_trajectory = []
-        
         try:
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:
                     obj_pose = object_trajectory[i]
-                    
-                    # Robosuite StampedPose uses xyzw. MuJoCo free joint expects pos, quat(wxyz).
                     pos = obj_pose.position
                     quat = T.convert_quat(obj_pose.quaternion, to="wxyz")
-                    
                     data.qpos[obj_joint_addr:obj_joint_addr+3] = pos
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Solve IK
-                # Using StampedPose directly as target_pose
                 solutions = enumerate_ik_solutions_for_arm(
                     env=env,
                     robot_id=robot_id,
@@ -118,39 +127,52 @@ def check_trajectory_feasibility(
                     arm="right",
                     num_seed_configs=16,
                     max_solutions=1,
-                    env_lock=env_lock,
+                    env_lock=None,  # Already locked
                     tf_manager=tf_manager
                 )
                 
                 if not solutions:
-                    logger.debug(f"IK failed for robot {robot_id} at waypoint {i}")
-                    return None
+                    # IK failed
+                    results.append(WaypointFeasibilityResult(
+                        waypoint_index=i,
+                        eef_pose=pose,
+                        joint_config=None,
+                        is_feasible=False,
+                        ik_success=False,
+                        collision_free=True  # Unknown
+                    ))
+                    all_feasible = False
+                    continue
                 
                 q_sol = solutions[0]
                 
                 # 3. Check Collision
+                collision_free = True
                 if check_collisions:
                     set_qpos(data, qpos_idx, q_sol)
                     mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
-                    
-                    # Ignore collisions with the object itself and common fixed mounts/environment
-                    ignore_names = ["pedestal", "table", "shelf"]
-                    if object_name:
-                        ignore_names.append(object_name)
-                    
-                    if in_collision(env, env_lock=None, ignore_names=ignore_names): # Already locked
-                        logger.debug(f"Collision detected for robot {robot_id} at waypoint {i}")
-                        return None
+                    collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
                 
-                joint_trajectory.append(q_sol)
+                is_feasible = collision_free
+                if not is_feasible:
+                    all_feasible = False
                 
-            return joint_trajectory
-            
+                results.append(WaypointFeasibilityResult(
+                    waypoint_index=i,
+                    eef_pose=pose,
+                    joint_config=q_sol,
+                    is_feasible=is_feasible,
+                    ik_success=True,
+                    collision_free=collision_free
+                ))
+                
         finally:
-            # Restore state
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
             mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+    
+    return results, all_feasible
+
 
 def save_trajectory(trajectory: List[StampedPose], output_dir: str, filename: str) -> None:
     """Save trajectory to npz file.

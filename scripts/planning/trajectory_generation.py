@@ -36,8 +36,14 @@ from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerato
 # Planning Modules
 from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
 from robosuite_franka_manipulation.planning.trajectory_generator import generate_end_effector_trajectory, generate_object_trajectory
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import check_trajectory_feasibility, save_trajectory
-from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+    check_trajectory_feasibility,
+    save_trajectory
+)
+from robosuite_franka_manipulation.planning.utils import (
+    visualize_trajectory,
+    RobotMeshVisualizer
+)
 
 def setup_logging(level: int = logging.INFO):
     """Configure logging."""
@@ -65,6 +71,14 @@ def main() -> None:
     parser.add_argument("--start-quat", type=float, nargs=4, help="Start quaternion [x, y, z, w]")
     parser.add_argument("--target-pos", type=float, nargs=3, default=default_target_pos, help="Target position [x, y, z]")
     parser.add_argument("--target-quat", type=float, nargs=4, default=default_target_quat, help="Target quaternion [x, y, z, w]")
+    
+    # Visualization arguments
+    parser.add_argument("--visualize-robot-meshes", action="store_true", default=True,
+                        help="Visualize robot configurations as meshes along trajectories")
+    parser.add_argument("--mesh-step-interval", type=int, default=10,
+                        help="Visualize robot mesh every N waypoints (default: 10)")
+    parser.add_argument("--mesh-opacity", type=float, default=0.4,
+                        help="Opacity for robot mesh visualization (0-1, default: 0.4)")
     
     args = parser.parse_args()
 
@@ -259,47 +273,87 @@ def main() -> None:
             traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
             traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
             
-            # Check Feasibility for Robot 0
-            # Note: We check object collision by passing object_trajectory and object_name
-            # This ensures the object doesn't collide with environment while moving
             logger.info("  Checking Robot 0 trajectory...")
-            joint_traj0 = check_trajectory_feasibility(
+            results0, all_feasible0 = check_trajectory_feasibility(
                 env=env,
                 robot_id=0,
                 eef_trajectory=traj0_eef,
                 object_trajectory=object_trajectory,
                 object_name="plate_target",
                 env_lock=env_lock,
-                tf_manager=tf_manager
+                tf_manager=tf_manager,
             )
             
-            if joint_traj0 is None:
+            if not all_feasible0:
                 logger.info("  -> Robot 0 trajectory infeasible.")
-                continue
+                # Still continue to visualize if mesh visualization is enabled
+                if not args.visualize_robot_meshes:
+                    continue
                 
-            # Check Feasibility for Robot 1
+            # Check Feasibility for Robot 1 with detailed results
             logger.info("  Checking Robot 1 trajectory...")
-            joint_traj1 = check_trajectory_feasibility(
+            results1, all_feasible1 = check_trajectory_feasibility(
                 env=env,
                 robot_id=1,
                 eef_trajectory=traj1_eef,
                 object_trajectory=object_trajectory,
                 object_name="plate_target",
                 env_lock=env_lock,
-                tf_manager=tf_manager
+                tf_manager=tf_manager,
             )
             
-            if joint_traj1 is None:
+            if not all_feasible1:
                 logger.info("  -> Robot 1 trajectory infeasible.")
-                continue
-                
-            logger.info("  -> Pair Valid!")
+                # Still continue to visualize if mesh visualization is enabled
+                if not args.visualize_robot_meshes:
+                    continue
             
-            valid_trajectories.append((traj0_eef, traj1_eef))
+            if all_feasible0 and all_feasible1:
+                logger.info("  -> Pair Valid!")
+                valid_trajectories.append((traj0_eef, traj1_eef))
             
-            # Visualize
+            # Visualize trajectory line
             visualize_trajectory(vis, traj0_eef, name=f"robot0_traj_{i}", color=0x0000ff)
             visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
+            
+            # Visualize robot mesh configurations along the trajectory
+            if args.visualize_robot_meshes:
+                logger.info(f"  Visualizing robot mesh configurations for trajectory pair {i}...")
+                
+                # Create RobotMeshVisualizer instance
+                mesh_visualizer = RobotMeshVisualizer(
+                    vis=vis,
+                    env=env,
+                    env_lock=env_lock,
+                    tf_manager=tf_manager,
+                    base_path="trajectory_configs"
+                )
+                
+                # Visualize Robot 0 configurations using pre-computed results
+                logger.info(f"    Visualizing Robot 0 configurations...")
+                mesh_visualizer.visualize_trajectory_configs(
+                    trajectory_id=f"pair_{i}",
+                    robot_id=0,
+                    waypoint_results=results0,
+                    step_interval=args.mesh_step_interval,
+                    opacity=args.mesh_opacity
+                )
+                
+                # Visualize Robot 1 configurations using pre-computed results
+                logger.info(f"    Visualizing Robot 1 configurations...")
+                mesh_visualizer.visualize_trajectory_configs(
+                    trajectory_id=f"pair_{i}",
+                    robot_id=1,
+                    waypoint_results=results1,
+                    step_interval=args.mesh_step_interval,
+                    opacity=args.mesh_opacity
+                )
+                
+                # Log summary
+                feasible0 = sum(1 for r in results0 if r.is_feasible)
+                feasible1 = sum(1 for r in results1 if r.is_feasible)
+                logger.info(f"    Robot 0: {feasible0}/{len(results0)} waypoints feasible")
+                logger.info(f"    Robot 1: {feasible1}/{len(results1)} waypoints feasible")
 
     # 7. Save Trajectories
     # ---------------------------------------------

@@ -12,6 +12,20 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
 
+# Trajectory utilities
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+    check_trajectory_feasibility,
+    WaypointFeasibilityResult
+)
+
+# Visualization utilities
+from robosuite_franka_manipulation.planning.utils.visualization_utils import (
+    visualize_trajectory,
+)
+from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
+    RobotMeshVisualizer,
+)
+
 __all__ = [
     'GraspGenerator',
     'GraspSchema',
@@ -20,4 +34,10 @@ __all__ = [
     'check_single_grasp_feasibility',
     'generate_lift_trajectory',
     'generate_end_effector_trajectory',
+    # Trajectory utilities
+    'check_trajectory_feasibility',
+    'WaypointFeasibilityResult',
+    # Visualization
+    'visualize_trajectory',
+    'RobotMeshVisualizer',
 ]
