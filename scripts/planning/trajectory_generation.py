@@ -28,7 +28,7 @@ import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.utils import create_ycb_object
-from robosuite_franka_manipulation.utils.se3 import interpolate_pose, pose_to_SE3, SE3_to_pose
+from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -37,14 +37,14 @@ from robosuite_franka_manipulation.services.grasp_service import GraspService
 from robosuite_franka_manipulation.services.services_core import ServiceManager
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 
-# NEW: Planning Modules
+# Planning Modules
 from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
 from robosuite_franka_manipulation.planning.trajectory_generator import generate_end_effector_trajectory
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import check_trajectory_feasibility
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     force=True,
 )
@@ -193,11 +193,8 @@ def save_trajectory(trajectory: List[StampedPose], output_dir: str, filename: st
 
 def main() -> None:
     # Default values
-    default_target_pos = [-0.65, 0.05, 1.35]
-    # Target Orientation: Vertical for slot
-    # Rotate 90 deg around Y so it stands on edge facing X.
-    # Quat 90 deg Y: [0, sin(45), 0, cos(45)] -> [0, 0.707, 0, 0.707] (xyzw)
-    default_target_quat = [0.0, 0.70710678, 0.0, 0.70710678]
+    default_target_pos = [-0.55, 0.05, 1.35]
+    default_target_quat = [0.70710678, 0.0, 0.0, 0.70710678]
     
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
     parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
@@ -462,7 +459,7 @@ def main() -> None:
             save_trajectory(traj1, args.output_dir, f"robot1_trajectory_{i}.npz")
     else:
         logger.info("No trajectories saved.")
-        
+
     logger.info("Closing simulation...")
     stop_event.set()
     vis_thread.join(timeout=2.0)

@@ -118,12 +118,13 @@ def check_trajectory_feasibility(
                     target_pose=pose,
                     target_frame=constants.WORLD_FRAME,
                     arm="right",
-                    num_seed_configs=8,
+                    num_seed_configs=16,
                     max_solutions=1,
                     env_lock=env_lock 
                 )
                 
                 if not solutions:
+                    logger.debug(f"IK failed for robot {robot_id} at waypoint {i}")
                     return None
                 
                 q_sol = solutions[0]
@@ -133,7 +134,13 @@ def check_trajectory_feasibility(
                     set_qpos(data, qpos_idx, q_sol)
                     mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
                     
-                    if in_collision(env, env_lock=None): # Already locked
+                    # Ignore collisions with the object itself and common fixed mounts/environment
+                    ignore_names = ["pedestal", "table", "shelf"]
+                    if object_name:
+                        ignore_names.append(object_name)
+                    
+                    if in_collision(env, env_lock=None, ignore_names=ignore_names): # Already locked
+                        logger.debug(f"Collision detected for robot {robot_id} at waypoint {i}")
                         return None
                 
                 joint_trajectory.append(q_sol)
