@@ -43,7 +43,8 @@ def setup_logging(level: int = logging.INFO):
     """Configure logging."""
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        force=True
     )
 
 logger = logging.getLogger(__name__)
