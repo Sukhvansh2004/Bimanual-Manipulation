@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     # Default values
-    default_target_pos = [-0.65, 0.05, 1.35]
+    default_target_pos = [-0.55, 0.05, 1.35]
     default_target_quat = [0.70710678, 0.0, 0.0, 0.70710678]
     
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
