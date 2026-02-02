@@ -20,7 +20,7 @@ import argparse
 import sys
 
 import meshcat.transformations as tf
-import scipy.spatial.transform as strans
+from scipy.spatial.transform import Rotation as R
 
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
@@ -173,7 +173,7 @@ def main() -> None:
             if plate_pose_mat is not None:
                 start_pos = plate_pose_mat[:3, 3]
                 # Convert matrix to quat [x, y, z, w]
-                start_quat = strans.Rotation.from_matrix(plate_pose_mat[:3, :3]).as_quat()
+                start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
                 logger.info(f"Detected plate pose: pos={start_pos}")
             else:
                 logger.warning("Could not find 'plate_target' in environment. Using default.")
@@ -261,7 +261,14 @@ def main() -> None:
     else:
         # Step 6b: Find feasible grasp pairs (Collision Free Grasp Configuration)
         logger.info("Finding feasible grasp pairs (checking mutual collisions)...")
-        feasible_pairs = find_feasible_grasp_pairs(env, grasps_0, grasps_1, env_lock=env_lock, tf_manager=tf_manager)
+        feasible_pairs = find_feasible_grasp_pairs(
+            env, 
+            grasps_0, 
+            grasps_1, 
+            object_name="plate_target",
+            env_lock=env_lock, 
+            tf_manager=tf_manager
+        )
         
         logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
         
@@ -271,11 +278,6 @@ def main() -> None:
         # Step 6c: Generate and Check Trajectories for each pair
         for i, (g0, g1) in enumerate(feasible_pairs):
             logger.info(f"Checking pair {i}...")
-            
-            # Extract gripper types
-            # g0/g1 are GraspSchema objects which have gripper_type field
-            g0_type = g0.gripper_type
-            g1_type = g1.gripper_type
 
             # Robot 0 Check
             cache_key0 = (0, id(g0))

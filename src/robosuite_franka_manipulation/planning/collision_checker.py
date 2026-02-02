@@ -4,7 +4,7 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 """
 
 import numpy as np
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 import logging
 from robosuite_franka_manipulation.planning.utils.feasability_checks import check_dual_arm_pose_feasibility
 from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
@@ -16,7 +16,7 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_native_mj_object
 )
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation import constants
 import mujoco
@@ -32,6 +32,8 @@ def check_single_grasp_feasibility(
     grasp: Union[StampedPose, GraspSchema],
     robot_id: int,
     arm: str = "right",
+    object_name: Optional[str] = None,
+    ignore_names: Optional[List[str]] = None,
     env_lock = None,
     tf_manager: Union[TransformManager, None] = None
 ) -> bool:
@@ -42,12 +44,20 @@ def check_single_grasp_feasibility(
         env: DualArmEnvironment
         grasp: GraspSchema or StampedPose (must be in WORLD frame or convertible).
         robot_id: ID of robot (0 or 1)
+        arm: Arm side
+        object_name: Name of object to ignore in collisions.
+        ignore_names: List of geom name prefixes to ignore.
         env_lock: Optional threading.RLock
         tf_manager: Optional TransformManager
         
     Returns:
         True if feasible
     """
+    # Prepare ignore names for collision checking
+    current_ignore_names = list(ignore_names) if ignore_names else []
+    if object_name and object_name not in current_ignore_names:
+        current_ignore_names.append(object_name)
+
     # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
     target_pose = grasp.copy()
     r_corr = R.from_euler('z', -90, degrees=True)
@@ -89,7 +99,7 @@ def check_single_grasp_feasibility(
                 set_qpos(data, qpos_idx, q)
                 mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
                 
-                if not in_collision(env, env_lock=None): # Already locked by ctx
+                if not in_collision(env, env_lock=None, ignore_names=current_ignore_names): # Already locked by ctx
                     feasible = True
                     break
         finally:
@@ -103,6 +113,8 @@ def find_feasible_grasp_pairs(
     env: DualArmEnvironment,
     grasps_robot0: List[GraspSchema],
     grasps_robot1: List[GraspSchema],
+    object_name: Optional[str] = None,
+    ignore_names: Optional[List[str]] = None,
     env_lock = None,
     tf_manager: Union[TransformManager, None] = None
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
@@ -113,6 +125,8 @@ def find_feasible_grasp_pairs(
         env: DualArmEnvironment
         grasps_robot0: List of grasps for robot 0
         grasps_robot1: List of grasps for robot 1
+        object_name: Name of object to ignore in collisions.
+        ignore_names: List of geom name prefixes to ignore.
         env_lock: Optional threading.RLock
         tf_manager: Optional TransformManager
         
@@ -123,11 +137,15 @@ def find_feasible_grasp_pairs(
     
     # Pre-filter single grasps to reduce N*M checks
     logger.info(f"Pre-filtering {len(grasps_robot0)} grasps for Robot 0...")
-    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(env, g, 0, env_lock=env_lock, tf_manager=tf_manager)]
+    valid_grasps0 = [g for g in grasps_robot0 if check_single_grasp_feasibility(
+        env, g, 0, object_name=object_name, ignore_names=ignore_names, env_lock=env_lock, tf_manager=tf_manager
+    )]
     logger.info(f"  -> {len(valid_grasps0)} valid grasps for Robot 0")
     
     logger.info(f"Pre-filtering {len(grasps_robot1)} grasps for Robot 1...")
-    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(env, g, 1, env_lock=env_lock, tf_manager=tf_manager)]
+    valid_grasps1 = [g for g in grasps_robot1 if check_single_grasp_feasibility(
+        env, g, 1, object_name=object_name, ignore_names=ignore_names, env_lock=env_lock, tf_manager=tf_manager
+    )]
     logger.info(f"  -> {len(valid_grasps1)} valid grasps for Robot 1")
     
     if not valid_grasps0 or not valid_grasps1:
@@ -146,6 +164,8 @@ def find_feasible_grasp_pairs(
                 env, 
                 eef_pose_robot0=g0,
                 eef_pose_robot1=g1,
+                object_name=object_name,
+                ignore_names=ignore_names,
                 max_pairs=constants.DEFAULT_FEASIBILITY_MAX_PAIRS,
                 env_lock=env_lock,
                 tf_manager=tf_manager

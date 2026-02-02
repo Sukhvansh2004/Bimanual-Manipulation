@@ -18,7 +18,7 @@ import mujoco
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 from robosuite_franka_manipulation.planning.utils import ik_utils
@@ -31,6 +31,8 @@ def check_dual_arm_pose_feasibility(
     eef_pose_robot0: StampedPose,
     eef_pose_robot1: StampedPose,
     *,
+    object_name: Optional[str] = None,
+    ignore_names: Optional[List[str]] = None,
     input_frame: str = constants.WORLD_FRAME,
     tf_manager: Optional[TransformManager] = None,
     env_lock=None,
@@ -63,6 +65,8 @@ def check_dual_arm_pose_feasibility(
         env: Robosuite environment (or wrapper) exposing ``env.sim.model`` and ``env.sim.data``.
         eef_pose_robot0: Desired EEF pose for robot0, in ``input_frame``.
         eef_pose_robot1: Desired EEF pose for robot1, in ``input_frame``.
+        object_name: Optional name of object to ignore in collisions.
+        ignore_names: Optional list of geom name prefixes to ignore.
         input_frame: Frame the input poses are expressed in (default: "world").
         tf_manager: Optional TransformManager. If not provided, a temporary one is created.
         env_lock: Optional threading.RLock used to guard sim state.
@@ -78,6 +82,11 @@ def check_dual_arm_pose_feasibility(
 
     if tf_manager is None:
         tf_manager = TransformManager(env, env_lock=env_lock)
+
+    # Prepare ignore names for collision checking
+    current_ignore_names = list(ignore_names) if ignore_names else []
+    if object_name and object_name not in current_ignore_names:
+        current_ignore_names.append(object_name)
 
     # --- Helper to apply 90 deg correction ---
     def get_corrected_pose(pose_input: StampedPose) -> StampedPose:
@@ -162,7 +171,12 @@ def check_dual_arm_pose_feasibility(
                     # Unwrap for native call
                     mujoco.mj_forward(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
 
-                    feasible = not collision_utils.in_collision(env, contact_dist_threshold=contact_dist_threshold, env_lock=None)
+                    feasible = not collision_utils.in_collision(
+                        env, 
+                        contact_dist_threshold=contact_dist_threshold, 
+                        env_lock=None,
+                        ignore_names=current_ignore_names
+                    )
                     results.append([np.asarray(q0, dtype=float), np.asarray(q1, dtype=float), bool(feasible)])
 
                 if pair_count > int(max_pairs):
