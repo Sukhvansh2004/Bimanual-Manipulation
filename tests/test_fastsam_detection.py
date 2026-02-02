@@ -9,6 +9,7 @@ import numpy as np
 import time
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService
+from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation import constants
 
 @pytest.fixture(scope="class")
@@ -20,7 +21,8 @@ def perception_services(request):
     env = make_dual_arm_env()
     env.reset()
     
-    fastsam_service = FastSAMService(env, visualize=False)
+    tf_manager = TransformManager(env)
+    fastsam_service = FastSAMService(tf_manager, visualize=False)
     fastsam_service.start()
     
     time.sleep(2)  # Allow services to start
