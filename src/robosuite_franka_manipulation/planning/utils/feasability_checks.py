@@ -15,12 +15,11 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import mujoco
+from scipy.spatial.transform import Rotation as R
 
-from robosuite_franka_manipulation.constants import DEFAULT_ROBOT_ACTION_DIM
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
 
-from robosuite_franka_manipulation.planning.utils.common import ArrayLike
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 from robosuite_franka_manipulation.planning.utils import ik_utils
 from robosuite_franka_manipulation.planning.utils import collision_utils
@@ -29,8 +28,8 @@ from robosuite_franka_manipulation import constants
 
 def check_dual_arm_pose_feasibility(
     env: DualArmEnvironment,
-    eef_pose_robot0: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
-    eef_pose_robot1: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
+    eef_pose_robot0: StampedPose,
+    eef_pose_robot1: StampedPose,
     *,
     input_frame: str = constants.WORLD_FRAME,
     tf_manager: Optional[TransformManager] = None,
@@ -69,7 +68,7 @@ def check_dual_arm_pose_feasibility(
         env_lock: Optional threading.RLock used to guard sim state.
 
     Returns:
-        A list of entries: ``[q_arm0 ({DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
+        A list of entries: ``[q_arm0 ({constants.DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({constants.DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
 
     Notes
     - If either arm has no IK solutions, returns an empty list.
@@ -80,12 +79,25 @@ def check_dual_arm_pose_feasibility(
     if tf_manager is None:
         tf_manager = TransformManager(env, env_lock=env_lock)
 
+    # --- Helper to apply 90 deg correction ---
+    def get_corrected_pose(pose_input: StampedPose) -> StampedPose:
+        pose = pose_input.copy()
+        r_corr = R.from_euler('z', -90, degrees=True)
+        r_pose = R.from_quat(pose.quaternion)
+        pose.quaternion = (r_pose * r_corr).as_quat()
+        return pose
+
+    # Prepare targets
+    target0 = get_corrected_pose(eef_pose_robot0)
+    target1 = get_corrected_pose(eef_pose_robot1)
+
     q_solutions_0 = ik_utils.enumerate_ik_solutions_for_arm(
         env,
         robot_id=0,
-        target_pose=eef_pose_robot0,
+        target_pose=target0,
         target_frame=input_frame,
         arm=arm,
+        site_name=f"gripper0_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
         env_lock=env_lock,
         num_seed_configs=num_seed_configs,
@@ -101,9 +113,10 @@ def check_dual_arm_pose_feasibility(
     q_solutions_1 = ik_utils.enumerate_ik_solutions_for_arm(
         env,
         robot_id=1,
-        target_pose=eef_pose_robot1,
+        target_pose=target1,
         target_frame=input_frame,
         arm=arm,
+        site_name=f"gripper1_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
         env_lock=env_lock,
         num_seed_configs=num_seed_configs,

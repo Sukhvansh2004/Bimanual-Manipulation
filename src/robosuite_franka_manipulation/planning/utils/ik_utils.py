@@ -2,7 +2,7 @@
 
 from contextlib import nullcontext
 import threading
-from typing import List, Optional, Sequence, Tuple, Union, Iterable
+from typing import List, Optional, Sequence, Union, Iterable
 
 import numpy as np
 import mujoco
@@ -12,7 +12,6 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite.utils.binding_utils import MjModel, MjData
 
-from robosuite_franka_manipulation.planning.utils.common import as_stamped_pose
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 
 ArrayLike = Union[Sequence[float], np.ndarray]
@@ -94,7 +93,7 @@ def enumerate_ik_solutions_for_arm(
     env: DualArmEnvironment,
     *,
     robot_id: int,
-    target_pose: Union[StampedPose, dict, Tuple[ArrayLike, ArrayLike], ArrayLike],
+    target_pose: StampedPose,
     target_frame: str = constants.WORLD_FRAME,
     arm: str = "right",
     site_name: Optional[str] = None,
@@ -140,7 +139,7 @@ def enumerate_ik_solutions_for_arm(
         if tf_manager is None:
             tf_manager = TransformManager(env, env_lock=env_lock)
 
-        pose_sp = as_stamped_pose(target_pose, target_frame)
+        pose_sp = target_pose
 
         if pose_sp.frame_id != constants.WORLD_FRAME:
             pose_sp = tf_manager.transform_pose(pose_sp, constants.WORLD_FRAME)

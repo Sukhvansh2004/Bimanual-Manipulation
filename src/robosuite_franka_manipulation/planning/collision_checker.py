@@ -16,11 +16,12 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_native_mj_object
 )
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation import constants
 import mujoco
 from contextlib import nullcontext
+from scipy.spatial.transform import Rotation as R
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def check_single_grasp_feasibility(
     env: DualArmEnvironment,
-    grasp: StampedPose,
+    grasp: Union[StampedPose, GraspSchema],
     robot_id: int,
     arm: str = "right",
     env_lock = None,
@@ -47,18 +48,21 @@ def check_single_grasp_feasibility(
     Returns:
         True if feasible
     """
-    # GraspSchema/StampedPose from GraspGenerator are already in World Frame (or StampedPose handles frame)
-    # enumerate_ik_solutions_for_arm handles StampedPose input.
-    
-    # Get IK solutions
-    # Note: enumerate_ik_solutions_for_arm expects target_pose to be StampedPose or dict.
-    # GraspSchema inherits from StampedPose, so it's valid.
+    # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
+    target_pose = grasp.copy()
+    r_corr = R.from_euler('z', -90, degrees=True)
+    r_pose = R.from_quat(target_pose.quaternion)
+    target_pose.quaternion = (r_pose * r_corr).as_quat()
+
+    # Get IK solutions for Flange site
+    site_name = f"gripper{robot_id}_{arm}_ft_frame"
     
     solutions = enumerate_ik_solutions_for_arm(
         env,
         robot_id=robot_id,
-        target_pose=grasp,
+        target_pose=target_pose,
         arm=arm,
+        site_name=site_name,
         max_solutions=constants.DEFAULT_IK_MAX_SOLUTIONS,
         env_lock=env_lock,
         tf_manager=tf_manager
@@ -137,7 +141,7 @@ def find_feasible_grasp_pairs(
         for g1 in valid_grasps1:
             # Check pair feasibility
             # This runs IK for both and checks collision for pairs of solutions
-            # check_dual_arm_pose_feasibility accepts StampedPose
+            
             results = check_dual_arm_pose_feasibility(
                 env, 
                 eef_pose_robot0=g0,

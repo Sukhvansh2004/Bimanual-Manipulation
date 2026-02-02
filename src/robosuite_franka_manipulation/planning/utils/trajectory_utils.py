@@ -9,6 +9,7 @@ from typing import List, Optional, Union, Tuple
 from dataclasses import dataclass
 import mujoco
 from contextlib import nullcontext
+from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
@@ -25,7 +26,7 @@ from robosuite_franka_manipulation import constants
 logger = logging.getLogger(__name__)
 
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
 
 
 @dataclass
@@ -83,6 +84,9 @@ def check_trajectory_feasibility(
     if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
         object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
 
+    # 90 degree pose correction (Rotate -90 deg around Z)
+    r_corr = R.from_euler('z', -90, degrees=True)
+
     ctx = env_lock if env_lock is not None else nullcontext()
 
     results: List[WaypointFeasibilityResult] = []
@@ -111,6 +115,13 @@ def check_trajectory_feasibility(
         try:
             last_config = None # Keep track of the last valid configuration for warm start
             
+            # Add object to ignore list for collision checking
+            current_ignore_names = list(ignore_names) if ignore_names else []
+            
+            # Robustly find all geoms belonging to the object body
+            if object_name and object_name not in current_ignore_names:
+                current_ignore_names.append(object_name)
+            
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:
@@ -121,14 +132,18 @@ def check_trajectory_feasibility(
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Solve IK
-                # The input pose is the end-effector (flange) pose. 
-                # We must tell IK to solve for the flange site, not the default TCP site.
+                # The input pose is for the end-effector (flange).
                 site_name = f"gripper{robot_id}_right_ft_frame"
+                
+                # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
+                target_pose = pose.copy()
+                r_pose = R.from_quat(pose.quaternion)
+                target_pose.quaternion = (r_pose * r_corr).as_quat()
 
                 solutions = enumerate_ik_solutions_for_arm(
                     env=env,
                     robot_id=robot_id,
-                    target_pose=pose,
+                    target_pose=target_pose,
                     target_frame=constants.WORLD_FRAME,
                     arm="right",
                     site_name=site_name,
@@ -163,7 +178,7 @@ def check_trajectory_feasibility(
                     if check_collisions:
                         set_qpos(data, qpos_idx, q_sol)
                         mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
-                        collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+                        collision_free = not in_collision(env, env_lock=None, ignore_names=current_ignore_names)
                     
                     is_feasible = collision_free
                     

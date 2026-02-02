@@ -30,8 +30,8 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
             g1 = model.geom(int(c.geom1)).name or ""
             g2 = model.geom(int(c.geom2)).name or ""
             
-            # Check if either geom is in ignore_names
-            if any(name in g1 for name in ignore_names) or any(name in g2 for name in ignore_names):
+            # Check if either geom starts with any name in ignore_names
+            if any(g1.startswith(name) for name in ignore_names) or any(g2.startswith(name) for name in ignore_names):
                 continue
 
             r1 = mujoco_utils.geom_belongs_to_robot(g1)

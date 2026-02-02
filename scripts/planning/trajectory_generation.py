@@ -272,6 +272,11 @@ def main() -> None:
         for i, (g0, g1) in enumerate(feasible_pairs):
             logger.info(f"Checking pair {i}...")
             
+            # Extract gripper types
+            # g0/g1 are GraspSchema objects which have gripper_type field
+            g0_type = g0.gripper_type
+            g1_type = g1.gripper_type
+
             # Robot 0 Check
             cache_key0 = (0, id(g0))
             if cache_key0 in trajectory_cache:
