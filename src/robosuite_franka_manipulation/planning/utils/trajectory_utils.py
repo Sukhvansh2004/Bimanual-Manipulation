@@ -40,7 +40,7 @@ class WaypointFeasibilityResult:
 def resolve_ignore_names(object_name: Optional[str], ignore_names: Optional[List[str]]) -> List[str]:
     """Helper to resolve ignore names list including object body geoms."""
     current_ignore_names = list(ignore_names) if ignore_names else []
-    if object_name not in current_ignore_names:
+    if object_name and object_name not in current_ignore_names:
         current_ignore_names.append(object_name)
         
     return current_ignore_names
