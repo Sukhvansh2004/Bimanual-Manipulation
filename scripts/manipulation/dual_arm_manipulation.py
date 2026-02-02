@@ -194,7 +194,6 @@ class DualArmManipulationSystem:
                     env=self.env,
                     env_lock=self.env_lock,
                     tf_manager=self.tf_manager,
-                    auto_discover=True,
                     config=cfg,
                     stop_event=self._shutdown_requested,
                 )
@@ -271,10 +270,8 @@ class DualArmManipulationSystem:
             logger.info("   Starting FastSAM service...")
             assert self.env is not None
             self.fastsam_service = FastSAMService(
-                env=self.env,
                 visualize=self.visualize,
                 debug=False,
-                env_lock=self.env_lock,
                 tf_manager=self.tf_manager,
             )
             self.fastsam_service.start()
@@ -290,8 +287,6 @@ class DualArmManipulationSystem:
             # Start Grasp service
             logger.info("   Starting Grasp service...")
             self.grasp_service = GraspService(
-                env=self.env,
-                env_lock=self.env_lock,
                 tf_manager=self.tf_manager,
                 debug=self.debug,
                 visualize=self.visualize,

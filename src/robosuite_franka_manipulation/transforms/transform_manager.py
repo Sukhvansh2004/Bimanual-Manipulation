@@ -90,6 +90,10 @@ class TransformManager:
         
         if auto_discover:
             self._discover_frames()
+
+    @property
+    def env_lock(self) -> Optional[threading.RLock]:
+        return self._env_lock
     
     def _discover_frames(self) -> None:
         """Discover available frames from the robosuite environment."""

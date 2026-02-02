@@ -18,7 +18,6 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     compute_site_error
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
-    check_trajectory_feasibility,
     save_trajectory,
     WaypointFeasibilityResult
 )
@@ -27,10 +26,6 @@ from robosuite_franka_manipulation.planning.utils.visualization_utils import (
 )
 from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
     RobotMeshVisualizer
-)
-
-from robosuite_franka_manipulation.planning.utils.feasability_checks import (
-    check_dual_arm_pose_feasibility
 )
 
 __all__ = [
@@ -51,12 +46,9 @@ __all__ = [
     'get_native_mj_object',
     'compute_site_error',
     # Trajectory utilities
-    'check_trajectory_feasibility',
     'save_trajectory',
     'WaypointFeasibilityResult',
     # Visualization utilities
     'visualize_trajectory',
     'RobotMeshVisualizer',
-    # Feasibility checks
-    'check_dual_arm_pose_feasibility',
 ]

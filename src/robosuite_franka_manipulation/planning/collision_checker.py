@@ -6,7 +6,6 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 import numpy as np
 from typing import List, Tuple, Union, Optional
 import logging
-from robosuite_franka_manipulation.planning.utils.feasability_checks import check_dual_arm_pose_feasibility
 from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
@@ -31,11 +30,11 @@ def check_single_grasp_feasibility(
     env: DualArmEnvironment,
     grasp: Union[StampedPose, GraspSchema],
     robot_id: int,
+    tf_manager: TransformManager,
     arm: str = "right",
     object_name: Optional[str] = None,
     ignore_names: Optional[List[str]] = None,
     env_lock = None,
-    tf_manager: Union[TransformManager, None] = None
 ) -> bool:
     """
     Check if a single grasp is feasible (reachable via IK and collision-free).
@@ -44,11 +43,11 @@ def check_single_grasp_feasibility(
         env: DualArmEnvironment
         grasp: GraspSchema or StampedPose (must be in WORLD frame or convertible).
         robot_id: ID of robot (0 or 1)
+        tf_manager: TransformManager
         arm: Arm side
         object_name: Name of object to ignore in collisions.
         ignore_names: List of geom name prefixes to ignore.
         env_lock: Optional threading.RLock
-        tf_manager: Optional TransformManager
         
     Returns:
         True if feasible
@@ -113,10 +112,10 @@ def find_feasible_grasp_pairs(
     env: DualArmEnvironment,
     grasps_robot0: List[GraspSchema],
     grasps_robot1: List[GraspSchema],
+    tf_manager: TransformManager,
     object_name: Optional[str] = None,
     ignore_names: Optional[List[str]] = None,
     env_lock = None,
-    tf_manager: Union[TransformManager, None] = None
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
     """
     Find feasible pairs of grasps (one for each robot).
@@ -125,10 +124,10 @@ def find_feasible_grasp_pairs(
         env: DualArmEnvironment
         grasps_robot0: List of grasps for robot 0
         grasps_robot1: List of grasps for robot 1
+        tf_manager: TransformManager
         object_name: Name of object to ignore in collisions.
         ignore_names: List of geom name prefixes to ignore.
         env_lock: Optional threading.RLock
-        tf_manager: Optional TransformManager
         
     Returns:
         List of (grasp0, grasp1) tuples that are simultaneously feasible.
@@ -183,3 +182,163 @@ def find_feasible_grasp_pairs(
                 
     logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
     return feasible_pairs
+
+
+def check_dual_arm_pose_feasibility(
+    env: DualArmEnvironment,
+    eef_pose_robot0: StampedPose,
+    eef_pose_robot1: StampedPose,
+    tf_manager: TransformManager,
+    *,
+    object_name: Optional[str] = None,
+    ignore_names: Optional[List[str]] = None,
+    input_frame: str = constants.WORLD_FRAME,
+    env_lock=None,
+    arm: str = "right",
+    # IK discretization / search params
+    num_seed_configs: int = constants.IK_NUM_SEED_CONFIGS,
+    elbow_discretization: int = constants.IK_ELBOW_DISCRETIZATION,
+    max_solutions_per_arm: int = constants.IK_NUM_SEED_CONFIGS,
+    # IK solver params
+    pos_tol: float = constants.IK_POS_TOLERANCE,
+    ori_tol: float = constants.IK_ORI_TOLERANCE,
+    max_iters: int = constants.IK_MAX_ITERATIONS,
+    damping: float = constants.IK_DAMPING,
+    step_size: float = constants.IK_STEP_SIZE,
+    # Collision params
+    contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
+    # Pairing caps
+    max_pairs: int = constants.DUAL_ARM_MAX_PAIRS,
+) -> List[List[Union[np.ndarray, bool]]]:
+    f"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
+
+    This function:
+    1) Runs IK for each arm from multiple seed configurations to obtain a set of
+       joint solutions for robot0 and robot1.
+    2) Forms joint-solution pairs (cartesian product) up to ``max_pairs``.
+    3) For each pair, sets the MuJoCo qpos, runs forward kinematics, and checks
+       for contacts involving either robot.
+
+    Args:
+        env: Robosuite environment (or wrapper) exposing ``env.sim.model`` and ``env.sim.data``.
+        eef_pose_robot0: Desired EEF pose for robot0, in ``input_frame``.
+        eef_pose_robot1: Desired EEF pose for robot1, in ``input_frame``.
+        tf_manager: TransformManager for frame conversions.
+        input_frame: Frame the input poses are expressed in (default: "world").
+        env_lock: Optional threading.RLock used to guard sim state.
+
+    Returns:
+        A list of entries: ``[q_arm0 ({constants.DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({constants.DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
+
+    Notes
+    - If either arm has no IK solutions, returns an empty list.
+    - Feasible means: IK converged for both arms AND no MuJoCo contact involving
+      either robot is present at that configuration.
+    """
+    
+    # Prepare ignore names for collision checking
+    current_ignore_names = list(ignore_names) if ignore_names else []
+    if object_name and object_name not in current_ignore_names:
+        current_ignore_names.append(object_name)
+
+    # --- Helper to apply 90 deg correction ---
+    def get_corrected_pose(pose_input: StampedPose) -> StampedPose:
+        pose = pose_input.copy()
+        r_corr = R.from_euler('z', -90, degrees=True)
+        r_pose = R.from_quat(pose.quaternion)
+        pose.quaternion = (r_pose * r_corr).as_quat()
+        return pose
+
+    # Prepare targets
+    target0 = get_corrected_pose(eef_pose_robot0)
+    target1 = get_corrected_pose(eef_pose_robot1)
+
+    q_solutions_0 = enumerate_ik_solutions_for_arm(
+        env,
+        robot_id=0,
+        target_pose=target0,
+        target_frame=input_frame,
+        arm=arm,
+        site_name=f"gripper0_{arm}_ft_frame", # Target Flange
+        tf_manager=tf_manager,
+        env_lock=env_lock,
+        num_seed_configs=num_seed_configs,
+        elbow_discretization=elbow_discretization,
+        max_solutions=max_solutions_per_arm,
+        pos_tol=pos_tol,
+        ori_tol=ori_tol,
+        max_iters=max_iters,
+        damping=damping,
+        step_size=step_size,
+    )
+
+    q_solutions_1 = enumerate_ik_solutions_for_arm(
+        env,
+        robot_id=1,
+        target_pose=target1,
+        target_frame=input_frame,
+        arm=arm,
+        site_name=f"gripper1_{arm}_ft_frame", # Target Flange
+        tf_manager=tf_manager,
+        env_lock=env_lock,
+        num_seed_configs=num_seed_configs,
+        elbow_discretization=elbow_discretization,
+        max_solutions=max_solutions_per_arm,
+        pos_tol=pos_tol,
+        ori_tol=ori_tol,
+        max_iters=max_iters,
+        damping=damping,
+        step_size=step_size,
+    )
+
+    if len(q_solutions_0) == 0 or len(q_solutions_1) == 0:
+        return []
+
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+
+        jids0 = get_arm_joint_ids(model, 0)
+        jids1 = get_arm_joint_ids(model, 1)
+        qpos_idx0 = get_joint_qpos_indices(model, jids0)
+        qpos_idx1 = get_joint_qpos_indices(model, jids1)
+
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+
+        results: List[List[Union[np.ndarray, bool]]] = []
+        try:
+            pair_count = 0
+            for q0 in q_solutions_0:
+                for q1 in q_solutions_1:
+                    pair_count += 1
+                    if pair_count > int(max_pairs):
+                        break
+
+                    data.qpos[:] = qpos_backup
+                    data.qvel[:] = qvel_backup
+                    set_qpos(data, qpos_idx0, np.asarray(q0, dtype=float))
+                    set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
+                    
+                    # Unwrap for native call
+                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+
+                    feasible = not in_collision(
+                        env, 
+                        contact_dist_threshold=contact_dist_threshold, 
+                        env_lock=None,
+                        ignore_names=current_ignore_names
+                    )
+                    results.append([np.asarray(q0, dtype=float), np.asarray(q1, dtype=float), bool(feasible)])
+
+                if pair_count > int(max_pairs):
+                    break
+        finally:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            
+            # Unwrap for native call
+            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+
+        return results

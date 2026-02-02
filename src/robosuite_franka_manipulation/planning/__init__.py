@@ -6,14 +6,14 @@ from robosuite_franka_manipulation.planning.collision_checker import (
     check_single_grasp_feasibility
 )
 from robosuite_franka_manipulation.planning.trajectory_generator import (
-    generate_end_effector_trajectory
+    generate_end_effector_trajectory,
+    check_trajectory_feasibility
 )
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
 
 # Trajectory utilities
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
-    check_trajectory_feasibility,
     WaypointFeasibilityResult
 )
 

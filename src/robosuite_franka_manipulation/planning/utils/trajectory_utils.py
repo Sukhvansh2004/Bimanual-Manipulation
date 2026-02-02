@@ -16,8 +16,6 @@ from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_s
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
-    get_arm_joint_ids,
-    get_joint_qpos_indices,
     get_native_mj_object
 )
 from robosuite.utils import transform_utils as T
@@ -39,180 +37,93 @@ class WaypointFeasibilityResult:
     ik_success: bool  # True if IK found a solution
     collision_free: bool  # True if no collision detected
 
-def check_trajectory_feasibility(
+def resolve_ignore_names(object_name: Optional[str], ignore_names: Optional[List[str]]) -> List[str]:
+    """Helper to resolve ignore names list including object body geoms."""
+    current_ignore_names = list(ignore_names) if ignore_names else []
+    if object_name not in current_ignore_names:
+        current_ignore_names.append(object_name)
+        
+    return current_ignore_names
+
+def process_waypoint(
     env: DualArmEnvironment,
     robot_id: int,
-    eef_trajectory: List[StampedPose],
-    object_trajectory: Optional[List[StampedPose]] = None,
-    object_name: Optional[str] = None,
-    check_collisions: bool = True,
-    env_lock = None,
-    tf_manager: Optional[TransformManager] = None,
-    ignore_names: Optional[List[str]] = None
-) -> Tuple[List[WaypointFeasibilityResult], bool]:
-    """
-    Check trajectory feasibility and return detailed per-waypoint results.
+    waypoint_index: int,
+    pose: StampedPose,
+    qpos_idx: np.ndarray,
+    check_collisions: bool,
+    ignore_names: List[str],
+    last_config: Optional[np.ndarray],
+    tf_manager: TransformManager,
+    correction_quat: Optional[np.ndarray] = None
+) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
+    """Process a single waypoint: IK + Collision Check."""
     
-    Unlike check_trajectory_feasibility which returns None on first failure,
-    this function checks ALL waypoints and returns detailed results for each.
+    # 1. Prepare Target Pose
+    target_pose = pose.copy()
+    if correction_quat is not None:
+        r_pose = R.from_quat(pose.quaternion)
+        r_corr = R.from_quat(correction_quat)
+        target_pose.quaternion = (r_pose * r_corr).as_quat()
+        
+    site_name = f"gripper{robot_id}_right_ft_frame"
+
+    # 2. Solve IK
+    solutions = enumerate_ik_solutions_for_arm(
+        env=env,
+        robot_id=robot_id,
+        target_pose=target_pose,
+        target_frame=constants.WORLD_FRAME,
+        arm="right",
+        site_name=site_name,
+        q_warm_start=last_config,
+        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
+        env_lock=None, # Caller holds lock
+        tf_manager=tf_manager
+    )
     
-    Args:
-        env: Environment instance
-        robot_id: Robot ID (0 or 1)
-        eef_trajectory: List of StampedPose objects representing EEF poses.
-        object_trajectory: Optional list of StampedPose objects for object poses.
-        object_name: Name of the object (required if object_trajectory is provided).
-        check_collisions: Whether to check collisions.
-        env_lock: Optional threading.RLock
-        tf_manager: Optional TransformManager to handle frame conversions.
-        ignore_names: List of geom names to ignore in collision checking.
-        
-    Returns:
-        Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
-    """
-    if tf_manager is None:
-        tf_manager = TransformManager(env, env_lock=env_lock)
+    if not solutions:
+        return WaypointFeasibilityResult(
+            waypoint_index=waypoint_index,
+            eef_pose=pose,
+            joint_config=None,
+            is_feasible=False,
+            ik_success=False,
+            collision_free=True # Unknown
+        ), None
 
-    if object_trajectory and len(object_trajectory) != len(eef_trajectory):
-        logger.error("Object trajectory length mismatch")
-        return [], False
-
-    # Ensure frames are World
-    if eef_trajectory and eef_trajectory[0].frame_id != constants.WORLD_FRAME:
-        eef_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in eef_trajectory]
-
-    if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
-        object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
-
-    # 90 degree pose correction (Rotate -90 deg around Z)
-    r_corr = R.from_euler('z', -90, degrees=True)
-
-    ctx = env_lock if env_lock is not None else nullcontext()
-
-    results: List[WaypointFeasibilityResult] = []
-    all_feasible = True
-
-    with ctx:
-        model = env.sim.model
-        data = env.sim.data
-        
-        jids = get_arm_joint_ids(model, robot_id)
-        qpos_idx = get_joint_qpos_indices(model, jids)
-        
-        qpos_backup = np.array(data.qpos, copy=True)
-        qvel_backup = np.array(data.qvel, copy=True)
-        
-        # Object joint index if needed
-        obj_joint_addr = None
-        if object_name:
-            try:
-                obj_joint_id = model.joint(f"{object_name}_joint0").id
-                obj_qpos_addr = model.jnt_qposadr[obj_joint_id]
-                obj_joint_addr = obj_qpos_addr
-            except Exception:
-                pass
-
-        try:
-            last_config = None # Keep track of the last valid configuration for warm start
-            
-            # Add object to ignore list for collision checking
-            current_ignore_names = list(ignore_names) if ignore_names else []
-            
-            # Robustly find all geoms belonging to the object body
-            if object_name and object_name not in current_ignore_names:
-                current_ignore_names.append(object_name)
-            
-            for i, pose in enumerate(eef_trajectory):
-                # 1. Update Object Pose if provided
-                if object_trajectory is not None and obj_joint_addr is not None:
-                    obj_pose = object_trajectory[i]
-                    pos = obj_pose.position
-                    quat = T.convert_quat(obj_pose.quaternion, to="wxyz")
-                    data.qpos[obj_joint_addr:obj_joint_addr+3] = pos
-                    data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
-                
-                # 2. Solve IK
-                # The input pose is for the end-effector (flange).
-                site_name = f"gripper{robot_id}_right_ft_frame"
-                
-                # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
-                target_pose = pose.copy()
-                r_pose = R.from_quat(pose.quaternion)
-                target_pose.quaternion = (r_pose * r_corr).as_quat()
-
-                solutions = enumerate_ik_solutions_for_arm(
-                    env=env,
-                    robot_id=robot_id,
-                    target_pose=target_pose,
-                    target_frame=constants.WORLD_FRAME,
-                    arm="right",
-                    site_name=site_name,
-                    q_warm_start=last_config,
-                    num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
-                    max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
-                    env_lock=None,  # Already locked
-                    tf_manager=tf_manager
-                )
-                
-                if not solutions:
-                    # IK failed
-                    results.append(WaypointFeasibilityResult(
-                        waypoint_index=i,
-                        eef_pose=pose,
-                        joint_config=None,
-                        is_feasible=False,
-                        ik_success=False,
-                        collision_free=True  # Unknown
-                    ))
-                    all_feasible = False
-                    # We don't update last_config here if IK failed
-                    continue
-                
-                # Iterate over solutions to find a collision-free one
-                found_valid_solution = False
-                first_result = None # Store the first result in case none are collision free
-
-                for q_sol in solutions:
-                    # 3. Check Collision
-                    collision_free = True
-                    if check_collisions:
-                        set_qpos(data, qpos_idx, q_sol)
-                        mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
-                        collision_free = not in_collision(env, env_lock=None, ignore_names=current_ignore_names)
-                    
-                    is_feasible = collision_free
-                    
-                    result = WaypointFeasibilityResult(
-                        waypoint_index=i,
-                        eef_pose=pose,
-                        joint_config=q_sol,
-                        is_feasible=is_feasible,
-                        ik_success=True,
-                        collision_free=collision_free
-                    )
-
-                    if first_result is None:
-                        first_result = result
-
-                    if is_feasible:
-                        results.append(result)
-                        found_valid_solution = True
-                        last_config = q_sol # Update warm start
-                        break
-                
-                if not found_valid_solution:
-                    all_feasible = False
-                    if first_result:
-                        results.append(first_result)
-                        last_config = first_result.joint_config
-
-                
-        finally:
-            data.qpos[:] = qpos_backup
-            data.qvel[:] = qvel_backup
+    # 3. Check Collisions
+    model = env.sim.model
+    data = env.sim.data
+    
+    for q_sol in solutions:
+        collision_free = True
+        if check_collisions:
+            set_qpos(data, qpos_idx, q_sol)
             mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
-    
-    return results, all_feasible
+            collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+        
+        if collision_free:
+            return WaypointFeasibilityResult(
+                waypoint_index=waypoint_index,
+                eef_pose=pose,
+                joint_config=q_sol,
+                is_feasible=True,
+                ik_success=True,
+                collision_free=True
+            ), q_sol # New last_config
+
+    # If no collision-free solution found, return the first IK solution as failure
+    first_sol = solutions[0]
+    return WaypointFeasibilityResult(
+        waypoint_index=waypoint_index,
+        eef_pose=pose,
+        joint_config=first_sol,
+        is_feasible=False,
+        ik_success=True,
+        collision_free=False
+    ), first_sol # Return as potential warm start attempt
 
 
 def save_trajectory(

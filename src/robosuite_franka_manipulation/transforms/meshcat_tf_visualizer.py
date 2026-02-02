@@ -51,8 +51,7 @@ def stream_transforms_to_meshcat(
     *,
     env: DualArmEnvironment,
     env_lock: Lock,
-    tf_manager: Optional[TransformManager] = None,
-    auto_discover: bool = True,
+    tf_manager: TransformManager,
     config: MeshcatTFVisualizerConfig = MeshcatTFVisualizerConfig(),
     stop_event=None,
 ) -> None:
@@ -61,8 +60,7 @@ def stream_transforms_to_meshcat(
     Args:
         env: Robosuite environment instance.
         env_lock: A lock guarding access to MuJoCo state (e.g., `env.sim`).
-        tf_manager: Optionally pass an existing TransformManager.
-        auto_discover: If creating a TransformManager internally, enable auto-discovery.
+        tf_manager: Existing TransformManager.
         config: Visualizer configuration.
         stop_event: Optional threading.Event-like object; if provided, loop exits when set.
     """
@@ -79,7 +77,7 @@ def stream_transforms_to_meshcat(
         except Exception:
             pass
 
-    tfm = tf_manager or TransformManager(env=env, auto_discover=auto_discover, env_lock=env_lock)
+    tfm = tf_manager
     
     # Optional scene visualizer
     mj_vis = MeshcatMjVisualizer(vis) if config.visualize_scene else None

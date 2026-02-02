@@ -51,9 +51,7 @@ class RobotMeshVisualizer:
     def __init__(
         self, 
         vis: meshcat.Visualizer,
-        env: DualArmEnvironment,
-        env_lock=None,
-        tf_manager: Optional[TransformManager] = None,
+        tf_manager: TransformManager,
         base_path: str = "trajectory_configs"
     ):
         """
@@ -61,16 +59,14 @@ class RobotMeshVisualizer:
         
         Args:
             vis: MeshCat visualizer instance
-            env: DualArmEnvironment instance
-            env_lock: Optional threading lock for env access
-            tf_manager: Optional TransformManager for frame conversions
+            tf_manager: TransformManager for frame conversions
             base_path: Base path in MeshCat hierarchy for all trajectory visualizations.
                        If None, uses constants.VIS_PLANNING_ROOT/constants.VIS_ROBOT_CONFIG_PATH
         """
         self.vis = vis
-        self.env = env
-        self.env_lock = env_lock
-        self.tf_manager = tf_manager or TransformManager(env, env_lock=env_lock)
+        self.tf_manager = tf_manager
+        self.env = tf_manager.env
+        self.env_lock = tf_manager.env_lock
         # Use planning root path for organization
         if base_path == "trajectory_configs":
             # Default value - use constants
@@ -290,17 +286,13 @@ class RobotMeshVisualizer:
         # Create base path for this trajectory
         traj_path = f"{self.base_path}/{trajectory_id}/robot{robot_id}"
         
-        # Visualize selected waypoints
-        for result in waypoint_results:
-            if result.waypoint_index % step_interval != 0:
-                continue
-            
+        def visualize_waypoint(result: WaypointFeasibilityResult):
             waypoint_path = f"{traj_path}/waypoint_{result.waypoint_index:04d}"
             
             if result.joint_config is None:
                 # IK failed - skip visualization
                 logger.debug(f"Skipping waypoint {result.waypoint_index} - IK failed")
-                continue
+                return
             
             # Determine color based on feasibility
             if result.is_feasible:
@@ -318,7 +310,14 @@ class RobotMeshVisualizer:
                 color=color,
                 opacity=opacity
             )
+
+        # Visualize selected waypoints
+        for result in waypoint_results:
+            if result.waypoint_index % step_interval != 0:
+                continue
+            visualize_waypoint(result)
         
+        visualize_waypoint(waypoint_results[-1])
         # Log summary
         feasible_count = sum(1 for r in waypoint_results if r.is_feasible)
         ik_failed_count = sum(1 for r in waypoint_results if not r.ik_success)

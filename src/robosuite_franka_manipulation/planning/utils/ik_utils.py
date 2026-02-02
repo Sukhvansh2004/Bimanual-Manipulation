@@ -94,11 +94,11 @@ def enumerate_ik_solutions_for_arm(
     *,
     robot_id: int,
     target_pose: StampedPose,
+    tf_manager: TransformManager,
     target_frame: str = constants.WORLD_FRAME,
     arm: str = "right",
     site_name: Optional[str] = None,
     q_warm_start: Optional[np.ndarray] = None,
-    tf_manager: Optional[TransformManager] = None,
     env_lock: threading.RLock = None,
     num_seed_configs: int = constants.IK_NUM_SEED_CONFIGS,
     elbow_discretization: int = constants.IK_ELBOW_DISCRETIZATION,
@@ -136,9 +136,7 @@ def enumerate_ik_solutions_for_arm(
 
         # MuJoCo site poses (site_xpos/site_xmat) are expressed in WORLD.
         # Therefore, run IK in world coordinates.
-        if tf_manager is None:
-            tf_manager = TransformManager(env, env_lock=env_lock)
-
+        
         pose_sp = target_pose
 
         if pose_sp.frame_id != constants.WORLD_FRAME:

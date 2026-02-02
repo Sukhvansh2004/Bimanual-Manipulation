@@ -37,13 +37,11 @@ class GraspService:
     """
 
     def __init__(self,
+                 tf_manager: TransformManager,
                  host: str = constants.DEFAULT_HOST,
                  port: int = constants.GRASP_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
-                 env: Optional[DualArmEnvironment] = None,
-                 env_lock: Optional[threading.RLock] = None,
-                 tf_manager: Optional[TransformManager] = None,
                  debug: bool = False,
                  visualize: bool = False):
         """
@@ -54,13 +52,8 @@ class GraspService:
         self.debug = debug
         self.visualize = visualize
 
-        # Optional shared TF manager
-        self.tf_manager: Optional[TransformManager] = tf_manager
-        if self.tf_manager is None and env is not None:
-            try:
-                self.tf_manager = TransformManager(env=env, auto_discover=True, env_lock=env_lock)
-            except Exception as e:
-                logger.warning("Failed to initialize TransformManager for grasp visualization: %s", e)
+        # Shared TF manager
+        self.tf_manager = tf_manager
 
         # Service state
         self.running = False

@@ -44,21 +44,19 @@ class FastSAMService:
     env_lock: Optional[threading.RLock] = None
 
     def __init__(self,
-                 env: DualArmEnvironment,
+                 tf_manager: TransformManager,
                  host: str = constants.DEFAULT_HOST,
                  port: int = constants.FASTSAM_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
                  camera_name: str = constants.DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
-                 debug: bool = False,
-                 env_lock: Optional[threading.RLock] = None,
-                 tf_manager: Optional[TransformManager] = None):
+                 debug: bool = False):
         """
         Initialize FastSAM Service.
 
         Args:
-            env: Robosuite environment instance
+            tf_manager: Shared TransformManager for frame updates
             host: Service host address
             port: Service port
             manager_host: Service manager host
@@ -66,16 +64,15 @@ class FastSAMService:
             camera_name: Name of camera to use for detection
             visualize: Whether to show OpenCV visualization windows
             debug: Enable debug logging
-            env_lock: Optional threading.RLock lock for environment access
         """
-        self.env = env
+        self.tf_manager = tf_manager
+        self.env = tf_manager.env
         self.host = host
         self.port = port
         self.camera_name = camera_name
         self.visualize = visualize
         self.debug = debug
-        self.env_lock = env_lock
-        self.tf_manager = tf_manager
+        self.env_lock = tf_manager.env_lock
 
         # Service state
         self.running = False

@@ -36,11 +36,12 @@ from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerato
 
 # Planning Modules
 from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
-from robosuite_franka_manipulation.planning.trajectory_generator import generate_end_effector_trajectory, generate_object_trajectory
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
-    check_trajectory_feasibility,
-    save_trajectory
+from robosuite_franka_manipulation.planning.trajectory_generator import (
+    generate_end_effector_trajectory, 
+    generate_object_trajectory,
+    check_trajectory_feasibility
 )
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
 from robosuite_franka_manipulation.planning.utils import (
     visualize_trajectory,
     RobotMeshVisualizer
@@ -74,7 +75,7 @@ def main() -> None:
     parser.add_argument("--target-quat", type=float, nargs=4, default=default_target_quat, help="Target quaternion [x, y, z, w]")
     
     # Visualization arguments
-    parser.add_argument("--visualize-robot-meshes", action="store_true", default=True,
+    parser.add_argument("--visualize-robot-meshes", action="store_true", default=False,
                         help="Visualize robot configurations as meshes along trajectories")
     parser.add_argument("--mesh-step-interval", type=int, default=constants.VIS_MESH_STEP_INTERVAL,
                         help=f"Visualize robot mesh every N waypoints (default: {constants.VIS_MESH_STEP_INTERVAL})")
@@ -87,6 +88,7 @@ def main() -> None:
     log_level = logging.DEBUG if args.debug else logging.INFO
     setup_logging(log_level)
 
+    logger.debug(f"Parsed arguments: {args}")
     logger.info("Initializing Trajectory Generation...")
     
     # 1. Setup Environment
@@ -138,7 +140,6 @@ def main() -> None:
         kwargs={
             'env': env,
             'env_lock': env_lock,
-            'auto_discover': True,
             'config': vis_config,
             'stop_event': stop_event,
             'tf_manager': tf_manager
@@ -229,8 +230,6 @@ def main() -> None:
     
     # Initialize Grasp Service (it registers itself)
     grasp_service = GraspService(
-        env=env,
-        env_lock=env_lock,
         tf_manager=tf_manager,
         visualize=True 
     )
@@ -356,8 +355,6 @@ def main() -> None:
                 # Create RobotMeshVisualizer instance
                 mesh_visualizer = RobotMeshVisualizer(
                     vis=vis,
-                    env=env,
-                    env_lock=env_lock,
                     tf_manager=tf_manager,
                     base_path="trajectory_configs"
                 )
