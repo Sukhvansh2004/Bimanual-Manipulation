@@ -115,7 +115,7 @@ DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh durin
 # =============================================================================
 
 DEFAULT_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
-DEFAULT_FEASIBILITY_MAX_PAIRS = 1  # Max pairs to check for dual-arm feasibility (1 = just need existence)
+DEFAULT_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
 DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
 DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 
@@ -133,7 +133,7 @@ IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 
 # Trajectory Feasibility Check Parameters
 TRAJ_IK_NUM_SEED_CONFIGS = 16  # Fewer seeds for trajectory waypoints (faster)
-TRAJ_IK_MAX_SOLUTIONS = 1  # Only need one solution per waypoint
+TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
 
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold

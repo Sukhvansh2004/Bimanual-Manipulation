@@ -265,35 +265,53 @@ def main() -> None:
         
         logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
         
+        # Cache for trajectory results: (robot_id, grasp_id) -> (traj_eef, results, all_feasible)
+        trajectory_cache = {}
+
         # Step 6c: Generate and Check Trajectories for each pair
         for i, (g0, g1) in enumerate(feasible_pairs):
             logger.info(f"Checking pair {i}...")
             
-            # Generate EEF trajectories (applies gripper offset transform)
-            traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
-            traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
-            
-            logger.info("  Checking Robot 0 trajectory...")
-            results0, all_feasible0 = check_trajectory_feasibility(
-                env=env,
-                robot_id=0,
-                eef_trajectory=traj0_eef,
-                object_trajectory=object_trajectory,
-                object_name="plate_target",
-                env_lock=env_lock,
-                tf_manager=tf_manager,
-            )
-            
-            logger.info("  Checking Robot 1 trajectory...")
-            results1, all_feasible1 = check_trajectory_feasibility(
-                env=env,
-                robot_id=1,
-                eef_trajectory=traj1_eef,
-                object_trajectory=object_trajectory,
-                object_name="plate_target",
-                env_lock=env_lock,
-                tf_manager=tf_manager,
-            )
+            # Robot 0 Check
+            cache_key0 = (0, id(g0))
+            if cache_key0 in trajectory_cache:
+                traj0_eef, results0, all_feasible0 = trajectory_cache[cache_key0]
+                logger.info(f"  [Cached] Robot 0 trajectory for Grasp {id(g0)}")
+            else:
+                # Generate EEF trajectories (applies gripper offset transform)
+                traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
+                
+                logger.info("  Checking Robot 0 trajectory...")
+                results0, all_feasible0 = check_trajectory_feasibility(
+                    env=env,
+                    robot_id=0,
+                    eef_trajectory=traj0_eef,
+                    object_trajectory=object_trajectory,
+                    object_name="plate_target",
+                    env_lock=env_lock,
+                    tf_manager=tf_manager,
+                )
+                trajectory_cache[cache_key0] = (traj0_eef, results0, all_feasible0)
+
+            # Robot 1 Check
+            cache_key1 = (1, id(g1))
+            if cache_key1 in trajectory_cache:
+                traj1_eef, results1, all_feasible1 = trajectory_cache[cache_key1]
+                logger.info(f"  [Cached] Robot 1 trajectory for Grasp {id(g1)}")
+            else:
+                traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
+                
+                logger.info("  Checking Robot 1 trajectory...")
+                results1, all_feasible1 = check_trajectory_feasibility(
+                    env=env,
+                    robot_id=1,
+                    eef_trajectory=traj1_eef,
+                    object_trajectory=object_trajectory,
+                    object_name="plate_target",
+                    env_lock=env_lock,
+                    tf_manager=tf_manager,
+                )
+                trajectory_cache[cache_key1] = (traj1_eef, results1, all_feasible1)
             
             # Log feasibility status
             feasible0 = sum(1 for r in results0 if r.is_feasible)

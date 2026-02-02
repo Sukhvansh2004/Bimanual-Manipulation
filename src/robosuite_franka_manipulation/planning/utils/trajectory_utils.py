@@ -109,6 +109,8 @@ def check_trajectory_feasibility(
                 pass
 
         try:
+            last_config = None # Keep track of the last valid configuration for warm start
+            
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:
@@ -119,12 +121,18 @@ def check_trajectory_feasibility(
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Solve IK
+                # The input pose is the end-effector (flange) pose. 
+                # We must tell IK to solve for the flange site, not the default TCP site.
+                site_name = f"gripper{robot_id}_right_ft_frame"
+
                 solutions = enumerate_ik_solutions_for_arm(
                     env=env,
                     robot_id=robot_id,
                     target_pose=pose,
                     target_frame=constants.WORLD_FRAME,
                     arm="right",
+                    site_name=site_name,
+                    q_warm_start=last_config,
                     num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
                     max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
                     env_lock=None,  # Already locked
@@ -142,29 +150,47 @@ def check_trajectory_feasibility(
                         collision_free=True  # Unknown
                     ))
                     all_feasible = False
+                    # We don't update last_config here if IK failed
                     continue
                 
-                q_sol = solutions[0]
+                # Iterate over solutions to find a collision-free one
+                found_valid_solution = False
+                first_result = None # Store the first result in case none are collision free
+
+                for q_sol in solutions:
+                    # 3. Check Collision
+                    collision_free = True
+                    if check_collisions:
+                        set_qpos(data, qpos_idx, q_sol)
+                        mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                        collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+                    
+                    is_feasible = collision_free
+                    
+                    result = WaypointFeasibilityResult(
+                        waypoint_index=i,
+                        eef_pose=pose,
+                        joint_config=q_sol,
+                        is_feasible=is_feasible,
+                        ik_success=True,
+                        collision_free=collision_free
+                    )
+
+                    if first_result is None:
+                        first_result = result
+
+                    if is_feasible:
+                        results.append(result)
+                        found_valid_solution = True
+                        last_config = q_sol # Update warm start
+                        break
                 
-                # 3. Check Collision
-                collision_free = True
-                if check_collisions:
-                    set_qpos(data, qpos_idx, q_sol)
-                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
-                    collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
-                
-                is_feasible = collision_free
-                if not is_feasible:
+                if not found_valid_solution:
                     all_feasible = False
-                
-                results.append(WaypointFeasibilityResult(
-                    waypoint_index=i,
-                    eef_pose=pose,
-                    joint_config=q_sol,
-                    is_feasible=is_feasible,
-                    ik_success=True,
-                    collision_free=collision_free
-                ))
+                    if first_result:
+                        results.append(first_result)
+                        last_config = first_result.joint_config
+
                 
         finally:
             data.qpos[:] = qpos_backup
