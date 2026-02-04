@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def check_single_grasp_feasibility(
     env: DualArmEnvironment,
-    grasp: Union[StampedPose, GraspSchema],
+    grasp: StampedPose,
     robot_id: int,
     tf_manager: TransformManager,
     arm: str = "right",
