@@ -227,7 +227,8 @@ def check_trajectory_feasibility(
             
             # Resolve ignore names
             current_ignore_names = resolve_ignore_names(object_name, ignore_names)
-            
+            logger.debug(f"Collision checking will ignore geoms: {current_ignore_names}")
+
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:

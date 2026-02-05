@@ -274,7 +274,7 @@ def main() -> None:
                 object_name="plate_target",
                 env_lock=env_lock,
                 tf_manager=tf_manager,
-                ignore_names=["robot1_", "gripper1_"]
+                ignore_names=["robot1", "gripper1"]
             )
             
             feasible_count = sum(1 for r in results0 if r.is_feasible)
@@ -318,7 +318,7 @@ def main() -> None:
                 object_name="plate_target",
                 env_lock=env_lock,
                 tf_manager=tf_manager,
-                ignore_names=["robot0_", "gripper0_"]
+                ignore_names=["robot0", "gripper0"]
             )
             
             feasible_count = sum(1 for r in results1 if r.is_feasible)
