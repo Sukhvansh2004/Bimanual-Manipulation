@@ -35,7 +35,6 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 
 # Planning Modules
-from robosuite_franka_manipulation.planning.collision_checker import find_feasible_grasp_pairs
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory, 
     generate_object_trajectory,
@@ -247,142 +246,107 @@ def main() -> None:
         env_lock=env_lock
     )
     
-    grasps_0 = [g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])]
-    grasps_1 = [g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])]
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
-    # Store all trajectory results (not just fully feasible ones)
-    all_trajectory_results = []  # List of dicts with trajectory data and feasibility results
+    # Store all trajectory results for each robot
+    robot0_trajectory_results = []
+    robot1_trajectory_results = []
 
-    if not grasps_0 or not grasps_1:
-        logger.error("Failed to generate grasps for one or both robots.")
+    if not grasps_0 and not grasps_1:
+        logger.error("Failed to generate any grasps.")
     else:
-        # Step 6b: Find feasible grasp pairs (Collision Free Grasp Configuration)
-        logger.info("Finding feasible grasp pairs (checking mutual collisions)...")
-        feasible_pairs = find_feasible_grasp_pairs(
-            env, 
-            grasps_0, 
-            grasps_1, 
-            object_name="plate_target",
-            env_lock=env_lock, 
-            tf_manager=tf_manager
-        )
-        
-        logger.info(f"Found {len(feasible_pairs)} feasible pairs.")
-        
-        # Cache for trajectory results: (robot_id, grasp_id) -> (traj_eef, results, all_feasible)
-        trajectory_cache = {}
-
-        # Step 6c: Generate and Check Trajectories for each pair
-        for i, (g0, g1) in enumerate(feasible_pairs):
-            logger.info(f"Checking pair {i}...")
-
-            # Robot 0 Check
-            cache_key0 = (0, id(g0))
-            if cache_key0 in trajectory_cache:
-                traj0_eef, results0, all_feasible0 = trajectory_cache[cache_key0]
-                logger.info(f"  [Cached] Robot 0 trajectory for Grasp {id(g0)}")
-            else:
-                # Generate EEF trajectories (applies gripper offset transform)
-                traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
-                
-                logger.info("  Checking Robot 0 trajectory...")
-                results0, all_feasible0 = check_trajectory_feasibility(
-                    env=env,
-                    robot_id=0,
-                    eef_trajectory=traj0_eef,
-                    object_trajectory=object_trajectory,
-                    object_name="plate_target",
-                    env_lock=env_lock,
-                    tf_manager=tf_manager,
-                )
-                trajectory_cache[cache_key0] = (traj0_eef, results0, all_feasible0)
-
-            # Robot 1 Check
-            cache_key1 = (1, id(g1))
-            if cache_key1 in trajectory_cache:
-                traj1_eef, results1, all_feasible1 = trajectory_cache[cache_key1]
-                logger.info(f"  [Cached] Robot 1 trajectory for Grasp {id(g1)}")
-            else:
-                traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
-                
-                logger.info("  Checking Robot 1 trajectory...")
-                results1, all_feasible1 = check_trajectory_feasibility(
-                    env=env,
-                    robot_id=1,
-                    eef_trajectory=traj1_eef,
-                    object_trajectory=object_trajectory,
-                    object_name="plate_target",
-                    env_lock=env_lock,
-                    tf_manager=tf_manager,
-                )
-                trajectory_cache[cache_key1] = (traj1_eef, results1, all_feasible1)
+        # Step 6b: Process Robot 0 (Finger) Grasps
+        logger.info("Processing Robot 0 (Finger) grasps...")
+        for i, g0 in enumerate(grasps_0):
+            logger.info(f"  Checking Robot 0 Grasp {i}...")
+            # Generate EEF trajectory
+            traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
             
-            # Log feasibility status
-            feasible0 = sum(1 for r in results0 if r.is_feasible)
-            feasible1 = sum(1 for r in results1 if r.is_feasible)
+            # Check feasibility (ignoring Robot 1)
+            results0, all_feasible0 = check_trajectory_feasibility(
+                env=env,
+                robot_id=0,
+                eef_trajectory=traj0_eef,
+                object_trajectory=object_trajectory,
+                object_name="plate_target",
+                env_lock=env_lock,
+                tf_manager=tf_manager,
+                ignore_names=["robot1_", "gripper1_"]
+            )
             
-            if all_feasible0 and all_feasible1:
-                logger.info(f"  -> Pair {i} FULLY VALID!")
-            else:
-                if not all_feasible0:
-                    logger.info(f"  -> Robot 0: {feasible0}/{len(results0)} waypoints feasible")
-                if not all_feasible1:
-                    logger.info(f"  -> Robot 1: {feasible1}/{len(results1)} waypoints feasible")
+            feasible_count = sum(1 for r in results0 if r.is_feasible)
+            logger.info(f"    -> {feasible_count}/{len(results0)} waypoints feasible (all_feasible={all_feasible0})")
             
-            # Store results regardless of feasibility
-            all_trajectory_results.append({
-                'pair_id': i,
-                'traj0_eef': traj0_eef,
-                'traj1_eef': traj1_eef,
-                'results0': results0,
-                'results1': results1,
-                'all_feasible0': all_feasible0,
-                'all_feasible1': all_feasible1,
-                'grasp0': g0,
-                'grasp1': g1,
+            robot0_trajectory_results.append({
+                'id': i,
+                'traj_eef': traj0_eef,
+                'results': results0,
+                'all_feasible': all_feasible0,
+                'grasp': g0
             })
             
             # Visualize trajectory line
             visualize_trajectory(vis, traj0_eef, name=f"robot0_traj_{i}", color=0x0000ff)
-            visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
             
             # Visualize robot mesh configurations along the trajectory
             if args.visualize_robot_meshes:
-                logger.info(f"  Visualizing robot mesh configurations for trajectory pair {i}...")
-                
-                # Create RobotMeshVisualizer instance
-                mesh_visualizer = RobotMeshVisualizer(
-                    vis=vis,
-                    tf_manager=tf_manager,
-                    base_path="trajectory_configs"
-                )
-                
-                # Visualize Robot 0 configurations using pre-computed results
-                logger.info(f"    Visualizing Robot 0 configurations...")
+                mesh_visualizer = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path="robot0_configs")
                 mesh_visualizer.visualize_trajectory_configs(
-                    trajectory_id=f"pair_{i}",
+                    trajectory_id=f"grasp_{i}",
                     robot_id=0,
                     waypoint_results=results0,
                     step_interval=args.mesh_step_interval,
                     opacity=args.mesh_opacity
                 )
-                
-                # Visualize Robot 1 configurations using pre-computed results
-                logger.info(f"    Visualizing Robot 1 configurations...")
+
+        # Step 6c: Process Robot 1 (Suction) Grasps
+        logger.info("Processing Robot 1 (Suction) grasps...")
+        for i, g1 in enumerate(grasps_1):
+            logger.info(f"  Checking Robot 1 Grasp {i}...")
+            # Generate EEF trajectory
+            traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
+            
+            # Check feasibility (ignoring Robot 0)
+            results1, all_feasible1 = check_trajectory_feasibility(
+                env=env,
+                robot_id=1,
+                eef_trajectory=traj1_eef,
+                object_trajectory=object_trajectory,
+                object_name="plate_target",
+                env_lock=env_lock,
+                tf_manager=tf_manager,
+                ignore_names=["robot0_", "gripper0_"]
+            )
+            
+            feasible_count = sum(1 for r in results1 if r.is_feasible)
+            logger.info(f"    -> {feasible_count}/{len(results1)} waypoints feasible (all_feasible={all_feasible1})")
+            
+            robot1_trajectory_results.append({
+                'id': i,
+                'traj_eef': traj1_eef,
+                'results': results1,
+                'all_feasible': all_feasible1,
+                'grasp': g1
+            })
+            
+            # Visualize trajectory line
+            visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
+            
+            # Visualize robot mesh configurations along the trajectory
+            if args.visualize_robot_meshes:
+                mesh_visualizer = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path="robot1_configs")
                 mesh_visualizer.visualize_trajectory_configs(
-                    trajectory_id=f"pair_{i}",
+                    trajectory_id=f"grasp_{i}",
                     robot_id=1,
                     waypoint_results=results1,
                     step_interval=args.mesh_step_interval,
                     opacity=args.mesh_opacity
                 )
-                
-                logger.info(f"    Robot 0: {feasible0}/{len(results0)} waypoints feasible")
-                logger.info(f"    Robot 1: {feasible1}/{len(results1)} waypoints feasible")
 
-    # 7. Save Trajectories (all trajectories, not just fully feasible ones)
+    # 7. Save Trajectories
     # ---------------------------------------------
     should_save = args.save_traj
     
@@ -395,7 +359,7 @@ def main() -> None:
         except EOFError:
             pass
             
-    if should_save and all_trajectory_results:
+    if should_save and (robot0_trajectory_results or robot1_trajectory_results):
         # Save object trajectory
         save_trajectory(
             output_dir=args.output_dir,
@@ -403,35 +367,29 @@ def main() -> None:
             object_trajectory=object_trajectory
         )
         
-        # Save ALL robot trajectories with feasibility info (not just fully feasible)
-        for traj_data in all_trajectory_results:
-            i = traj_data['pair_id']
-            
-            # Save Robot 0 trajectory with feasibility markers
+        # Save Robot 0 trajectories
+        for traj_data in robot0_trajectory_results:
+            i = traj_data['id']
             save_trajectory(
                 output_dir=args.output_dir,
                 filename=f"robot0_trajectory_{i}.npz",
-                eef_trajectory=traj_data['traj0_eef'],
+                eef_trajectory=traj_data['traj_eef'],
                 object_trajectory=object_trajectory,
-                waypoint_results=traj_data['results0']
+                waypoint_results=traj_data['results']
             )
             
-            # Save Robot 1 trajectory with feasibility markers
+        # Save Robot 1 trajectories
+        for traj_data in robot1_trajectory_results:
+            i = traj_data['id']
             save_trajectory(
                 output_dir=args.output_dir,
                 filename=f"robot1_trajectory_{i}.npz",
-                eef_trajectory=traj_data['traj1_eef'],
+                eef_trajectory=traj_data['traj_eef'],
                 object_trajectory=object_trajectory,
-                waypoint_results=traj_data['results1']
+                waypoint_results=traj_data['results']
             )
-            
-            # Log what was saved
-            feasible0 = sum(1 for r in traj_data['results0'] if r.is_feasible)
-            feasible1 = sum(1 for r in traj_data['results1'] if r.is_feasible)
-            fully_feasible = "FULLY FEASIBLE" if (traj_data['all_feasible0'] and traj_data['all_feasible1']) else "PARTIAL"
-            logger.info(f"Saved pair {i} ({fully_feasible}): Robot0 {feasible0}/{len(traj_data['results0'])}, Robot1 {feasible1}/{len(traj_data['results1'])}")
         
-        logger.info(f"Saved {len(all_trajectory_results)} trajectory pairs to {args.output_dir}")
+        logger.info(f"Saved {len(robot0_trajectory_results)} Robot 0 and {len(robot1_trajectory_results)} Robot 1 trajectories to {args.output_dir}")
     else:
         logger.info("No trajectories saved.")
         
