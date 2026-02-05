@@ -35,6 +35,7 @@ ZMQ_SERVICE_CALL_TIMEOUT = 5 * 60 * 1000  # 5 mins... seconds for service calls
 FASTSAM_MODEL_PATH = 'models/FastSAM-x.pt'
 GRASPGEN_MODELS_DIR = 'deps/GraspGenModels/checkpoints'
 GRASPGEN_DEPS_DIR = 'deps/GraspGen'
+DATA_DIR = 'data'
 
 # GraspGen config file template
 GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
@@ -107,11 +108,51 @@ GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper c
 MESH_SCALE = 1.0  # Default scale for object meshes
 GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
 GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using GraspGen
-DEFAULT_VISUALIZE_GRIPPER_MESH = False  # Whether to visualize gripper mesh during grasp prediction
+DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
+
+# =============================================================================
+# Planning Configuration
+# =============================================================================
+
+DEFAULT_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
+DEFAULT_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
+DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
+DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
+
+# IK Solver Parameters
+IK_NUM_SEED_CONFIGS = 24  # Number of random seed configurations for IK
+IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
+IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
+IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
+IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
+IK_MAX_ITERATIONS = 200  # Maximum IK iterations
+IK_DAMPING = 1e-2  # Damping factor for DLS IK
+IK_STEP_SIZE = 0.6  # Step size for IK updates
+IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
+IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
+
+# Trajectory Feasibility Check Parameters
+TRAJ_IK_NUM_SEED_CONFIGS = 16  # Fewer seeds for trajectory waypoints (faster)
+TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
+
+# Collision Checking Parameters
+COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
+
+# Dual-Arm Feasibility Parameters
+DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 
 # =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
+
+# Object Trajectory Generation
+OBJECT_TRAJ_NUM_STEPS = 100  # Default number of steps for object trajectory
+OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
+OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
+# Segment ratios for object trajectory (lift, approach, insert)
+OBJECT_TRAJ_LIFT_RATIO = 0.2
+OBJECT_TRAJ_APPROACH_RATIO = 0.5
+OBJECT_TRAJ_INSERT_RATIO = 0.3
 
 # Trajectory planning - number of waypoints
 TRAJECTORY_NUM_POINTS = 200  # Number of waypoints for quintic polynomial trajectory
@@ -127,6 +168,13 @@ DEFAULT_APPROACH_AXIS = 'z'  # Default approach axis for pre-grasp
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0
 GRIPPER_CLOSE_WIDTH = 0.0
+
+# Visualization defaults
+VIS_PLANNING_ROOT = "planning"  # Root path in MeshCat for all planning visualizations
+VIS_TRAJECTORY_PATH = "trajectories"  # Subpath for trajectory visualizations
+VIS_ROBOT_CONFIG_PATH = "robot_configs"  # Subpath for robot mesh configurations
+VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
+VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
 
 # =============================================================================
 # Teleoperation Configuration
@@ -244,6 +292,7 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
 DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]
+DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # =============================================================================
 # Asset Paths

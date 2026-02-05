@@ -103,8 +103,8 @@ class DualArmEnvironment(TwoArmEnv):
         self._custom_object_specs = custom_objects or []
         self._ycb_object_specs = ycb_objects or []
         
-        # Store (name, object_instance, initial_pos) tuples
-        self._added_objects: List[Tuple[str, Any, np.ndarray]] = []
+        # Store (name, object_instance, initial_pos, initial_quat) tuples
+        self._added_objects: List[Tuple[str, Any, np.ndarray, np.ndarray]] = []
         
         # Settings
         self.table_full_size = table_full_size
@@ -176,8 +176,10 @@ class DualArmEnvironment(TwoArmEnv):
                 if not isinstance(spec, dict): 
                     continue
                 
-                # Extract common properties
-                pos = np.array(spec.get('pos', [0.0, 0.0, 0.90]))
+                # Extract position
+                pos = np.array(spec.get('pos', constants.DEFAULT_OBJECT_POSITION.copy()))
+                # Extract orientation
+                quat = np.array(spec.get('quat', constants.DEFAULT_OBJECT_QUATERNION.copy()))
                 
                 if is_ycb:
 
@@ -192,7 +194,7 @@ class DualArmEnvironment(TwoArmEnv):
                         name = f"{ycb_name}_0"
 
                     # Ensure uniqueness across all objects in the scene.
-                    existing_names = {n for n, _, _ in self._added_objects}
+                    existing_names = {n for n, _, _, _ in self._added_objects}
                     if name in existing_names:
                         suffix = 1
                         candidate = f"{name}_{suffix}"
@@ -230,7 +232,7 @@ class DualArmEnvironment(TwoArmEnv):
                     logger.info(f"Added primitive object: {name}")
 
                 mujoco_objects.append(obj)
-                self._added_objects.append((name, obj, pos))
+                self._added_objects.append((name, obj, pos, quat))
 
         # Process both lists
         _process_objects(self._custom_object_specs, is_ycb=False)
@@ -256,7 +258,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Use robosuite's standard pattern: obj.root_body returns the correctly prefixed name
         # See: robosuite/environments/manipulation/lift.py, pick_place.py, nut_assembly.py
         self.object_body_ids = {}
-        for name, obj, _ in self._added_objects:
+        for name, obj, _, _ in self._added_objects:
             try:
                 self.object_body_ids[name] = self.sim.model.body_name2id(obj.root_body)
                 logger.debug(f"Object '{name}' -> body '{obj.root_body}' -> id {self.object_body_ids[name]}")
@@ -275,7 +277,7 @@ class DualArmEnvironment(TwoArmEnv):
             names = []
 
             # Create sensors for each object (only if body ID was found)
-            for name, obj, _ in self._added_objects:
+            for name, obj, _, _ in self._added_objects:
                 # Skip objects that weren't found in the model
                 if name not in self.object_body_ids:
                     logger.warning(f"Skipping observables for '{name}' - body ID not found")
@@ -329,15 +331,17 @@ class DualArmEnvironment(TwoArmEnv):
         # Place all custom objects
         # Note: We are using the explicit 'pos' from specs rather than a sampler
         # to preserve the user's configuration intent.
-        for name, obj, pos in self._added_objects:
+        for name, obj, pos, quat in self._added_objects:
             joint_name = f"{name}_joint0"
             try:
                 joint_id = self.sim.model.joint_name2id(joint_name)
                 qpos_addr = self.sim.model.jnt_qposadr[joint_id]
                 
-                # Set position (x,y,z) and orientation (w,x,y,z - identity)
+                # Set position (x,y,z) and orientation (w,x,y,z)
                 # MuJoCo convention is w-first for quats
-                initial_qpos = np.array([pos[0], pos[1], pos[2], 1.0, 0.0, 0.0, 0.0])
+                # quat in spec is [x, y, z, w]
+                quat_wxyz = T.convert_quat(quat, to="wxyz")
+                initial_qpos = np.concatenate([pos, quat_wxyz])
                 
                 self.sim.data.qpos[qpos_addr:qpos_addr+7] = initial_qpos
                 
@@ -357,7 +361,7 @@ class DualArmEnvironment(TwoArmEnv):
 
     def get_object_names(self) -> List[str]:
         """Get the names of all custom objects in the environment."""
-        return [name for name, _, _ in self._added_objects]
+        return [name for name, _, _, _ in self._added_objects]
 
     def get_object_pose(self, object_name: str) -> Optional[np.ndarray]:
         """

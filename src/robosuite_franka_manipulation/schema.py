@@ -34,7 +34,14 @@ class GraspSchema(StampedPose):
     score: float
     id: Union[int, str]
     pcd_size: int = 0
-    gripper_type: Optional[str] = None
+    gripper_type: str = Field(..., description="Type of gripper used for this grasp")
+
+    @field_validator('gripper_type')
+    @classmethod
+    def validate_gripper_type(cls, v: str) -> str:
+        if v not in constants.GRIPPER_TYPE_MAPPING.values():
+            raise ValueError(f"Invalid gripper_type: '{v}'. Must be one of {constants.GRIPPER_TYPES}")
+        return v
     
 # --- Service Request/Response Models ---
 

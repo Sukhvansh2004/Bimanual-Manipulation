@@ -194,7 +194,6 @@ class DualArmManipulationSystem:
                     env=self.env,
                     env_lock=self.env_lock,
                     tf_manager=self.tf_manager,
-                    auto_discover=True,
                     config=cfg,
                     stop_event=self._shutdown_requested,
                 )
@@ -271,10 +270,8 @@ class DualArmManipulationSystem:
             logger.info("   Starting FastSAM service...")
             assert self.env is not None
             self.fastsam_service = FastSAMService(
-                env=self.env,
                 visualize=self.visualize,
                 debug=False,
-                env_lock=self.env_lock,
                 tf_manager=self.tf_manager,
             )
             self.fastsam_service.start()
@@ -290,8 +287,6 @@ class DualArmManipulationSystem:
             # Start Grasp service
             logger.info("   Starting Grasp service...")
             self.grasp_service = GraspService(
-                env=self.env,
-                env_lock=self.env_lock,
                 tf_manager=self.tf_manager,
                 debug=self.debug,
                 visualize=self.visualize,
@@ -476,7 +471,7 @@ def get_grasps_mesh(
         num_grasps=constants.DEFAULT_NUM_GRASPS, 
         gripper_type='suction', 
         intra_gripper_collision_check=False,
-        visualize_gripper_mesh=False
+        visualize_gripper_mesh=True
         ):
     """Quick helper to generate grasps given an object pose."""
     
@@ -627,10 +622,17 @@ def main() -> int:
     ycb_objects = []
 
     # Create the dictionary spec for this object
-    obj = create_ycb_object(
+    plate = create_ycb_object(
         ycb_name="plate",
     )
-    ycb_objects.append(obj)
+    shelf = create_ycb_object(
+        ycb_name="shelf",
+        position = [-0.7, 0.0, 0.0],
+        quaternion = [0.0, 0.0, 0.70710678, 0.70710678],
+    )
+    
+    ycb_objects.append(plate)
+    ycb_objects.append(shelf)
 
     # Create and start system
     global system

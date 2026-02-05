@@ -156,7 +156,8 @@ class TestGraspSchemaFormat:
             quat=[0, 0, 0, 1],
             score=0.95,
             id=0,
-            frame_id="world"
+            frame_id="world",
+            gripper_type="franka_panda"
         )
         
         assert grasp.score == 0.95
@@ -170,7 +171,8 @@ class TestGraspSchemaFormat:
             quat=[0, 0, 0, 1],
             score=0.95,
             id=0,
-            frame_id="world"
+            frame_id="world",
+            gripper_type="franka_panda"
         )
         
         d = grasp.model_dump(by_alias=True)
@@ -424,9 +426,9 @@ class TestGraspScoreHandling:
     def test_grasp_list_sorting_by_score(self):
         """Test sorting grasps by score."""
         grasps = [
-            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world"),
-            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.9, id=2, frame_id="world"),
-            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world"),
+            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world", gripper_type="franka_panda"),
+            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.9, id=2, frame_id="world", gripper_type="franka_panda"),
+            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world", gripper_type="franka_panda"),
         ]
         
         sorted_grasps = sorted(grasps, key=lambda g: g.score, reverse=True)
@@ -438,9 +440,9 @@ class TestGraspScoreHandling:
     def test_best_grasp_selection(self):
         """Test selecting best grasp by score."""
         grasps = [
-            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world"),
-            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.95, id=2, frame_id="world"),
-            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world"),
+            GraspSchema(pos=[0,0,0], quat=[0,0,0,1], score=0.5, id=1, frame_id="world", gripper_type="franka_panda"),
+            GraspSchema(pos=[1,0,0], quat=[0,0,0,1], score=0.95, id=2, frame_id="world", gripper_type="franka_panda"),
+            GraspSchema(pos=[0,1,0], quat=[0,0,0,1], score=0.7, id=3, frame_id="world", gripper_type="franka_panda"),
         ]
         
         best_grasp = max(grasps, key=lambda g: g.score)
@@ -561,7 +563,7 @@ def mock_grasp_service():
          patch('robosuite_franka_manipulation.services.grasp_service.zmq.Context'), \
          patch('robosuite_franka_manipulation.services.grasp_service.ServiceClient'), \
          patch('robosuite_franka_manipulation.services.grasp_service.TransformManager'):
-        service = GraspService(env=None, env_lock=None, tf_manager=None)
+        service = GraspService(tf_manager=None)
         service.grasp_predictors = {} 
         return service
 

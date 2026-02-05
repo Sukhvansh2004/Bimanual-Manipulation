@@ -15,10 +15,9 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation.utils.se3 import (
     pose_to_SE3,
-    SE3_to_pose,
     SE3_log,
-    SE3_exp,
     compute_se3_distance,
+    interpolate_pose,
 )
 from robosuite_franka_manipulation.utils import env_step
 from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
@@ -184,19 +183,16 @@ class RobosuiteArmController:
         if num_points is None:
             num_points = constants.TRAJECTORY_NUM_POINTS
         
-        # Convert to SE(3) matrices
+        # Convert to SE(3) matrices for distance check
         T_start = pose_to_SE3(start_pos, start_quat)
         T_target = pose_to_SE3(target_pos, target_quat)
         
-        # Compute relative transformation in the tangent space (Lie algebra)
-        # T_rel = T_start^-1 @ T_target, so T_target = T_start @ T_rel
+        # Compute relative transformation to check distance
         T_start_inv = np.eye(4)
         T_start_inv[:3, :3] = T_start[:3, :3].T
         T_start_inv[:3, 3] = -T_start[:3, :3].T @ T_start[:3, 3]
         
         T_rel = T_start_inv @ T_target
-        
-        # Map to Lie algebra se(3) - this is the "velocity" that takes us from start to target
         twist = SE3_log(T_rel)
         
         # Check if movement is needed
@@ -218,17 +214,12 @@ class RobosuiteArmController:
             num_points=num_points
         )
         
-        # Generate trajectory waypoints by interpolating SE(3) using the quintic profile
+        # Generate trajectory waypoints using the abstracted interpolation function
         positions = []
         quaternions = []
         
         for s in s_trajectory:
-            # Interpolate in SE(3) using the exponential map
-            # T(s) = T_start @ exp(s * twist)
-            T_interp = T_start @ SE3_exp(s * twist)
-            
-            # Extract position and quaternion
-            pos, quat = SE3_to_pose(T_interp)
+            pos, quat = interpolate_pose(start_pos, start_quat, target_pos, target_quat, s)
             positions.append(pos)
             quaternions.append(quat)
         
