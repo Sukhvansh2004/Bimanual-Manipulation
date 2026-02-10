@@ -62,7 +62,7 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager,
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
-from robosuite_franka_manipulation.planning.trajectory_generator import load_trajectory
+from robosuite_franka_manipulation.planning.utils import load_trajectory, visualize_trajectory, WaypointFeasibilityResult
 
 # Configure logging
 logging.basicConfig(
@@ -589,6 +589,41 @@ def load_trajectory_file(filepath: str):
         print(f"Failed to load trajectory: {e}")
         return None, None, None, None
 
+def visualize_trajectory_data(eef_trajectory: List[StampedPose], filepath: Optional[str] = None, name: str = "trajectory"):
+    """Visualize trajectory data in MeshCat."""
+    if system.tf_manager is None:
+        print("TransformManager not initialized")
+        return
+
+    # If filepath provided, we can load feasibility results
+    waypoint_results = None
+    if filepath and os.path.exists(filepath):
+        data = np.load(filepath, allow_pickle=True)
+        if 'is_feasible' in data:
+            waypoint_results = []
+            for i in range(len(eef_trajectory)):
+                res = WaypointFeasibilityResult(
+                    waypoint_index=i,
+                    eef_pose=eef_trajectory[i],
+                    joint_config=data['joint_configs'][i] if 'joint_configs' in data else None,
+                    is_feasible=bool(data['is_feasible'][i]),
+                    ik_success=bool(data['ik_success'][i]) if 'ik_success' in data else True,
+                    collision_free=bool(data['collision_free'][i]) if 'collision_free' in data else True
+                )
+                waypoint_results.append(res)
+
+    # Get meshcat visualizer instance (lazy created in controllers or we can make one)
+    # Using the one from left_arm if available
+    vis = None
+    if system.left_arm and system.left_arm._meshcat_vis:
+        vis = system.left_arm._meshcat_vis
+    else:
+        import meshcat
+        vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+    
+    visualize_trajectory(vis, eef_trajectory, waypoint_results, name=name)
+    print(f"Trajectory visualization sent to MeshCat as '{name}'")
+
 def move_arm_on_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: Optional[np.ndarray] = None, gripper_action: float = 0.0, num_steps_per_segment: int = 10):
     """
     Generator to move a single arm on a trajectory.
@@ -774,12 +809,14 @@ Helper functions:
   go_to_pose(pose, robot_id, arm_id)     - Move an arm to a pose
   cancel_move(robot_id, arm_id)          - Cancel a move command
   load_trajectory_file(path)             - Load trajectory data from file
+  visualize_trajectory_data(traj, path)  - Visualize trajectory with status colors
   move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
   move_both_arms_on_trajectory(...)      - Move both arms on trajectory in sync (Generator)
 
 Example usage:
   >>> detections = detect()
   >>> traj, obj, jnt, feas = load_trajectory_file("data/my_traj.npz")
+  >>> visualize_trajectory_data(traj, "data/my_traj.npz")
   >>> # Start generator
   >>> gen = move_arm_on_trajectory(0, "right", traj, feas)
   >>> next(gen)             # Execute next feasible waypoint
@@ -805,6 +842,7 @@ Press Ctrl+D or type exit() to quit
                     'go_to_pose': go_to_pose,
                     'cancel_move': cancel_move,
                     'load_trajectory_file': load_trajectory_file,
+                    'visualize_trajectory_data': visualize_trajectory_data,
                     'move_arm_on_trajectory': move_arm_on_trajectory,
                     'move_both_arms_on_trajectory': move_both_arms_on_trajectory,
                     'env_step': env_step,

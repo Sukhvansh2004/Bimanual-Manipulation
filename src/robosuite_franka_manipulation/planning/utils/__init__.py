@@ -19,6 +19,7 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     save_trajectory,
+    load_trajectory,
     WaypointFeasibilityResult
 )
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
@@ -47,6 +48,7 @@ __all__ = [
     'compute_site_error',
     # Trajectory utilities
     'save_trajectory',
+    'load_trajectory',
     'WaypointFeasibilityResult',
     # Visualization utilities
     'visualize_trajectory',

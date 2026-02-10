@@ -5,10 +5,9 @@ Trajectory verification utilities.
 import numpy as np
 import logging
 import os
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 import mujoco
-from contextlib import nullcontext
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
