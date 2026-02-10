@@ -745,7 +745,7 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
     else:
         print(f"Failed to send follow trajectory command: {response.get('message')}")
 
-def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0):
+def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0, num_steps_per_segment: int = 200):
     """
     Groups feasible waypoints into continuous segments and executes them.
     A trajectory compromises a continuous set of feasible segments.
@@ -772,7 +772,7 @@ def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[Sta
     
     for i, segment in enumerate(segments):
         print(f"  Executing segment {i+1}/{len(segments)} ({len(segment)} waypoints)")
-        follow_trajectory_command(robot_id, arm_id, segment, gripper_action)
+        follow_trajectory_command(robot_id, arm_id, segment, gripper_action, num_steps_per_segment)
         
         # Wait for segment to finish
         while True:
