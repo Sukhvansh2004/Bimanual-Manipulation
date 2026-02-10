@@ -189,18 +189,18 @@ def save_trajectory(
 
 def load_trajectory(
     filepath: str,
-) -> Tuple[List[StampedPose], Optional[List[StampedPose]], Optional[np.ndarray], Optional[np.ndarray]]:
+) -> Tuple[List[StampedPose], Optional[List[StampedPose]], Optional[np.ndarray], Optional[List[WaypointFeasibilityResult]]]:
     """Load trajectory from npz file.
     
     Args:
         filepath: Path to the npz file
         
     Returns:
-        Tuple of (eef_trajectory, object_trajectory, joint_configs, feasibility_flags)
+        Tuple of (eef_trajectory, object_trajectory, joint_configs, waypoint_results)
         eef_trajectory: List of StampedPose
         object_trajectory: Optional list of StampedPose
         joint_configs: Optional np.ndarray of shape (N, DOF)
-        feasibility_flags: Optional np.ndarray of shape (N,) (bool)
+        waypoint_results: Optional List of WaypointFeasibilityResult
     """
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Trajectory file not found: {filepath}")
@@ -228,6 +228,19 @@ def load_trajectory(
         object_trajectory = None
         
     joint_configs = data['joint_configs'] if 'joint_configs' in data else None
-    feasibility_flags = data['is_feasible'].astype(bool) if 'is_feasible' in data else None
     
-    return eef_trajectory, object_trajectory, joint_configs, feasibility_flags
+    waypoint_results = None
+    if 'is_feasible' in data:
+        waypoint_results = []
+        for i in range(len(eef_trajectory)):
+            res = WaypointFeasibilityResult(
+                waypoint_index=i,
+                eef_pose=eef_trajectory[i],
+                joint_config=joint_configs[i] if joint_configs is not None else None,
+                is_feasible=bool(data['is_feasible'][i]),
+                ik_success=bool(data['ik_success'][i]) if 'ik_success' in data else True,
+                collision_free=bool(data['collision_free'][i]) if 'collision_free' in data else True
+            )
+            waypoint_results.append(res)
+    
+    return eef_trajectory, object_trajectory, joint_configs, waypoint_results

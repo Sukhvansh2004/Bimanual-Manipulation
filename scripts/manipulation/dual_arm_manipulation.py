@@ -591,43 +591,31 @@ def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: fl
 def load_trajectory_file(filepath: str):
     """Load trajectory from file."""
     try:
-        eef_traj, obj_traj, joint_configs, feasibility = load_trajectory(filepath)
+        eef_traj, obj_traj, joint_configs, waypoint_results = load_trajectory(filepath)
         print(f"Loaded trajectory from {filepath}: {len(eef_traj)} waypoints")
-        if feasibility is not None:
-            feasible_count = sum(feasibility)
-            print(f"  Feasible waypoints: {feasible_count}/{len(feasibility)}")
+        if waypoint_results is not None:
+            feasible_count = sum(1 for r in waypoint_results if r.is_feasible)
+            print(f"  Feasible waypoints: {feasible_count}/{len(waypoint_results)}")
+        
+        # Also return a simple feasibility array for compatibility with generators
+        feasibility = np.array([r.is_feasible for r in waypoint_results]) if waypoint_results else None
+        
         return {
             "eef_traj": eef_traj, 
             "obj_traj": obj_traj,
             "joint_configs": joint_configs,
+            "waypoint_results": waypoint_results,
             "feasibility":  feasibility
         }
     except Exception as e:
         print(f"Failed to load trajectory: {e}")
-        return None, None, None, None
+        return None
 
-def visualize_trajectory_data(eef_trajectory: List[StampedPose], filepath: Optional[str] = None, name: str = "trajectory"):
+def visualize_trajectory_data(eef_trajectory: List[StampedPose], waypoint_results: Optional[List[WaypointFeasibilityResult]] = None, name: str = "trajectory"):
     """Visualize trajectory data in MeshCat."""
     if system.tf_manager is None:
         print("TransformManager not initialized")
         return
-
-    # If filepath provided, we can load feasibility results
-    waypoint_results = None
-    if filepath and os.path.exists(filepath):
-        data = np.load(filepath, allow_pickle=True)
-        if 'is_feasible' in data:
-            waypoint_results = []
-            for i in range(len(eef_trajectory)):
-                res = WaypointFeasibilityResult(
-                    waypoint_index=i,
-                    eef_pose=eef_trajectory[i],
-                    joint_config=data['joint_configs'][i] if 'joint_configs' in data else None,
-                    is_feasible=bool(data['is_feasible'][i]),
-                    ik_success=bool(data['ik_success'][i]) if 'ik_success' in data else True,
-                    collision_free=bool(data['collision_free'][i]) if 'collision_free' in data else True
-                )
-                waypoint_results.append(res)
 
     vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
     
@@ -826,16 +814,16 @@ Helper functions:
   go_to_pose(pose, robot_id, arm_id)     - Move an arm to a pose
   cancel_move(robot_id, arm_id)          - Cancel a move command
   load_trajectory_file(path)             - Load trajectory data from file
-  visualize_trajectory_data(traj, path)  - Visualize trajectory with status colors
+  visualize_trajectory_data(traj, results)- Visualize trajectory with status colors
   move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
   move_both_arms_on_trajectory(...)      - Move both arms on trajectory in sync (Generator)
 
 Example usage:
   >>> detections = detect()
-  >>> traj, obj, jnt, feas = load_trajectory_file("data/my_traj.npz")
-  >>> visualize_trajectory_data(traj, "data/my_traj.npz")
+  >>> data = load_trajectory_file("data/my_traj.npz")
+  >>> visualize_trajectory_data(data['eef_traj'], data['waypoint_results'])
   >>> # Start generator
-  >>> gen = move_arm_on_trajectory(0, "right", traj, feas)
+  >>> gen = move_arm_on_trajectory(0, "right", data['eef_traj'], data['feasibility'])
   >>> next(gen)             # Execute next feasible waypoint
   >>> gen.send("ALL")       # Execute ALL remaining FEASIBLE waypoints automatically
 
