@@ -237,8 +237,7 @@ class RobosuiteArmController:
                     dt: float = constants.TRAJECTORY_TIME_STEP,
                     approach_distance: float = constants.DEFAULT_APPROACH_DISTANCE,
                     approach_axis: str = constants.DEFAULT_APPROACH_AXIS,
-                    timeout: Optional[int] = None,
-                    num_steps: Optional[int] = None) -> bool:
+                    num_steps: int = constants.TRAJECTORY_NUM_POINTS) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
@@ -316,20 +315,12 @@ class RobosuiteArmController:
         logger.info(f"  Target in base: pos={target_pos}")
         logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
-        # Determine number of trajectory points
-        if num_steps is not None:
-            traj_num_points = num_steps
-            logger.debug(f"Using provided num_steps: {traj_num_points}")
-        # If timeout is provided, ensure trajectory finishes before timeout to allow settling
-        elif timeout is not None:
-            # Reserve 20% or at least 10 steps for settling
-            settling_steps = max(10, int(timeout * 0.2))
-            # Ensure at least 2 points (start/end)
-            traj_num_points = max(2, timeout - settling_steps)
-            logger.debug(f"Adjusting trajectory points to {traj_num_points} (timeout={timeout}) to allow settling")
-        else:
-            traj_num_points = constants.TRAJECTORY_NUM_POINTS
-
+        # Reserve 20% or at least 10 steps for settling
+        settling_steps = max(10, int(num_steps * 0.2))
+        # Ensure at least 2 points (start/end)
+        traj_num_points = max(2, num_steps - settling_steps)
+        logger.debug(f"Adjusting trajectory points to {traj_num_points}")
+                         
         positions, quaternions = self.plan_quintic_trajectory(
             current_pos, current_quat, target_pos, target_quat,
             num_points=traj_num_points
@@ -347,7 +338,7 @@ class RobosuiteArmController:
         # The OSC controller expects delta commands (since input_type='delta'),
         # so we compute the delta from current position to next waypoint
         num_waypoints = len(positions)
-        max_steps = timeout if timeout is not None else num_waypoints * 2
+        max_steps = num_waypoints * 2
         
         # Track which waypoint we're currently targeting
         # Start at 0, will increment to 1 on first step

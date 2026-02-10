@@ -130,7 +130,7 @@ class TestArmControllerFrameHandling:
         grasp_pose = StampedPose(**grasp_dict)
         
         # Should not raise an error
-        success = controller.move_to_pose(grasp_pose, timeout=50)
+        success = controller.move_to_pose(grasp_pose, num_steps=50)
         assert isinstance(success, bool)
 
     def test_move_to_pose_accepts_stamped_pose(self, env):
@@ -146,7 +146,7 @@ class TestArmControllerFrameHandling:
             frame_id=controller.base_frame
         )
         
-        success = controller.move_to_pose(pose, timeout=50)
+        success = controller.move_to_pose(pose, num_steps=50)
         assert isinstance(success, bool)
 
 
