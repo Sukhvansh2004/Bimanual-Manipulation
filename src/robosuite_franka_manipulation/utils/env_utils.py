@@ -260,3 +260,56 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
     obs = env.step(full_action)
     apply_suction_weld(env, full_action)
     return obs
+
+
+def set_robot_config(env: DualArmEnvironment, robot_id: int, arm_id: str, joint_config: Union[np.ndarray, List[float]]):
+    """
+    Sets the robot to a specific joint configuration in MuJoCo.
+    
+    Args:
+        env: The robosuite environment.
+        robot_id: ID of the robot (index in env.robots).
+        arm_id: ID of the arm ('right' or 'left').
+        joint_config: Joint configuration (list or numpy array).
+    """
+    if robot_id >= len(env.robots):
+        raise ValueError(f"Robot ID {robot_id} out of range (total robots: {len(env.robots)})")
+    
+    robot = env.robots[robot_id]
+    joint_config = np.array(joint_config)
+    
+    # Determine which joints to set
+    if isinstance(robot.robot_model.arm_joints, dict):
+        # Two-arm robot (e.g. Baxter)
+        if arm_id not in robot.robot_model.arm_joints:
+            raise ValueError(f"Arm '{arm_id}' not found in robot {robot_id}. Available arms: {list(robot.robot_model.arm_joints.keys())}")
+        
+        # Get indices for this specific arm
+        attr = f"{arm_id}_arm_joint_indexes"
+        if hasattr(robot, attr):
+            joint_indices = getattr(robot, attr)
+        else:
+            # Fallback: compute from joint names
+            joint_names = robot.robot_model.arm_joints[arm_id]
+            joint_indices = [env.sim.model.get_joint_qpos_addr(x) for x in joint_names]
+    else:
+        # Single-arm robot (e.g. Panda)
+        if arm_id not in robot.arms:
+            logger.warning(f"Arm '{arm_id}' requested for single-arm robot {robot_id} which has arms {robot.arms}. Using default arm.")
+        
+        # For single arm robots in robosuite, arm_joint_indexes is usually what we want
+        if hasattr(robot, "arm_joint_indexes"):
+            joint_indices = robot.arm_joint_indexes
+        else:
+            joint_indices = robot.joint_indexes
+            
+    if len(joint_config) != len(joint_indices):
+        raise ValueError(f"Joint configuration length {len(joint_config)} does not match robot arm DOF {len(joint_indices)}")
+    
+    # Set the positions in MuJoCo
+    env.sim.data.qpos[joint_indices] = joint_config
+    
+    # Update the simulation state to reflect changes
+    env.sim.forward()
+    
+    logger.debug(f"Set robot {robot_id} arm {arm_id} to config: {joint_config}")
