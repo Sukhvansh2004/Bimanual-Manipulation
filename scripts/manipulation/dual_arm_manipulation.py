@@ -87,6 +87,7 @@ class DualArmManipulationSystem:
             meshcat_tf: bool = False,
             custom_objects: Optional[Any] = None,
             ycb_objects: Optional[Any] = None,
+            use_fastsam: bool = True,
             ):
         
         self.custom_objects = custom_objects
@@ -95,6 +96,7 @@ class DualArmManipulationSystem:
         self.debug = debug
         self.detection_prompt = detection_prompt
         self.meshcat_tf = meshcat_tf
+        self.use_fastsam = use_fastsam
         # Use RLock to prevent deadlocks (TransformManager re-acquires it)
         self.env_lock = threading.RLock()
 
@@ -270,22 +272,25 @@ class DualArmManipulationSystem:
             self.service_client = ServiceClient()
             
             # Start FastSAM service
-            logger.info("   Starting FastSAM service...")
-            assert self.env is not None
-            self.fastsam_service = FastSAMService(
-                visualize=self.visualize,
-                debug=False,
-                tf_manager=self.tf_manager,
-            )
-            self.fastsam_service.start()
-            time.sleep(0.5)
-            
-            # Set initial prompt
-            self.service_client.call('fastsam_service', {
-                'command': 'SET_PROMPT',
-                'prompt': self.detection_prompt
-            })
-            logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
+            if self.use_fastsam:
+                logger.info("   Starting FastSAM service...")
+                assert self.env is not None
+                self.fastsam_service = FastSAMService(
+                    visualize=self.visualize,
+                    debug=False,
+                    tf_manager=self.tf_manager,
+                )
+                self.fastsam_service.start()
+                time.sleep(0.5)
+                
+                # Set initial prompt
+                self.service_client.call('fastsam_service', {
+                    'command': 'SET_PROMPT',
+                    'prompt': self.detection_prompt
+                })
+                logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
+            else:
+                logger.info("   FastSAM service disabled by flag")
             
             # Start Grasp service
             logger.info("   Starting Grasp service...")
@@ -425,6 +430,9 @@ class DualArmManipulationSystem:
 
 def detect():
     """Quick helper to detect objects."""
+    if not system.use_fastsam:
+        print("FastSAM service is disabled.")
+        return []
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
     if response.get('status') == 'success':
@@ -545,6 +553,9 @@ def get_eef():
 
 def set_prompt(prompt):
     """Quick helper to change detection prompt."""
+    if not system.use_fastsam:
+        print("FastSAM service is disabled.")
+        return
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {
         'command': 'SET_PROMPT',
@@ -585,7 +596,12 @@ def load_trajectory_file(filepath: str):
         if feasibility is not None:
             feasible_count = sum(feasibility)
             print(f"  Feasible waypoints: {feasible_count}/{len(feasibility)}")
-        return eef_traj, obj_traj, joint_configs, feasibility
+        return {
+            "eef_traj": eef_traj, 
+            "obj_traj": obj_traj,
+            "joint_configs": joint_configs,
+            "feasibility":  feasibility
+        }
     except Exception as e:
         print(f"Failed to load trajectory: {e}")
         return None, None, None, None
@@ -736,6 +752,12 @@ def main() -> int:
         action="store_true",
         help="Stream the environment TF tree to MeshCat (requires `meshcat-server`)"
     )
+    parser.add_argument(
+        "--fastsam",
+        action="store_true",
+        help="Disable FastSAM service",
+        default=False,
+    )
     
     args = parser.parse_args()
     
@@ -762,6 +784,7 @@ def main() -> int:
         detection_prompt=args.prompt,
         meshcat_tf=args.meshcat_tf,
         ycb_objects=ycb_objects,
+        use_fastsam=args.fastsam,
     )
 
     # Ensure cleanup on normal interpreter shutdown and on SIGINT/SIGTERM
