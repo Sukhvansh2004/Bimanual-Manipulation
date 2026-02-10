@@ -288,8 +288,8 @@ def main() -> None:
                 'grasp': g0
             })
             
-            # Visualize trajectory line
-            visualize_trajectory(vis, traj0_eef, name=f"robot0_traj_{i}", color=0x0000ff)
+            # Visualize trajectory line and status-coded markers
+            visualize_trajectory(vis, traj0_eef, waypoint_results=results0, name=f"robot0_traj_{i}", color=0x0000ff)
             
             # Visualize robot mesh configurations along the trajectory
             if args.visualize_robot_meshes:
@@ -332,8 +332,8 @@ def main() -> None:
                 'grasp': g1
             })
             
-            # Visualize trajectory line
-            visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
+            # Visualize trajectory line and status-coded markers
+            visualize_trajectory(vis, traj1_eef, waypoint_results=results1, name=f"robot1_traj_{i}", color=0xff00ff)
             
             # Visualize robot mesh configurations along the trajectory
             if args.visualize_robot_meshes:

@@ -8,7 +8,7 @@ import meshcat.geometry as g
 from typing import List
 
 from grasp_gen.utils.meshcat_utils import make_frame
-from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 from typing import List, Optional
@@ -21,7 +21,8 @@ def visualize_trajectory(
     waypoint_results: Optional[List[WaypointFeasibilityResult]] = None,
     name: str = "trajectory", 
     color: int = 0x0000ff,
-    marker_size: float = 0.01
+    marker_size: float = 0.01,
+    tf_manager: Optional[TransformManager] = None
 ) -> None:
     """Visualize trajectory as a line and markers in Meshcat.
     
@@ -38,9 +39,22 @@ def visualize_trajectory(
         name: Name for the visualization group
         color: Default color of the trajectory line
         marker_size: Size of the waypoint spheres
+        tf_manager: Optional TransformManager to ensure world frame
     """
     if not trajectory:
         return
+
+    # Ensure all frames are in World frame
+    world_trajectory = []
+    for pose in trajectory:
+        if pose.frame_id != constants.WORLD_FRAME:
+            if tf_manager is None:
+                raise ValueError(f"Pose is in frame '{pose.frame_id}', but no tf_manager provided to convert to world frame.")
+            world_trajectory.append(tf_manager.transform_pose(pose, constants.WORLD_FRAME))
+        else:
+            world_trajectory.append(pose)
+    
+    trajectory = world_trajectory
 
     # Use planning root path for organization
     full_path = f"{constants.VIS_PLANNING_ROOT}/{constants.VIS_TRAJECTORY_PATH}/{name}"
@@ -84,13 +98,11 @@ def visualize_trajectory(
         if i % 10 == 0 or i == 0 or i == len(trajectory) - 1:
             frame_name = f"{waypoint_path}/frame"
             
-            # Construct transform matrix
-            mat = pose.to_matrix()
-            
             # Use make_frame from grasp_gen to draw axis
             make_frame(vis, frame_name, h=0.04, radius=0.0015, o=0.8)
-            vis[frame_name].set_transform(mat)
+            # The waypoint_path already has the pose transform, 
+            # so the frame (child) should have identity relative to it.
+            vis[frame_name].set_transform(np.eye(4))
         
         # Set transform for the whole waypoint group (marker + potentially frame)
-        # Note: we already used mat for frame, but markers also need to be at position
         vis[waypoint_path].set_transform(pose.to_matrix())

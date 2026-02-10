@@ -49,6 +49,7 @@ import signal
 import sys
 from typing import Any, Optional, List
 import numpy as np
+import meshcat
 
 from robosuite.wrappers import VisualizationWrapper
 from robosuite_franka_manipulation import constants
@@ -612,16 +613,9 @@ def visualize_trajectory_data(eef_trajectory: List[StampedPose], filepath: Optio
                 )
                 waypoint_results.append(res)
 
-    # Get meshcat visualizer instance (lazy created in controllers or we can make one)
-    # Using the one from left_arm if available
-    vis = None
-    if system.left_arm and system.left_arm._meshcat_vis:
-        vis = system.left_arm._meshcat_vis
-    else:
-        import meshcat
-        vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+    vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
     
-    visualize_trajectory(vis, eef_trajectory, waypoint_results, name=name)
+    visualize_trajectory(vis, eef_trajectory, waypoint_results, name=name, tf_manager=system.tf_manager)
     print(f"Trajectory visualization sent to MeshCat as '{name}'")
 
 def move_arm_on_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: Optional[np.ndarray] = None, gripper_action: float = 0.0, num_steps_per_segment: int = 10):
