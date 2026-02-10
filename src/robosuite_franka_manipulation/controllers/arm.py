@@ -325,7 +325,7 @@ class RobosuiteArmController:
             # Reserve 20% or at least 10 steps for settling
             settling_steps = max(10, int(timeout * 0.2))
             # Ensure at least 2 points (start/end)
-            traj_num_points = max(2, timeout + settling_steps)
+            traj_num_points = max(2, timeout - settling_steps)
             logger.debug(f"Adjusting trajectory points to {traj_num_points} (timeout={timeout}) to allow settling")
         else:
             traj_num_points = constants.TRAJECTORY_NUM_POINTS
