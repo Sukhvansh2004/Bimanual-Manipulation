@@ -187,3 +187,48 @@ def save_trajectory(
     # Save as npz
     np.savez(filepath, **data_dict)
     logger.info(f"Trajectory saved to {filepath}")
+
+def load_trajectory(
+    filepath: str,
+) -> Tuple[List[StampedPose], Optional[List[StampedPose]], Optional[np.ndarray], Optional[np.ndarray]]:
+    """Load trajectory from npz file.
+    
+    Args:
+        filepath: Path to the npz file
+        
+    Returns:
+        Tuple of (eef_trajectory, object_trajectory, joint_configs, feasibility_flags)
+        eef_trajectory: List of StampedPose
+        object_trajectory: Optional list of StampedPose
+        joint_configs: Optional np.ndarray of shape (N, DOF)
+        feasibility_flags: Optional np.ndarray of shape (N,) (bool)
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Trajectory file not found: {filepath}")
+        
+    data = np.load(filepath, allow_pickle=True)
+    
+    eef_trajectory = []
+    if 'eef_positions' in data and 'eef_quaternions' in data:
+        positions = data['eef_positions']
+        quaternions = data['eef_quaternions']
+        frame_ids = data['eef_frame_ids'] if 'eef_frame_ids' in data else [constants.WORLD_FRAME] * len(positions)
+        
+        for p, q, f in zip(positions, quaternions, frame_ids):
+            eef_trajectory.append(StampedPose(position=p, quaternion=q, frame_id=str(f)))
+            
+    object_trajectory = []
+    if 'object_positions' in data and 'object_quaternions' in data:
+        positions = data['object_positions']
+        quaternions = data['object_quaternions']
+        frame_ids = data['object_frame_ids'] if 'object_frame_ids' in data else [constants.WORLD_FRAME] * len(positions)
+        
+        for p, q, f in zip(positions, quaternions, frame_ids):
+            object_trajectory.append(StampedPose(position=p, quaternion=q, frame_id=str(f)))
+    else:
+        object_trajectory = None
+        
+    joint_configs = data['joint_configs'] if 'joint_configs' in data else None
+    feasibility_flags = data['is_feasible'].astype(bool) if 'is_feasible' in data else None
+    
+    return eef_trajectory, object_trajectory, joint_configs, feasibility_flags

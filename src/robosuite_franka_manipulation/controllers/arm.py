@@ -237,7 +237,8 @@ class RobosuiteArmController:
                     dt: float = constants.TRAJECTORY_TIME_STEP,
                     approach_distance: float = constants.DEFAULT_APPROACH_DISTANCE,
                     approach_axis: str = constants.DEFAULT_APPROACH_AXIS,
-                    timeout: Optional[int] = None) -> bool:
+                    timeout: Optional[int] = None,
+                    num_steps: Optional[int] = None) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
@@ -260,6 +261,7 @@ class RobosuiteArmController:
                           Default 'z' (gripper approach direction).
             timeout: Maximum number of steps to execute. If None, uses trajectory waypoint count.
                     This is kept for backwards compatibility but is generally not needed.
+            num_steps: Number of waypoints to generate for the trajectory. If provided, overrides timeout-based logic.
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
@@ -283,7 +285,8 @@ class RobosuiteArmController:
                 approach_pose,
                 threshold=threshold,
                 gripper_action=gripper_action,
-                approach=False  # Don't recurse
+                approach=False,  # Don't recurse
+                num_steps=num_steps
             )
             
             if self._stop_event.is_set():
@@ -314,8 +317,11 @@ class RobosuiteArmController:
         logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
         # Determine number of trajectory points
+        if num_steps is not None:
+            traj_num_points = num_steps
+            logger.debug(f"Using provided num_steps: {traj_num_points}")
         # If timeout is provided, ensure trajectory finishes before timeout to allow settling
-        if timeout is not None:
+        elif timeout is not None:
             # Reserve 20% or at least 10 steps for settling
             settling_steps = max(10, int(timeout * 0.2))
             # Ensure at least 2 points (start/end)

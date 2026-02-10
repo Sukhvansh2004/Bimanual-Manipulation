@@ -47,7 +47,8 @@ import atexit
 import os
 import signal
 import sys
-from typing import Any, Optional
+from typing import Any, Optional, List
+import numpy as np
 
 from robosuite.wrappers import VisualizationWrapper
 from robosuite_franka_manipulation import constants
@@ -61,6 +62,7 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager,
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.planning.trajectory_generator import load_trajectory
 
 # Configure logging
 logging.basicConfig(
@@ -552,7 +554,7 @@ def set_prompt(prompt):
     else:
         print(f"Failed to change prompt: {response.get('message')}")
 
-def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False):
+def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False, num_steps: Optional[int] = None):
     """Quick helper to move an arm to a pose."""
     assert system.service_client is not None, "Service client not initialized"
     
@@ -565,13 +567,102 @@ def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: fl
         'arm': arm_id,
         'pose': pose_dict,
         'gripper_action': gripper_action,
-        'approach': approach
+        'approach': approach,
+        'num_steps': num_steps
     })
     
     if response.get('status') == 'success':
         print(f"Move command sent to robot {robot_id}, arm {arm_id}")
     else:
         print(f"Failed to send move command: {response.get('message')}")
+
+def load_trajectory_file(filepath: str):
+    """Load trajectory from file."""
+    try:
+        eef_traj, obj_traj, joint_configs, feasibility = load_trajectory(filepath)
+        print(f"Loaded trajectory from {filepath}: {len(eef_traj)} waypoints")
+        if feasibility is not None:
+            feasible_count = sum(feasibility)
+            print(f"  Feasible waypoints: {feasible_count}/{len(feasibility)}")
+        return eef_traj, obj_traj, joint_configs, feasibility
+    except Exception as e:
+        print(f"Failed to load trajectory: {e}")
+        return None, None, None, None
+
+def move_arm_on_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: Optional[np.ndarray] = None, gripper_action: float = 0.0, num_steps_per_segment: int = 10):
+    """
+    Generator to move a single arm on a trajectory.
+    Yields waypoint index and expects feedback.
+    Feedback 'ALL' switches to executing remaining feasible waypoints automatically.
+    """
+    if not trajectory:
+        print("Empty trajectory")
+        return
+
+    print(f"Starting trajectory execution for robot {robot_id}, arm {arm_id}...")
+    auto_mode = False
+    
+    for i, pose in enumerate(trajectory):
+        # Always check feasibility
+        if feasibility is not None and not feasibility[i]:
+            print(f"  Skipping infeasible waypoint {i}")
+            continue
+            
+        print(f"  Moving to waypoint {i}/{len(trajectory)-1}")
+        go_to_pose(pose, robot_id, arm_id, gripper_action=gripper_action, num_steps=num_steps_per_segment)
+        
+        # Wait for movement
+        time.sleep(num_steps_per_segment * constants.TRAJECTORY_TIME_STEP + 0.1)
+        
+        # Yield for feedback if not in auto mode
+        if not auto_mode:
+            feedback = yield i
+            if feedback == 'ALL':
+                auto_mode = True
+
+def move_both_arms_on_trajectory(left_traj: List[StampedPose], right_traj: List[StampedPose], 
+                                 left_feasibility: Optional[np.ndarray] = None, 
+                                 right_feasibility: Optional[np.ndarray] = None,
+                                 left_gripper: float = 0.0, right_gripper: float = 0.0,
+                                 num_steps_per_segment: int = 10):
+    """
+    Generator to move both arms on trajectories in sync.
+    Yields waypoint index and expects feedback.
+    Feedback 'ALL' switches to executing remaining feasible waypoints automatically.
+    """
+    n_waypoints = max(len(left_traj) if left_traj else 0, len(right_traj) if right_traj else 0)
+    
+    print(f"Starting dual-arm trajectory execution ({n_waypoints} waypoints)...")
+    auto_mode = False
+    
+    for i in range(n_waypoints):
+        # Determine feasibility for each arm
+        left_feasible = left_traj and i < len(left_traj) and (left_feasibility is None or left_feasibility[i])
+        right_feasible = right_traj and i < len(right_traj) and (right_feasibility is None or right_feasibility[i])
+
+        if not left_feasible and not right_feasible:
+            print(f"  Skipping waypoint {i} (no feasible moves for either arm)")
+            continue
+
+        # Move left arm (robot 0)
+        if left_feasible:
+            go_to_pose(left_traj[i], 0, "right", gripper_action=left_gripper, num_steps=num_steps_per_segment)
+        elif left_traj and i < len(left_traj):
+             print(f"  Left arm: skipping infeasible waypoint {i}")
+                
+        # Move right arm (robot 1)
+        if right_feasible:
+            go_to_pose(right_traj[i], 1, "right", gripper_action=right_gripper, num_steps=num_steps_per_segment)
+        elif right_traj and i < len(right_traj):
+            print(f"  Right arm: skipping infeasible waypoint {i}")
+        
+        time.sleep(num_steps_per_segment * constants.TRAJECTORY_TIME_STEP + 0.1)
+        
+        # Yield for feedback if not in auto mode
+        if not auto_mode:
+            feedback = yield i
+            if feedback == 'ALL':
+                auto_mode = True
 
 def cancel_move(robot_id: int, arm_id: str):
     """Quick helper to cancel a move."""
@@ -682,14 +773,17 @@ Helper functions:
   set_prompt(text)                       - Change detection prompt
   go_to_pose(pose, robot_id, arm_id)     - Move an arm to a pose
   cancel_move(robot_id, arm_id)          - Cancel a move command
+  load_trajectory_file(path)             - Load trajectory data from file
+  move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
+  move_both_arms_on_trajectory(...)      - Move both arms on trajectory in sync (Generator)
 
 Example usage:
   >>> detections = detect()
-  >>> if detections:
-  ...     grasps = get_grasps(detections[0])
-  >>> eef_pose = get_eef()['robot0_right_eef'] # get a pose
-  >>> go_to_pose(StampedPose(position=[eef_pose['position']['x'], eef_pose['position']['y']+0.1, eef_pose['position']['z']], quaternion=eef_pose['quaternion'], frame_id='world'), 0, 'right')
-  >>> cancel_move(0, 'right')
+  >>> traj, obj, jnt, feas = load_trajectory_file("data/my_traj.npz")
+  >>> # Start generator
+  >>> gen = move_arm_on_trajectory(0, "right", traj, feas)
+  >>> next(gen)             # Execute next feasible waypoint
+  >>> gen.send("ALL")       # Execute ALL remaining FEASIBLE waypoints automatically
 
 Press Ctrl+D or type exit() to quit
 ========================================================
@@ -710,6 +804,9 @@ Press Ctrl+D or type exit() to quit
                     'set_prompt': set_prompt,
                     'go_to_pose': go_to_pose,
                     'cancel_move': cancel_move,
+                    'load_trajectory_file': load_trajectory_file,
+                    'move_arm_on_trajectory': move_arm_on_trajectory,
+                    'move_both_arms_on_trajectory': move_both_arms_on_trajectory,
                     'env_step': env_step,
                     'StampedPose': StampedPose,
                 }

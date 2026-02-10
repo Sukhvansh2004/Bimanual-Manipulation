@@ -108,6 +108,7 @@ class MoveToPoseRequest(BaseSchema):
     pose: StampedPose
     gripper_action: float = 0.0
     approach: bool = False
+    num_steps: Optional[int] = None
 
 class CancelMoveRequest(BaseSchema):
     command: str

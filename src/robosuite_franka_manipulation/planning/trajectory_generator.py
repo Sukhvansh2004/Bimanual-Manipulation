@@ -25,7 +25,8 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     WaypointFeasibilityResult, 
     resolve_ignore_names, 
-    process_waypoint
+    process_waypoint,
+    load_trajectory
 )
 
 logger = logging.getLogger(__name__)

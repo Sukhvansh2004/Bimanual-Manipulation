@@ -160,6 +160,7 @@ class MoveToPoseService:
             gripper_action = request.gripper_action
             approach = request.approach
             target_pose = request.pose
+            num_steps = request.num_steps
 
             key = (robot_id, arm_id)
             if key not in self.controllers:
@@ -173,7 +174,8 @@ class MoveToPoseService:
                     controller.move_to_pose(
                         target_pose=target_pose,
                         gripper_action=gripper_action,
-                        approach=approach
+                        approach=approach,
+                        num_steps=num_steps
                     )
                     logger.info(f"Move complete for robot {robot_id}, arm {arm_id}")
                 except Exception as e:
