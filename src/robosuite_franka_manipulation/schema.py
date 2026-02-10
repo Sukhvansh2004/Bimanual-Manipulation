@@ -105,10 +105,24 @@ class MoveToPoseRequest(BaseSchema):
     command: str
     robot_id: int = 0
     arm: str = "right"
-    pose: StampedPose
+    pose: Optional[StampedPose] = None
+    pose_trajectory: Optional[List[StampedPose]] = None
     gripper_action: float = 0.0
     approach: bool = False
     num_steps: Optional[int] = None
+
+class FollowTrajectoryRequest(BaseSchema):
+    command: str
+    robot_id: int = 0
+    arm: str = "right"
+    trajectory: List[StampedPose]
+    gripper_action: float = 0.0
+    num_steps: Optional[int] = None
+
+class GetArmStatusRequest(BaseSchema):
+    command: str
+    robot_id: int = 0
+    arm: str = "right"
 
 class CancelMoveRequest(BaseSchema):
     command: str
@@ -117,6 +131,9 @@ class CancelMoveRequest(BaseSchema):
 
 class MoveToPoseResponse(ResponseStatus):
     pass
+
+class ArmStatusResponse(ResponseStatus):
+    status_code: int = 1 # -1: moving, 1: success, 0: failure
 
 # --- Service Manager Schemas ---
 

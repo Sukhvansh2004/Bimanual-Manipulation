@@ -4,7 +4,7 @@ import time
 import numpy as np
 import threading
 from scipy.spatial.transform import Rotation as R
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 import meshcat
 import meshcat.geometry as g
@@ -61,13 +61,11 @@ class RobosuiteArmController:
         self.total_action_dim = self.env.action_dim
         
         # Transform manager for frame conversions
-        # If not provided, create one (will be shared if passed from DualArmController)
-        if transform_manager:
-            self.transform_manager = transform_manager
-        else:
-            self.transform_manager = TransformManager(env, env_lock=self.env_lock)
+        self.tf_manager = transform_manager if transform_manager else TransformManager(env, env_lock=self.env_lock)
 
         self._stop_event = threading.Event()
+        self.is_moving = False
+        self.last_status = 1  # 1 for success, 0 for failure
 
     def _get_robot(self):
         """Get fresh robot reference from environment.
@@ -91,7 +89,7 @@ class RobosuiteArmController:
         eef_frame = f"robot{self.robot_id}_{self.arm_id}_eef"
         
         # We want pose of eef_frame in base_frame
-        transform = self.transform_manager.get_transform(self.base_frame, eef_frame)
+        transform = self.tf_manager.get_transform(self.base_frame, eef_frame)
         pos = transform.translation.copy()
         quat = transform.rotation.copy()
         return pos, quat
@@ -265,159 +263,266 @@ class RobosuiteArmController:
         Returns:
             bool: True if pose was reached within threshold, False otherwise
         """
-        # Clear stop event at start
-        self._stop_event.clear()
+        self.is_moving = True
+        try:
+            # Clear stop event at start
+            self._stop_event.clear()
 
-        # Handle approach motion: first move to approach pose, then to target
-        if approach:
-            logger.debug(f"Target pose before approach computation: pos={target_pose.position}, frame_id={target_pose.frame_id}")
-            approach_pose = compute_approach_pose(
-                target_pose, 
-                approach_distance=approach_distance,
-                approach_axis=approach_axis
-            )
-            logger.debug(f"Approach enabled: moving to approach pose first (offset {approach_distance}m along local {approach_axis}-axis)")
-            logger.debug(f"Approach pose: pos={approach_pose.position}, frame_id={approach_pose.frame_id}")
-            
-            # Move to approach pose first (without approach, to avoid recursion)
-            approach_success = self.move_to_pose(
-                approach_pose,
-                threshold=threshold,
-                gripper_action=gripper_action,
-                approach=False,  # Don't recurse
-                num_steps=num_steps
-            )
-            
-            if self._stop_event.is_set():
-                logger.info(f"Movement cancelled during approach for robot{self.robot_id}_{self.arm_id}")
-                return False
-            
-            if not approach_success:
-                logger.warning("Failed to reach approach pose")
-                # Continue to try reaching target anyway
-            else:
-                logger.debug("Approach pose reached successfully")
-            
-            logger.debug("Now moving to final target pose")
-            
-        # Transform to robot base frame if needed
-        if target_pose.frame_id != self.base_frame:
-            logger.debug(f"Transforming target pose from '{target_pose.frame_id}' to '{self.base_frame}'")
-            target_pose = self.transform_manager.transform_pose(target_pose, self.base_frame)
-        
-        target_pos = np.asarray(target_pose.position)
-        target_quat = np.asarray(target_pose.quaternion)
-        
-        current_pos, current_quat = self.get_eef_pose_in_base()
-        
-        logger.info(f"Planning trajectory for robot{self.robot_id}_{self.arm_id}:")
-        logger.info(f"  Current EEF in base: pos={current_pos}")
-        logger.info(f"  Target in base: pos={target_pos}")
-        logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
-
-        # Reserve 20% or at least 10 steps for settling
-        settling_steps = max(10, int(num_steps * 0.2))
-        # Ensure at least 2 points (start/end)
-        traj_num_points = max(2, num_steps - settling_steps)
-        logger.debug(f"Adjusting trajectory points to {traj_num_points}")
-                         
-        positions, quaternions = self.plan_quintic_trajectory(
-            current_pos, current_quat, target_pos, target_quat,
-            num_points=traj_num_points
-        )
-
-        # Visualize the SE(3) trajectory if enabled
-        if self.visualize:
-            self._clear_trajectory_visualization()
-            self._visualize_se3_trajectory(positions, quaternions)
-
-        if len(positions) <= 1:
-            return True  # Already at target
-
-        # Trajectory execution: send delta commands to follow the quintic trajectory
-        # The OSC controller expects delta commands (since input_type='delta'),
-        # so we compute the delta from current position to next waypoint
-        num_waypoints = len(positions)
-        max_steps = num_waypoints * 2
-        
-        # Track which waypoint we're currently targeting
-        # Start at 0, will increment to 1 on first step
-        current_waypoint_idx = 0 
-        steps_taken = 0
-        start_time = time.time()
-        
-        while steps_taken < max_steps:
-            # Check for cancellation
-            if self._stop_event.is_set():
-                logger.info(f"Movement cancelled for robot{self.robot_id}_{self.arm_id}")
-                return False
-
-            # Advance waypoint index to follow time-based trajectory
-            if current_waypoint_idx < num_waypoints - 1:
-                current_waypoint_idx += 1
+            # Handle approach motion: first move to approach pose, then to target
+            if approach:
+                logger.debug(f"Target pose before approach computation: pos={target_pose.position}, frame_id={target_pose.frame_id}")
+                approach_pose = compute_approach_pose(
+                    target_pose, 
+                    approach_distance=approach_distance,
+                    approach_axis=approach_axis
+                )
+                logger.debug(f"Approach enabled: moving to approach pose first (offset {approach_distance}m along local {approach_axis}-axis)")
+                logger.debug(f"Approach pose: pos={approach_pose.position}, frame_id={approach_pose.frame_id}")
                 
-            # Get target waypoint
-            target_pos_step = positions[current_waypoint_idx]
-            target_quat_step = quaternions[current_waypoint_idx]
+                # Move to approach pose first (without approach, to avoid recursion)
+                approach_success = self.move_to_pose(
+                    approach_pose,
+                    threshold=threshold,
+                    gripper_action=gripper_action,
+                    approach=False,  # Don't recurse
+                    num_steps=num_steps
+                )
+                
+                if self._stop_event.is_set():
+                    logger.info(f"Movement cancelled during approach for robot{self.robot_id}_{self.arm_id}")
+                    self.last_status = 0
+                    return False
+                
+                if not approach_success:
+                    logger.warning("Failed to reach approach pose")
+                    # Continue to try reaching target anyway
+                else:
+                    logger.debug("Approach pose reached successfully")
+                
+                logger.debug("Now moving to final target pose")
+                
+            # Transform to robot base frame if needed
+            if target_pose.frame_id != self.base_frame:
+                logger.debug(f"Transforming target pose from '{target_pose.frame_id}' to '{self.base_frame}'")
+                target_pose = self.tf_manager.transform_pose(target_pose, self.base_frame)
             
-            # Get current pose
+            target_pos = np.asarray(target_pose.position)
+            target_quat = np.asarray(target_pose.quaternion)
+            
             current_pos, current_quat = self.get_eef_pose_in_base()
             
-            # Compute error to current waypoint target
-            pos_delta = target_pos_step - current_pos
-            ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
-            ori_delta = ori_error.as_rotvec()
-            
-            # Construct action with scaled delta
-            robot_action = np.zeros(self.action_dim_per_robot)
-            robot_action[:3] = pos_delta  # Position delta
-            robot_action[3:6] = ori_delta  # Orientation delta
-            robot_action[6] = gripper_action
-            
-            # Step the environment
-            with self.env_lock if self.env_lock else nullcontext():
-                env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
-            
-            steps_taken += 1
-            
-            # Drift-correcting sleep
-            elapsed = time.time() - start_time
-            target_time = steps_taken * dt
-            sleep_time = max(0, target_time - elapsed)
-            time.sleep(sleep_time)
-            
-            # Check convergence if we are targeting the final waypoint
-            if current_waypoint_idx == num_waypoints - 1:
-                waypoint_pos_error = np.linalg.norm(pos_delta)
-                waypoint_ori_error = np.linalg.norm(ori_delta)
-                
-                if waypoint_pos_error < threshold and waypoint_ori_error < threshold:
-                    logger.debug(f"Converged at step {steps_taken}")
-                    break
+            logger.info(f"Planning trajectory for robot{self.robot_id}_{self.arm_id}:")
+            logger.info(f"  Current EEF in base: pos={current_pos}")
+            logger.info(f"  Target in base: pos={target_pos}")
+            logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
-            # Log progress periodically
-            if steps_taken % 20 == 0:
-                current_pos_error = np.linalg.norm(pos_delta)
-                current_ori_error = np.linalg.norm(ori_delta)
-                logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
-                        f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
+            # Reserve 20% or at least 10 steps for settling
+            settling_steps = max(10, int(num_steps * 0.2))
+            # Ensure at least 2 points (start/end)
+            traj_num_points = max(2, num_steps - settling_steps)
+            logger.debug(f"Adjusting trajectory points to {traj_num_points}")
+                             
+            positions, quaternions = self.plan_quintic_trajectory(
+                current_pos, current_quat, target_pos, target_quat,
+                num_points=traj_num_points
+            )
+
+            # Visualize the SE(3) trajectory if enabled
+            if self.visualize:
+                self._clear_trajectory_visualization()
+                self._visualize_se3_trajectory(positions, quaternions)
+
+            if len(positions) <= 1:
+                self.last_status = 1
+                return True  # Already at target
+
+            # Trajectory execution: send delta commands to follow the quintic trajectory
+            # The OSC controller expects delta commands (since input_type='delta'),
+            # so we compute the delta from current position to next waypoint
+            num_waypoints = len(positions)
+            max_steps = num_waypoints * 2
+            
+            # Track which waypoint we're currently targeting
+            # Start at 0, will increment to 1 on first step
+            current_waypoint_idx = 0 
+            steps_taken = 0
+            start_time = time.time()
+            
+            while steps_taken < max_steps:
+                # Check for cancellation
+                if self._stop_event.is_set():
+                    logger.info(f"Movement cancelled for robot{self.robot_id}_{self.arm_id}")
+                    self.last_status = 0
+                    return False
+
+                # Advance waypoint index to follow time-based trajectory
+                if current_waypoint_idx < num_waypoints - 1:
+                    current_waypoint_idx += 1
+                    
+                # Get target waypoint
+                target_pos_step = positions[current_waypoint_idx]
+                target_quat_step = quaternions[current_waypoint_idx]
+                
+                # Get current pose
+                current_pos, current_quat = self.get_eef_pose_in_base()
+                
+                # Compute error to current waypoint target
+                pos_delta = target_pos_step - current_pos
+                ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
+                ori_delta = ori_error.as_rotvec()
+                
+                # Construct action with scaled delta
+                robot_action = np.zeros(self.action_dim_per_robot)
+                robot_action[:3] = pos_delta  # Position delta
+                robot_action[3:6] = ori_delta  # Orientation delta
+                robot_action[6] = gripper_action
+                
+                # Step the environment
+                with self.env_lock if self.env_lock else nullcontext():
+                    env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                steps_taken += 1
+                
+                # Drift-correcting sleep
+                elapsed = time.time() - start_time
+                target_time = steps_taken * dt
+                sleep_time = max(0, target_time - elapsed)
+                time.sleep(sleep_time)
+                
+                # Check convergence if we are targeting the final waypoint
+                if current_waypoint_idx == num_waypoints - 1:
+                    waypoint_pos_error = np.linalg.norm(pos_delta)
+                    waypoint_ori_error = np.linalg.norm(ori_delta)
+                    
+                    if waypoint_pos_error < threshold and waypoint_ori_error < threshold:
+                        logger.debug(f"Converged at step {steps_taken}")
+                        break
+
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    current_pos_error = np.linalg.norm(pos_delta)
+                    current_ori_error = np.linalg.norm(ori_delta)
+                    logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                            f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
+            
+            # Final check: verify we reached the target
+            final_pos, final_quat = self.get_eef_pose_in_base()
+            
+            pos_error = target_pos - final_pos
+            ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
+            ori_error_vec = ori_error.as_rotvec()
+            
+            pos_error_norm = np.linalg.norm(pos_error)
+            ori_error_norm = np.linalg.norm(ori_error_vec)
+            
+            logger.info(f"Trajectory complete: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
+            
+            if pos_error_norm < threshold and ori_error_norm < threshold:
+                self.last_status = 1
+                return True
+            
+            self.last_status = 0
+            return False
+        finally:
+            self.is_moving = False
+
+    def follow_trajectory(self, trajectory: List[StampedPose], 
+                          gripper_action: float = 0.0,
+                          dt: float = constants.TRAJECTORY_TIME_STEP,
+                          threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+                          num_steps: Optional[int] = None) -> bool:
+        """
+        Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
-        # Final check: verify we reached the target
-        final_pos, final_quat = self.get_eef_pose_in_base()
-        
-        pos_error = target_pos - final_pos
-        ori_error = R.from_quat(target_quat) * R.from_quat(final_quat).inv()
-        ori_error_vec = ori_error.as_rotvec()
-        
-        pos_error_norm = np.linalg.norm(pos_error)
-        ori_error_norm = np.linalg.norm(ori_error_vec)
-        
-        logger.info(f"Trajectory complete: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
-        
-        if pos_error_norm < threshold and ori_error_norm < threshold:
-            return True
-        
-        return False
+        Args:
+            trajectory: List of StampedPose waypoints in world frame.
+            gripper_action: Gripper action to maintain.
+            dt: Time step between waypoints.
+            threshold: Convergence threshold for the final waypoint.
+            num_steps: Optional maximum number of steps. Defaults to len(trajectory) + 50.
+            
+        Returns:
+            bool: True if final waypoint reached, False otherwise.
+        """
+        self.is_moving = True
+        try:
+            self._stop_event.clear()
+            
+            if not trajectory:
+                self.last_status = 1
+                return True
+
+            logger.info(f"Following pre-defined trajectory for robot{self.robot_id}_{self.arm_id} ({len(trajectory)} waypoints)")
+            
+            # Transform all waypoints to robot base frame
+            base_trajectory = []
+            for i, pose in enumerate(trajectory):
+                if pose.frame_id != self.base_frame:
+                    base_pose = self.tf_manager.transform_pose(pose, self.base_frame)
+                    base_trajectory.append(base_pose)
+                else:
+                    base_trajectory.append(pose)
+            
+            # Extract positions and quaternions
+            positions = np.array([p.position for p in base_trajectory])
+            quaternions = np.array([p.quaternion for p in base_trajectory])
+            
+            if self.visualize:
+                self._clear_trajectory_visualization()
+                self._visualize_se3_trajectory(positions, quaternions)
+            
+            num_waypoints = len(positions)
+            max_steps = num_steps if num_steps is not None else num_waypoints * 1.2
+            
+            current_waypoint_idx = 0
+            steps_taken = 0
+            start_time = time.time()
+            
+            while steps_taken < max_steps:
+                if self._stop_event.is_set():
+                    logger.info(f"Trajectory following cancelled for robot{self.robot_id}_{self.arm_id}")
+                    self.last_status = 0
+                    return False
+                
+                # Target the next waypoint in the trajectory
+                if current_waypoint_idx < num_waypoints - 1:
+                    current_waypoint_idx += 1
+                
+                target_pos_step = positions[current_waypoint_idx]
+                target_quat_step = quaternions[current_waypoint_idx]
+                
+                current_pos, current_quat = self.get_eef_pose_in_base()
+                
+                pos_delta = target_pos_step - current_pos
+                ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
+                ori_delta = ori_error.as_rotvec()
+                
+                robot_action = np.zeros(self.action_dim_per_robot)
+                robot_action[:3] = pos_delta
+                robot_action[3:6] = ori_delta
+                robot_action[6] = gripper_action
+                
+                with self.env_lock if self.env_lock else nullcontext():
+                    env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                steps_taken += 1
+                
+                elapsed = time.time() - start_time
+                target_time = steps_taken * dt
+                sleep_time = max(0, target_time - elapsed)
+                time.sleep(sleep_time)
+                
+                # Check convergence if targeting the final waypoint
+                if current_waypoint_idx == num_waypoints - 1:
+                    if np.linalg.norm(pos_delta) < threshold and np.linalg.norm(ori_delta) < threshold:
+                        logger.debug(f"Trajectory converged at step {steps_taken}")
+                        self.last_status = 1
+                        return True
+            
+            self.last_status = 0
+            return False
+        finally:
+            self.is_moving = False
     
     def _clear_trajectory_visualization(self) -> None:
         """Clear all trajectory visualizations from MeshCat."""
@@ -433,8 +538,7 @@ class RobosuiteArmController:
             pass
     
     def _visualize_se3_trajectory(self, positions: np.ndarray, quaternions: np.ndarray,
-                                   num_frames: int = 10, axis_length: float = 0.05,
-                                   axis_radius: float = 0.003) -> None:
+                                   axis_length: float = 0.05, axis_radius: float = 0.003) -> None:
         """
         Visualize the SE(3) trajectory frames in MeshCat.
         
@@ -470,7 +574,7 @@ class RobosuiteArmController:
         # get_transform(target, source) returns transform FROM source TO target
         # We want: pose_in_world = T_world_from_base @ pose_in_base
         try:
-            base_to_world = self.transform_manager.get_transform(constants.WORLD_FRAME, self.base_frame)
+            base_to_world = self.tf_manager.get_transform(constants.WORLD_FRAME, self.base_frame)
             T_base_to_world = base_to_world.to_matrix()
         except Exception as e:
             logger.warning(f"Could not get base-to-world transform, visualizing in base frame: {e}")
