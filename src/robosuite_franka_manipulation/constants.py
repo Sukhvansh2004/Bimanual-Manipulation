@@ -300,3 +300,10 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # Path to suction gripper XML asset
 SUCTION_GRIPPER_XML_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "grippers" / "panda_suction.xml"
+
+# Path to custom suction gripper collision mesh
+COBOT_PUMP_MESH_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "meshes" / "cobot_pump" / "collision" / "cobot_pump.stl"
+
+# Suction TCP offset relative to its connection site (base)
+# This is usually the distance from the flange to the suction cup tip
+SUCTION_TCP_OFFSET = np.array([0.0, 0.0, 0.11]) 

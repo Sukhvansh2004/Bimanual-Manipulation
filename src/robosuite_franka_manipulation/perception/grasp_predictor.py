@@ -54,10 +54,13 @@ class GraspPredictor:
         """
         Get the collision mesh for the loaded gripper type.
         """
-        # The gripper_type passed to init (e.g. 'franka_panda') matches the name expected by get_gripper_info
         try:
-            info = get_gripper_info(self.gripper_type)
-            return info.collision_mesh
+            if self.gripper_type is constants.GRIPPER_TYPE_MAPPING['suction']:
+                mesh_path = constants.get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "meshes" / "cobot_pump" / "collision" / "cobot_pump.stl"
+                return trimesh.load_mesh(mesh_path)
+            else:
+                info = get_gripper_info(self.gripper_type)
+                return info.collision_mesh
         except Exception as e:
             logger.error(f"Failed to load gripper collision mesh for {self.gripper_type}: {e}")
             raise
