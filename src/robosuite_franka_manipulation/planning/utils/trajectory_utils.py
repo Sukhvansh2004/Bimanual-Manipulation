@@ -182,29 +182,70 @@ def process_dual_waypoint(
         tf_manager=tf_manager
     )
     
-    # Handle IK failure cases
-    if not solutions0 or not solutions1:
-        if not solutions0:
-            logger.debug(f"  WP {waypoint_index}: Robot 0 IK FAILED")
-        if not solutions1:
-            logger.debug(f"  WP {waypoint_index}: Robot 1 IK FAILED")
-            
-        res0 = WaypointFeasibilityResult(
-            waypoint_index=waypoint_index, eef_pose=pose0, joint_config=None,
-            is_feasible=False, ik_success=bool(solutions0), collision_free=True
-        )
-        res1 = WaypointFeasibilityResult(
-            waypoint_index=waypoint_index, eef_pose=pose1, joint_config=None,
-            is_feasible=False, ik_success=bool(solutions1), collision_free=True
-        )
-        return res0, res1, None, None
-
-    # 3. Check Collisions for pairs of solutions
+    # Handle cases where one or both arms fail IK
     model = env.sim.model
     data = env.sim.data
-    
+
+    if not solutions0 or not solutions1:
+        res0_ik = bool(solutions0)
+        res1_ik = bool(solutions1)
+        
+        # Robot 0 check: Iterate all solutions against partner's last known config
+        best_q0 = None
+        res0_col = False
+        if solutions0:
+            for q0 in solutions0:
+                if check_collisions:
+                    set_qpos(data, qpos_idx0, q0)
+                    if last_config1 is not None:
+                        set_qpos(data, qpos_idx1, last_config1)
+                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names):
+                        best_q0 = q0
+                        res0_col = True
+                        break
+                else:
+                    best_q0 = q0
+                    res0_col = True
+                    break
+            if best_q0 is None:
+                best_q0 = solutions0[0]
+                res0_col = False
+
+        # Robot 1 check: Iterate all solutions against partner's last known config
+        best_q1 = None
+        res1_col = False
+        if solutions1:
+            for q1 in solutions1:
+                if check_collisions:
+                    set_qpos(data, qpos_idx1, q1)
+                    if last_config0 is not None:
+                        set_qpos(data, qpos_idx0, last_config0)
+                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names):
+                        best_q1 = q1
+                        res1_col = True
+                        break
+                else:
+                    best_q1 = q1
+                    res1_col = True
+                    break
+            if best_q1 is None:
+                best_q1 = solutions1[0]
+                res1_col = False
+
+        res0 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose0, joint_config=best_q0,
+            is_feasible=(res0_ik and res0_col), ik_success=res0_ik, collision_free=res0_col
+        )
+        res1 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose1, joint_config=best_q1,
+            is_feasible=(res1_ik and res1_col), ik_success=res1_ik, collision_free=res1_col
+        )
+        return res0, res1, best_q0, best_q1
+
+    # 3. Check Collisions for pairs of solutions
     # To be efficient, we might not check all pairs if we find a feasible one
-    # For trajectories, we prefer solutions close to last_config
     pair_count = 0
     for q0 in solutions0:
         for q1 in solutions1:

@@ -29,7 +29,12 @@ from scipy.spatial.transform import Rotation as R
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.utils import (
+    create_ycb_object, 
+    env_step, 
+    create_primitive_object, 
+    register_mesh_extraction_env
+)
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -65,12 +70,13 @@ logger = logging.getLogger(__name__)
 worker_env = None
 worker_tf_manager = None
 
-def init_worker(ycb_objects):
+def init_worker(ycb_objects, custom_objects):
     """Initialize worker process by creating a persistent environment."""
     global worker_env, worker_tf_manager
     try:
         worker_env = make_dual_arm_env(
             ycb_objects=ycb_objects,
+            custom_objects=custom_objects,
             has_renderer=False, 
             has_offscreen_renderer=False,
             use_camera_obs=False
@@ -107,7 +113,7 @@ def evaluate_pair(pair_info, object_trajectory):
             eef_trajectory0=traj0_eef,
             eef_trajectory1=traj1_eef,
             object_trajectory=object_trajectory,
-            object_name="plate_target",
+            object_name="flatPlate",
             tf_manager=worker_tf_manager
         )
         
@@ -174,13 +180,16 @@ def main() -> None:
     
     logger.info("Creating planning environment and objects...")
     ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat),
-        create_ycb_object(ycb_name="plate", instance_name="plate_target", position=plate_pos, quaternion=plate_quat)
+        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
+    ]
+    custom_objects = [
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
     ]
     
     # Environment for the main process (visualization and grasp generation)
     env = make_dual_arm_env(
         ycb_objects=ycb_objects,
+        custom_objects=custom_objects,
         has_renderer=False, 
         has_offscreen_renderer=False,
         use_camera_obs=False
@@ -189,6 +198,9 @@ def main() -> None:
     # Allow environment to settle
     for _ in range(10):
         env_step(env)
+
+    # Register for lazy mesh extraction
+    register_mesh_extraction_env(env)
     
     env_lock = threading.RLock()
     tf_manager = TransformManager(env, env_lock=env_lock)
@@ -220,7 +232,7 @@ def main() -> None:
         logger.info("Detecting plate pose from environment...")
         time.sleep(1.0)
         try:
-            plate_pose_mat = env.get_object_pose("plate_target")
+            plate_pose_mat = env.get_object_pose("flatPlate")
             if plate_pose_mat is not None:
                 start_pos = plate_pose_mat[:3, 3]
                 start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
@@ -259,7 +271,7 @@ def main() -> None:
     grasp_generator = GraspGenerator(env=env)
     
     logger.info("Generating grasp candidates for Finger and Suction grippers...")
-    all_grasps = grasp_generator.generate_grasps(object_name="plate_target", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
+    all_grasps = grasp_generator.generate_grasps(object_name="flatPlate", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
@@ -282,7 +294,7 @@ def main() -> None:
     with multiprocessing.Pool(
         processes=args.num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects,)
+        initargs=(ycb_objects, custom_objects)
     ) as pool:
         eval_func = partial(evaluate_pair, object_trajectory=object_trajectory)
         all_results = pool.map(eval_func, grasp_pairs)
@@ -346,6 +358,7 @@ def main() -> None:
     grasp_service.stop()
     service_manager.stop()
     env.close()
+
     logger.info("Done.")
     sys.exit(0)
 

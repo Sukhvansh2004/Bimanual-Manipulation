@@ -41,6 +41,7 @@ from robosuite_franka_manipulation.utils.pointcloud import (
 from robosuite_franka_manipulation.utils.env_utils import (
     env_step,
     set_robot_config,
+    register_mesh_extraction_env,
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
@@ -88,6 +89,7 @@ __all__ = [
     # Env utils
     'env_step',
     'set_robot_config',
+    'register_mesh_extraction_env',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
