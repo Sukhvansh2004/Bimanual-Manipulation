@@ -305,7 +305,7 @@ def check_dual_trajectory_feasibility(
     results1: List[WaypointFeasibilityResult] = []
     all_feasible = True
 
-    logger.info(f"Checking dual-arm trajectory feasibility for {len(eef_trajectory0)} waypoints...")
+    logger.debug(f"Checking dual-arm trajectory feasibility for {len(eef_trajectory0)} waypoints...")
 
     with ctx:
         model = env.sim.model
@@ -372,10 +372,10 @@ def check_dual_trajectory_feasibility(
                 if new_config1 is not None: last_config1 = new_config1
 
             if all_feasible:
-                logger.info("Dual-arm trajectory is FULLY FEASIBLE.")
+                logger.debug("Dual-arm trajectory is FULLY FEASIBLE.")
             else:
                 feasible_count = sum(1 for r0, r1 in zip(results0, results1) if r0.is_feasible and r1.is_feasible)
-                logger.info(f"Dual-arm trajectory is INFEASIBLE ({feasible_count}/{len(eef_trajectory0)} waypoints feasible).")
+                logger.debug(f"Dual-arm trajectory is INFEASIBLE ({feasible_count}/{len(eef_trajectory0)} waypoints feasible).")
 
         finally:
             data.qpos[:] = qpos_backup

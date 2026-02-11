@@ -76,7 +76,7 @@ def init_worker(ycb_objects):
         )
         worker_env.reset()
         worker_tf_manager = TransformManager(worker_env)
-        logging.debug("Worker initialized: Environment created.")
+        logging.info("Worker initialized: Environment created.")
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
 
@@ -108,9 +108,9 @@ def evaluate_pair(pair_info, object_trajectory):
         )
         
         if all_feasible:
-            logging.debug(f"Worker: Pair ({i}, {j}) is FEASIBLE")
+            logging.info(f"Worker: Pair ({i}, {j}) is FEASIBLE")
         else:
-            logging.debug(f"Worker: Pair ({i}, {j}) is INFEASIBLE")
+            logging.info(f"Worker: Pair ({i}, {j}) is INFEASIBLE")
 
         return {
             'id0': i,
