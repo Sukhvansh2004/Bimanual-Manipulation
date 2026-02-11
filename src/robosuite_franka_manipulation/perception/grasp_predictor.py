@@ -55,9 +55,19 @@ class GraspPredictor:
         Get the collision mesh for the loaded gripper type.
         """
         try:
-            if self.gripper_type is constants.GRIPPER_TYPE_MAPPING['suction']:
-                mesh_path = constants.get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "meshes" / "cobot_pump" / "collision" / "cobot_pump.stl"
-                return trimesh.load_mesh(mesh_path)
+            if self.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction']):
+                mesh_path = constants.COBOT_PUMP_MESH_PATH
+                if mesh_path.exists():
+                    mesh = trimesh.load(str(mesh_path))
+                    # Shift origin to TCP
+                    # If TCP is at offset relative to base, we translate the mesh by -offset to put TCP at (0,0,0)
+                    T = tra.translation_matrix(-constants.SUCTION_TCP_OFFSET)
+                    mesh.apply_transform(T)
+                    return mesh
+                else:
+                    logger.warning(f"Custom suction mesh not found at {mesh_path}, falling back to default info.")
+                    info = get_gripper_info(self.gripper_type)
+                    return info.collision_mesh
             else:
                 info = get_gripper_info(self.gripper_type)
                 return info.collision_mesh
@@ -150,7 +160,8 @@ class GraspPredictor:
             pcd_tensor,
             self.sampler,
             grasp_threshold=constants.GRASPGEN_PREDICTION_THRESHOLD,
-            num_grasps=num_grasps
+            num_grasps=num_grasps,
+            min_grasps=num_grasps,  # Override to always return num_grasps (may be lower confidence)
         )
         
         grasp_list: List[GraspSchema] = []
