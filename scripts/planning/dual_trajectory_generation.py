@@ -298,7 +298,7 @@ def main() -> None:
         # Visualize Robot 1 Path
         visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0xff00ff)
         
-        if args.visualize_robot_meshes and res['all_feasible']:
+        if args.visualize_robot_meshes:
             logger.info(f"Rendering robot meshes for feasible pair {pair_id}")
             mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path=f"dual_configs/{pair_id}")
             mesh_vis.visualize_dual_arm_trajectory(
