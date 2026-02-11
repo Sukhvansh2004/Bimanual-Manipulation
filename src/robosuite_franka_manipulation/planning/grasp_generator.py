@@ -156,8 +156,8 @@ def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[
     
     # Combined distance squared
     # sigma_p and sigma_r control the diversity scale
-    sigma_p = 0.05  # 5cm
-    sigma_r = constants.TRAJECTORY_ORIENTATION_SCALING if hasattr(constants, 'TRAJECTORY_ORIENTATION_SCALING') else 0.05
+    sigma_p = 5
+    sigma_r = 5
     
     # d^2 = (dist_pos / sigma_p)^2 + (dist_rot / sigma_r)^2
     d_sq = dist_pos_sq / (sigma_p**2) + (dist_rot**2) / (sigma_r**2)
@@ -178,7 +178,6 @@ def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[
     
     # Iteratively add elements that maximize the conditional log-determinant (Schur complement)
     for _ in range(num_grasps - 1):
-        best_gain = -np.inf
         best_idx = -1
         
         S = selected_indices
