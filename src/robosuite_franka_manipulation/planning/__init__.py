@@ -7,7 +7,8 @@ from robosuite_franka_manipulation.planning.collision_checker import (
 )
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory,
-    check_trajectory_feasibility
+    check_trajectory_feasibility,
+    check_dual_trajectory_feasibility
 )
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
@@ -34,6 +35,7 @@ __all__ = [
     'generate_end_effector_trajectory',
     # Trajectory utilities
     'check_trajectory_feasibility',
+    'check_dual_trajectory_feasibility',
     'WaypointFeasibilityResult',
     # Visualization
     'visualize_trajectory',

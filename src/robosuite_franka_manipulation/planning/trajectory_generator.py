@@ -26,6 +26,7 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     WaypointFeasibilityResult, 
     resolve_ignore_names, 
     process_waypoint,
+    process_dual_waypoint,
 )
 
 logger = logging.getLogger(__name__)
@@ -267,3 +268,109 @@ def check_trajectory_feasibility(
             mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
     
     return results, all_feasible
+
+
+def check_dual_trajectory_feasibility(
+    env: DualArmEnvironment,
+    eef_trajectory0: List[StampedPose],
+    eef_trajectory1: List[StampedPose],
+    tf_manager: TransformManager,
+    object_trajectory: Optional[List[StampedPose]] = None,
+    object_name: Optional[str] = None,
+    check_collisions: bool = True,
+    env_lock = None,
+    ignore_names: Optional[List[str]] = None
+) -> Tuple[List[WaypointFeasibilityResult], List[WaypointFeasibilityResult], bool]:
+    """
+    Check simultaneous feasibility of two robot trajectories.
+    
+    Returns:
+        Tuple of (results0, results1, overall_feasible bool)
+    """
+    if len(eef_trajectory0) != len(eef_trajectory1):
+        logger.error("EEF trajectories length mismatch")
+        return [], [], False
+
+    if object_trajectory and len(object_trajectory) != len(eef_trajectory0):
+        logger.error("Object trajectory length mismatch")
+        return [], [], False
+
+    # 90 degree pose correction (Rotate -90 deg around Z)
+    r_corr = R.from_euler('z', -90, degrees=True)
+    correction_quat = r_corr.as_quat()
+
+    ctx = env_lock if env_lock is not None else nullcontext()
+
+    results0: List[WaypointFeasibilityResult] = []
+    results1: List[WaypointFeasibilityResult] = []
+    all_feasible = True
+
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        
+        jids0 = get_arm_joint_ids(model, 0)
+        jids1 = get_arm_joint_ids(model, 1)
+        qpos_idx0 = get_joint_qpos_indices(model, jids0)
+        qpos_idx1 = get_joint_qpos_indices(model, jids1)
+        
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+        
+        # Object joint index if needed
+        obj_joint_addr = None
+        if object_name:
+            try:
+                obj_joint_id = model.joint(f"{object_name}_joint0").id
+                obj_qpos_addr = model.jnt_qposadr[obj_joint_id]
+                obj_joint_addr = obj_qpos_addr
+            except Exception:
+                pass
+
+        try:
+            last_config0 = None 
+            last_config1 = None
+            
+            # Resolve ignore names
+            current_ignore_names = resolve_ignore_names(object_name, ignore_names)
+
+            for i in range(len(eef_trajectory0)):
+                # 1. Update Object Pose if provided
+                if object_trajectory is not None and obj_joint_addr is not None:
+                    obj_pose = object_trajectory[i]
+                    pos = obj_pose.position
+                    quat = T.convert_quat(obj_pose.quaternion, to="wxyz")
+                    data.qpos[obj_joint_addr:obj_joint_addr+3] = pos
+                    data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
+                
+                # 2. Check Waypoint for both
+                res0, res1, new_config0, new_config1 = process_dual_waypoint(
+                    env=env,
+                    waypoint_index=i,
+                    pose0=eef_trajectory0[i],
+                    pose1=eef_trajectory1[i],
+                    qpos_idx0=qpos_idx0,
+                    qpos_idx1=qpos_idx1,
+                    check_collisions=check_collisions,
+                    ignore_names=current_ignore_names,
+                    last_config0=last_config0,
+                    last_config1=last_config1,
+                    tf_manager=tf_manager,
+                    correction_quat=correction_quat
+                )
+                
+                results0.append(res0)
+                results1.append(res1)
+                
+                if not (res0.is_feasible and res1.is_feasible):
+                    all_feasible = False
+                
+                if new_config0 is not None: last_config0 = new_config0
+                if new_config1 is not None: last_config1 = new_config1
+
+        finally:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+    
+    return results0, results1, all_feasible

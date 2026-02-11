@@ -125,6 +125,113 @@ def process_waypoint(
     ), first_sol # Return as potential warm start attempt
 
 
+def process_dual_waypoint(
+    env: DualArmEnvironment,
+    waypoint_index: int,
+    pose0: StampedPose,
+    pose1: StampedPose,
+    qpos_idx0: np.ndarray,
+    qpos_idx1: np.ndarray,
+    check_collisions: bool,
+    ignore_names: List[str],
+    last_config0: Optional[np.ndarray],
+    last_config1: Optional[np.ndarray],
+    tf_manager: TransformManager,
+    correction_quat: Optional[np.ndarray] = None
+) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
+    
+    # 1. Prepare Target Poses
+    target0 = pose0.copy()
+    target1 = pose1.copy()
+    
+    if correction_quat is not None:
+        r_corr = R.from_quat(correction_quat)
+        target0.quaternion = (R.from_quat(pose0.quaternion) * r_corr).as_quat()
+        target1.quaternion = (R.from_quat(pose1.quaternion) * r_corr).as_quat()
+        
+    site0 = f"gripper0_right_ft_frame"
+    site1 = f"gripper1_right_ft_frame"
+
+    # 2. Solve IK for both arms
+    solutions0 = enumerate_ik_solutions_for_arm(
+        env=env,
+        robot_id=0,
+        target_pose=target0,
+        target_frame=constants.WORLD_FRAME,
+        arm="right",
+        site_name=site0,
+        q_warm_start=last_config0,
+        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
+        env_lock=None, 
+        tf_manager=tf_manager
+    )
+    
+    solutions1 = enumerate_ik_solutions_for_arm(
+        env=env,
+        robot_id=1,
+        target_pose=target1,
+        target_frame=constants.WORLD_FRAME,
+        arm="right",
+        site_name=site1,
+        q_warm_start=last_config1,
+        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
+        env_lock=None, 
+        tf_manager=tf_manager
+    )
+    
+    # Handle IK failure cases
+    if not solutions0 or not solutions1:
+        res0 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose0, joint_config=None,
+            is_feasible=False, ik_success=bool(solutions0), collision_free=True
+        )
+        res1 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose1, joint_config=None,
+            is_feasible=False, ik_success=bool(solutions1), collision_free=True
+        )
+        return res0, res1, None, None
+
+    # 3. Check Collisions for pairs of solutions
+    model = env.sim.model
+    data = env.sim.data
+    
+    # To be efficient, we might not check all pairs if we find a feasible one
+    # For trajectories, we prefer solutions close to last_config
+    for q0 in solutions0:
+        for q1 in solutions1:
+            collision_free = True
+            if check_collisions:
+                set_qpos(data, qpos_idx0, q0)
+                set_qpos(data, qpos_idx1, q1)
+                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+            
+            if collision_free:
+                res0 = WaypointFeasibilityResult(
+                    waypoint_index=waypoint_index, eef_pose=pose0, joint_config=q0,
+                    is_feasible=True, ik_success=True, collision_free=True
+                )
+                res1 = WaypointFeasibilityResult(
+                    waypoint_index=waypoint_index, eef_pose=pose1, joint_config=q1,
+                    is_feasible=True, ik_success=True, collision_free=True
+                )
+                return res0, res1, q0, q1
+
+    # If no collision-free pair found, return the first solution pair as failure
+    res0 = WaypointFeasibilityResult(
+        waypoint_index=waypoint_index, eef_pose=pose0, joint_config=solutions0[0],
+        is_feasible=False, ik_success=True, collision_free=False
+    )
+    res1 = WaypointFeasibilityResult(
+        waypoint_index=waypoint_index, eef_pose=pose1, joint_config=solutions1[0],
+        is_feasible=False, ik_success=True, collision_free=False
+    )
+    return res0, res1, solutions0[0], solutions1[0]
+
+
 def save_trajectory(
     output_dir: str, 
     filename: str,
