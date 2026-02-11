@@ -29,7 +29,7 @@ from scipy.spatial.transform import Rotation as R
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils import create_ycb_object
+from robosuite_franka_manipulation.utils import create_ycb_object, env_step
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -76,6 +76,9 @@ def init_worker(ycb_objects):
             use_camera_obs=False
         )
         worker_env.reset()
+        # Allow environment to settle
+        for _ in range(10):
+            env_step(worker_env)
         worker_tf_manager = TransformManager(worker_env)
         logging.info("Worker initialized: Environment created.")
     except Exception as e:
@@ -166,7 +169,7 @@ def main() -> None:
     # --------------------
     shelf_pos = [-0.7, 0.0, 0.0]
     shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-    plate_pos = [0.0, -0.1, 0.85]
+    plate_pos = [0.0, 0.0, 0.85]
     plate_quat = [0, 0, 0, 1]
     
     logger.info("Creating planning environment and objects...")
@@ -183,6 +186,9 @@ def main() -> None:
         use_camera_obs=False
     )
     env.reset()
+    # Allow environment to settle
+    for _ in range(10):
+        env_step(env)
     
     env_lock = threading.RLock()
     tf_manager = TransformManager(env, env_lock=env_lock)
@@ -298,9 +304,9 @@ def main() -> None:
         logger.debug(f"Visualizing {pair_id} ({status})")
         
         # Visualize Robot 0 Path
-        visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x0000ff)
+        visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x888888)
         # Visualize Robot 1 Path
-        visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0xff00ff)
+        visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0x888888)
         
         if args.visualize_robot_meshes:
             logger.info(f"Rendering robot meshes for feasible pair {pair_id}")

@@ -84,7 +84,8 @@ def visualize_trajectory(
                 wp_color = 0xffa500 # Orange (Unreachable)
             elif not res.collision_free:
                 wp_color = 0xff0000 # Red (Infeasible/Collision)
-            elif res.is_feasible:
+            else:
+                # If IK success and Collision free, it is feasible for this arm
                 wp_color = 0x00ff00 # Green (Feasible)
         
         # Add sphere marker

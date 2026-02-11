@@ -25,7 +25,7 @@ from scipy.spatial.transform import Rotation as R
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils import create_ycb_object
+from robosuite_franka_manipulation.utils import create_ycb_object, env_step
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -114,6 +114,9 @@ def main() -> None:
         use_camera_obs=False
     )
     env.reset()
+    # Allow environment to settle
+    for _ in range(10):
+        env_step(env)
     
     # Lock for thread safety
     env_lock = threading.RLock()
