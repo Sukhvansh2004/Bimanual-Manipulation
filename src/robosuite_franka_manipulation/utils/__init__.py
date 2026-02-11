@@ -40,6 +40,7 @@ from robosuite_franka_manipulation.utils.pointcloud import (
 
 from robosuite_franka_manipulation.utils.env_utils import (
     env_step,
+    set_robot_config,
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,
@@ -86,6 +87,7 @@ __all__ = [
     'ensure_depth_2d',
     # Env utils
     'env_step',
+    'set_robot_config',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
