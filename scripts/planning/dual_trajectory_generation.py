@@ -6,6 +6,7 @@ This script:
 1. Initializes the DualArmEnvironment with a shelf and a plate.
 2. Generates grasps for both robots and pairs them (N x M).
 3. Evaluates simultaneous feasibility for each grasp pair using multiprocessing.
+   Optimization: Environments are created once per worker process.
 4. Visualizes the planning context and generated trajectories in Meshcat.
 5. Saves ALL evaluated trajectories to disk.
 """
@@ -59,40 +60,52 @@ def setup_logging(level: int = logging.INFO):
 
 logger = logging.getLogger(__name__)
 
-def evaluate_pair(pair_info, ycb_objects, object_trajectory):
-    """
-    Worker function to evaluate a single pair of grasps.
-    Each worker creates its own environment instance.
-    """
-    i, j, g0, g1 = pair_info
-    
-    # Create local env for this process
+# Global variables for worker processes
+worker_env = None
+worker_tf_manager = None
+
+def init_worker(ycb_objects):
+    """Initialize worker process by creating a persistent environment."""
+    global worker_env, worker_tf_manager
     try:
-        env = make_dual_arm_env(
+        worker_env = make_dual_arm_env(
             ycb_objects=ycb_objects,
             has_renderer=False, 
             has_offscreen_renderer=False,
             use_camera_obs=False
         )
-        env.reset()
+        worker_env.reset()
+        worker_tf_manager = TransformManager(worker_env)
+        logging.debug("Worker initialized: Environment created.")
+    except Exception as e:
+        logging.error(f"Worker initialization failed: {e}")
+
+def evaluate_pair(pair_info, object_trajectory):
+    """
+    Worker function to evaluate a single pair of grasps using the persistent environment.
+    """
+    global worker_env, worker_tf_manager
+    
+    if worker_env is None or worker_tf_manager is None:
+        logging.error("Worker environment not properly initialized.")
+        return None
         
-        tf_manager = TransformManager(env)
-        
+    i, j, g0, g1 = pair_info
+    
+    try:
         # Generate EEF trajectories
-        traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
-        traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
+        traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=worker_tf_manager)
+        traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=worker_tf_manager)
         
         # Check simultaneous feasibility
         results0, results1, all_feasible = check_dual_trajectory_feasibility(
-            env=env,
+            env=worker_env,
             eef_trajectory0=traj0_eef,
             eef_trajectory1=traj1_eef,
             object_trajectory=object_trajectory,
             object_name="plate_target",
-            tf_manager=tf_manager
+            tf_manager=worker_tf_manager
         )
-        
-        env.close()
         
         if all_feasible:
             logging.debug(f"Worker: Pair ({i}, {j}) is FEASIBLE")
@@ -161,6 +174,7 @@ def main() -> None:
         create_ycb_object(ycb_name="plate", instance_name="plate_target", position=plate_pos, quaternion=plate_quat)
     ]
     
+    # Environment for the main process (visualization and grasp generation)
     env = make_dual_arm_env(
         ycb_objects=ycb_objects,
         has_renderer=False, 
@@ -239,8 +253,8 @@ def main() -> None:
     
     logger.info("Generating grasp candidates for Finger and Suction grippers...")
     all_grasps = grasp_generator.generate_grasps(object_name="plate_target", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
-    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
-    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:5]
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:5]
     
     logger.info(f"Selection: {len(grasps_0)} Finger grasps, {len(grasps_1)} Suction grasps.")
 
@@ -251,10 +265,16 @@ def main() -> None:
         for j, g1 in enumerate(grasps_1):
             grasp_pairs.append((i, j, g0, g1))
             
-    logger.info(f"Evaluating {len(grasp_pairs)} grasp pairs using {args.num_workers} processes...")
+    logger.info(f"Evaluating {len(grasp_pairs)} grasp pairs using {args.num_workers} processes (optimized env creation)...")
     start_time = time.time()
-    with multiprocessing.Pool(processes=args.num_workers) as pool:
-        eval_func = partial(evaluate_pair, ycb_objects=ycb_objects, object_trajectory=object_trajectory)
+    
+    # Use multiprocessing pool with initializer to create environments once per process
+    with multiprocessing.Pool(
+        processes=args.num_workers,
+        initializer=init_worker,
+        initargs=(ycb_objects,)
+    ) as pool:
+        eval_func = partial(evaluate_pair, object_trajectory=object_trajectory)
         all_results = pool.map(eval_func, grasp_pairs)
     
     # Filter out None results from workers
