@@ -417,11 +417,11 @@ class GraspPredictor:
         # Use GraspGen's point cloud outlier removal with adjusted threshold
         # The default threshold of 0.014 might be too aggressive for some point clouds
         pcd_tensor = torch.from_numpy(pcd).float()
-        filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.05, K=20)
+        filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.1, K=20)
         
         # Ensure we keep at least some points
         if len(filtered_pcd) < 10:
             # If too many points were removed, use a more lenient threshold
-            filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.1, K=20)
+            filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.2, K=20)
         
         return filtered_pcd.cpu().numpy()
