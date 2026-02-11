@@ -67,43 +67,52 @@ def evaluate_pair(pair_info, ycb_objects, object_trajectory):
     i, j, g0, g1 = pair_info
     
     # Create local env for this process
-    env = make_dual_arm_env(
-        ycb_objects=ycb_objects,
-        has_renderer=False, 
-        has_offscreen_renderer=False,
-        use_camera_obs=False
-    )
-    env.reset()
-    
-    tf_manager = TransformManager(env)
-    
-    # Generate EEF trajectories
-    traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
-    traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
-    
-    # Check simultaneous feasibility
-    results0, results1, all_feasible = check_dual_trajectory_feasibility(
-        env=env,
-        eef_trajectory0=traj0_eef,
-        eef_trajectory1=traj1_eef,
-        object_trajectory=object_trajectory,
-        object_name="plate_target",
-        tf_manager=tf_manager
-    )
-    
-    env.close()
-    
-    return {
-        'id0': i,
-        'id1': j,
-        'traj0_eef': traj0_eef,
-        'traj1_eef': traj1_eef,
-        'results0': results0,
-        'results1': results1,
-        'all_feasible': all_feasible,
-        'grasp0': g0,
-        'grasp1': g1
-    }
+    try:
+        env = make_dual_arm_env(
+            ycb_objects=ycb_objects,
+            has_renderer=False, 
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
+        env.reset()
+        
+        tf_manager = TransformManager(env)
+        
+        # Generate EEF trajectories
+        traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
+        traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
+        
+        # Check simultaneous feasibility
+        results0, results1, all_feasible = check_dual_trajectory_feasibility(
+            env=env,
+            eef_trajectory0=traj0_eef,
+            eef_trajectory1=traj1_eef,
+            object_trajectory=object_trajectory,
+            object_name="plate_target",
+            tf_manager=tf_manager
+        )
+        
+        env.close()
+        
+        if all_feasible:
+            logging.debug(f"Worker: Pair ({i}, {j}) is FEASIBLE")
+        else:
+            logging.debug(f"Worker: Pair ({i}, {j}) is INFEASIBLE")
+
+        return {
+            'id0': i,
+            'id1': j,
+            'traj0_eef': traj0_eef,
+            'traj1_eef': traj1_eef,
+            'results0': results0,
+            'results1': results1,
+            'all_feasible': all_feasible,
+            'grasp0': g0,
+            'grasp1': g1
+        }
+    except Exception as e:
+        logging.error(f"Worker: Error evaluating pair ({i}, {j}): {e}")
+        return None
 
 def main() -> None:
     # Default values
@@ -146,6 +155,7 @@ def main() -> None:
     plate_pos = [0.0, -0.1, 0.85]
     plate_quat = [0, 0, 0, 1]
     
+    logger.info("Creating planning environment and objects...")
     ycb_objects = [
         create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat),
         create_ycb_object(ycb_name="plate", instance_name="plate_target", position=plate_pos, quaternion=plate_quat)
@@ -164,7 +174,7 @@ def main() -> None:
     
     # 2. Setup Visualization
     # ----------------------
-    logger.info("Setting up visualization")
+    logger.info(f"Setting up Meshcat visualization at {constants.MESHCAT_ZMQ_URL}")
     vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
     stop_event = threading.Event()
     vis_thread = threading.Thread(
@@ -175,7 +185,7 @@ def main() -> None:
     vis_thread.start()
     
     vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
-    logger.info("Visualization started. Open http://127.0.0.1:7000")
+    logger.info("Visualization stream started.")
     
     # 3. Define Planning Problem
     # --------------------------
@@ -184,25 +194,30 @@ def main() -> None:
     if args.start_pos and args.start_quat:
         start_pos = np.array(args.start_pos)
         start_quat = np.array(args.start_quat)
+        logger.info(f"Using manual start pose: {start_pos}")
     else:
-        logger.info("Querying object pose...")
+        logger.info("Detecting plate pose from environment...")
         time.sleep(1.0)
         try:
             plate_pose_mat = env.get_object_pose("plate_target")
             if plate_pose_mat is not None:
                 start_pos = plate_pose_mat[:3, 3]
                 start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
+                logger.info(f"Detected start pose: {start_pos}")
         except Exception as e:
-            logger.warning(f"Error querying object pose: {e}")
+            logger.warning(f"Failed to query plate pose: {e}")
             
         if start_pos is None:
+            logger.info("Using default plate pose.")
             start_pos, start_quat = np.array(plate_pos), np.array(plate_quat)
     
     start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
     target_pose_stamped = StampedPose(position=np.array(args.target_pos), quaternion=np.array(args.target_quat), frame_id=constants.WORLD_FRAME)
+    logger.info(f"Target pose: {target_pose_stamped.position}")
     
     # 4. Generate Object Trajectory
     # -----------------------------
+    logger.info("Generating object trajectory...")
     object_trajectory = generate_object_trajectory(start_pose_stamped, target_pose_stamped, num_steps=constants.OBJECT_TRAJ_NUM_STEPS, tf_manager=tf_manager)
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
@@ -215,18 +230,19 @@ def main() -> None:
     
     # 5. Generate Grasps
     # ------------------
-    logger.info("Initializing Services and generating grasps...")
+    logger.info("Connecting to Grasp Service...")
     service_manager = ServiceManager()
     service_manager.start()
     grasp_service = GraspService(tf_manager=tf_manager, visualize=True)
     grasp_service.start()
     grasp_generator = GraspGenerator(env=env)
     
+    logger.info("Generating grasp candidates for Finger and Suction grippers...")
     all_grasps = grasp_generator.generate_grasps(object_name="plate_target", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
     
-    logger.info(f"Using {len(grasps_0)} Finger and {len(grasps_1)} Suction grasps.")
+    logger.info(f"Selection: {len(grasps_0)} Finger grasps, {len(grasps_1)} Suction grasps.")
 
     # 6. Evaluate Pairs in Parallel
     # -----------------------------
@@ -235,19 +251,27 @@ def main() -> None:
         for j, g1 in enumerate(grasps_1):
             grasp_pairs.append((i, j, g0, g1))
             
-    logger.info(f"Evaluating {len(grasp_pairs)} pairs using {args.num_workers} workers...")
+    logger.info(f"Evaluating {len(grasp_pairs)} grasp pairs using {args.num_workers} processes...")
+    start_time = time.time()
     with multiprocessing.Pool(processes=args.num_workers) as pool:
         eval_func = partial(evaluate_pair, ycb_objects=ycb_objects, object_trajectory=object_trajectory)
         all_results = pool.map(eval_func, grasp_pairs)
-        
+    
+    # Filter out None results from workers
+    all_results = [r for r in all_results if r is not None]
+    
+    duration = time.time() - start_time
     feasible_count = sum(1 for r in all_results if r['all_feasible'])
-    logger.info(f"Found {feasible_count}/{len(all_results)} fully feasible dual-arm trajectories.")
+    logger.info(f"Evaluation complete in {duration:.2f}s.")
+    logger.info(f"Results: {feasible_count}/{len(all_results)} pairs are fully feasible.")
 
     # 7. Visualization of Results
     # ---------------------------
-    logger.info("Visualizing evaluated trajectories...")
+    logger.info("Streaming evaluated trajectories to Meshcat...")
     for res in all_results:
         pair_id = f"pair_{res['id0']}_{res['id1']}"
+        status = "FEASIBLE" if res['all_feasible'] else "INFEASIBLE"
+        logger.debug(f"Visualizing {pair_id} ({status})")
         
         # Visualize Robot 0 Path
         visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x0000ff)
@@ -255,6 +279,7 @@ def main() -> None:
         visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0xff00ff)
         
         if args.visualize_robot_meshes and res['all_feasible']:
+            logger.info(f"Rendering robot meshes for feasible pair {pair_id}")
             mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path=f"dual_configs/{pair_id}")
             mesh_vis.visualize_dual_arm_trajectory(
                 trajectory_id="feasible",
@@ -266,22 +291,32 @@ def main() -> None:
 
     # 8. Save Trajectories
     # --------------------
-    should_save = args.save_traj or (sys.stdin.isatty() and input("Save ALL trajectories? [y/N]: ").strip().lower() in ('y', 'yes'))
+    should_save = args.save_traj
+    if not should_save and sys.stdin.isatty():
+        try:
+            should_save = input("\nSave ALL evaluated trajectories to disk? [y/N]: ").strip().lower() in ('y', 'yes')
+        except EOFError:
+            pass
     
     if should_save:
+        logger.info(f"Saving {len(all_results)} trajectory pairs to {args.output_dir}...")
         save_trajectory(args.output_dir, "object_trajectory.npz", object_trajectory=object_trajectory)
         for res in all_results:
             pair_id = f"{res['id0']}_{res['id1']}"
             save_trajectory(args.output_dir, f"dual_robot0_pair_{pair_id}.npz", eef_trajectory=res['traj0_eef'], object_trajectory=object_trajectory, waypoint_results=res['results0'])
             save_trajectory(args.output_dir, f"dual_robot1_pair_{pair_id}.npz", eef_trajectory=res['traj1_eef'], object_trajectory=object_trajectory, waypoint_results=res['results1'])
-        logger.info(f"Saved {len(all_results)} trajectory pairs to {args.output_dir}")
+        logger.info("All trajectories saved.")
+    else:
+        logger.info("Saving skipped.")
 
     # Cleanup
+    logger.info("Shutting down...")
     stop_event.set()
     vis_thread.join(timeout=2.0)
     grasp_service.stop()
     service_manager.stop()
     env.close()
+    logger.info("Done.")
     sys.exit(0)
 
 if __name__ == "__main__":

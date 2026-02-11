@@ -184,6 +184,11 @@ def process_dual_waypoint(
     
     # Handle IK failure cases
     if not solutions0 or not solutions1:
+        if not solutions0:
+            logger.debug(f"  WP {waypoint_index}: Robot 0 IK FAILED")
+        if not solutions1:
+            logger.debug(f"  WP {waypoint_index}: Robot 1 IK FAILED")
+            
         res0 = WaypointFeasibilityResult(
             waypoint_index=waypoint_index, eef_pose=pose0, joint_config=None,
             is_feasible=False, ik_success=bool(solutions0), collision_free=True
@@ -200,8 +205,10 @@ def process_dual_waypoint(
     
     # To be efficient, we might not check all pairs if we find a feasible one
     # For trajectories, we prefer solutions close to last_config
+    pair_count = 0
     for q0 in solutions0:
         for q1 in solutions1:
+            pair_count += 1
             collision_free = True
             if check_collisions:
                 set_qpos(data, qpos_idx0, q0)
@@ -221,6 +228,7 @@ def process_dual_waypoint(
                 return res0, res1, q0, q1
 
     # If no collision-free pair found, return the first solution pair as failure
+    logger.debug(f"  WP {waypoint_index}: Checked {pair_count} IK pairs, all in COLLISION")
     res0 = WaypointFeasibilityResult(
         waypoint_index=waypoint_index, eef_pose=pose0, joint_config=solutions0[0],
         is_feasible=False, ik_success=True, collision_free=False
