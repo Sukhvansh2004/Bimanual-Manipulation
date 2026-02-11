@@ -19,7 +19,17 @@ src/robosuite_franka_manipulation/models/grippers/panda_suction_gripper.py
 src/robosuite_franka_manipulation/perception/__init__.py
 src/robosuite_franka_manipulation/perception/grasp_predictor.py
 src/robosuite_franka_manipulation/perception/object_detector.py
-src/robosuite_franka_manipulation/planning/utils/feasability_checks.py
+src/robosuite_franka_manipulation/planning/__init__.py
+src/robosuite_franka_manipulation/planning/collision_checker.py
+src/robosuite_franka_manipulation/planning/grasp_generator.py
+src/robosuite_franka_manipulation/planning/trajectory_generator.py
+src/robosuite_franka_manipulation/planning/utils/__init__.py
+src/robosuite_franka_manipulation/planning/utils/collision_utils.py
+src/robosuite_franka_manipulation/planning/utils/ik_utils.py
+src/robosuite_franka_manipulation/planning/utils/mujoco_utils.py
+src/robosuite_franka_manipulation/planning/utils/robot_mesh_visualizer.py
+src/robosuite_franka_manipulation/planning/utils/trajectory_utils.py
+src/robosuite_franka_manipulation/planning/utils/visualization_utils.py
 src/robosuite_franka_manipulation/services/__init__.py
 src/robosuite_franka_manipulation/services/fastsam_service.py
 src/robosuite_franka_manipulation/services/grasp_service.py
@@ -44,6 +54,7 @@ tests/test_environments.py
 tests/test_fastsam_detection.py
 tests/test_grasps.py
 tests/test_move_to_pose_service.py
+tests/test_planning_module.py
 tests/test_services.py
 tests/test_trajectory_planning.py
 tests/test_transforms.py

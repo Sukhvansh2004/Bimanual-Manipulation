@@ -106,3 +106,111 @@ class GraspGenerator:
 
     def __del__(self):
         self.service_client.close()
+
+
+def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[GraspSchema]:
+    """
+    Select a subset of grasps that maximizes entropy (diversity and quality).
+    Uses a greedy Determinantal Point Process (DPP) approach.
+    
+    The entropy of a subset S in a DPP defined by L-ensemble matrix L is log det(L_S).
+    We greedily select grasps to maximize this determinant.
+    
+    Args:
+        grasps: List of GraspSchema objects.
+        num_grasps: Number of grasps to select.
+        
+    Returns:
+        A list of selected GraspSchema objects.
+    """
+    if not grasps or num_grasps <= 0:
+        return []
+    
+    if len(grasps) <= num_grasps:
+        # Sort by score anyway if we return all of them
+        return sorted(grasps, key=lambda g: g.score, reverse=True)
+
+    # 1. Prepare features for each grasp
+    # We use position and orientation as features
+    num_total = len(grasps)
+    positions = np.array([g.pos for g in grasps])
+    quaternions = np.array([g.quat for g in grasps])
+    # Ensure scores are positive for DPP L-ensemble
+    scores = np.array([max(g.score, 1e-4) for g in grasps])
+    
+    # 2. Compute similarity kernel matrix K
+    # K_ij = exp(-0.5 * d(g_i, g_j)^2)
+    
+    # Pairwise squared Euclidean distance for positions
+    # (dist_pos^2)_ij = ||p_i - p_j||^2
+    diff_pos = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+    dist_pos_sq = np.sum(diff_pos**2, axis=-1)
+    
+    # Pairwise distance for orientations
+    # d_rot = 1 - |<q_i, q_j>|
+    # dot_products = |<q_i, q_j>|
+    dot_products = np.abs(np.einsum('id,jd->ij', quaternions, quaternions))
+    # Clip for numerical stability
+    dot_products = np.clip(dot_products, 0.0, 1.0)
+    dist_rot = 1.0 - dot_products
+    
+    # Combined distance squared
+    # sigma_p and sigma_r control the diversity scale
+    sigma_p = 0.05  # 5cm
+    sigma_r = constants.TRAJECTORY_ORIENTATION_SCALING if hasattr(constants, 'TRAJECTORY_ORIENTATION_SCALING') else 0.05
+    
+    # d^2 = (dist_pos / sigma_p)^2 + (dist_rot / sigma_r)^2
+    d_sq = dist_pos_sq / (sigma_p**2) + (dist_rot**2) / (sigma_r**2)
+    K = np.exp(-0.5 * d_sq)
+    
+    # 3. Construct L-ensemble matrix L
+    # L_ij = score_i * score_j * K_ij
+    L = scores[:, np.newaxis] * scores[np.newaxis, :] * K
+    
+    # 4. Greedy selection to maximize det(L_S)
+    selected_indices = []
+    remaining_indices = list(range(num_total))
+    
+    # Start with the grasp with the highest score
+    first_idx = int(np.argmax(scores))
+    selected_indices.append(first_idx)
+    remaining_indices.remove(first_idx)
+    
+    # Iteratively add elements that maximize the conditional log-determinant (Schur complement)
+    for _ in range(num_grasps - 1):
+        best_gain = -np.inf
+        best_idx = -1
+        
+        S = selected_indices
+        L_SS = L[np.ix_(S, S)]
+        
+        try:
+            # Add a small epsilon for numerical stability
+            L_SS_inv = np.linalg.inv(L_SS + np.eye(len(S)) * 1e-6)
+        except np.linalg.LinAlgError:
+            L_SS_inv = np.linalg.pinv(L_SS)
+            
+        # This loop can be vectorized if num_total is very large
+        L_ii_diag = np.diag(L)
+        # We only need L_iS for i in remaining_indices
+        L_rem_S = L[remaining_indices, :][:, S]
+        
+        # gains = L_ii - L_iS @ L_SS_inv @ L_Si
+        # L_iS is (len(rem), len(S))
+        # L_SS_inv is (len(S), len(S))
+        # Result of L_rem_S @ L_SS_inv @ L_rem_S.T is (len(rem), len(rem))
+        # We only want the diagonal
+        intermediate = L_rem_S @ L_SS_inv
+        gains = L_ii_diag[remaining_indices] - np.einsum('ij,ij->i', intermediate, L_rem_S)
+        
+        best_idx_in_rem = np.argmax(gains)
+        best_idx = remaining_indices[best_idx_in_rem]
+        
+        if gains[best_idx_in_rem] < 0:
+            # No more positive gain possible (numerically)
+            break
+            
+        selected_indices.append(best_idx)
+        remaining_indices.remove(best_idx)
+        
+    return [grasps[i] for i in selected_indices]

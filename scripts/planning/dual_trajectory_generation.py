@@ -44,6 +44,7 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_object_trajectory,
     check_dual_trajectory_feasibility
 )
+from robosuite_franka_manipulation.planning import maximize_entropy_grasps
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
 from robosuite_franka_manipulation.planning.utils import (
     visualize_trajectory,
@@ -253,9 +254,12 @@ def main() -> None:
     
     logger.info("Generating grasp candidates for Finger and Suction grippers...")
     all_grasps = grasp_generator.generate_grasps(object_name="plate_target", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
-    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:5]
-    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:5]
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
+    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=2)
+    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=2)
+
     logger.info(f"Selection: {len(grasps_0)} Finger grasps, {len(grasps_1)} Suction grasps.")
 
     # 6. Evaluate Pairs in Parallel
