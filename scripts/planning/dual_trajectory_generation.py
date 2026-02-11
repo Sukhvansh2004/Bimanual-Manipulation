@@ -6,7 +6,8 @@ This script:
 1. Initializes the DualArmEnvironment with a shelf and a plate.
 2. Generates grasps for both robots and pairs them (N x M).
 3. Evaluates simultaneous feasibility for each grasp pair using multiprocessing.
-4. Saves feasible dual-arm trajectories to disk.
+4. Visualizes the planning context and generated trajectories in Meshcat.
+5. Saves ALL evaluated trajectories to disk.
 """
 
 import numpy as np
@@ -93,14 +94,15 @@ def evaluate_pair(pair_info, ycb_objects, object_trajectory):
     env.close()
     
     return {
-        'pair_idx': (i, j),
+        'id0': i,
+        'id1': j,
         'traj0_eef': traj0_eef,
         'traj1_eef': traj1_eef,
         'results0': results0,
         'results1': results1,
         'all_feasible': all_feasible,
-        'g0': g0,
-        'g1': g1
+        'grasp0': g0,
+        'grasp1': g1
     }
 
 def main() -> None:
@@ -115,8 +117,18 @@ def main() -> None:
     parser.add_argument("--num-workers", type=int, default=multiprocessing.cpu_count() // 2, help="Number of parallel workers")
     
     # Pose arguments
+    parser.add_argument("--start-pos", type=float, nargs=3, help="Start position [x, y, z]")
+    parser.add_argument("--start-quat", type=float, nargs=4, help="Start quaternion [x, y, z, w]")
     parser.add_argument("--target-pos", type=float, nargs=3, default=default_target_pos, help="Target position [x, y, z]")
     parser.add_argument("--target-quat", type=float, nargs=4, default=default_target_quat, help="Target quaternion [x, y, z, w]")
+    
+    # Visualization arguments
+    parser.add_argument("--visualize-robot-meshes", action="store_true", default=False,
+                        help="Visualize robot configurations as meshes along trajectories")
+    parser.add_argument("--mesh-step-interval", type=int, default=constants.VIS_MESH_STEP_INTERVAL,
+                        help=f"Visualize robot mesh every N waypoints (default: {constants.VIS_MESH_STEP_INTERVAL})")
+    parser.add_argument("--mesh-opacity", type=float, default=constants.VIS_MESH_OPACITY,
+                        help=f"Opacity for robot mesh visualization (0-1, default: {constants.VIS_MESH_OPACITY})")
     
     args = parser.parse_args()
 
@@ -124,10 +136,11 @@ def main() -> None:
     log_level = logging.DEBUG if args.debug else logging.INFO
     setup_logging(log_level)
 
+    logger.debug(f"Parsed arguments: {args}")
     logger.info("Initializing Dual Trajectory Generation...")
     
-    # 1. Setup Environment and Planning Context
-    # ----------------------------------------
+    # 1. Setup Environment
+    # --------------------
     shelf_pos = [-0.7, 0.0, 0.0]
     shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
     plate_pos = [0.0, -0.1, 0.85]
@@ -138,7 +151,6 @@ def main() -> None:
         create_ycb_object(ycb_name="plate", instance_name="plate_target", position=plate_pos, quaternion=plate_quat)
     ]
     
-    # Create main env for grasp generation and object trajectory planning
     env = make_dual_arm_env(
         ycb_objects=ycb_objects,
         has_renderer=False, 
@@ -146,49 +158,77 @@ def main() -> None:
         use_camera_obs=False
     )
     env.reset()
+    
     env_lock = threading.RLock()
     tf_manager = TransformManager(env, env_lock=env_lock)
     
-    # 2. Determine Start and Target Poses
-    # -----------------------------------
-    plate_pose_mat = env.get_object_pose("plate_target")
-    start_pos = plate_pose_mat[:3, 3]
-    start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
-    start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
+    # 2. Setup Visualization
+    # ----------------------
+    logger.info("Setting up visualization")
+    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
+    stop_event = threading.Event()
+    vis_thread = threading.Thread(
+        target=stream_transforms_to_meshcat,
+        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
+        daemon=True
+    )
+    vis_thread.start()
     
+    vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+    logger.info("Visualization started. Open http://127.0.0.1:7000")
+    
+    # 3. Define Planning Problem
+    # --------------------------
+    start_pos = None
+    start_quat = None
+    if args.start_pos and args.start_quat:
+        start_pos = np.array(args.start_pos)
+        start_quat = np.array(args.start_quat)
+    else:
+        logger.info("Querying object pose...")
+        time.sleep(1.0)
+        try:
+            plate_pose_mat = env.get_object_pose("plate_target")
+            if plate_pose_mat is not None:
+                start_pos = plate_pose_mat[:3, 3]
+                start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
+        except Exception as e:
+            logger.warning(f"Error querying object pose: {e}")
+            
+        if start_pos is None:
+            start_pos, start_quat = np.array(plate_pos), np.array(plate_quat)
+    
+    start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
     target_pose_stamped = StampedPose(position=np.array(args.target_pos), quaternion=np.array(args.target_quat), frame_id=constants.WORLD_FRAME)
     
-    # 3. Generate Object Trajectory
+    # 4. Generate Object Trajectory
     # -----------------------------
-    object_trajectory = generate_object_trajectory(
-        start_pose_stamped, 
-        target_pose_stamped, 
-        num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
-        tf_manager=tf_manager
-    )
+    object_trajectory = generate_object_trajectory(start_pose_stamped, target_pose_stamped, num_steps=constants.OBJECT_TRAJ_NUM_STEPS, tf_manager=tf_manager)
+    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
-    # 4. Generate Grasps
+    # Visualize Target
+    vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
+    T_target = np.eye(4)
+    T_target[:3, 3] = target_pose_stamped.position
+    T_target[:3, :3] = tf.quaternion_matrix(T.convert_quat(target_pose_stamped.quaternion, to="wxyz"))[:3, :3]
+    vis["target_pose"].set_transform(T_target)
+    
+    # 5. Generate Grasps
     # ------------------
-    logger.info("Generating grasps...")
+    logger.info("Initializing Services and generating grasps...")
     service_manager = ServiceManager()
     service_manager.start()
-    grasp_service = GraspService(tf_manager=tf_manager)
+    grasp_service = GraspService(tf_manager=tf_manager, visualize=True)
     grasp_service.start()
     grasp_generator = GraspGenerator(env=env)
     
-    all_grasps = grasp_generator.generate_grasps(
-        object_name="plate_target", 
-        gripper_types=["finger", "suction"], 
-        num_grasps=40,
-        env_lock=env_lock
-    )
+    all_grasps = grasp_generator.generate_grasps(object_name="plate_target", gripper_types=["finger", "suction"], num_grasps=40, env_lock=env_lock)
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
     
-    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:4]
-    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:4]
-    
-    logger.info(f"Using {len(grasps_0)} Finger grasps and {len(grasps_1)} Suction grasps.")
-    
-    # 5. Evaluate Pairs in Parallel
+    logger.info(f"Using {len(grasps_0)} Finger and {len(grasps_1)} Suction grasps.")
+
+    # 6. Evaluate Pairs in Parallel
     # -----------------------------
     grasp_pairs = []
     for i, g0 in enumerate(grasps_0):
@@ -196,37 +236,53 @@ def main() -> None:
             grasp_pairs.append((i, j, g0, g1))
             
     logger.info(f"Evaluating {len(grasp_pairs)} pairs using {args.num_workers} workers...")
-    
-    # Use multiprocessing pool
     with multiprocessing.Pool(processes=args.num_workers) as pool:
         eval_func = partial(evaluate_pair, ycb_objects=ycb_objects, object_trajectory=object_trajectory)
-        results = pool.map(eval_func, grasp_pairs)
-    
-    # 6. Save Feasible Trajectories
-    # -----------------------------
-    if args.save_traj or input("Save feasible trajectories? [y/N]: ").strip().lower() in ('y', 'yes'):
-        # Save object trajectory
-        save_trajectory(args.output_dir, "object_trajectory.npz", object_trajectory=object_trajectory)
+        all_results = pool.map(eval_func, grasp_pairs)
         
-        for idx, res in enumerate(results):
-            pair_id = f"{res['pair_idx'][0]}_{res['pair_idx'][1]}"
-            # Save robot 0
-            save_trajectory(
-                args.output_dir, f"dual_robot0_pair_{pair_id}.npz",
-                eef_trajectory=res['traj0_eef'], object_trajectory=object_trajectory, waypoint_results=res['results0']
+    feasible_count = sum(1 for r in all_results if r['all_feasible'])
+    logger.info(f"Found {feasible_count}/{len(all_results)} fully feasible dual-arm trajectories.")
+
+    # 7. Visualization of Results
+    # ---------------------------
+    logger.info("Visualizing evaluated trajectories...")
+    for res in all_results:
+        pair_id = f"pair_{res['id0']}_{res['id1']}"
+        
+        # Visualize Robot 0 Path
+        visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x0000ff)
+        # Visualize Robot 1 Path
+        visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0xff00ff)
+        
+        if args.visualize_robot_meshes and res['all_feasible']:
+            mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path=f"dual_configs/{pair_id}")
+            mesh_vis.visualize_dual_arm_trajectory(
+                trajectory_id="feasible",
+                waypoint_results_robot0=res['results0'],
+                waypoint_results_robot1=res['results1'],
+                step_interval=args.mesh_step_interval,
+                opacity=args.mesh_opacity
             )
-            # Save robot 1
-            save_trajectory(
-                args.output_dir, f"dual_robot1_pair_{pair_id}.npz",
-                eef_trajectory=res['traj1_eef'], object_trajectory=object_trajectory, waypoint_results=res['results1']
-            )
-            
-        logger.info(f"Saved {len(results)} dual-arm trajectory pairs to {args.output_dir}")
+
+    # 8. Save Trajectories
+    # --------------------
+    should_save = args.save_traj or (sys.stdin.isatty() and input("Save ALL trajectories? [y/N]: ").strip().lower() in ('y', 'yes'))
+    
+    if should_save:
+        save_trajectory(args.output_dir, "object_trajectory.npz", object_trajectory=object_trajectory)
+        for res in all_results:
+            pair_id = f"{res['id0']}_{res['id1']}"
+            save_trajectory(args.output_dir, f"dual_robot0_pair_{pair_id}.npz", eef_trajectory=res['traj0_eef'], object_trajectory=object_trajectory, waypoint_results=res['results0'])
+            save_trajectory(args.output_dir, f"dual_robot1_pair_{pair_id}.npz", eef_trajectory=res['traj1_eef'], object_trajectory=object_trajectory, waypoint_results=res['results1'])
+        logger.info(f"Saved {len(all_results)} trajectory pairs to {args.output_dir}")
 
     # Cleanup
+    stop_event.set()
+    vis_thread.join(timeout=2.0)
     grasp_service.stop()
     service_manager.stop()
     env.close()
+    sys.exit(0)
 
 if __name__ == "__main__":
     multiprocessing.set_start_method('spawn', force=True)
