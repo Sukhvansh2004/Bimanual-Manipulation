@@ -111,6 +111,9 @@ GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using 
 MIN_GRASPS = 50
 DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
 
+ENTROPY_POSITION_SCALE = 5
+ENTROPY_ORIENTATION_SCALE = 5
+
 # =============================================================================
 # Planning Configuration
 # =============================================================================

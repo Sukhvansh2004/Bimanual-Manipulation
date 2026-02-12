@@ -493,8 +493,8 @@ def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at
     
     # Combined distance squared
     # sigma_p and sigma_r control the diversity scale
-    sigma_p = 5
-    sigma_r = 5
+    sigma_p = constants.ENTROPY_POSITION_SCALE
+    sigma_r = constants.ENTROPY_ORIENTATION_SCALE
     
     # d^2 = (dist_pos / sigma_p)^2 + (dist_rot / sigma_r)^2
     d_sq = dist_pos_sq / (sigma_p**2) + (dist_rot**2) / (sigma_r**2)
