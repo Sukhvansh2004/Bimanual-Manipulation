@@ -725,7 +725,7 @@ def get_arm_status(robot_id: int, arm_id: str):
         print(f"Failed to get arm status: {response.get('message')}")
         return None
 
-def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0, num_steps: Optional[int] = None):
+def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0):
     """Quick helper to send a follow trajectory command."""
     assert system.service_client is not None, "Service client not initialized"
     
@@ -737,7 +737,6 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
         'arm': arm_id,
         'trajectory': traj_dicts,
         'gripper_action': gripper_action,
-        'num_steps': num_steps
     })
     
     if response.get('status') == 'success':
@@ -745,7 +744,7 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
     else:
         print(f"Failed to send follow trajectory command: {response.get('message')}")
 
-def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0, num_steps_per_segment: int = 200):
+def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0):
     """
     Groups feasible waypoints into continuous segments and executes them.
     A trajectory compromises a continuous set of feasible segments.
@@ -772,7 +771,7 @@ def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[Sta
     
     for i, segment in enumerate(segments):
         print(f"  Executing segment {i+1}/{len(segments)} ({len(segment)} waypoints)")
-        follow_trajectory_command(robot_id, arm_id, segment, gripper_action, num_steps_per_segment)
+        follow_trajectory_command(robot_id, arm_id, segment, gripper_action)
         
         # Wait for segment to finish
         while True:

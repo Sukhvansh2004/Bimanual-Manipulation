@@ -316,10 +316,8 @@ class RobosuiteArmController:
             logger.info(f"  Target in base: pos={target_pos}")
             logger.info(f"  Distance to target: {np.linalg.norm(target_pos - current_pos):.4f}m")
 
-            # Reserve 20% or at least 10 steps for settling
-            settling_steps = max(10, int(num_steps * 0.2))
             # Ensure at least 2 points (start/end)
-            traj_num_points = max(2, num_steps - settling_steps)
+            traj_num_points = max(2, num_steps)
             logger.debug(f"Adjusting trajectory points to {traj_num_points}")
                              
             positions, quaternions = self.plan_quintic_trajectory(
@@ -429,8 +427,7 @@ class RobosuiteArmController:
     def follow_trajectory(self, trajectory: List[StampedPose], 
                           gripper_action: float = 0.0,
                           dt: float = constants.TRAJECTORY_TIME_STEP,
-                          threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
-                          num_steps: Optional[int] = None) -> bool:
+                          threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,) -> bool:
         """
         Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
@@ -472,7 +469,7 @@ class RobosuiteArmController:
                 self._visualize_se3_trajectory(positions, quaternions)
             
             num_waypoints = len(positions)
-            max_steps = num_steps if num_steps is not None else num_waypoints * 1.2
+            max_steps = num_waypoints * 2
             
             current_waypoint_idx = 0
             steps_taken = 0

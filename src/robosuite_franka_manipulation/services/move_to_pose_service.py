@@ -180,7 +180,6 @@ class MoveToPoseService:
             arm_id = request.arm
             gripper_action = request.gripper_action
             trajectory = request.trajectory
-            num_steps = request.num_steps
 
             key = (robot_id, arm_id)
             if key not in self.controllers:
@@ -194,7 +193,6 @@ class MoveToPoseService:
                     controller.follow_trajectory(
                         trajectory=trajectory,
                         gripper_action=gripper_action,
-                        num_steps=num_steps
                     )
                     logger.info(f"Trajectory following complete for robot {robot_id}, arm {arm_id}")
                 except Exception as e:

@@ -117,7 +117,6 @@ class FollowTrajectoryRequest(BaseSchema):
     arm: str = "right"
     trajectory: List[StampedPose]
     gripper_action: float = 0.0
-    num_steps: Optional[int] = None
 
 class GetArmStatusRequest(BaseSchema):
     command: str

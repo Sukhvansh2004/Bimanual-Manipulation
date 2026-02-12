@@ -41,8 +41,8 @@ class TestArmControllers:
         assert robot1_arm is not None
         
         # Check transform manager is initialized
-        assert robot0_arm.transform_manager is not None
-        assert robot1_arm.transform_manager is not None
+        assert robot0_arm.tf_manager is not None
+        assert robot1_arm.tf_manager is not None
         
         # Check base frame is set correctly
         assert "base" in robot0_arm.base_frame
