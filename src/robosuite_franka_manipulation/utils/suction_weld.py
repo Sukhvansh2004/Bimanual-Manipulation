@@ -85,18 +85,17 @@ def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
     return None
 
 
-def _get_contact_pairs(sim: MjSim) -> List[Tuple[int, int, float]]:
-    """Return list of (geom1, geom2, dist) for all contacts."""
+def _get_contact_arrays(sim: MjSim) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return vectorized contact info (geom1, geom2, dist)."""
     data = sim.data
     ncon = int(data.ncon)
-    pairs: List[Tuple[int, int, float]] = []
-    for i in range(ncon):
-        c = data.contact[i]
-        g1 = int(c.geom1)
-        g2 = int(c.geom2)
-        dist = float(c.dist)
-        pairs.append((g1, g2, dist))
-    return pairs
+    if ncon <= 0:
+        return np.array([], dtype=np.int32), np.array([], dtype=np.int32), np.array([], dtype=np.float64)
+    
+    g1 = np.asarray(data.contact.geom1[:ncon], dtype=np.int32)
+    g2 = np.asarray(data.contact.geom2[:ncon], dtype=np.int32)
+    dist = np.asarray(data.contact.dist[:ncon], dtype=np.float64)
+    return g1, g2, dist
 
 
 def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
@@ -379,7 +378,8 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
             logger.warning(f"Action vector size {action_vec.size} is less than expected {total_action_dim}")
             return
 
-        contact_pairs = _get_contact_pairs(sim)
+        # Fetch contact arrays once per update
+        g1_arr, g2_arr, dist_arr = _get_contact_arrays(sim)
         any_mutation = False
 
         for ridx, robot in enumerate(robots):
@@ -431,20 +431,26 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
 
                 # Find the best contacted geom (closest contact with snout)
                 target_geom_id = None
-                best_dist = float("inf")
-                for g1, g2, dist in contact_pairs:
-                    if g1 == handles.snout_geom_id:
-                        candidate = g2
-                    elif g2 == handles.snout_geom_id:
-                        candidate = g1
-                    else:
-                        continue
-                    if dist < best_dist:
-                        best_dist = dist
-                        target_geom_id = int(candidate)
+                if g1_arr.size > 0:
+                    # Snout can be either geom1 or geom2
+                    mask = (g1_arr == handles.snout_geom_id) | (g2_arr == handles.snout_geom_id)
+                    # Use threshold of 0.05 as requested
+                    mask &= (dist_arr < 0.05)
+                    
+                    if np.any(mask):
+                        # Get indices of contacts involving the snout within threshold
+                        candidate_indices = np.where(mask)[0]
+                        # Get the one with the minimum distance
+                        best_idx = candidate_indices[np.argmin(dist_arr[candidate_indices])]
+                        
+                        # Identify the other geom in the contact
+                        if g1_arr[best_idx] == handles.snout_geom_id:
+                            target_geom_id = int(g2_arr[best_idx])
+                        else:
+                            target_geom_id = int(g1_arr[best_idx])
 
                 if target_geom_id is None:
-                    # No contact - keep weld inactive, do NOT activate
+                    # No contact - keep weld inactive
                     _set_equality_active(sim, handles.eq_id, False)
                     continue
 

@@ -86,6 +86,16 @@ def init_worker(ycb_objects, custom_objects):
         # Allow environment to settle
         for _ in range(10):
             env_step(worker_env)
+            
+        # Optimization: Disable collisions between environment geoms
+        model = worker_env.sim.model
+        for i in range(model.ngeom):
+            name = model.geom_id2name(i) or ""
+            is_robot = any(name.startswith(p) for p in ["robot0", "gripper0", "robot1", "gripper1"])
+            is_moving_obj = "flatPlate" in name or "plate" in name
+            if not (is_robot or is_moving_obj):
+                model.geom_contype[i] = 0
+
         worker_tf_manager = TransformManager(worker_env)
         logging.info("Worker initialized: Environment created.")
     except Exception as e:
