@@ -245,9 +245,6 @@ class MoveToPoseService:
             target_pose = request.pose
             num_steps = request.num_steps
 
-            if target_pose is None:
-                return ResponseStatus(status="error", message="No target pose provided").model_dump()
-
             key = (robot_id, arm_id)
             if key not in self.controllers:
                 return ResponseStatus(status="error", message=f"No controller registered for robot {robot_id}, arm {arm_id}").model_dump()

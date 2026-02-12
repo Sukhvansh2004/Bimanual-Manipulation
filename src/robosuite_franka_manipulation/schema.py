@@ -105,8 +105,7 @@ class MoveToPoseRequest(BaseSchema):
     command: str
     robot_id: int = 0
     arm: str = "right"
-    pose: Optional[StampedPose] = None
-    pose_trajectory: Optional[List[StampedPose]] = None
+    pose: StampedPose
     gripper_action: float = 0.0
     approach: bool = False
     num_steps: Optional[int] = None
