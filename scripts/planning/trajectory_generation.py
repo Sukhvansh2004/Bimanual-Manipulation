@@ -112,7 +112,8 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
         return None
         
     i, grasp = grasp_info
-    
+    logger.info("WORKER: Evaluating Robot %d Grasp %d (Gripper: %s, Score: %.3f)", robot_id, i, grasp.gripper_type, grasp.score)
+
     try:
         # Generate EEF trajectory
         traj_eef = generate_end_effector_trajectory(object_trajectory, grasp, tf_manager=worker_tf_manager)
@@ -301,6 +302,7 @@ def main() -> None:
         num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
         tf_manager=tf_manager
     )
+    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     logger.info("Object trajectory generated.")
     
