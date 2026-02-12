@@ -24,6 +24,7 @@ from scipy.spatial.transform import Rotation as R
 
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.utils import create_ycb_object, env_step
 from robosuite_franka_manipulation import constants
@@ -249,8 +250,11 @@ def main() -> None:
         env_lock=env_lock
     )
     
-    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
-    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
+    
+    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=10)
+    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=10)
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
