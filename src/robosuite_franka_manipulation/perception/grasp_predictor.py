@@ -445,7 +445,7 @@ class GraspPredictor:
         return filtered_pcd.cpu().numpy()
     
 
-def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at_neg: bool =  True) -> List[GraspSchema]:
+def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at_neg: bool = False) -> List[GraspSchema]:
     """
     Select a subset of grasps that maximizes entropy (diversity and quality).
     Uses a greedy Determinantal Point Process (DPP) approach.
