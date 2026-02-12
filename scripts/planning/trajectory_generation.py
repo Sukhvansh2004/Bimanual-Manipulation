@@ -99,7 +99,7 @@ def main() -> None:
     
     # Plate configuration (on table)
     # Default plate pos if not overridden
-    plate_pos = [0.0, -0.1, 0.85]
+    plate_pos = [0.0, 0.0, 0.85]
     plate_quat = [0, 0, 0, 1]
     
     ycb_objects = [
