@@ -2,7 +2,7 @@
 
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
-    solve_ik_dls,
+    solve_ik_scipy,
     unique_solutions
 )
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
@@ -32,7 +32,7 @@ from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
 __all__ = [
     # IK utilities
     'enumerate_ik_solutions_for_arm',
-    'solve_ik_dls',
+    'solve_ik_scipy',
     'unique_solutions',
     # Collision utilities
     'in_collision',

@@ -136,7 +136,7 @@ IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 
 # Trajectory Feasibility Check Parameters
-TRAJ_IK_NUM_SEED_CONFIGS = 16  # Fewer seeds for trajectory waypoints (faster)
+TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
 TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
 
 # Collision Checking Parameters
@@ -150,7 +150,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # Object Trajectory Generation
-OBJECT_TRAJ_NUM_STEPS = 100  # Default number of steps for object trajectory
+OBJECT_TRAJ_NUM_STEPS = 50  # Default number of steps for object trajectory
 OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
 OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
 # Segment ratios for object trajectory (lift, approach, insert)

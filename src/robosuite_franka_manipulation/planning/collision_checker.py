@@ -96,7 +96,7 @@ def check_single_grasp_feasibility(
         try:
             for q in solutions:
                 set_qpos(data, qpos_idx, q)
-                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                 
                 if not in_collision(env, env_lock=None, ignore_names=current_ignore_names): # Already locked by ctx
                     feasible = True
@@ -104,7 +104,7 @@ def check_single_grasp_feasibility(
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
-            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
         
     return feasible
 
@@ -202,9 +202,6 @@ def check_dual_arm_pose_feasibility(
     # IK solver params
     pos_tol: float = constants.IK_POS_TOLERANCE,
     ori_tol: float = constants.IK_ORI_TOLERANCE,
-    max_iters: int = constants.IK_MAX_ITERATIONS,
-    damping: float = constants.IK_DAMPING,
-    step_size: float = constants.IK_STEP_SIZE,
     # Collision params
     contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
     # Pairing caps
@@ -257,7 +254,6 @@ def check_dual_arm_pose_feasibility(
         env,
         robot_id=0,
         target_pose=target0,
-        target_frame=input_frame,
         arm=arm,
         site_name=f"gripper0_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
@@ -267,16 +263,12 @@ def check_dual_arm_pose_feasibility(
         max_solutions=max_solutions_per_arm,
         pos_tol=pos_tol,
         ori_tol=ori_tol,
-        max_iters=max_iters,
-        damping=damping,
-        step_size=step_size,
     )
 
     q_solutions_1 = enumerate_ik_solutions_for_arm(
         env,
         robot_id=1,
         target_pose=target1,
-        target_frame=input_frame,
         arm=arm,
         site_name=f"gripper1_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
@@ -286,9 +278,6 @@ def check_dual_arm_pose_feasibility(
         max_solutions=max_solutions_per_arm,
         pos_tol=pos_tol,
         ori_tol=ori_tol,
-        max_iters=max_iters,
-        damping=damping,
-        step_size=step_size,
     )
 
     if len(q_solutions_0) == 0 or len(q_solutions_1) == 0:
@@ -322,7 +311,7 @@ def check_dual_arm_pose_feasibility(
                     set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
                     
                     # Unwrap for native call
-                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
 
                     feasible = not in_collision(
                         env, 
@@ -339,6 +328,6 @@ def check_dual_arm_pose_feasibility(
             data.qvel[:] = qvel_backup
             
             # Unwrap for native call
-            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
 
         return results

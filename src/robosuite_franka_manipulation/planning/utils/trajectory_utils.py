@@ -72,7 +72,6 @@ def process_waypoint(
         env=env,
         robot_id=robot_id,
         target_pose=target_pose,
-        target_frame=constants.WORLD_FRAME,
         arm="right",
         site_name=site_name,
         q_warm_start=last_config,
@@ -100,7 +99,7 @@ def process_waypoint(
         collision_free = True
         if check_collisions:
             set_qpos(data, qpos_idx, q_sol)
-            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
             collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
         
         if collision_free:
@@ -158,7 +157,6 @@ def process_dual_waypoint(
         env=env,
         robot_id=0,
         target_pose=target0,
-        target_frame=constants.WORLD_FRAME,
         arm="right",
         site_name=site0,
         q_warm_start=last_config0,
@@ -172,7 +170,6 @@ def process_dual_waypoint(
         env=env,
         robot_id=1,
         target_pose=target1,
-        target_frame=constants.WORLD_FRAME,
         arm="right",
         site_name=site1,
         q_warm_start=last_config1,
@@ -199,7 +196,7 @@ def process_dual_waypoint(
                     set_qpos(data, qpos_idx0, q0)
                     if last_config1 is not None:
                         set_qpos(data, qpos_idx1, last_config1)
-                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                     if not in_collision(env, env_lock=None, ignore_names=ignore_names):
                         best_q0 = q0
                         res0_col = True
@@ -221,7 +218,7 @@ def process_dual_waypoint(
                     set_qpos(data, qpos_idx1, q1)
                     if last_config0 is not None:
                         set_qpos(data, qpos_idx0, last_config0)
-                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                     if not in_collision(env, env_lock=None, ignore_names=ignore_names):
                         best_q1 = q1
                         res1_col = True
@@ -254,7 +251,7 @@ def process_dual_waypoint(
             if check_collisions:
                 set_qpos(data, qpos_idx0, q0)
                 set_qpos(data, qpos_idx1, q1)
-                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                 collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
             
             if collision_free:
