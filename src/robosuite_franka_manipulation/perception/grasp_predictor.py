@@ -445,7 +445,7 @@ class GraspPredictor:
         return filtered_pcd.cpu().numpy()
     
 
-def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[GraspSchema]:
+def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at_neg: bool =  True) -> List[GraspSchema]:
     """
     Select a subset of grasps that maximizes entropy (diversity and quality).
     Uses a greedy Determinantal Point Process (DPP) approach.
@@ -514,7 +514,7 @@ def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[
     remaining_indices.remove(first_idx)
     
     # Iteratively add elements that maximize the conditional log-determinant (Schur complement)
-    for _ in range(num_grasps - 1):
+    for it in range(num_grasps - 1):
         best_idx = -1
         
         S = selected_indices
@@ -542,8 +542,8 @@ def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int) -> List[
         best_idx_in_rem = np.argmax(gains)
         best_idx = remaining_indices[best_idx_in_rem]
         
-        if gains[best_idx_in_rem] < 0:
-            # No more positive gain possible (numerically)
+        if gains[best_idx_in_rem] < 0 and break_at_neg:
+            logger.info(f"Breaking early at {it} grasps as more entropy can't be maximized more")
             break
             
         selected_indices.append(best_idx)
