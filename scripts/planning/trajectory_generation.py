@@ -237,6 +237,21 @@ def main() -> None:
     # Create TransformManager for pose queries
     tf_manager = TransformManager(env, env_lock=env_lock)
     
+    # 2. Setup Visualization (Scene Streaming)
+    # ----------------------------------------
+    logger.info("Setting up global visualization stream...")
+    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
+    stop_event = threading.Event()
+    vis_thread = threading.Thread(
+        target=stream_transforms_to_meshcat,
+        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
+        daemon=True
+    )
+    vis_thread.start()
+    
+    # Connect to the same meshcat server for worker coordination
+    vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+    
     # 3. Define Planning Problem
     # --------------------------
     
@@ -444,6 +459,8 @@ def main() -> None:
         logger.info("No trajectories saved.")
         
     logger.info("Closing simulation...")
+    stop_event.set()
+    vis_thread.join(timeout=2.0)
     
     # Stop Services
     if grasp_service:
