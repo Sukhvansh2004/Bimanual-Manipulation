@@ -19,7 +19,6 @@ import meshcat
 import meshcat.geometry as g
 import argparse
 import sys
-import os
 import multiprocessing
 from functools import partial
 
@@ -49,7 +48,7 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_object_trajectory,
     check_dual_trajectory_feasibility
 )
-from robosuite_franka_manipulation.planning import maximize_entropy_grasps
+from robosuite_franka_manipulation.perception import maximize_entropy_grasps
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
 from robosuite_franka_manipulation.planning.utils import (
     visualize_trajectory,
@@ -65,6 +64,8 @@ def setup_logging(level: int = logging.INFO):
     )
 
 logger = logging.getLogger(__name__)
+constants.ZMQ_MANAGER_TIMEOUT = 16 * 50 * 1000
+constants.ZMQ_SERVICE_CALL_TIMEOUT = 15 * 50 * 1000
 
 # Global variables for worker processes
 worker_env = None
@@ -271,7 +272,7 @@ def main() -> None:
     grasp_generator = GraspGenerator(env=env)
     
     logger.info("Generating grasp candidates for Finger and Suction grippers...")
-    all_grasps = grasp_generator.generate_grasps(object_name="flatPlate", gripper_types=["finger", "suction"], num_grasps=250, env_lock=env_lock)
+    all_grasps = grasp_generator.generate_grasps(object_name="flatPlate", gripper_types=["finger", "suction"], num_grasps=200, env_lock=env_lock)
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
@@ -365,3 +366,5 @@ def main() -> None:
 if __name__ == "__main__":
     multiprocessing.set_start_method('spawn', force=True)
     main()
+    logger.info("Done.")
+    sys.exit(0)

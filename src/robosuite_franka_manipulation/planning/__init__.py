@@ -1,6 +1,6 @@
 """robosuite_franka_manipulation.planning manipulation package."""
 
-from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator, maximize_entropy_grasps
+from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 from robosuite_franka_manipulation.planning.collision_checker import (
     find_feasible_grasp_pairs,
     check_single_grasp_feasibility
@@ -28,7 +28,6 @@ from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
 
 __all__ = [
     'GraspGenerator',
-    'maximize_entropy_grasps',
     'GraspSchema',
     'StampedPose',
     'find_feasible_grasp_pairs',

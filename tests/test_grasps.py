@@ -17,7 +17,7 @@ from robosuite_franka_manipulation.transforms import StampedPose, Transform
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils import transform_point_cloud
 from robosuite_franka_manipulation.schema import GraspSchema
-from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor
+from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor, maximize_entropy_grasps
 from robosuite_franka_manipulation.services.grasp_service import GraspService
 
 class TestGraspTransformations:
@@ -699,6 +699,59 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
     assert len(result) == 1
     assert result[0].score == 0.9
     assert result[0].id == "0_0"
+
+def test_maximize_entropy_grasps():
+    # Create some dummy grasps
+    # Grasp 1 and 2 are close
+    # Grasp 3 is far
+    
+    grasps = [
+        GraspSchema(
+            pos=np.array([0.0, 0.0, 0.0]),
+            quat=np.array([0.0, 0.0, 0.0, 1.0]),
+            score=1.0,
+            id=1,
+            gripper_type="franka_panda"
+        ),
+        GraspSchema(
+            pos=np.array([0.01, 0.0, 0.0]), # Very close to 1
+            quat=np.array([0.0, 0.0, 0.0, 1.0]),
+            score=0.9,
+            id=2,
+            gripper_type="franka_panda"
+        ),
+        GraspSchema(
+            pos=np.array([0.5, 0.5, 0.5]), # Far from 1 and 2
+            quat=np.array([0.0, 0.0, 0.0, 1.0]),
+            score=0.8,
+            id=3,
+            gripper_type="franka_panda"
+        ),
+        GraspSchema(
+            pos=np.array([0.0, 0.0, 0.0]),
+            quat=np.array([0.707, 0.0, 0.0, 0.707]), # Different orientation from 1
+            score=0.7,
+            id=4,
+            gripper_type="franka_panda"
+        )
+    ]
+    
+    # Select 2 grasps
+    # It should pick 1 (highest score) and then 3 (furthest)
+    selected = maximize_entropy_grasps(grasps, 2)
+    
+    selected_ids = [g.id for g in selected]
+    assert len(selected) == 2
+    assert selected[0].id == 1
+    assert selected[1].id == 3
+
+    # Select 3 grasps
+    # It should pick 1, 3, and then probably 4 (due to orientation difference)
+    selected_3 = maximize_entropy_grasps(grasps, 3)
+    assert len(selected_3) == 3
+    assert set([g.id for g in selected_3]) == {1, 3, 4}
+
+
 
 def test_visualization_flag_handling(mock_grasp_service, mock_constants):
     """Test that visualize_gripper is called when flags are enabled."""

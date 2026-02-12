@@ -9,7 +9,6 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory,
     check_trajectory_feasibility
 )
-from robosuite_franka_manipulation.planning import maximize_entropy_grasps
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 
@@ -246,55 +245,3 @@ def test_check_trajectory_feasibility_ignore_names(
     )
     
     mock_resolve.assert_called_with("my_object", None)
-
-def test_maximize_entropy_grasps():
-    # Create some dummy grasps
-    # Grasp 1 and 2 are close
-    # Grasp 3 is far
-    
-    grasps = [
-        GraspSchema(
-            pos=np.array([0.0, 0.0, 0.0]),
-            quat=np.array([0.0, 0.0, 0.0, 1.0]),
-            score=1.0,
-            id=1,
-            gripper_type="franka_panda"
-        ),
-        GraspSchema(
-            pos=np.array([0.01, 0.0, 0.0]), # Very close to 1
-            quat=np.array([0.0, 0.0, 0.0, 1.0]),
-            score=0.9,
-            id=2,
-            gripper_type="franka_panda"
-        ),
-        GraspSchema(
-            pos=np.array([0.5, 0.5, 0.5]), # Far from 1 and 2
-            quat=np.array([0.0, 0.0, 0.0, 1.0]),
-            score=0.8,
-            id=3,
-            gripper_type="franka_panda"
-        ),
-        GraspSchema(
-            pos=np.array([0.0, 0.0, 0.0]),
-            quat=np.array([0.707, 0.0, 0.0, 0.707]), # Different orientation from 1
-            score=0.7,
-            id=4,
-            gripper_type="franka_panda"
-        )
-    ]
-    
-    # Select 2 grasps
-    # It should pick 1 (highest score) and then 3 (furthest)
-    selected = maximize_entropy_grasps(grasps, 2)
-    
-    selected_ids = [g.id for g in selected]
-    assert len(selected) == 2
-    assert selected[0].id == 1
-    assert selected[1].id == 3
-
-    # Select 3 grasps
-    # It should pick 1, 3, and then probably 4 (due to orientation difference)
-    selected_3 = maximize_entropy_grasps(grasps, 3)
-    assert len(selected_3) == 3
-    assert set([g.id for g in selected_3]) == {1, 3, 4}
-

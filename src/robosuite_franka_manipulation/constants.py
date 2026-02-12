@@ -108,6 +108,7 @@ GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper c
 MESH_SCALE = 1.0  # Default scale for object meshes
 GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
 GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using GraspGen
+MIN_GRASPS = 50
 DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
 
 # =============================================================================
