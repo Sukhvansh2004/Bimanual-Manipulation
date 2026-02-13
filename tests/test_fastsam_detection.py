@@ -180,12 +180,18 @@ class TestFastSAMService:
     def test_server_loop(self, service):
         """Test _server_loop method."""
         service.running = True
-        # Return True then False repeatedly to avoid StopIteration
-        service.socket.poll.side_effect = [True] + [False] * 100
+        # Use a generator to avoid StopIteration
+        def poll_side_effect(*args, **kwargs):
+            if not hasattr(poll_side_effect, 'called'):
+                poll_side_effect.called = True
+                return True
+            return False
+            
+        service.socket.poll.side_effect = poll_side_effect
         service.socket.recv_json.return_value = {'command': 'GET_PROMPT'}
         
         def stop_soon():
-            time.sleep(0.2)
+            time.sleep(0.1)
             service.running = False
             
         threading.Thread(target=stop_soon).start()

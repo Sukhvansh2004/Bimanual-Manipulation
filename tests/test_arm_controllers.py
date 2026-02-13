@@ -21,6 +21,71 @@ from robosuite_franka_manipulation.utils.suction_weld import (
     apply_suction_weld, clear_suction_cache, SuctionWeldHandles
 )
 
+from robosuite_franka_manipulation.teleop.teleop import KeyboardTeleop, KeyboardOverride
+
+class TestTeleop:
+    """Test keyboard teleoperation logic."""
+
+    @pytest.fixture
+    def mock_teleop_env(self):
+        env = MagicMock()
+        env.action_dim = 14
+        robot = MagicMock()
+        robot.arms = ["right"]
+        robot.action_dim = 7
+        env.robots = [robot, robot]
+        return env
+
+    @patch('robosuite_franka_manipulation.teleop.teleop.pynput_keyboard.Listener')
+    def test_keyboard_teleop_init(self, mock_listener, mock_teleop_env):
+        """Test KeyboardTeleop initialization."""
+        teleop = KeyboardTeleop(mock_teleop_env)
+        assert teleop.device is not None
+        assert mock_listener.called
+
+    def test_keyboard_override(self, mock_teleop_env):
+        """Test KeyboardOverride special handling."""
+        device = KeyboardOverride(mock_teleop_env)
+        from pynput.keyboard import Key
+        # Space should be ignored (method returns None)
+        assert device.on_press(Key.space) is None
+
+    @patch('robosuite_franka_manipulation.teleop.teleop.pynput_keyboard.Listener')
+    def test_teleop_key_press(self, mock_listener, mock_teleop_env):
+        """Test _on_key_press callback."""
+        teleop = KeyboardTeleop(mock_teleop_env)
+        
+        # Test 'q'
+        key_q = MagicMock()
+        key_q.char = 'q'
+        teleop._on_key_press(key_q)
+        assert teleop.exit_pressed is True
+        
+        # Test Space
+        from pynput.keyboard import Key
+        teleop._on_key_press(Key.space)
+        assert teleop.gripper_toggle.is_set()
+
+    @patch('robosuite_franka_manipulation.teleop.teleop.pynput_keyboard.Listener')
+    @patch('time.sleep', side_effect=[None, Exception("Stop loop")]) # To break the loop
+    def test_teleop_run_minimal(self, mock_sleep, mock_listener, mock_teleop_env):
+        """Test a single iteration of the teleop run loop."""
+        teleop = KeyboardTeleop(mock_teleop_env)
+        teleop.device = MagicMock()
+        teleop.device.active_robot = 0
+        teleop.device.input2action.return_value = {"right_delta": np.zeros(6)}
+        
+        # We need to mock robot.create_action_vector
+        mock_teleop_env.robots[0].create_action_vector.return_value = np.zeros(7)
+        
+        try:
+            teleop.run()
+        except Exception as e:
+            if str(e) != "Stop loop":
+                raise e
+        
+        assert mock_teleop_env.reset.called
+
 class TestSuctionWeld:
     """Test suction weld utilities."""
 

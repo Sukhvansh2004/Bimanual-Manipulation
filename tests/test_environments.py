@@ -19,6 +19,24 @@ from robosuite_franka_manipulation.utils.env_utils import (
 )
 
 
+from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
+
+class TestMeshUtils:
+    """Test mesh utility functions."""
+
+    @patch('trimesh.load')
+    def test_load_mesh_and_sample(self, mock_load):
+        """Test load_mesh_and_sample method."""
+        mock_mesh = MagicMock()
+        mock_load.return_value = mock_mesh
+        
+        # Mock sampling result
+        pcd = np.zeros((10, 3))
+        with patch('trimesh.sample.sample_surface', return_value=(pcd, None)):
+            res = load_mesh_and_sample("test.obj", num_points=10)
+            assert res.shape == (10, 3)
+            assert mock_mesh.apply_scale.called
+
 class TestEnvUtils:
     """Test environment utility functions (stateless)."""
 

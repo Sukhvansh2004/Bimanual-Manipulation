@@ -86,7 +86,13 @@ class TestRobotMeshVisualizer:
         mock_tf_manager.env = mock_env
         mock_env.sim.model.ngeom = 2
         mock_env.sim.model.geom_bodyid = [0, 1]
-        mock_env.sim.model.geom_id2name.side_effect = ["robot0_geom", "other"]
+        mock_env.sim.model.geom_id2name.side_effect = lambda i: ["robot0_geom", "other"][i]
+        mock_env.sim.model.geom_type = [6, 6] # Box
+        mock_env.sim.model.geom_size = np.zeros((2, 3)) + 0.1
+        
+        # Mock data buffers for compute_geom_transforms
+        mock_env.sim.data.geom_xpos = np.zeros((2, 3))
+        mock_env.sim.data.geom_xmat = np.zeros((2, 9)) # Flattened 3x3
         
         return RobotMeshVisualizer(mock_vis, mock_tf_manager)
 
@@ -123,8 +129,8 @@ class TestRobotMeshVisualizer:
     @patch('robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer.mujoco')
     def test_visualize_trajectory_configs(self, mock_mj, mock_indices, mock_ids, visualizer):
         """Test visualize_trajectory_configs method."""
-        mock_ids.return_value = [0]
-        mock_indices.return_value = [0]
+        mock_ids.return_value = np.arange(7)
+        mock_indices.return_value = np.arange(7)
         
         results = [WaypointFeasibilityResult(
             waypoint_index=0, eef_pose=MagicMock(), joint_config=np.zeros(7),
@@ -163,6 +169,28 @@ class TestPrimitives:
         waypoints = compute_linear_waypoints(p1, p2, num_waypoints=5)
         assert len(waypoints) == 5
         np.testing.assert_allclose(waypoints[2].position, [0.5, 0.5, 0.5], atol=1e-6)
+
+from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
+
+class TestVisualizationUtils:
+    """Test planning visualization utilities."""
+
+    def test_visualize_trajectory(self, mock_tf_manager):
+        """Test visualize_trajectory method."""
+        vis = MagicMock(spec=meshcat.Visualizer)
+        trajectory = [StampedPose(position=[0,0,0], quaternion=[0,0,0,1], frame_id="world")]
+        
+        # Case 1: Minimal
+        visualize_trajectory(vis, trajectory)
+        assert vis.__getitem__.called
+
+        # Case 2: With results
+        results = [WaypointFeasibilityResult(
+            waypoint_index=0, eef_pose=trajectory[0], joint_config=np.zeros(7),
+            is_feasible=True, ik_success=True, collision_free=True
+        )]
+        visualize_trajectory(vis, trajectory, waypoint_results=results)
+        assert vis.__getitem__.called
 
 class TestTrajectoryUtils:
     """Test trajectory utilities."""
