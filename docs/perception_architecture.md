@@ -52,16 +52,25 @@ detections = detector.detect_objects(
 
 #### Output Format
 
-The detector returns a list of dictionaries. Note that `pose` is a `StampedPose` object.
+The detector returns a list of `DetectionSchema` objects (Pydantic models). Each detection contains:
 
 ```python
-detection = {
-    'name': 'object_0',
-    'pose': StampedPose(position=[x, y, z], quaternion=[x, y, z, w], frame_id=constants.WORLD_FRAME),
-    'pcd': np.array([[x1,y1,z1], ...]),   # World frame point cloud
-    'mask': np.array([[0,1,...], ...]),   # Binary segmentation mask
-    'id': 0
-}
+from robosuite_franka_manipulation.schema import DetectionSchema
+
+# Each detection is a DetectionSchema instance:
+detection = DetectionSchema(
+    name='object_0',
+    id=0,
+    pose=StampedPose(position=[x, y, z], quaternion=[x, y, z, w], frame_id=constants.WORLD_FRAME),
+    pcd=[[x1, y1, z1], ...],  # World frame point cloud (list format)
+    mask=[[0, 1, ...], ...],  # Binary segmentation mask (optional)
+)
+
+# Access fields:
+detection.name       # 'object_0'
+detection.pose       # StampedPose instance
+detection.pcd        # Point cloud as list
+detection.mask       # Segmentation mask
 ```
 
 ### GraspPredictor
@@ -87,13 +96,27 @@ grasps = predictor.predict_grasps(
 
 #### Grasp Output Format
 
+Grasps are returned as `GraspSchema` objects (which extend `StampedPose`):
+
 ```python
-grasp = {
-    'pos': np.array([x, y, z]),         # Grasp position in world frame
-    'quat': np.array([qx, qy, qz, qw]), # Grasp orientation
-    'score': 0.95,                      # Confidence score [0, 1]
-    'frame_id': constants.WORLD_FRAME
-}
+from robosuite_franka_manipulation.schema import GraspSchema
+
+# Each grasp is a GraspSchema instance:
+grasp = GraspSchema(
+    pos=[x, y, z],                    # Grasp position in world frame
+    quat=[qx, qy, qz, qw],            # Grasp orientation (scipy convention)
+    score=0.95,                       # Confidence score [0, 1]
+    id=0,                             # Grasp ID
+    frame_id=constants.WORLD_FRAME,
+    gripper_type='franka_panda',      # Gripper type used for prediction
+    pcd_size=1024,                    # Size of input point cloud
+)
+
+# Access fields (inherited from StampedPose):
+grasp.position      # np.array([x, y, z])
+grasp.quaternion    # np.array([qx, qy, qz, qw])
+grasp.score         # 0.95
+grasp.gripper_type  # 'franka_panda'
 ```
 
 ## Camera Intrinsics
