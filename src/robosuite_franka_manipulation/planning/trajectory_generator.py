@@ -256,9 +256,7 @@ def check_trajectory_feasibility(
                 if not result.is_feasible:
                     all_feasible = False
                 
-                # Update warm start config if we got a valid/new one
-                if new_config is not None:
-                    last_config = new_config
+                last_config = new_config
 
         finally:
             data.qpos[:] = qpos_backup

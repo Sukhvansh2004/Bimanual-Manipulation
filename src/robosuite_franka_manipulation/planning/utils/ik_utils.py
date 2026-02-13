@@ -45,19 +45,7 @@ def solve_ik_scipy(
     model_native = mujoco_utils.get_native_mj_object(model)
     data_native = mujoco_utils.get_native_mj_object(data)
 
-    class IKState:
-        def __init__(self):
-            self.q = None
-            self.err = None
-            self.jac = None
-
-    state = IKState()
-
     def compute_state(q):
-        # Cache results to avoid redundant MuJoCo computations
-        if state.q is not None and np.allclose(q, state.q, atol=1e-12):
-            return state.err, state.jac
-        
         # Update joint positions directly in native data
         mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
         
@@ -77,9 +65,6 @@ def solve_ik_scipy(
         # Extract Jacobian for the active joints
         jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
         
-        state.q = np.copy(q)
-        state.err = err
-        state.jac = jac
         return err, jac
 
     def objective(q):
