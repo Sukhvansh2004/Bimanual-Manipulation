@@ -64,26 +64,24 @@ def solve_ik_scipy(
         q_init,
         jac=jac,
         bounds=(joint_lo, joint_hi),
-        ftol=1e-12,
-        xtol=1e-12,
-        gtol=1e-12,
-        max_nfev=100,
         method='trf' # Trust Region Reflective
     )
 
-    if res.success or np.linalg.norm(res.fun) < 1e-4:
-        q_final = res.x
-        mujoco_utils.set_qpos(data, joint_qpos_idx, q_final)
-        mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
-        pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        pos_dist = np.linalg.norm(pos_err)
-        rot_dist = np.linalg.norm(rot_err)
-        if pos_dist <= pos_tol and rot_dist <= ori_tol:
-            return q_final
-        else:
-            logger.debug(f"IK converged to local min: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
+    q_final = res.x
+    mujoco_utils.set_qpos(data, joint_qpos_idx, q_final)
+    mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
+    pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
+    pos_dist = np.linalg.norm(pos_err)
+    rot_dist = np.linalg.norm(rot_err)
+
+    if pos_dist <= pos_tol and rot_dist <= ori_tol:
+        logger.debug(f"IK solution found: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
+        return q_final
+    
+    if not res.success:
+        logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
     else:
-        logger.debug(f"IK solver failed: {res.message}")
+        logger.debug(f"IK converged but tolerance not met: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
 
     return None
 

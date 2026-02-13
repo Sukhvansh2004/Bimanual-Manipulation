@@ -124,12 +124,11 @@ DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
 DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 
 # IK Solver Parameters
-IK_NUM_SEED_CONFIGS = 24  # Number of random seed configurations for IK
+IK_NUM_SEED_CONFIGS = 48  # Number of random seed configurations for IK
 IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
-IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_MAX_ITERATIONS = 200  # Maximum IK iterations
+IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
+IK_ORI_TOLERANCE = 1e-2  # Orientation tolerance (radians)
 IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering

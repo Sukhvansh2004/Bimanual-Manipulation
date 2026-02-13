@@ -74,7 +74,7 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
         
         if np.any(mask):
             idx = np.where(mask)[0][0]
-            logger.info(f"Collision detected: {_geom_names[g1[idx]]} <-> {_geom_names[g2[idx]]} (dist={dist[idx]:.6e})")
+            logger.debug(f"Collision detected: {_geom_names[g1[idx]]} <-> {_geom_names[g2[idx]]} (dist={dist[idx]:.6e})")
             return True
             
         return False
