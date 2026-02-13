@@ -71,8 +71,9 @@ worker_env = None
 worker_tf_manager = None
 worker_vis = None
 
-def init_worker(ycb_objects, custom_objects):
+def init_worker(ycb_objects, custom_objects, log_level):
     """Initialize worker process by creating a persistent environment and visualizer."""
+    setup_logging(log_level)
     global worker_env, worker_tf_manager, worker_vis
     try:
         worker_env = make_dual_arm_env(
@@ -355,7 +356,7 @@ def main() -> None:
     with multiprocessing.Pool(
         processes=args.num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects)
+        initargs=(ycb_objects, custom_objects, log_level)
     ) as pool:
         
         # Evaluate Robot 0 Grasps

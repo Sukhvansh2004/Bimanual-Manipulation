@@ -1,7 +1,11 @@
 import pytest
 import numpy as np
+import mujoco
 from unittest.mock import MagicMock, patch
+from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.planning.utils import ik_utils, mujoco_utils
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_object_trajectory,
@@ -191,3 +195,66 @@ class TestPlanningModule:
         assert results[0].ik_success is True
         assert results[0].collision_free is False
         assert results[0].is_feasible is False
+
+    def test_ik_convergence_basic(self):
+        """Test that IK converges to a known reachable pose."""
+        env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
+        env.reset()
+        
+        # Robot 0 right arm
+        robot_id = 0
+        arm = "right"
+        
+        model = env.sim.model
+        data = env.sim.data
+        
+        site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+        site_id = int(model.site_name2id(site_name))
+        
+        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
+        joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
+        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+        joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
+        
+        # 1. Pick a target configuration and find its site pose
+        rng = np.random.default_rng(42)
+        # Avoid extreme limits for better test reliability
+        q_target = rng.uniform(joint_lo + 0.1, joint_hi - 0.1)
+        
+        model_native = mujoco_utils.get_native_mj_object(model)
+        data_native = mujoco_utils.get_native_mj_object(data)
+        
+        mujoco_utils.set_qpos(data, joint_qpos_idx, q_target)
+        mujoco.mj_fwdPosition(model_native, data_native)
+        
+        target_pos = np.array(data.site_xpos[site_id])
+        target_mat = np.array(data.site_xmat[site_id]).reshape(3, 3)
+        target_quat = R.from_matrix(target_mat).as_quat()
+        
+        # 2. Reset and try to solve IK from neutral config
+        env.reset()
+        q_start = mujoco_utils.get_qpos(data, joint_qpos_idx)
+        
+        q_sol = ik_utils.solve_ik_scipy(
+            model, data, site_id, 
+            joint_qpos_idx, joint_dof_idx, 
+            joint_lo, joint_hi, 
+            target_pos, target_quat, 
+            q_start, 
+            pos_tol=1e-4, ori_tol=1e-3
+        )
+        
+        assert q_sol is not None, "IK failed to converge to known valid pose"
+        
+        # 3. Verify precision
+        mujoco_utils.set_qpos(data, joint_qpos_idx, q_sol)
+        mujoco.mj_fwdPosition(model_native, data_native)
+        pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
+        
+        pos_dist = np.linalg.norm(pos_err)
+        rot_dist = np.linalg.norm(rot_err)
+        
+        assert pos_dist < 1e-4, f"Position error too high: {pos_dist}"
+        assert rot_dist < 1e-3, f"Rotation error too high: {rot_dist}"
+        
+        env.close()

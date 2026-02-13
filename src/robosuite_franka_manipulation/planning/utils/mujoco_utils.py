@@ -1,11 +1,12 @@
 """MuJoCo utility functions for manipulating the simulation state."""
 
 from typing import List, Sequence, Tuple, Optional, Union
-
+import logging
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from robosuite.utils.binding_utils import MjModel, MjData
 
+logger = logging.getLogger(__name__)
 
 def get_native_mj_object(obj):
     """Helper to unwrap Robosuite MjModel/MjData wrappers to native MuJoCo objects."""
@@ -13,6 +14,7 @@ def get_native_mj_object(obj):
         return obj._data
     if hasattr(obj, '_model'):
         return obj._model
+    logger.debug(f"Object {obj} is not a Robosuite MjModel/MjData wrapper, returning as-is.")
     return obj
 
 

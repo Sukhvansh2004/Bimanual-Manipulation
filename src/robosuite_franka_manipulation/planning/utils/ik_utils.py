@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence, Union, Iterable
 import numpy as np
 import mujoco
 import logging
-from scipy.optimize import least_squares
+from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
@@ -37,40 +37,76 @@ def solve_ik_scipy(
     pos_tol: float,
     ori_tol: float,
 ) -> Optional[np.ndarray]:
-    """Residual-based IK using scipy.optimize.least_squares."""
+    """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision."""
     
-    def fun(q):
-        mujoco_utils.set_qpos(data, joint_qpos_idx, q)
-        mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
-        pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        # Residual vector (6 elements)
-        return np.concatenate([pos_err, rot_err])
+    # Unwrap once at the start of the IK solve. These native pointers remain 
+    # valid throughout the optimization loop as the environment state is 
+    # only modified, not re-allocated.
+    model_native = mujoco_utils.get_native_mj_object(model)
+    data_native = mujoco_utils.get_native_mj_object(data)
 
-    def jac(q):
-        # We need the Jacobian of the residual vector.
-        # residual = target - current
-        # d(residual)/dq = -d(current)/dq = -mj_jacSite
-        nv = int(model.nv)
+    class IKState:
+        def __init__(self):
+            self.q = None
+            self.err = None
+            self.jac = None
+
+    state = IKState()
+
+    def compute_state(q):
+        # Cache results to avoid redundant MuJoCo computations
+        if state.q is not None and np.allclose(q, state.q, atol=1e-12):
+            return state.err, state.jac
+        
+        # Update joint positions directly in native data
+        mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
+        
+        # Forward kinematics
+        mujoco.mj_fwdPosition(model_native, data_native)
+        
+        # Compute site error using native data
+        pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
+        err = np.concatenate([pos_err, rot_err])
+        
+        # Compute Jacobian
+        nv = int(model_native.nv)
         jacp = np.zeros((3, nv))
         jacr = np.zeros((3, nv))
-        mujoco.mj_jacSite(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data), jacp, jacr, site_id)
+        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
         
-        J_full = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-        return -J_full
+        # Extract Jacobian for the active joints
+        jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+        
+        state.q = np.copy(q)
+        state.err = err
+        state.jac = jac
+        return err, jac
 
-    # Use Dogleg or TRF for robust constrained optimization
-    res = least_squares(
-        fun,
+    def objective(q):
+        err, _ = compute_state(q)
+        return 0.5 * np.dot(err, err)
+
+    def gradient(q):
+        err, jac = compute_state(q)
+        # Gradient of 0.5 * ||f(q)||^2 is J(q)^T * f(q). 
+        # Since error = target - current, d(error)/dq = -J, so grad = -J^T * error.
+        return -jac.T @ err
+
+    # Use SLSQP for precise constrained optimization
+    res = minimize(
+        objective,
         q_init,
-        jac=jac,
-        bounds=(joint_lo, joint_hi),
-        method='trf' # Trust Region Reflective
+        method='SLSQP',
+        jac=gradient,
+        bounds=list(zip(joint_lo, joint_hi)),
     )
 
     q_final = res.x
-    mujoco_utils.set_qpos(data, joint_qpos_idx, q_final)
-    mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
-    pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
+    
+    # Final state update and error check
+    mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
+    mujoco.mj_fwdPosition(model_native, data_native)
+    pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
     pos_dist = np.linalg.norm(pos_err)
     rot_dist = np.linalg.norm(rot_err)
 
