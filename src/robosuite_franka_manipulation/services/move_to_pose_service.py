@@ -12,7 +12,8 @@ from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.schema import (
-    ResponseStatus, MoveToPoseRequest, CancelMoveRequest, MoveToPoseResponse
+    ResponseStatus, MoveToPoseRequest, CancelMoveRequest, MoveToPoseResponse,
+    ArmStatusResponse, GetArmStatusRequest, FollowTrajectoryRequest
 )
 
 logger = logging.getLogger(__name__)
@@ -143,14 +144,96 @@ class MoveToPoseService:
             if command == "MOVE_TO_POSE":
                 req = MoveToPoseRequest(**request)
                 return self._handle_move(req)
+            elif command == "FOLLOW_TRAJECTORY":
+                req = FollowTrajectoryRequest(**request)
+                return self._handle_follow_trajectory(req)
             elif command == "CANCEL_MOVE":
                 req = CancelMoveRequest(**request)
                 return self._handle_cancel(req)
+            elif command == "GET_ARM_STATUS":
+                req = GetArmStatusRequest(**request)
+                return self._handle_get_status(req)
             else:
                 return ResponseStatus(status="error", message=f"Unknown command: {command}").model_dump()
                 
         except Exception as e:
             return ResponseStatus(status="error", message=str(e)).model_dump()
+
+    def _handle_get_status(self, request: GetArmStatusRequest) -> Dict:
+        """Handle GET_ARM_STATUS command."""
+        robot_id = request.robot_id
+        arm_id = request.arm
+        key = (robot_id, arm_id)
+        
+        if key not in self.controllers:
+             return ResponseStatus(status="error", message=f"No controller registered for robot {robot_id}, arm {arm_id}").model_dump()
+        
+        controller = self.controllers[key]
+        status_code = -1 if controller.is_moving else controller.last_status
+        
+        return ArmStatusResponse(status_code=status_code).model_dump()
+
+    def _handle_follow_trajectory(self, request: FollowTrajectoryRequest) -> Dict:
+        """Handle FOLLOW_TRAJECTORY command."""
+        try:
+            robot_id = request.robot_id
+            arm_id = request.arm
+            gripper_action = request.gripper_action
+            trajectory = request.trajectory
+
+            key = (robot_id, arm_id)
+            if key not in self.controllers:
+                return ResponseStatus(status="error", message=f"No controller registered for robot {robot_id}, arm {arm_id}").model_dump()
+            
+            # Run in separate thread
+            def traj_task():
+                try:
+                    logger.info(f"Starting trajectory following for robot {robot_id}, arm {arm_id}")
+                    controller = self.controllers[key]
+                    controller.follow_trajectory(
+                        trajectory=trajectory,
+                        gripper_action=gripper_action,
+                    )
+                    logger.info(f"Trajectory following complete for robot {robot_id}, arm {arm_id}")
+                except Exception as e:
+                    logger.error(f"Trajectory following failed for robot {robot_id}, arm {arm_id}: {e}")
+
+            controller = self.controllers[key]
+
+            with self.state_lock:
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                # cleanup finished threads
+                self.active_moves = {k: v for k, v in self.active_moves.items() if v.is_alive()}
+
+                # Cancel existing move if any
+                if key in self.active_moves and self.active_moves[key].is_alive():
+                    logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
+                    controller.cancel_movement()
+                    self.state_lock.release()
+                    try:
+                        self.active_moves[key].join(timeout=5.0)
+                    finally:
+                        self.state_lock.acquire()
+                    
+                    if self.active_moves[key].is_alive():
+                        return ResponseStatus(
+                            status="error", 
+                            message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}."
+                        ).model_dump()
+                
+                if not self.running:
+                     return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                thread = threading.Thread(target=traj_task, daemon=True)
+                self.active_moves[key] = thread
+                thread.start()
+            
+            return MoveToPoseResponse(message="Trajectory following started").model_dump()
+
+        except Exception as e:
+            return ResponseStatus(status="error", message=f"Failed to process trajectory request: {e}").model_dump()
 
     def _handle_move(self, request: MoveToPoseRequest) -> Dict:
         """Handle MOVE_TO_POSE command."""
@@ -160,6 +243,7 @@ class MoveToPoseService:
             gripper_action = request.gripper_action
             approach = request.approach
             target_pose = request.pose
+            num_steps = request.num_steps
 
             key = (robot_id, arm_id)
             if key not in self.controllers:
@@ -173,7 +257,8 @@ class MoveToPoseService:
                     controller.move_to_pose(
                         target_pose=target_pose,
                         gripper_action=gripper_action,
-                        approach=approach
+                        approach=approach,
+                        num_steps=num_steps
                     )
                     logger.info(f"Move complete for robot {robot_id}, arm {arm_id}")
                 except Exception as e:

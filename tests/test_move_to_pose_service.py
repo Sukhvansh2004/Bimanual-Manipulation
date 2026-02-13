@@ -18,7 +18,7 @@ class MockController:
         self.moving = False
         self._stop_event = threading.Event()
         
-    def move_to_pose(self, target_pose, gripper_action=0.0, approach=False):
+    def move_to_pose(self, target_pose, **kwargs):
         self.move_called = True
         self.last_target = target_pose
         self.moving = True

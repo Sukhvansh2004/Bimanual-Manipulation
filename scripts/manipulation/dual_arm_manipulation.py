@@ -47,7 +47,9 @@ import atexit
 import os
 import signal
 import sys
-from typing import Any, Optional
+from typing import Any, Optional, List
+import numpy as np
+import meshcat
 
 from robosuite.wrappers import VisualizationWrapper
 from robosuite_franka_manipulation import constants
@@ -61,6 +63,7 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager,
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.planning.utils import load_trajectory, visualize_trajectory, WaypointFeasibilityResult
 
 # Configure logging
 logging.basicConfig(
@@ -84,6 +87,7 @@ class DualArmManipulationSystem:
             meshcat_tf: bool = False,
             custom_objects: Optional[Any] = None,
             ycb_objects: Optional[Any] = None,
+            use_fastsam: bool = True,
             ):
         
         self.custom_objects = custom_objects
@@ -92,6 +96,7 @@ class DualArmManipulationSystem:
         self.debug = debug
         self.detection_prompt = detection_prompt
         self.meshcat_tf = meshcat_tf
+        self.use_fastsam = use_fastsam
         # Use RLock to prevent deadlocks (TransformManager re-acquires it)
         self.env_lock = threading.RLock()
 
@@ -267,22 +272,25 @@ class DualArmManipulationSystem:
             self.service_client = ServiceClient()
             
             # Start FastSAM service
-            logger.info("   Starting FastSAM service...")
-            assert self.env is not None
-            self.fastsam_service = FastSAMService(
-                visualize=self.visualize,
-                debug=False,
-                tf_manager=self.tf_manager,
-            )
-            self.fastsam_service.start()
-            time.sleep(0.5)
-            
-            # Set initial prompt
-            self.service_client.call('fastsam_service', {
-                'command': 'SET_PROMPT',
-                'prompt': self.detection_prompt
-            })
-            logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
+            if self.use_fastsam:
+                logger.info("   Starting FastSAM service...")
+                assert self.env is not None
+                self.fastsam_service = FastSAMService(
+                    visualize=self.visualize,
+                    debug=False,
+                    tf_manager=self.tf_manager,
+                )
+                self.fastsam_service.start()
+                time.sleep(0.5)
+                
+                # Set initial prompt
+                self.service_client.call('fastsam_service', {
+                    'command': 'SET_PROMPT',
+                    'prompt': self.detection_prompt
+                })
+                logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
+            else:
+                logger.info("   FastSAM service disabled by flag")
             
             # Start Grasp service
             logger.info("   Starting Grasp service...")
@@ -422,6 +430,9 @@ class DualArmManipulationSystem:
 
 def detect():
     """Quick helper to detect objects."""
+    if not system.use_fastsam:
+        print("FastSAM service is disabled.")
+        return []
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
     if response.get('status') == 'success':
@@ -542,6 +553,9 @@ def get_eef():
 
 def set_prompt(prompt):
     """Quick helper to change detection prompt."""
+    if not system.use_fastsam:
+        print("FastSAM service is disabled.")
+        return
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {
         'command': 'SET_PROMPT',
@@ -552,7 +566,7 @@ def set_prompt(prompt):
     else:
         print(f"Failed to change prompt: {response.get('message')}")
 
-def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False):
+def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False, num_steps: Optional[int] = None):
     """Quick helper to move an arm to a pose."""
     assert system.service_client is not None, "Service client not initialized"
     
@@ -565,13 +579,123 @@ def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: fl
         'arm': arm_id,
         'pose': pose_dict,
         'gripper_action': gripper_action,
-        'approach': approach
+        'approach': approach,
+        'num_steps': num_steps
     })
     
     if response.get('status') == 'success':
         print(f"Move command sent to robot {robot_id}, arm {arm_id}")
     else:
         print(f"Failed to send move command: {response.get('message')}")
+
+def load_trajectory_file(filepath: str):
+    """Load trajectory from file."""
+    try:
+        eef_traj, obj_traj, joint_configs, waypoint_results = load_trajectory(filepath)
+        print(f"Loaded trajectory from {filepath}: {len(eef_traj)} waypoints")
+        if waypoint_results is not None:
+            feasible_count = sum(1 for r in waypoint_results if r.is_feasible)
+            print(f"  Feasible waypoints: {feasible_count}/{len(waypoint_results)}")
+        
+        # Also return a simple feasibility array for compatibility with generators
+        feasibility = np.array([r.is_feasible for r in waypoint_results]) if waypoint_results else None
+        
+        return {
+            "eef_traj": eef_traj, 
+            "obj_traj": obj_traj,
+            "joint_configs": joint_configs,
+            "waypoint_results": waypoint_results,
+            "feasibility":  feasibility
+        }
+    except Exception as e:
+        print(f"Failed to load trajectory: {e}")
+        return None
+
+def visualize_trajectory_data(eef_trajectory: List[StampedPose], waypoint_results: Optional[List[WaypointFeasibilityResult]] = None, name: str = "trajectory"):
+    """Visualize trajectory data in MeshCat."""
+    if system.tf_manager is None:
+        print("TransformManager not initialized")
+        return
+
+    vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
+    
+    visualize_trajectory(vis, eef_trajectory, waypoint_results, name=name, tf_manager=system.tf_manager)
+    print(f"Trajectory visualization sent to MeshCat as '{name}'")
+
+def move_arm_on_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: Optional[np.ndarray] = None, gripper_action: float = 0.0, num_steps_per_segment: int = 10):
+    """
+    Generator to move a single arm on a trajectory.
+    Yields waypoint index and expects feedback.
+    Feedback 'ALL' switches to executing remaining feasible waypoints automatically.
+    """
+    if not trajectory:
+        print("Empty trajectory")
+        return
+
+    print(f"Starting trajectory execution for robot {robot_id}, arm {arm_id}...")
+    auto_mode = False
+    
+    for i, pose in enumerate(trajectory):
+        # Always check feasibility
+        if feasibility is not None and not feasibility[i]:
+            print(f"  Skipping infeasible waypoint {i}")
+            continue
+            
+        print(f"  Moving to waypoint {i}/{len(trajectory)-1}")
+        go_to_pose(pose, robot_id, arm_id, gripper_action=gripper_action, num_steps=num_steps_per_segment)
+        
+        # Wait for movement
+        time.sleep(num_steps_per_segment * constants.TRAJECTORY_TIME_STEP + 0.1)
+        
+        # Yield for feedback if not in auto mode
+        if not auto_mode:
+            feedback = yield i
+            if feedback == 'ALL':
+                auto_mode = True
+
+def move_both_arms_on_trajectory(left_traj: List[StampedPose], right_traj: List[StampedPose], 
+                                 left_feasibility: Optional[np.ndarray] = None, 
+                                 right_feasibility: Optional[np.ndarray] = None,
+                                 left_gripper: float = 0.0, right_gripper: float = 0.0,
+                                 num_steps_per_segment: int = 10):
+    """
+    Generator to move both arms on trajectories in sync.
+    Yields waypoint index and expects feedback.
+    Feedback 'ALL' switches to executing remaining feasible waypoints automatically.
+    """
+    n_waypoints = max(len(left_traj) if left_traj else 0, len(right_traj) if right_traj else 0)
+    
+    print(f"Starting dual-arm trajectory execution ({n_waypoints} waypoints)...")
+    auto_mode = False
+    
+    for i in range(n_waypoints):
+        # Determine feasibility for each arm
+        left_feasible = left_traj and i < len(left_traj) and (left_feasibility is None or left_feasibility[i])
+        right_feasible = right_traj and i < len(right_traj) and (right_feasibility is None or right_feasibility[i])
+
+        if not left_feasible and not right_feasible:
+            print(f"  Skipping waypoint {i} (no feasible moves for either arm)")
+            continue
+
+        # Move left arm (robot 0)
+        if left_feasible:
+            go_to_pose(left_traj[i], 0, "right", gripper_action=left_gripper, num_steps=num_steps_per_segment)
+        elif left_traj and i < len(left_traj):
+             print(f"  Left arm: skipping infeasible waypoint {i}")
+                
+        # Move right arm (robot 1)
+        if right_feasible:
+            go_to_pose(right_traj[i], 1, "right", gripper_action=right_gripper, num_steps=num_steps_per_segment)
+        elif right_traj and i < len(right_traj):
+            print(f"  Right arm: skipping infeasible waypoint {i}")
+        
+        time.sleep(num_steps_per_segment * constants.TRAJECTORY_TIME_STEP + 0.1)
+        
+        # Yield for feedback if not in auto mode
+        if not auto_mode:
+            feedback = yield i
+            if feedback == 'ALL':
+                auto_mode = True
 
 def cancel_move(robot_id: int, arm_id: str):
     """Quick helper to cancel a move."""
@@ -586,6 +710,80 @@ def cancel_move(robot_id: int, arm_id: str):
         print(f"Cancel command sent to robot {robot_id}, arm {arm_id}")
     else:
         print(f"Failed to send cancel command: {response.get('message')}")
+
+def get_arm_status(robot_id: int, arm_id: str):
+    """Quick helper to get arm status."""
+    assert system.service_client is not None, "Service client not initialized"
+    response = system.service_client.call('move_to_pose_service', {
+        'command': 'GET_ARM_STATUS',
+        'robot_id': robot_id,
+        'arm': arm_id
+    })
+    if response.get('status') == 'success':
+        return response.get('status_code')
+    else:
+        print(f"Failed to get arm status: {response.get('message')}")
+        return None
+
+def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0):
+    """Quick helper to send a follow trajectory command."""
+    assert system.service_client is not None, "Service client not initialized"
+    
+    traj_dicts = [p.model_dump() for p in trajectory]
+    
+    response = system.service_client.call('move_to_pose_service', {
+        'command': 'FOLLOW_TRAJECTORY',
+        'robot_id': robot_id,
+        'arm': arm_id,
+        'trajectory': traj_dicts,
+        'gripper_action': gripper_action,
+    })
+    
+    if response.get('status') == 'success':
+        print(f"Follow trajectory command sent to robot {robot_id}, arm {arm_id}")
+    else:
+        print(f"Failed to send follow trajectory command: {response.get('message')}")
+
+def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0):
+    """
+    Groups feasible waypoints into continuous segments and executes them.
+    A trajectory compromises a continuous set of feasible segments.
+    """
+    if len(trajectory) != len(feasibility):
+        print("Trajectory and feasibility length mismatch")
+        return
+
+    segments = []
+    current_segment = []
+    
+    for i in range(len(trajectory)):
+        if feasibility[i]:
+            current_segment.append(trajectory[i])
+        else:
+            if current_segment:
+                segments.append(current_segment)
+                current_segment = []
+    
+    if current_segment:
+        segments.append(current_segment)
+        
+    print(f"Executing {len(segments)} feasible segments for robot {robot_id}, arm {arm_id}")
+    
+    for i, segment in enumerate(segments):
+        print(f"  Executing segment {i+1}/{len(segments)} ({len(segment)} waypoints)")
+        follow_trajectory_command(robot_id, arm_id, segment, gripper_action)
+        
+        # Wait for segment to finish
+        while True:
+            status = get_arm_status(robot_id, arm_id)
+            if status != -1: # Not moving
+                if status == 0:
+                    print(f"  Segment {i+1} failed!")
+                    return False
+                break
+            time.sleep(0.5)
+            
+    print("Feasible trajectory execution complete.")
 
 
 def main() -> int:
@@ -616,6 +814,12 @@ def main() -> int:
         action="store_true",
         help="Stream the environment TF tree to MeshCat (requires `meshcat-server`)"
     )
+    parser.add_argument(
+        "--fastsam",
+        action="store_true",
+        help="Disable FastSAM service",
+        default=False,
+    )
     
     args = parser.parse_args()
     
@@ -642,6 +846,7 @@ def main() -> int:
         detection_prompt=args.prompt,
         meshcat_tf=args.meshcat_tf,
         ycb_objects=ycb_objects,
+        use_fastsam=args.fastsam,
     )
 
     # Ensure cleanup on normal interpreter shutdown and on SIGINT/SIGTERM
@@ -682,14 +887,22 @@ Helper functions:
   set_prompt(text)                       - Change detection prompt
   go_to_pose(pose, robot_id, arm_id)     - Move an arm to a pose
   cancel_move(robot_id, arm_id)          - Cancel a move command
+  get_arm_status(robot_id, arm_id)       - Get arm status (-1: moving, 1: success, 0: fail)
+  follow_trajectory(robot_id, arm, traj) - Follow a pre-defined trajectory
+  execute_feasible_trajectory(r_id, arm, traj, feas) - Execute feasible segments
+  load_trajectory_file(path)             - Load trajectory data from file
+  visualize_trajectory_data(traj, results)- Visualize trajectory with status colors
+  move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
+  move_both_arms_on_trajectory(...)      - Move both arms on trajectory in sync (Generator)
 
 Example usage:
   >>> detections = detect()
-  >>> if detections:
-  ...     grasps = get_grasps(detections[0])
-  >>> eef_pose = get_eef()['robot0_right_eef'] # get a pose
-  >>> go_to_pose(StampedPose(position=[eef_pose['position']['x'], eef_pose['position']['y']+0.1, eef_pose['position']['z']], quaternion=eef_pose['quaternion'], frame_id='world'), 0, 'right')
-  >>> cancel_move(0, 'right')
+  >>> data = load_trajectory_file("data/my_traj.npz")
+  >>> visualize_trajectory_data(data['eef_traj'], data['waypoint_results'])
+  >>> # Start generator
+  >>> gen = move_arm_on_trajectory(0, "right", data['eef_traj'], data['feasibility'])
+  >>> next(gen)             # Execute next feasible waypoint
+  >>> gen.send("ALL")       # Execute ALL remaining FEASIBLE waypoints automatically
 
 Press Ctrl+D or type exit() to quit
 ========================================================
@@ -710,6 +923,13 @@ Press Ctrl+D or type exit() to quit
                     'set_prompt': set_prompt,
                     'go_to_pose': go_to_pose,
                     'cancel_move': cancel_move,
+                    'get_arm_status': get_arm_status,
+                    'follow_trajectory': follow_trajectory_command,
+                    'execute_feasible_trajectory': execute_feasible_trajectory,
+                    'load_trajectory_file': load_trajectory_file,
+                    'visualize_trajectory_data': visualize_trajectory_data,
+                    'move_arm_on_trajectory': move_arm_on_trajectory,
+                    'move_both_arms_on_trajectory': move_both_arms_on_trajectory,
                     'env_step': env_step,
                     'StampedPose': StampedPose,
                 }

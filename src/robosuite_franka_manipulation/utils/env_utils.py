@@ -1,11 +1,143 @@
 import logging
 import numpy as np
+import os
+import trimesh
+import atexit
+import tempfile
+import shutil
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.suction_weld import apply_suction_weld
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Global Mesh Extraction Registry
+# =============================================================================
+
+class MeshExtractionManager:
+    """Manages lazy extraction of meshes from environment and automatic cleanup."""
+    def __init__(self):
+        self.env = None
+        self.temp_dir = None
+        
+    def register_env(self, env: DualArmEnvironment):
+        self.env = env
+        if self.temp_dir is None:
+            self.temp_dir = tempfile.mkdtemp(prefix="meshes_")
+            atexit.register(self.cleanup)
+            logger.debug(f"Registered mesh extraction temp directory: {self.temp_dir}")
+
+    def cleanup(self):
+        if self.temp_dir and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+            logger.debug(f"Cleaned up mesh extraction temp directory: {self.temp_dir}")
+            self.temp_dir = None
+
+    def get_mesh_path(self, object_name: str) -> Optional[str]:
+        if self.temp_dir is None:
+            # We don't have a temp dir yet, possibly because no env was registered
+            # but we still want to try to register one if we can find it? 
+            # No, caller should register_env first.
+            return None
+        
+        # Check if already extracted
+        mesh_path = os.path.join(self.temp_dir, f"{object_name}.obj")
+        if os.path.exists(mesh_path):
+            return mesh_path
+            
+        # Try to extract lazily
+        if self.env is not None:
+            # We try visual geom first
+            visual_geom = f"{object_name}_visual"
+            success = extract_mesh_from_geom(self.env, visual_geom, mesh_path)
+            if not success:
+                # Fallback to collision geom or main geom name
+                success = extract_mesh_from_geom(self.env, object_name, mesh_path)
+            
+            if success:
+                return mesh_path
+        
+        return None
+
+_mesh_manager = MeshExtractionManager()
+
+def register_mesh_extraction_env(env: DualArmEnvironment):
+    """Register an environment for lazy mesh extraction."""
+    _mesh_manager.register_env(env)
+
+
+# =============================================================================
+# MuJoCo Mesh Extraction Utilities
+# =============================================================================
+
+def extract_mesh_from_geom(env: DualArmEnvironment, geom_name: str, output_path: str) -> bool:
+    """
+    Extracts mesh data from a MuJoCo geom and saves it to a file.
+    
+    Args:
+        env: Environment instance.
+        geom_name: Name of the geom to extract.
+        output_path: Path to save the mesh file.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        model = env.sim.model
+        # Check if geom exists
+        try:
+            geom_id = model.geom_name2id(geom_name)
+        except Exception:
+            # Try to find by partial match if exact name fails
+            found = False
+            for i in range(model.ngeom):
+                name = model.geom_id2name(i)
+                if name and geom_name in name:
+                    geom_id = i
+                    found = True
+                    break
+            if not found:
+                return False
+
+        geom_type = model.geom_type[geom_id]
+        
+        mesh = None
+        if geom_type == 7: # Mesh
+            mesh_id = model.geom_dataid[geom_id]
+            vert_adr = model.mesh_vertadr[mesh_id]
+            vert_num = model.mesh_vertnum[mesh_id]
+            face_adr = model.mesh_faceadr[mesh_id]
+            face_num = model.mesh_facenum[mesh_id]
+            
+            vertices = model.mesh_vert[vert_adr : vert_adr + vert_num]
+            faces = model.mesh_face[face_adr : face_adr + face_num]
+            mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+            
+        elif geom_type == 6: # Box
+            size = model.geom_size[geom_id] # half-extents
+            mesh = trimesh.creation.box(extents=size * 2)
+            
+        elif geom_type == 5: # Cylinder
+            radius, half_height = model.geom_size[geom_id][:2]
+            mesh = trimesh.creation.cylinder(radius=radius, height=half_height * 2)
+            
+        elif geom_type == 2: # Sphere
+            radius = model.geom_size[geom_id][0]
+            mesh = trimesh.creation.icosphere(radius=radius)
+            
+        if mesh is not None:
+            mesh.export(output_path)
+            logger.info(f"Extracted mesh for geom '{geom_name}' to {output_path}")
+            return True
+            
+        return False
+        
+    except Exception as e:
+        logger.error(f"Failed to extract mesh for geom '{geom_name}': {e}")
+        return False
 
 
 # =============================================================================
@@ -50,6 +182,7 @@ def resolve_mesh_path(object_name: str) -> Optional[str]:
     Returns:
         Path to the mesh file if found, None otherwise.
     """
+    # 1. Check if it's a YCB object first (standard path)
     candidates = [object_name]
     if "_" in object_name:
         candidates.append(object_name.rsplit('_', 1)[0]) # Remove suffix (e.g. apple_0 -> apple)
@@ -61,8 +194,9 @@ def resolve_mesh_path(object_name: str) -> Optional[str]:
             mesh_path = ycb_obj_dir / "textured.obj"
             if mesh_path.exists():
                 return str(mesh_path)
-                    
-    return None
+    
+    # 2. If not YCB, try lazy extraction from environment
+    return _mesh_manager.get_mesh_path(object_name)
 
 
 # =============================================================================
@@ -260,3 +394,56 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
     obs = env.step(full_action)
     apply_suction_weld(env, full_action)
     return obs
+
+
+def set_robot_config(env: DualArmEnvironment, robot_id: int, arm_id: str, joint_config: Union[np.ndarray, List[float]]):
+    """
+    Sets the robot to a specific joint configuration in MuJoCo.
+    
+    Args:
+        env: The robosuite environment.
+        robot_id: ID of the robot (index in env.robots).
+        arm_id: ID of the arm ('right' or 'left').
+        joint_config: Joint configuration (list or numpy array).
+    """
+    if robot_id >= len(env.robots):
+        raise ValueError(f"Robot ID {robot_id} out of range (total robots: {len(env.robots)})")
+    
+    robot = env.robots[robot_id]
+    joint_config = np.array(joint_config)
+    
+    # Determine which joints to set
+    if isinstance(robot.robot_model.arm_joints, dict):
+        # Two-arm robot (e.g. Baxter)
+        if arm_id not in robot.robot_model.arm_joints:
+            raise ValueError(f"Arm '{arm_id}' not found in robot {robot_id}. Available arms: {list(robot.robot_model.arm_joints.keys())}")
+        
+        # Get indices for this specific arm
+        attr = f"{arm_id}_arm_joint_indexes"
+        if hasattr(robot, attr):
+            joint_indices = getattr(robot, attr)
+        else:
+            # Fallback: compute from joint names
+            joint_names = robot.robot_model.arm_joints[arm_id]
+            joint_indices = [env.sim.model.get_joint_qpos_addr(x) for x in joint_names]
+    else:
+        # Single-arm robot (e.g. Panda)
+        if arm_id not in robot.arms:
+            logger.warning(f"Arm '{arm_id}' requested for single-arm robot {robot_id} which has arms {robot.arms}. Using default arm.")
+        
+        # For single arm robots in robosuite, arm_joint_indexes is usually what we want
+        if hasattr(robot, "arm_joint_indexes"):
+            joint_indices = robot.arm_joint_indexes
+        else:
+            joint_indices = robot.joint_indexes
+            
+    if len(joint_config) != len(joint_indices):
+        raise ValueError(f"Joint configuration length {len(joint_config)} does not match robot arm DOF {len(joint_indices)}")
+    
+    # Set the positions in MuJoCo
+    env.sim.data.qpos[joint_indices] = joint_config
+    
+    # Update the simulation state to reflect changes
+    env.sim.forward()
+    
+    logger.debug(f"Set robot {robot_id} arm {arm_id} to config: {joint_config}")

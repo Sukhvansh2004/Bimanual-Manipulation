@@ -6,7 +6,10 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 import numpy as np
 from typing import List, Tuple, Union, Optional
 import logging
-from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction
+)
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
@@ -57,11 +60,8 @@ def check_single_grasp_feasibility(
     if object_name and object_name not in current_ignore_names:
         current_ignore_names.append(object_name)
 
-    # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
-    target_pose = grasp.copy()
-    r_corr = R.from_euler('z', -90, degrees=True)
-    r_pose = R.from_quat(target_pose.quaternion)
-    target_pose.quaternion = (r_pose * r_corr).as_quat()
+    # Prepare Target Pose
+    target_pose = apply_ik_orientation_correction(grasp)
 
     # Get IK solutions for Flange site
     site_name = f"gripper{robot_id}_{arm}_ft_frame"
@@ -96,7 +96,7 @@ def check_single_grasp_feasibility(
         try:
             for q in solutions:
                 set_qpos(data, qpos_idx, q)
-                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                 
                 if not in_collision(env, env_lock=None, ignore_names=current_ignore_names): # Already locked by ctx
                     feasible = True
@@ -104,7 +104,7 @@ def check_single_grasp_feasibility(
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
-            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
         
     return feasible
 
@@ -202,9 +202,6 @@ def check_dual_arm_pose_feasibility(
     # IK solver params
     pos_tol: float = constants.IK_POS_TOLERANCE,
     ori_tol: float = constants.IK_ORI_TOLERANCE,
-    max_iters: int = constants.IK_MAX_ITERATIONS,
-    damping: float = constants.IK_DAMPING,
-    step_size: float = constants.IK_STEP_SIZE,
     # Collision params
     contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
     # Pairing caps
@@ -241,23 +238,14 @@ def check_dual_arm_pose_feasibility(
     if object_name and object_name not in current_ignore_names:
         current_ignore_names.append(object_name)
 
-    # --- Helper to apply 90 deg correction ---
-    def get_corrected_pose(pose_input: StampedPose) -> StampedPose:
-        pose = pose_input.copy()
-        r_corr = R.from_euler('z', -90, degrees=True)
-        r_pose = R.from_quat(pose.quaternion)
-        pose.quaternion = (r_pose * r_corr).as_quat()
-        return pose
-
     # Prepare targets
-    target0 = get_corrected_pose(eef_pose_robot0)
-    target1 = get_corrected_pose(eef_pose_robot1)
+    target0 = apply_ik_orientation_correction(eef_pose_robot0)
+    target1 = apply_ik_orientation_correction(eef_pose_robot1)
 
     q_solutions_0 = enumerate_ik_solutions_for_arm(
         env,
         robot_id=0,
         target_pose=target0,
-        target_frame=input_frame,
         arm=arm,
         site_name=f"gripper0_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
@@ -267,16 +255,12 @@ def check_dual_arm_pose_feasibility(
         max_solutions=max_solutions_per_arm,
         pos_tol=pos_tol,
         ori_tol=ori_tol,
-        max_iters=max_iters,
-        damping=damping,
-        step_size=step_size,
     )
 
     q_solutions_1 = enumerate_ik_solutions_for_arm(
         env,
         robot_id=1,
         target_pose=target1,
-        target_frame=input_frame,
         arm=arm,
         site_name=f"gripper1_{arm}_ft_frame", # Target Flange
         tf_manager=tf_manager,
@@ -286,9 +270,6 @@ def check_dual_arm_pose_feasibility(
         max_solutions=max_solutions_per_arm,
         pos_tol=pos_tol,
         ori_tol=ori_tol,
-        max_iters=max_iters,
-        damping=damping,
-        step_size=step_size,
     )
 
     if len(q_solutions_0) == 0 or len(q_solutions_1) == 0:
@@ -322,7 +303,7 @@ def check_dual_arm_pose_feasibility(
                     set_qpos(data, qpos_idx1, np.asarray(q1, dtype=float))
                     
                     # Unwrap for native call
-                    mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
 
                     feasible = not in_collision(
                         env, 
@@ -339,6 +320,6 @@ def check_dual_arm_pose_feasibility(
             data.qvel[:] = qvel_backup
             
             # Unwrap for native call
-            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
 
         return results

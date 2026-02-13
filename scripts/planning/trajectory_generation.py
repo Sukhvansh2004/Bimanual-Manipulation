@@ -18,14 +18,22 @@ import meshcat
 import meshcat.geometry as g
 import argparse
 import sys
+import multiprocessing
+from functools import partial
 
 import meshcat.transformations as tf
 from scipy.spatial.transform import Rotation as R
 
 import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils import create_ycb_object
+from robosuite_franka_manipulation.utils import (
+    create_ycb_object, 
+    env_step, 
+    create_primitive_object, 
+    register_mesh_extraction_env
+)
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 
@@ -55,6 +63,105 @@ def setup_logging(level: int = logging.INFO):
     )
 
 logger = logging.getLogger(__name__)
+constants.ZMQ_MANAGER_TIMEOUT = 16 * 50 * 1000
+constants.ZMQ_SERVICE_CALL_TIMEOUT = 15 * 50 * 1000
+
+# Global variables for worker processes
+worker_env = None
+worker_tf_manager = None
+worker_vis = None
+
+def init_worker(ycb_objects, custom_objects, log_level):
+    """Initialize worker process by creating a persistent environment and visualizer."""
+    setup_logging(log_level)
+    global worker_env, worker_tf_manager, worker_vis
+    try:
+        worker_env = make_dual_arm_env(
+            ycb_objects=ycb_objects,
+            custom_objects=custom_objects,
+            has_renderer=False, 
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
+        worker_env.reset()
+        # Allow environment to settle
+        for _ in range(10):
+            env_step(worker_env)
+        
+        # Optimization: Disable collisions between environment geoms
+        # Anything that isn't a robot or a target object should have contype=0
+        model = worker_env.sim.model
+        for i in range(model.ngeom):
+            name = model.geom_id2name(i) or ""
+            is_robot = any(name.startswith(p) for p in ["robot0", "gripper0", "robot1", "gripper1"])
+            is_moving_obj = "flatPlate" in name or "plate" in name
+            if not (is_robot or is_moving_obj):
+                model.geom_contype[i] = 0
+
+        worker_tf_manager = TransformManager(worker_env)
+        worker_vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+        logging.info("Worker initialized: Environment and Visualizer created.")
+    except Exception as e:
+        logging.error(f"Worker initialization failed: {e}")
+
+def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, vis_args=None):
+    """Worker function to evaluate a single robot trajectory."""
+    global worker_env, worker_tf_manager, worker_vis
+    
+    if worker_env is None or worker_tf_manager is None:
+        logging.error("Worker environment not properly initialized.")
+        return None
+        
+    i, grasp = grasp_info
+    logger.info("WORKER: Evaluating Robot %d Grasp %d (Gripper: %s, Score: %.3f)", robot_id, i, grasp.gripper_type, grasp.score)
+
+    try:
+        # Generate EEF trajectory
+        traj_eef = generate_end_effector_trajectory(object_trajectory, grasp, tf_manager=worker_tf_manager)
+        
+        # Check feasibility
+        results, all_feasible = check_trajectory_feasibility(
+            env=worker_env,
+            robot_id=robot_id,
+            eef_trajectory=traj_eef,
+            object_trajectory=object_trajectory,
+            object_name=object_name,
+            tf_manager=worker_tf_manager,
+            ignore_names=ignore_names
+        )
+        
+        # Visualize in worker process
+        if worker_vis:
+            color = 0x0000ff if robot_id == 0 else 0xff00ff
+            visualize_trajectory(
+                worker_vis, 
+                traj_eef, 
+                waypoint_results=results, 
+                name=f"robot{robot_id}_traj_{i}", 
+                color=color,
+                tf_manager=worker_tf_manager
+            )
+            
+            if vis_args and vis_args.get('visualize_robot_meshes'):
+                mesh_visualizer = RobotMeshVisualizer(vis=worker_vis, tf_manager=worker_tf_manager, base_path=f"robot{robot_id}_configs")
+                mesh_visualizer.visualize_trajectory_configs(
+                    trajectory_id=f"grasp_{i}",
+                    robot_id=robot_id,
+                    waypoint_results=results,
+                    step_interval=vis_args.get('mesh_step_interval', 10),
+                    opacity=vis_args.get('mesh_opacity', 0.2)
+                )
+        
+        return {
+            'id': i,
+            'traj_eef': traj_eef,
+            'results': results,
+            'all_feasible': all_feasible,
+            'grasp': grasp
+        }
+    except Exception as e:
+        logging.error(f"Worker: Error evaluating robot {robot_id} grasp {i}: {e}")
+        return None
 
 def main() -> None:
     # Default values
@@ -66,6 +173,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=str, default=constants.DATA_DIR, help="Output directory for data")
     parser.add_argument("--filename", type=str, default="shelf_trajectory.npz", help="Output filename")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--num-workers", type=int, default=multiprocessing.cpu_count() // 2, help="Number of parallel workers")
     
     # Pose arguments
     parser.add_argument("--start-pos", type=float, nargs=3, help="Start position [x, y, z]")
@@ -98,22 +206,32 @@ def main() -> None:
     
     # Plate configuration (on table)
     # Default plate pos if not overridden
-    plate_pos = [0.0, -0.1, 0.85]
+    plate_pos = [0.0, 0.0, 0.85]
     plate_quat = [0, 0, 0, 1]
     
+    logger.info("Creating planning environment and objects...")
     ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat),
-        create_ycb_object(ycb_name="plate", instance_name="plate_target", position=plate_pos, quaternion=plate_quat)
+        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
+    ]
+    custom_objects = [
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
     ]
     
     # Create env (headless for planning script, visualization handled by Meshcat)
     env = make_dual_arm_env(
         ycb_objects=ycb_objects,
+        custom_objects=custom_objects,
         has_renderer=False, 
         has_offscreen_renderer=False,
         use_camera_obs=False
     )
     env.reset()
+    # Allow environment to settle
+    for _ in range(10):
+        env_step(env)
+    
+    # Register for lazy mesh extraction
+    register_mesh_extraction_env(env)
     
     # Lock for thread safety
     env_lock = threading.RLock()
@@ -121,36 +239,20 @@ def main() -> None:
     # Create TransformManager for pose queries
     tf_manager = TransformManager(env, env_lock=env_lock)
     
-    # 2. Setup Visualization
-    # ----------------------
-    logger.info("Setting up visualization")
-
-    vis_config = MeshcatTFVisualizerConfig(
-        fps=20.0, 
-        clear=True, 
-        labels=True, 
-        visualize_scene=True # Visualize robot/scene meshes
-    )
-    
-    # Start TF streaming in background
+    # 2. Setup Visualization (Scene Streaming)
+    # ----------------------------------------
+    logger.info("Setting up global visualization stream...")
+    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
     stop_event = threading.Event()
     vis_thread = threading.Thread(
         target=stream_transforms_to_meshcat,
-        kwargs={
-            'env': env,
-            'env_lock': env_lock,
-            'config': vis_config,
-            'stop_event': stop_event,
-            'tf_manager': tf_manager
-        },
+        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
         daemon=True
     )
     vis_thread.start()
     
-    # Connect to the same meshcat server for custom visualization
+    # Connect to the same meshcat server for worker coordination
     vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
-    
-    logger.info("Visualization started. Open http://127.0.0.1:7000")
     
     # 3. Define Planning Problem
     # --------------------------
@@ -167,16 +269,16 @@ def main() -> None:
         logger.info("No start pose provided. Waiting for environment to settle...")
         time.sleep(1.0) # Wait for simulation/TF to stabilize
         
-        # Query pose of plate_target
+        # Query pose of flatPlate
         try:
-            plate_pose_mat = env.get_object_pose("plate_target")
+            plate_pose_mat = env.get_object_pose("flatPlate")
             if plate_pose_mat is not None:
                 start_pos = plate_pose_mat[:3, 3]
                 # Convert matrix to quat [x, y, z, w]
                 start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
                 logger.info(f"Detected plate pose: pos={start_pos}")
             else:
-                logger.warning("Could not find 'plate_target' in environment. Using default.")
+                logger.warning("Could not find 'flatPlate' in environment. Using default.")
         except Exception as e:
             logger.warning(f"Error querying object pose: {e}")
             
@@ -201,23 +303,9 @@ def main() -> None:
         num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
         tf_manager=tf_manager
     )
-    
-    # 5. Visualize Object Trajectory
-    # -----------------------
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
-    # Visualize Target
-    vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
-    T_target = np.eye(4)
-    T_target[:3, 3] = target_pose_stamped.position
-    
-    # Convert target_quat (xyzw) to wxyz for meshcat
-    target_quat_wxyz = T.convert_quat(target_pose_stamped.quaternion, to="wxyz")
-    r = tf.quaternion_matrix(target_quat_wxyz)
-    T_target[:3, :3] = r[:3, :3]
-    vis["target_pose"].set_transform(T_target)
-    
-    logger.info("Object trajectory generated and visualized.")
+    logger.info("Object trajectory generated.")
     
     # 6. Generate Grasps and Feasible EEF Trajectories
     # ------------------------------------------------
@@ -240,113 +328,95 @@ def main() -> None:
     # Step 6a: Get grasps for both robots together
     logger.info("Generating grasps for Robot 0 (Finger) and Robot 1 (Suction)...")
     all_grasps = grasp_generator.generate_grasps(
-        object_name="plate_target", 
+        object_name="flatPlate", 
         gripper_types=["finger", "suction"], 
-        num_grasps=40,
+        num_grasps=200,
         env_lock=env_lock
     )
     
-    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)[:10]
-    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)[:10]
+    grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
+    grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
+    
+    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=10)
+    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=10)
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
-    # Store all trajectory results for each robot
-    robot0_trajectory_results = []
-    robot1_trajectory_results = []
+    # 6. Evaluate Robot Trajectories in Parallel
+    # ------------------------------------------
+    logger.info(f"Evaluating grasps using {args.num_workers} processes...")
+    start_time = time.time()
 
-    if not grasps_0 and not grasps_1:
-        logger.error("Failed to generate any grasps.")
-    else:
-        # Step 6b: Process Robot 0 (Finger) Grasps
+    vis_args = {
+        'visualize_robot_meshes': args.visualize_robot_meshes,
+        'mesh_step_interval': args.mesh_step_interval,
+        'mesh_opacity': args.mesh_opacity
+    }
+
+    with multiprocessing.Pool(
+        processes=args.num_workers,
+        initializer=init_worker,
+        initargs=(ycb_objects, custom_objects, log_level)
+    ) as pool:
+        
+        # Evaluate Robot 0 Grasps
         logger.info("Processing Robot 0 (Finger) grasps...")
-        for i, g0 in enumerate(grasps_0):
-            logger.info(f"  Checking Robot 0 Grasp {i}...")
-            # Generate EEF trajectory
-            traj0_eef = generate_end_effector_trajectory(object_trajectory, g0, tf_manager=tf_manager)
-            
-            # Check feasibility (ignoring Robot 1)
-            results0, all_feasible0 = check_trajectory_feasibility(
-                env=env,
-                robot_id=0,
-                eef_trajectory=traj0_eef,
-                object_trajectory=object_trajectory,
-                object_name="plate_target",
-                env_lock=env_lock,
-                tf_manager=tf_manager,
-                ignore_names=["robot1", "gripper1"]
-            )
-            
-            feasible_count = sum(1 for r in results0 if r.is_feasible)
-            logger.info(f"    -> {feasible_count}/{len(results0)} waypoints feasible (all_feasible={all_feasible0})")
-            
-            robot0_trajectory_results.append({
-                'id': i,
-                'traj_eef': traj0_eef,
-                'results': results0,
-                'all_feasible': all_feasible0,
-                'grasp': g0
-            })
-            
-            # Visualize trajectory line
-            visualize_trajectory(vis, traj0_eef, name=f"robot0_traj_{i}", color=0x0000ff)
-            
-            # Visualize robot mesh configurations along the trajectory
-            if args.visualize_robot_meshes:
-                mesh_visualizer = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path="robot0_configs")
-                mesh_visualizer.visualize_trajectory_configs(
-                    trajectory_id=f"grasp_{i}",
-                    robot_id=0,
-                    waypoint_results=results0,
-                    step_interval=args.mesh_step_interval,
-                    opacity=args.mesh_opacity
-                )
+        robot0_tasks = [(i, g0) for i, g0 in enumerate(grasps_0)]
+        eval_func0 = partial(
+            evaluate_robot_trajectory, 
+            robot_id=0, 
+            object_trajectory=object_trajectory, 
+            object_name="flatPlate", 
+            ignore_names=["robot1", "gripper1"],
+            vis_args=vis_args
+        )
+        robot0_trajectory_results = pool.map(eval_func0, robot0_tasks)
+        robot0_trajectory_results = [r for r in robot0_trajectory_results if r is not None]
 
-        # Step 6c: Process Robot 1 (Suction) Grasps
+        # Evaluate Robot 1 Grasps
         logger.info("Processing Robot 1 (Suction) grasps...")
-        for i, g1 in enumerate(grasps_1):
-            logger.info(f"  Checking Robot 1 Grasp {i}...")
-            # Generate EEF trajectory
-            traj1_eef = generate_end_effector_trajectory(object_trajectory, g1, tf_manager=tf_manager)
-            
-            # Check feasibility (ignoring Robot 0)
-            results1, all_feasible1 = check_trajectory_feasibility(
-                env=env,
-                robot_id=1,
-                eef_trajectory=traj1_eef,
-                object_trajectory=object_trajectory,
-                object_name="plate_target",
-                env_lock=env_lock,
-                tf_manager=tf_manager,
-                ignore_names=["robot0", "gripper0"]
-            )
-            
-            feasible_count = sum(1 for r in results1 if r.is_feasible)
-            logger.info(f"    -> {feasible_count}/{len(results1)} waypoints feasible (all_feasible={all_feasible1})")
-            
-            robot1_trajectory_results.append({
-                'id': i,
-                'traj_eef': traj1_eef,
-                'results': results1,
-                'all_feasible': all_feasible1,
-                'grasp': g1
-            })
-            
-            # Visualize trajectory line
-            visualize_trajectory(vis, traj1_eef, name=f"robot1_traj_{i}", color=0xff00ff)
-            
-            # Visualize robot mesh configurations along the trajectory
-            if args.visualize_robot_meshes:
-                mesh_visualizer = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path="robot1_configs")
-                mesh_visualizer.visualize_trajectory_configs(
-                    trajectory_id=f"grasp_{i}",
-                    robot_id=1,
-                    waypoint_results=results1,
-                    step_interval=args.mesh_step_interval,
-                    opacity=args.mesh_opacity
-                )
+        robot1_tasks = [(i, g1) for i, g1 in enumerate(grasps_1)]
+        eval_func1 = partial(
+            evaluate_robot_trajectory, 
+            robot_id=1, 
+            object_trajectory=object_trajectory, 
+            object_name="flatPlate", 
+            ignore_names=["robot0", "gripper0"],
+            vis_args=vis_args
+        )
+        robot1_trajectory_results = pool.map(eval_func1, robot1_tasks)
+        robot1_trajectory_results = [r for r in robot1_trajectory_results if r is not None]
 
-    # 7. Save Trajectories
+    duration = time.time() - start_time
+    logger.info(f"Evaluation complete in {duration:.2f}s.")
+
+    # 8. Collective Feasibility Analysis
+    # ----------------------------------
+    num_waypoints = len(object_trajectory)
+    logger.info(f"Analyzing collective feasibility for {num_waypoints} object waypoints...")
+    
+    feasible_waypoints_count = 0
+    for k in range(num_waypoints):
+        r0_feasible = any(res['results'][k].is_feasible for res in robot0_trajectory_results)
+        r1_feasible = any(res['results'][k].is_feasible for res in robot1_trajectory_results)
+        
+        if r0_feasible and r1_feasible:
+            status = "FEASIBLE (BOTH)"
+            feasible_waypoints_count += 1
+        elif r0_feasible:
+            status = "FEASIBLE (ROBOT 0 ONLY)"
+            feasible_waypoints_count += 1
+        elif r1_feasible:
+            status = "FEASIBLE (ROBOT 1 ONLY)"
+            feasible_waypoints_count += 1
+        else:
+            status = "INFEASIBLE (NONE)"
+            
+        logger.info(f"  Waypoint {k:2d}: {status}")
+
+    logger.info(f"Collective analysis: {feasible_waypoints_count}/{num_waypoints} waypoints can be reached by AT LEAST one grasp from BOTH robots.")
+
+    # 9. Save Trajectories
     # ---------------------------------------------
     should_save = args.save_traj
     
@@ -407,4 +477,5 @@ def main() -> None:
     sys.exit(0)
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method('spawn', force=True)
     main()

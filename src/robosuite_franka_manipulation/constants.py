@@ -103,12 +103,16 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Default number of grasps to predict
 DEFAULT_NUM_GRASPS = 200
 DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING = False
-GRASPGEN_POINTCLOUD_SIZE = 2048  # Number of points for GraspGen input
+GRASPGEN_POINTCLOUD_SIZE = 4096  # Number of points for GraspGen input
 GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper collision mesh for occupancy checking
 MESH_SCALE = 1.0  # Default scale for object meshes
 GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
 GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using GraspGen
+MIN_GRASPS = 50
 DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
+
+ENTROPY_POSITION_SCALE = 5
+ENTROPY_ORIENTATION_SCALE = 5
 
 # =============================================================================
 # Planning Configuration
@@ -120,19 +124,18 @@ DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
 DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 
 # IK Solver Parameters
-IK_NUM_SEED_CONFIGS = 24  # Number of random seed configurations for IK
+IK_NUM_SEED_CONFIGS = 48  # Number of random seed configurations for IK
 IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
-IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_MAX_ITERATIONS = 200  # Maximum IK iterations
+IK_POS_TOLERANCE = 0.1  # Position tolerance (meters)
+IK_ORI_TOLERANCE = 0.05  # Orientation tolerance (radians)
 IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 
 # Trajectory Feasibility Check Parameters
-TRAJ_IK_NUM_SEED_CONFIGS = 16  # Fewer seeds for trajectory waypoints (faster)
+TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
 TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
 
 # Collision Checking Parameters
@@ -146,7 +149,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # Object Trajectory Generation
-OBJECT_TRAJ_NUM_STEPS = 100  # Default number of steps for object trajectory
+OBJECT_TRAJ_NUM_STEPS = 50  # Default number of steps for object trajectory
 OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
 OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
 # Segment ratios for object trajectory (lift, approach, insert)
@@ -199,7 +202,7 @@ DEFAULT_RENDER_CAMERA = 'free'
 DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
-DEFAULT_TABLE_SIZE = (0.6, 0.6, 0.05)
+DEFAULT_TABLE_SIZE = (0.75, 0.75, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
 DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
@@ -300,3 +303,10 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # Path to suction gripper XML asset
 SUCTION_GRIPPER_XML_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "grippers" / "panda_suction.xml"
+
+# Path to custom suction gripper collision mesh
+COBOT_PUMP_MESH_PATH = get_project_root() / "src" / "robosuite_franka_manipulation" / "assets" / "meshes" / "cobot_pump" / "collision" / "cobot_pump.stl"
+
+# Suction TCP offset relative to its connection site (base)
+# This is usually the distance from the flange to the suction cup tip
+SUCTION_TCP_OFFSET = np.array([0.0, 0.0, 0.11]) 

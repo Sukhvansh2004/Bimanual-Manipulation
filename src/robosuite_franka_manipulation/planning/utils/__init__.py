@@ -2,7 +2,7 @@
 
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
-    solve_ik_dls,
+    solve_ik_scipy,
     unique_solutions
 )
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
@@ -19,6 +19,7 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     save_trajectory,
+    load_trajectory,
     WaypointFeasibilityResult
 )
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
@@ -31,7 +32,7 @@ from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
 __all__ = [
     # IK utilities
     'enumerate_ik_solutions_for_arm',
-    'solve_ik_dls',
+    'solve_ik_scipy',
     'unique_solutions',
     # Collision utilities
     'in_collision',
@@ -47,6 +48,7 @@ __all__ = [
     'compute_site_error',
     # Trajectory utilities
     'save_trajectory',
+    'load_trajectory',
     'WaypointFeasibilityResult',
     # Visualization utilities
     'visualize_trajectory',

@@ -85,18 +85,17 @@ def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
     return None
 
 
-def _get_contact_pairs(sim: MjSim) -> List[Tuple[int, int, float]]:
-    """Return list of (geom1, geom2, dist) for all contacts."""
+def _get_contact_arrays(sim: MjSim) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return vectorized contact info (geom1, geom2, dist)."""
     data = sim.data
     ncon = int(data.ncon)
-    pairs: List[Tuple[int, int, float]] = []
-    for i in range(ncon):
-        c = data.contact[i]
-        g1 = int(c.geom1)
-        g2 = int(c.geom2)
-        dist = float(c.dist)
-        pairs.append((g1, g2, dist))
-    return pairs
+    if ncon <= 0:
+        return np.array([], dtype=np.int32), np.array([], dtype=np.int32), np.array([], dtype=np.float64)
+    
+    g1 = np.asarray(data.contact.geom1[:ncon], dtype=np.int32)
+    g2 = np.asarray(data.contact.geom2[:ncon], dtype=np.int32)
+    dist = np.asarray(data.contact.dist[:ncon], dtype=np.float64)
+    return g1, g2, dist
 
 
 def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
@@ -117,7 +116,7 @@ def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
             logger.debug(f"Valid suction target: '{name}' -> body_id {body_id}")
 
     _OBJECT_BODY_CACHE[model_key] = valid_ids
-    logger.info(f"Found {len(valid_ids)} valid suction target bodies: {valid_ids}")
+    logger.debug(f"Found {len(valid_ids)} valid suction target bodies: {valid_ids}")
     return valid_ids
 
 
@@ -154,13 +153,13 @@ def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bo
     old_obj1 = int(model.eq_obj1id[eq_id])
     model.eq_obj1id[eq_id] = int(body1_id)
     # Always log body1 status for debugging
-    logger.info(f"eq_obj1id[{eq_id}]: was {old_obj1}, now {body1_id} (eef)")
+    logger.debug(f"eq_obj1id[{eq_id}]: was {old_obj1}, now {body1_id} (eef)")
     
     # Set body2 (the object being suctioned)
     old_obj2 = int(model.eq_obj2id[eq_id])
     model.eq_obj2id[eq_id] = int(body2_id)
     # Always log body2 status for debugging
-    logger.info(f"eq_obj2id[{eq_id}]: was {old_obj2}, now {body2_id} (object)")
+    logger.debug(f"eq_obj2id[{eq_id}]: was {old_obj2}, now {body2_id} (object)")
     
     return success
 
@@ -188,12 +187,12 @@ def _debug_weld_state(sim: MjSim, eq_id: int) -> None:
     solref = model.eq_solref[eq_id]
     solimp = model.eq_solimp[eq_id]
     
-    logger.info(
+    logger.debug(
         f"WELD STATE eq_id={eq_id}: type={type_name}, "
         f"body1={obj1_name}({obj1_id}), body2={obj2_name}({obj2_id}), "
         f"active={eq_active}, anchor={anchor}, relpose_pos={pos}, relpose_quat={quat}"
     )
-    logger.info(f"  solref={solref}, solimp={solimp}")
+    logger.debug(f"  solref={solref}, solimp={solimp}")
 
 
 def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
@@ -287,7 +286,7 @@ def _set_weld_relpose_current(sim: MjSim, eq_id: int, body1_id: int, body2_id: i
     # Calculate relative pose: body2 in body1's frame using scipy Rotation
     p_rel, q_rel = _compute_relative_pose_wxyz(p1, q1, p2, q2)
     
-    logger.info(f"Setting weld relpose: pos={p_rel}, quat={q_rel}")
+    logger.debug(f"Setting weld relpose: pos={p_rel}, quat={q_rel}")
 
     # MuJoCo eq_data layout for WELD constraints:
     #   [0:3]  = anchor point in body1 frame (we keep at origin)
@@ -300,7 +299,7 @@ def _set_weld_relpose_current(sim: MjSim, eq_id: int, body1_id: int, body2_id: i
     model.eq_data[eq_id, 3:6] = p_rel
     # Set relpose quaternion (indices 6:10)
     model.eq_data[eq_id, 6:10] = q_rel
-    logger.info(f"Set eq_data[{eq_id}]: anchor=[0,0,0], relpose_pos={p_rel}, relpose_quat={q_rel}")
+    logger.debug(f"Set eq_data[{eq_id}]: anchor=[0,0,0], relpose_pos={p_rel}, relpose_quat={q_rel}")
     return True
 
 
@@ -342,7 +341,7 @@ def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: 
         eef_body_id=eef_body_id,
     )
     
-    logger.info(f"Suction Weld Handles for robot {robot_id} arm {arm}: {handles}")
+    logger.debug(f"Suction Weld Handles for robot {robot_id} arm {arm}: {handles}")
 
     per_model[cache_key] = handles
     return handles
@@ -379,7 +378,8 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
             logger.warning(f"Action vector size {action_vec.size} is less than expected {total_action_dim}")
             return
 
-        contact_pairs = _get_contact_pairs(sim)
+        # Fetch contact arrays once per update
+        g1_arr, g2_arr, dist_arr = _get_contact_arrays(sim)
         any_mutation = False
 
         for ridx, robot in enumerate(robots):
@@ -413,7 +413,7 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 # --- SUCTION OFF: Deactivate weld ---
                 if (gripper_action == -1.0):
                     if handles.welded_body_id is not None:
-                        logger.debug(f"Releasing suction weld on body {handles.welded_body_id}")
+                        logger.info(f"Releasing suction weld on body {handles.welded_body_id}")
                         _set_equality_active(sim, handles.eq_id, False)
                         handles.welded_body_id = None
                         any_mutation = True
@@ -431,20 +431,26 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
 
                 # Find the best contacted geom (closest contact with snout)
                 target_geom_id = None
-                best_dist = float("inf")
-                for g1, g2, dist in contact_pairs:
-                    if g1 == handles.snout_geom_id:
-                        candidate = g2
-                    elif g2 == handles.snout_geom_id:
-                        candidate = g1
-                    else:
-                        continue
-                    if dist < best_dist:
-                        best_dist = dist
-                        target_geom_id = int(candidate)
+                if g1_arr.size > 0:
+                    # Snout can be either geom1 or geom2
+                    mask = (g1_arr == handles.snout_geom_id) | (g2_arr == handles.snout_geom_id)
+                    # Use threshold of 0.05 as requested
+                    mask &= (dist_arr < 0.05)
+                    
+                    if np.any(mask):
+                        # Get indices of contacts involving the snout within threshold
+                        candidate_indices = np.where(mask)[0]
+                        # Get the one with the minimum distance
+                        best_idx = candidate_indices[np.argmin(dist_arr[candidate_indices])]
+                        
+                        # Identify the other geom in the contact
+                        if g1_arr[best_idx] == handles.snout_geom_id:
+                            target_geom_id = int(g2_arr[best_idx])
+                        else:
+                            target_geom_id = int(g1_arr[best_idx])
 
                 if target_geom_id is None:
-                    # No contact - keep weld inactive, do NOT activate
+                    # No contact - keep weld inactive
                     _set_equality_active(sim, handles.eq_id, False)
                     continue
 

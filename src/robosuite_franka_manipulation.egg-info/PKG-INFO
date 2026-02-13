@@ -389,7 +389,7 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (74 tests)
+# Run all tests (80 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules
@@ -405,6 +405,7 @@ python -m pytest tests/test_grasps.py -v
 
 - [Microservices Architecture](docs/services.md) - Service APIs and usage
 - [Perception Architecture](docs/perception_architecture.md) - Detection and grasp prediction
+- [Planning Architecture](docs/planning.md) - Trajectory and grasp planning
 - [Transforms Module](docs/transforms.md) - Coordinate frame management
 - [Utilities Module](docs/utilities.md) - SE(3), point cloud, and serialization utilities
 

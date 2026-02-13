@@ -76,7 +76,7 @@ else:
 ## Implementation Details
 
 ### Inverse Kinematics (IK)
-The module uses a Damped Least Squares (DLS) IK solver (`solve_ik_dls`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by trying multiple random seed configurations (including a "warm start" from the previous solution) to avoid local minima and handle the redundancy of 7-DOF arms.
+The module uses a robust Scipy-based IK solver (`solve_ik_scipy`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by trying multiple random seed configurations (including a "warm start" from the previous solution) to avoid local minima and handle the redundancy of 7-DOF arms.
 
 ### Coordinate Frames
 All planning functions rely on `StampedPose` and `TransformManager` to ensure coordinate systems are handled correctly. Trajectories are typically computed in the `world` frame, but the IK solver targets specific sites (e.g., `gripper0_right_ft_frame`). The `check_trajectory_feasibility` function automatically handles the necessary frame conversions, including applying a -90 degree Z-axis rotation correction to align standard grasp conventions with the Franka flange frame.

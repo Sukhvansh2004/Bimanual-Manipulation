@@ -54,10 +54,23 @@ class GraspPredictor:
         """
         Get the collision mesh for the loaded gripper type.
         """
-        # The gripper_type passed to init (e.g. 'franka_panda') matches the name expected by get_gripper_info
         try:
-            info = get_gripper_info(self.gripper_type)
-            return info.collision_mesh
+            if self.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction']):
+                mesh_path = constants.COBOT_PUMP_MESH_PATH
+                if mesh_path.exists():
+                    mesh = trimesh.load(str(mesh_path))
+                    # Shift origin to TCP
+                    # If TCP is at offset relative to base, we translate the mesh by -offset to put TCP at (0,0,0)
+                    T = tra.translation_matrix(-constants.SUCTION_TCP_OFFSET)
+                    mesh.apply_transform(T)
+                    return mesh
+                else:
+                    logger.warning(f"Custom suction mesh not found at {mesh_path}, falling back to default info.")
+                    info = get_gripper_info(self.gripper_type)
+                    return info.collision_mesh
+            else:
+                info = get_gripper_info(self.gripper_type)
+                return info.collision_mesh
         except Exception as e:
             logger.error(f"Failed to load gripper collision mesh for {self.gripper_type}: {e}")
             raise
@@ -142,12 +155,18 @@ class GraspPredictor:
         device = next(self.sampler.model.parameters()).device
         pcd_tensor = pcd_tensor.to(device)
         
+        if num_grasps <= constants.MIN_GRASPS: 
+            logger.warning(f"Requested number of grasps {num_grasps} is very low, setting to minimum {constants.MIN_GRASPS}.")
+            num_grasps = constants.MIN_GRASPS
+            
         # Run Inference
         grasps, grasp_conf = GraspGenSampler.run_inference(
             pcd_tensor,
             self.sampler,
             grasp_threshold=constants.GRASPGEN_PREDICTION_THRESHOLD,
-            num_grasps=num_grasps
+            num_grasps=num_grasps*5,
+            min_grasps=num_grasps,
+            remove_outliers=False,  # We already removed outliers in preprocessing, and GraspGen's outlier removal can be too aggressive
         )
         
         grasp_list: List[GraspSchema] = []
@@ -183,6 +202,8 @@ class GraspPredictor:
 
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")
         
+        grasp_list = maximize_entropy_grasps(grasp_list, num_grasps)
+
         if self.visualize and grasp_list:
              # Visualization logic
             object_to_world = Transform(
@@ -414,14 +435,118 @@ class GraspPredictor:
         if len(pcd) < 10:
             return pcd
         
-        # Use GraspGen's point cloud outlier removal with adjusted threshold
-        # The default threshold of 0.014 might be too aggressive for some point clouds
         pcd_tensor = torch.from_numpy(pcd).float()
-        filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.05, K=20)
+        filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.1, K=20)
         
         # Ensure we keep at least some points
         if len(filtered_pcd) < 10:
-            # If too many points were removed, use a more lenient threshold
-            filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.1, K=20)
+            filtered_pcd, _ = point_cloud_outlier_removal(pcd_tensor, threshold=0.2, K=20)
         
         return filtered_pcd.cpu().numpy()
+    
+
+def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at_neg: bool = False) -> List[GraspSchema]:
+    """
+    Select a subset of grasps that maximizes entropy (diversity and quality).
+    Uses a greedy Determinantal Point Process (DPP) approach.
+    
+    The entropy of a subset S in a DPP defined by L-ensemble matrix L is log det(L_S).
+    We greedily select grasps to maximize this determinant.
+    
+    Args:
+        grasps: List of GraspSchema objects.
+        num_grasps: Number of grasps to select.
+        
+    Returns:
+        A list of selected GraspSchema objects.
+    """
+    if not grasps or num_grasps <= 0:
+        return []
+    
+    if len(grasps) <= num_grasps:
+        # Sort by score anyway if we return all of them
+        return sorted(grasps, key=lambda g: g.score, reverse=True)
+
+    # 1. Prepare features for each grasp
+    # We use position and orientation as features
+    num_total = len(grasps)
+    positions = np.array([g.pos for g in grasps])
+    quaternions = np.array([g.quat for g in grasps])
+    # Ensure scores are positive for DPP L-ensemble
+    scores = np.array([max(g.score, 1e-4) for g in grasps])
+    
+    # 2. Compute similarity kernel matrix K
+    # K_ij = exp(-0.5 * d(g_i, g_j)^2)
+    
+    # Pairwise squared Euclidean distance for positions
+    # (dist_pos^2)_ij = ||p_i - p_j||^2
+    diff_pos = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+    dist_pos_sq = np.sum(diff_pos**2, axis=-1)
+    
+    # Pairwise distance for orientations
+    # d_rot = 1 - |<q_i, q_j>|
+    # dot_products = |<q_i, q_j>|
+    dot_products = np.abs(np.einsum('id,jd->ij', quaternions, quaternions))
+    # Clip for numerical stability
+    dot_products = np.clip(dot_products, 0.0, 1.0)
+    dist_rot = 1.0 - dot_products
+    
+    # Combined distance squared
+    # sigma_p and sigma_r control the diversity scale
+    sigma_p = constants.ENTROPY_POSITION_SCALE
+    sigma_r = constants.ENTROPY_ORIENTATION_SCALE
+    
+    # d^2 = (dist_pos / sigma_p)^2 + (dist_rot / sigma_r)^2
+    d_sq = dist_pos_sq / (sigma_p**2) + (dist_rot**2) / (sigma_r**2)
+    K = np.exp(-0.5 * d_sq)
+    
+    # 3. Construct L-ensemble matrix L
+    # L_ij = score_i * score_j * K_ij
+    L = scores[:, np.newaxis] * scores[np.newaxis, :] * K
+    
+    # 4. Greedy selection to maximize det(L_S)
+    selected_indices = []
+    remaining_indices = list(range(num_total))
+    
+    # Start with the grasp with the highest score
+    first_idx = int(np.argmax(scores))
+    selected_indices.append(first_idx)
+    remaining_indices.remove(first_idx)
+    
+    # Iteratively add elements that maximize the conditional log-determinant (Schur complement)
+    for it in range(num_grasps - 1):
+        best_idx = -1
+        
+        S = selected_indices
+        L_SS = L[np.ix_(S, S)]
+        
+        try:
+            # Add a small epsilon for numerical stability
+            L_SS_inv = np.linalg.inv(L_SS + np.eye(len(S)) * 1e-6)
+        except np.linalg.LinAlgError:
+            L_SS_inv = np.linalg.pinv(L_SS)
+            
+        # This loop can be vectorized if num_total is very large
+        L_ii_diag = np.diag(L)
+        # We only need L_iS for i in remaining_indices
+        L_rem_S = L[remaining_indices, :][:, S]
+        
+        # gains = L_ii - L_iS @ L_SS_inv @ L_Si
+        # L_iS is (len(rem), len(S))
+        # L_SS_inv is (len(S), len(S))
+        # Result of L_rem_S @ L_SS_inv @ L_rem_S.T is (len(rem), len(rem))
+        # We only want the diagonal
+        intermediate = L_rem_S @ L_SS_inv
+        gains = L_ii_diag[remaining_indices] - np.einsum('ij,ij->i', intermediate, L_rem_S)
+        
+        best_idx_in_rem = np.argmax(gains)
+        best_idx = remaining_indices[best_idx_in_rem]
+        
+        if gains[best_idx_in_rem] < 0 and break_at_neg:
+            logger.info(f"Breaking early at {it} grasps as more entropy can't be maximized more")
+            break
+            
+        selected_indices.append(best_idx)
+        remaining_indices.remove(best_idx)
+        
+    return [grasps[i] for i in selected_indices]

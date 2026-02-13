@@ -6,6 +6,9 @@ from typing import List, Optional, Sequence, Union, Iterable
 
 import numpy as np
 import mujoco
+import logging
+from scipy.optimize import minimize
+from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -14,10 +17,12 @@ from robosuite.utils.binding_utils import MjModel, MjData
 
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 
+logger = logging.getLogger(__name__)
+
 ArrayLike = Union[Sequence[float], np.ndarray]
 
 
-def solve_ik_dls(
+def solve_ik_scipy(
     model: MjModel,
     data: MjData,
     site_id: int,
@@ -29,55 +34,76 @@ def solve_ik_dls(
     target_quat: np.ndarray,
     q_init: np.ndarray,
     *,
-    max_iters: int,
     pos_tol: float,
     ori_tol: float,
-    damping: float,
-    step_size: float,
 ) -> Optional[np.ndarray]:
-    """Iterative IK using damped least squares on a MuJoCo site."""
-    # model and data are expected to be the public mujoco objects (env.sim.model, env.sim.data)
-
-    q = np.asarray(q_init, dtype=float).copy()
-    q = q.reshape(-1)
-    q = np.clip(q, joint_lo, joint_hi)
-    mujoco_utils.set_qpos(data, joint_qpos_idx, q)
+    """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision."""
     
-    # Unwrap for native call
-    mujoco.mj_forward(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
+    # Unwrap once at the start of the IK solve. These native pointers remain 
+    # valid throughout the optimization loop as the environment state is 
+    # only modified, not re-allocated.
+    model_native = mujoco_utils.get_native_mj_object(model)
+    data_native = mujoco_utils.get_native_mj_object(data)
 
-    nv = int(model.nv)
-    jacp = np.zeros((3, nv), dtype=float)
-    jacr = np.zeros((3, nv), dtype=float)
-
-    lam2 = float(damping) ** 2
-
-    for _ in range(int(max_iters)):
-        pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        if np.linalg.norm(pos_err) <= pos_tol and np.linalg.norm(rot_err) <= ori_tol:
-            return q
-
-        # Unwrap for native call
-        mujoco.mj_jacSite(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data), jacp, jacr, site_id)
+    def compute_state(q):
+        # Update joint positions directly in native data
+        mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
         
-        J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])  # (6, 7)
-        err = np.concatenate([pos_err, rot_err], axis=0)
-
-        # dq = J^T (J J^T + lam^2 I)^-1 * err
-        JJt = J @ J.T
-        dq = J.T @ np.linalg.solve(JJt + lam2 * np.eye(6), err)
-        dq = step_size * dq
-
-        q = np.clip(q + dq, joint_lo, joint_hi)
-        mujoco_utils.set_qpos(data, joint_qpos_idx, q)
+        # Forward kinematics
+        mujoco.mj_fwdPosition(model_native, data_native)
         
-        # Unwrap for native call
-        mujoco.mj_forward(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
+        # Compute site error using native data
+        pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
+        err = np.concatenate([pos_err, rot_err])
+        
+        # Compute Jacobian
+        nv = int(model_native.nv)
+        jacp = np.zeros((3, nv))
+        jacr = np.zeros((3, nv))
+        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+        
+        # Extract Jacobian for the active joints
+        jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+        
+        return err, jac
 
-    # Final check
-    pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-    if np.linalg.norm(pos_err) <= pos_tol and np.linalg.norm(rot_err) <= ori_tol:
-        return q
+    def objective(q):
+        err, _ = compute_state(q)
+        return 0.5 * np.dot(err, err)
+
+    def gradient(q):
+        err, jac = compute_state(q)
+        # Gradient of 0.5 * ||f(q)||^2 is J(q)^T * f(q). 
+        # Since error = target - current, d(error)/dq = -J, so grad = -J^T * error.
+        return -jac.T @ err
+
+    # Use SLSQP for precise constrained optimization
+    res = minimize(
+        objective,
+        q_init,
+        method='SLSQP',
+        jac=gradient,
+        bounds=list(zip(joint_lo, joint_hi)),
+    )
+
+    q_final = res.x
+    
+    # Final state update and error check
+    mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
+    mujoco.mj_fwdPosition(model_native, data_native)
+    pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
+    pos_dist = np.linalg.norm(pos_err)
+    rot_dist = np.linalg.norm(rot_err)
+
+    if pos_dist <= pos_tol and rot_dist <= ori_tol:
+        logger.debug(f"IK solution found: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
+        return q_final
+    
+    if not res.success:
+        logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
+    else:
+        logger.debug(f"IK converged but tolerance not met: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
+
     return None
 
 
@@ -95,7 +121,6 @@ def enumerate_ik_solutions_for_arm(
     robot_id: int,
     target_pose: StampedPose,
     tf_manager: TransformManager,
-    target_frame: str = constants.WORLD_FRAME,
     arm: str = "right",
     site_name: Optional[str] = None,
     q_warm_start: Optional[np.ndarray] = None,
@@ -105,9 +130,6 @@ def enumerate_ik_solutions_for_arm(
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
     pos_tol: float = constants.IK_POS_TOLERANCE,
     ori_tol: float = constants.IK_ORI_TOLERANCE,
-    max_iters: int = constants.IK_MAX_ITERATIONS,
-    damping: float = constants.IK_DAMPING,
-    step_size: float = constants.IK_STEP_SIZE,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
 ) -> List[np.ndarray]:
     f"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
@@ -115,7 +137,7 @@ def enumerate_ik_solutions_for_arm(
     Discretization strategy (simple + robust):
     - Sample the last joint ("elbow/wrist" redundancy) across its joint range.
     - Add random seeds around the current configuration.
-    - Run DLS IK from each seed; keep converged solutions; de-duplicate.
+    - Run Scipy-based IK from each seed; keep converged solutions; de-duplicate.
 
     Returns:
         List of joint angle arrays of shape (f{constants.DEFAULT_ROBOT_ACTION_DIM},).
@@ -152,50 +174,53 @@ def enumerate_ik_solutions_for_arm(
 
         q_current = mujoco_utils.get_qpos(data, joint_qpos_idx)
 
-        seeds: List[np.ndarray] = []
+        # Separate seeds into priority groups
+        priority_seeds: List[np.ndarray] = []
+        fallback_seeds: List[np.ndarray] = []
 
-        # 0) Warm start if provided
+        rng = np.random.default_rng(0)
+
+        # 1) Warm start and perturbations (Highest Priority)
         if q_warm_start is not None:
             q_warm = np.asarray(q_warm_start, dtype=float).copy()
             if q_warm.shape == q_current.shape:
-                seeds.append(q_warm)
+                priority_seeds.append(q_warm)
                 # Add small perturbations around warm start
-                rng = np.random.default_rng(0)
                 for _ in range(num_seed_configs):
                      q_pert = q_warm + rng.normal(scale=0.05, size=q_warm.shape)
-                     seeds.append(np.clip(q_pert, joint_lo, joint_hi))
-
+                     priority_seeds.append(np.clip(q_pert, joint_lo, joint_hi))
         else:
-            # 1) Discretize last joint across its limits
-            last_lo, last_hi = float(joint_lo[-1]), float(joint_hi[-1])
-            if elbow_discretization > 1 and np.isfinite(last_lo) and np.isfinite(last_hi) and last_hi > last_lo:
-                for v in np.linspace(last_lo, last_hi, elbow_discretization):
-                    q0 = q_current.copy()
-                    q0[-1] = float(v)
-                    seeds.append(q0)
-            else:
-                seeds.append(q_current.copy())
+            # If no warm start, current pose is the best guess
+            priority_seeds.append(q_current.copy())
 
-            # 2) Random perturbation seeds
-            rng = np.random.default_rng(0)
-            for _ in range(max(0, int(num_seed_configs))):
-                q0 = q_current + rng.normal(scale=constants.IK_RANDOM_PERTURBATION_SCALE, size=q_current.shape)
-                q0 = np.clip(q0, joint_lo, joint_hi)
-                seeds.append(q0)
+        # 2) Fallback seeds: Discretize and Random (Lower Priority)
+        # Discretize last joint
+        last_lo, last_hi = float(joint_lo[-1]), float(joint_hi[-1])
+        if elbow_discretization > 1 and np.isfinite(last_lo) and np.isfinite(last_hi) and last_hi > last_lo:
+            for v in np.linspace(last_lo, last_hi, elbow_discretization):
+                q0 = q_current.copy()
+                q0[-1] = float(v)
+                fallback_seeds.append(q0)
 
-            # 3) A few uniform random seeds in joint space
-            for _ in range(max(0, int(num_seed_configs // 3))):
-                u = rng.uniform(low=joint_lo, high=joint_hi)
-                seeds.append(u)
+        # Random perturbation seeds from current
+        for _ in range(max(0, int(num_seed_configs))):
+            q0 = q_current + rng.normal(scale=constants.IK_RANDOM_PERTURBATION_SCALE, size=q_current.shape)
+            fallback_seeds.append(np.clip(q0, joint_lo, joint_hi))
+
+        # Uniform random seeds
+        for _ in range(max(0, int(num_seed_configs))):
+            fallback_seeds.append(rng.uniform(low=joint_lo, high=joint_hi))
 
         # Save and restore simulation state
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
         solutions: List[np.ndarray] = []
-        try:
-            for q0 in seeds:
-                q_sol = solve_ik_dls(
+        
+        def run_ik_on_seeds(seeds_list):
+            nonlocal solutions
+            for q0 in seeds_list:
+                q_sol = solve_ik_scipy(
                     model,
                     data,
                     site_id,
@@ -206,23 +231,41 @@ def enumerate_ik_solutions_for_arm(
                     target_pos,
                     target_quat,
                     q0,
-                    max_iters=max_iters,
                     pos_tol=pos_tol,
                     ori_tol=ori_tol,
-                    damping=damping,
-                    step_size=step_size,
                 )
-                if q_sol is None:
-                    continue
-                solutions.append(np.asarray(q_sol, dtype=float))
-                solutions = unique_solutions(solutions, atol=unique_atol)
-                if len(solutions) >= int(max_solutions):
-                    break
+                if q_sol is not None:
+                    solutions.append(np.asarray(q_sol, dtype=float))
+                    solutions = unique_solutions(solutions, atol=unique_atol)
+                    if len(solutions) >= int(max_solutions):
+                        return True
+            return False
+
+        try:
+            # Try priority seeds first
+            found_priority = run_ik_on_seeds(priority_seeds)
+            
+            # If no solutions found from priority seeds, try fallback seeds
+            if not solutions:
+                run_ik_on_seeds(fallback_seeds)
+            
+            if not solutions:
+                logger.debug(f"No IK solutions found for robot {robot_id} at {target_pos}")
+                
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
             
             # Unwrap for native call
-            mujoco.mj_forward(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
+            mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
 
         return solutions
+
+
+def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
+    """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame."""
+    corrected = pose.copy()
+    r_corr = R.from_euler('z', -90, degrees=True)
+    r_pose = R.from_quat(corrected.quaternion)
+    corrected.quaternion = (r_pose * r_corr).as_quat()
+    return corrected

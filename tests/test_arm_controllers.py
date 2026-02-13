@@ -41,8 +41,8 @@ class TestArmControllers:
         assert robot1_arm is not None
         
         # Check transform manager is initialized
-        assert robot0_arm.transform_manager is not None
-        assert robot1_arm.transform_manager is not None
+        assert robot0_arm.tf_manager is not None
+        assert robot1_arm.tf_manager is not None
         
         # Check base frame is set correctly
         assert "base" in robot0_arm.base_frame
@@ -130,7 +130,7 @@ class TestArmControllerFrameHandling:
         grasp_pose = StampedPose(**grasp_dict)
         
         # Should not raise an error
-        success = controller.move_to_pose(grasp_pose, timeout=50)
+        success = controller.move_to_pose(grasp_pose, num_steps=50)
         assert isinstance(success, bool)
 
     def test_move_to_pose_accepts_stamped_pose(self, env):
@@ -146,7 +146,7 @@ class TestArmControllerFrameHandling:
             frame_id=controller.base_frame
         )
         
-        success = controller.move_to_pose(pose, timeout=50)
+        success = controller.move_to_pose(pose, num_steps=50)
         assert isinstance(success, bool)
 
 
