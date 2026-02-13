@@ -405,8 +405,10 @@ def main() -> None:
             feasible_waypoints_count += 1
         elif r0_feasible:
             status = "FEASIBLE (ROBOT 0 ONLY)"
+            feasible_waypoints_count += 1
         elif r1_feasible:
             status = "FEASIBLE (ROBOT 1 ONLY)"
+            feasible_waypoints_count += 1
         else:
             status = "INFEASIBLE (NONE)"
             
