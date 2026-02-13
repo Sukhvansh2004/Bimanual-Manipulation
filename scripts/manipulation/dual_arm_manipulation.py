@@ -62,7 +62,7 @@ from robosuite_franka_manipulation.services.move_to_pose_service import MoveToPo
 from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step, set_robot_config
 from robosuite_franka_manipulation.planning.utils import load_trajectory, visualize_trajectory, WaypointFeasibilityResult
 
 # Configure logging
@@ -744,7 +744,7 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
     else:
         print(f"Failed to send follow trajectory command: {response.get('message')}")
 
-def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0):
+def get_feasible_trajectory(trajectory: List[StampedPose], feasibility: np.ndarray, joint_configs: Optional[List[np.ndarray]] = None):
     """
     Groups feasible waypoints into continuous segments and executes them.
     A trajectory compromises a continuous set of feasible segments.
@@ -754,36 +754,39 @@ def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[Sta
         return
 
     segments = []
-    current_segment = []
+    current_pose_segment = []
+    current_joint_segment = []
     
     for i in range(len(trajectory)):
         if feasibility[i]:
-            current_segment.append(trajectory[i])
+            current_pose_segment.append(trajectory[i])
+            if joint_configs is not None:
+                current_joint_segment.append(joint_configs[i])
         else:
-            if current_segment:
-                segments.append(current_segment)
-                current_segment = []
+            if current_pose_segment:
+                segments.append((current_pose_segment, current_joint_segment))
+                current_pose_segment = []
+                current_joint_segment = []
     
-    if current_segment:
-        segments.append(current_segment)
+    if current_pose_segment:
+        segments.append((current_pose_segment, current_joint_segment))
         
-    print(f"Executing {len(segments)} feasible segments for robot {robot_id}, arm {arm_id}")
-    
-    for i, segment in enumerate(segments):
-        print(f"  Executing segment {i+1}/{len(segments)} ({len(segment)} waypoints)")
-        follow_trajectory_command(robot_id, arm_id, segment, gripper_action)
+    return segments
+
+
+def follow_joint_trajectory(robot_id: int, arm_id: str, joint_trajectory: List[np.ndarray], delay: float = 0.05):
+    """
+    Sequentially sets robot config to joint waypoints with delay for visualization.
+    """
+    if system.env is None:
+        print("Environment not initialized")
+        return
         
-        # Wait for segment to finish
-        while True:
-            status = get_arm_status(robot_id, arm_id)
-            if status != -1: # Not moving
-                if status == 0:
-                    print(f"  Segment {i+1} failed!")
-                    return False
-                break
-            time.sleep(0.5)
-            
-    print("Feasible trajectory execution complete.")
+    print(f"Following {len(joint_trajectory)} joint configurations for robot {robot_id}, arm {arm_id}...")
+    for config in joint_trajectory:
+        with system.env_lock:
+            set_robot_config(system.env, robot_id, arm_id, config)
+        time.sleep(delay)
 
 
 def main() -> int:
@@ -889,7 +892,8 @@ Helper functions:
   cancel_move(robot_id, arm_id)          - Cancel a move command
   get_arm_status(robot_id, arm_id)       - Get arm status (-1: moving, 1: success, 0: fail)
   follow_trajectory(robot_id, arm, traj) - Follow a pre-defined trajectory
-  execute_feasible_trajectory(r_id, arm, traj, feas) - Execute feasible segments
+  get_feasible_trajectory(r_id, arm, traj, feas, joint_configs) - Execute feasible segments
+  follow_joint_trajectory(r_id, arm, joints) - Follow joint configs in env
   load_trajectory_file(path)             - Load trajectory data from file
   visualize_trajectory_data(traj, results)- Visualize trajectory with status colors
   move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
@@ -925,7 +929,8 @@ Press Ctrl+D or type exit() to quit
                     'cancel_move': cancel_move,
                     'get_arm_status': get_arm_status,
                     'follow_trajectory': follow_trajectory_command,
-                    'execute_feasible_trajectory': execute_feasible_trajectory,
+                    'get_feasible_trajectory': get_feasible_trajectory,
+                    'follow_joint_trajectory': follow_joint_trajectory,
                     'load_trajectory_file': load_trajectory_file,
                     'visualize_trajectory_data': visualize_trajectory_data,
                     'move_arm_on_trajectory': move_arm_on_trajectory,
