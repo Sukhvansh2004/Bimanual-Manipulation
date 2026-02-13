@@ -16,9 +16,9 @@ The planning pipeline follows these stages:
 
 This is the core module for creating and verifying robot motions.
 
--   **`generate_object_trajectory(start_pose, target_pose, ...)`**: Creates a list of `StampedPose` waypoints representing the object's path (e.g., lift, approach, insert). It uses SE(3) interpolation (SLERP for rotation, linear for position) to ensure smooth motion.
--   **`generate_end_effector_trajectory(object_trajectory, grasp, ...)`**: Computes the corresponding end-effector trajectory by applying the grasp transform to the object's path.
--   **`check_trajectory_feasibility(env, robot_id, eef_trajectory, ...)`**: The main validation function. It iterates through each waypoint in a trajectory, solving IK for the robot arm and checking for collisions in the MuJoCo simulation. It supports "warm-starting" the IK solver with the previous waypoint's solution for temporal consistency.
+-   **`generate_object_trajectory(start_pose, target_pose, tf_manager, num_steps, lift_height, approach_offset)`**: Creates a list of `StampedPose` waypoints representing the object's path (e.g., lift, approach, insert). It uses SE(3) interpolation (SLERP for rotation, linear for position) to ensure smooth motion.
+-   **`generate_end_effector_trajectory(object_trajectory, grasp, tf_manager)`**: Computes the corresponding end-effector trajectory by applying the grasp transform to the object's path.
+-   **`check_trajectory_feasibility(env, robot_id, eef_trajectory, tf_manager, object_trajectory, object_name, check_collisions, env_lock, ignore_names, arm)`**: The main validation function. It iterates through each waypoint in a trajectory, solving IK for the robot arm and checking for collisions in the MuJoCo simulation. Returns a tuple of `(List[WaypointFeasibilityResult], bool)`.
 
 ### 2. Collision Checker (`collision_checker.py`)
 
@@ -44,19 +44,28 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory,
     check_trajectory_feasibility
 )
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
+from robosuite_franka_manipulation import constants
 
 # 1. Define Start and Target Poses
 start_pose = StampedPose(position=[0.5, 0, 0.85], quaternion=[0, 0, 0, 1], frame_id="world")
 target_pose = StampedPose(position=[0.5, 0, 1.0], quaternion=[0, 0, 0, 1], frame_id="world")
 
-# 2. Generate Object Path
-object_traj = generate_object_trajectory(start_pose, target_pose, tf_manager=tf_manager)
+# 2. Generate Object Path (with configurable lift height and approach offset)
+object_traj = generate_object_trajectory(
+    start_pose, 
+    target_pose, 
+    tf_manager=tf_manager,
+    num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
+    lift_height=constants.OBJECT_TRAJ_LIFT_HEIGHT,
+    approach_offset=constants.OBJECT_TRAJ_APPROACH_OFFSET
+)
 
 # 3. Calculate Robot Path for a Specific Grasp
 robot_traj = generate_end_effector_trajectory(object_traj, my_grasp, tf_manager=tf_manager)
 
-# 4. Validate
+# 4. Validate with detailed per-waypoint results
 results, is_feasible = check_trajectory_feasibility(
     env=env,
     robot_id=0,
@@ -64,13 +73,18 @@ results, is_feasible = check_trajectory_feasibility(
     tf_manager=tf_manager,
     object_trajectory=object_traj,
     object_name="plate_target",
-    check_collisions=True
+    check_collisions=True,
+    arm="right"
 )
 
 if is_feasible:
     print("Trajectory is valid! Executing...")
 else:
-    print(f"Trajectory failed at waypoint {results[0].waypoint_index}")
+    # Check which waypoint failed
+    for i, result in enumerate(results):
+        if not result.is_feasible:
+            print(f"Waypoint {i} failed: IK={result.ik_success}, Collision-free={result.collision_free}")
+            break
 ```
 
 ## Implementation Details

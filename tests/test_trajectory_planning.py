@@ -110,6 +110,86 @@ class TestSE3Utilities:
         assert abs(distance - expected) < 1e-10
 
 
+class TestSE3EdgeCases:
+    """Test edge cases for SE(3) operations."""
+
+    def test_SE3_log_180_rotation(self):
+        """Test SE3_log for 180 degree rotation (singularity case)."""
+        T = np.eye(4)
+        T[:3, :3] = R.from_euler('z', 180, degrees=True).as_matrix()
+        
+        twist = SE3_log(T)
+        T_recovered = SE3_exp(twist)
+        
+        # Check rotation matrices are equivalent
+        np.testing.assert_array_almost_equal(T[:3, :3], T_recovered[:3, :3], decimal=6)
+
+    def test_SE3_exp_small_angle(self):
+        """Test SE3_exp for very small rotation angles."""
+        # Very small rotation
+        small_angle = 1e-8
+        twist = np.array([small_angle, 0, 0, 0.1, 0.2, 0.3])
+        
+        T = SE3_exp(twist)
+        
+        # Should be close to identity rotation with translation
+        assert np.allclose(T[:3, :3], np.eye(3), atol=1e-6)
+        # Translation should match v (since rotation is ~0)
+        np.testing.assert_array_almost_equal(T[:3, 3], [0.1, 0.2, 0.3], decimal=6)
+
+    def test_skew_zero_vector(self):
+        """Test skew of zero vector."""
+        v = np.zeros(3)
+        S = skew(v)
+        np.testing.assert_array_equal(S, np.zeros((3, 3)))
+
+    def test_se3_matrix_zero_twist(self):
+        """Test se3_to_matrix with zero twist."""
+        twist = np.zeros(6)
+        mat = se3_to_matrix(twist)
+        np.testing.assert_array_equal(mat, np.zeros((4, 4)))
+
+    def test_SE3_log_identity(self):
+        """Test SE3_log of identity matrix gives zero twist."""
+        T = np.eye(4)
+        twist = SE3_log(T)
+        np.testing.assert_array_almost_equal(twist, np.zeros(6))
+
+
+class TestPoseConversions:
+    """Test pose conversion functions."""
+
+    def test_pose_to_SE3_identity(self):
+        """Test pose_to_SE3 with identity pose."""
+        pos = np.zeros(3)
+        quat = np.array([0, 0, 0, 1])  # Identity quaternion
+        
+        T = pose_to_SE3(pos, quat)
+        
+        np.testing.assert_array_almost_equal(T, np.eye(4))
+
+    def test_SE3_to_pose_identity(self):
+        """Test SE3_to_pose with identity matrix."""
+        T = np.eye(4)
+        pos, quat = SE3_to_pose(T)
+        
+        np.testing.assert_array_almost_equal(pos, np.zeros(3))
+        # Identity quaternion can be [0,0,0,1] or [0,0,0,-1]
+        assert np.allclose(quat, [0, 0, 0, 1]) or np.allclose(quat, [0, 0, 0, -1])
+
+    def test_pose_roundtrip_arbitrary(self):
+        """Test pose -> SE3 -> pose roundtrip with arbitrary pose."""
+        pos = np.array([1.5, -2.3, 0.8])
+        quat = R.from_euler('xyz', [25, -40, 70], degrees=True).as_quat()
+        
+        T = pose_to_SE3(pos, quat)
+        pos_out, quat_out = SE3_to_pose(T)
+        
+        np.testing.assert_array_almost_equal(pos, pos_out)
+        # Quaternion sign ambiguity
+        assert np.allclose(quat, quat_out) or np.allclose(quat, -quat_out)
+
+
 class TestTrajectoryPlanning:
     """Test trajectory planning components."""
 

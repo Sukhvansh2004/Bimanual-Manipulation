@@ -196,7 +196,7 @@ The service collects predictions from all requested gripper types, sorts them gl
 
 ## MoveToPose Service (port 5553)
 
-Autonomous robot arm control.
+Autonomous robot arm control with trajectory following support.
 
 ### Commands
 
@@ -211,10 +211,25 @@ response = client.call('move_to_pose_service', {
         'quat': [qx, qy, qz, qw],
         'frame_id': 'world'
     },
-    'gripper_action': 0.0,       # Maintain gripper state
-    'approach': True             # Use approach motion
+    'gripper_action': 0.0,       # Gripper action during movement
+    'approach': True             # Use approach motion (optional)
 })
 # Response: {'status': 'success', 'message': 'Move started'}
+```
+
+**FOLLOW_TRAJECTORY** - Follow a pre-defined trajectory
+```python
+response = client.call('move_to_pose_service', {
+    'command': 'FOLLOW_TRAJECTORY',
+    'robot_id': 0,
+    'arm': 'right',
+    'trajectory': [              # List of StampedPose dicts
+        {'pos': [x1, y1, z1], 'quat': [qx, qy, qz, qw], 'frame_id': 'world'},
+        {'pos': [x2, y2, z2], 'quat': [qx, qy, qz, qw], 'frame_id': 'world'},
+    ],
+    'gripper_action': 0.0
+})
+# Response: {'status': 'success', 'message': 'Trajectory started'}
 ```
 
 **CANCEL_MOVE** - Cancel current movement
@@ -227,9 +242,19 @@ response = client.call('move_to_pose_service', {
 # Response: {'status': 'success', 'message': 'Cancellation requested'}
 ```
 
+**GET_ARM_STATUS** - Get current arm movement status
+```python
+response = client.call('move_to_pose_service', {
+    'command': 'GET_ARM_STATUS',
+    'robot_id': 0,
+    'arm': 'right'
+})
+# Response: {'status_code': 1}  # 1=success, 0=failure, -1=moving
+```
+
 ## Configuration Constants
 
-All service ports and timeouts are defined in `constants/__init__.py`:
+All service ports and timeouts are defined in `constants.py`:
 
 ```python
 # Network Configuration
@@ -240,9 +265,10 @@ GRASP_SERVICE_PORT = 5552
 MOVE_TO_POSE_SERVICE_PORT = 5553
 
 # ZMQ Timeouts (milliseconds)
-ZMQ_POLL_TIMEOUT = 1000
-ZMQ_MANAGER_TIMEOUT = 15000
-ZMQ_SERVICE_CALL_TIMEOUT = 10000
+ZMQ_POLL_TIMEOUT = 1000          # 1 second for service polling
+ZMQ_MANAGER_TIMEOUT = 330000     # 5.5 minutes for manager calls
+ZMQ_SERVICE_CALL_TIMEOUT = 300000  # 5 minutes for service calls
+ZMQ_SERVER_RECV_TIMEOUT = 1000   # 1 second for server receive polling
 ```
 
 ## Error Handling
@@ -266,8 +292,19 @@ Common error scenarios:
 The manipulation system uses threading locks for environment access:
 
 ```python
-# FastSAM and MoveToPose services accept an env_lock parameter
-fastsam = FastSAMService(env=env, env_lock=threading.Lock())
+import threading
+
+# Create a shared lock for environment access
+env_lock = threading.RLock()
+
+# TransformManager accepts the lock
+tf_manager = TransformManager(env, env_lock=env_lock)
+
+# FastSAM service uses the lock via tf_manager
+fastsam = FastSAMService(tf_manager=tf_manager, visualize=True)
+
+# MoveToPose controllers also use locks
+arm_controller = RobosuiteArmController(env, arm_id="right", env_lock=env_lock)
 ```
 
 This prevents race conditions when multiple services access the robosuite environment simultaneously.

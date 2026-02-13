@@ -8,6 +8,8 @@ import pytest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
+import threading
+from unittest.mock import MagicMock, patch
 
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
@@ -21,7 +23,11 @@ class TestArmControllers:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
         env.reset()
         yield env
         env.close()
@@ -100,7 +106,11 @@ class TestArmControllerFrameHandling:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
         env.reset()
         yield env
         env.close()
@@ -150,13 +160,106 @@ class TestArmControllerFrameHandling:
         assert isinstance(success, bool)
 
 
+class TestArmControllerQuinticTrajectory:
+    """Test quintic trajectory planning in arm controller."""
+
+    @pytest.fixture
+    def controller(self):
+        """Create a minimal controller for testing trajectory planning."""
+        controller = RobosuiteArmController.__new__(RobosuiteArmController)
+        return controller
+
+    def test_quintic_polynomial_basic(self, controller):
+        """Test basic quintic polynomial generation."""
+        s_traj = controller._quintic_polynomial(
+            s0=0.0, sf=1.0, v0=0.0, vf=0.0, a0=0.0, af=0.0, num_points=50
+        )
+        
+        assert len(s_traj) == 50
+        assert abs(s_traj[0] - 0.0) < 1e-6
+        assert abs(s_traj[-1] - 1.0) < 1e-6
+
+    def test_quintic_polynomial_boundary_conditions(self, controller):
+        """Test that quintic polynomial satisfies boundary conditions."""
+        s_traj = controller._quintic_polynomial(
+            s0=0.0, sf=1.0, v0=0.0, vf=0.0, a0=0.0, af=0.0, num_points=100
+        )
+        
+        # Approximate velocity at endpoints (should be ~0)
+        ds_start = (s_traj[1] - s_traj[0]) * 99  # Multiply by n-1 to approximate derivative
+        ds_end = (s_traj[-1] - s_traj[-2]) * 99
+        
+        # Velocities should be small at endpoints
+        assert abs(ds_start) < 0.1
+        assert abs(ds_end) < 0.1
+
+
+class TestArmControllerCancellation:
+    """Test arm controller movement cancellation."""
+
+    @pytest.fixture(scope="class")
+    def env(self):
+        """Fixture to provide environment for tests."""
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
+        env.reset()
+        yield env
+        env.close()
+
+    def test_cancel_movement(self, env):
+        """Test that movement can be cancelled."""
+        controller = RobosuiteArmController(env, arm_id="right", robot_id=0)
+        
+        # Cancel should work even if not moving
+        controller.cancel_movement()
+        
+        assert controller._stop_event.is_set()
+
+
+class TestArmControllerWithLock:
+    """Test arm controller with environment lock."""
+
+    @pytest.fixture(scope="class")
+    def env(self):
+        """Fixture to provide environment for tests."""
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
+        env.reset()
+        yield env
+        env.close()
+
+    def test_controller_with_lock(self, env):
+        """Test controller creation with environment lock."""
+        env_lock = threading.RLock()
+        controller = RobosuiteArmController(
+            env, arm_id="right", robot_id=0, env_lock=env_lock
+        )
+        
+        assert controller.env_lock is env_lock
+        
+        # Test that pose access works with lock
+        pos, quat = controller.get_eef_pose_in_base()
+        assert pos is not None
+        assert quat is not None
+
+
 class TestGripperControllers:
     """Test gripper controller functionality."""
 
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
         env.reset()
         yield env
         env.close()
@@ -191,3 +294,52 @@ class TestGripperControllers:
         right_gripper.grasp()
         time.sleep(0.2)
         right_gripper.release()
+
+    def test_gripper_width_parameter(self, env):
+        """Test gripper operations with width parameter."""
+        gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
+        
+        # Test different widths
+        gripper.release(width=1.0)  # Fully open
+        time.sleep(0.1)
+        gripper.grasp(width=0.0)  # Fully closed
+        time.sleep(0.1)
+        gripper.release(width=0.5)  # Half open
+
+
+class TestGripperControllerEdgeCases:
+    """Test edge cases for gripper controller."""
+
+    @pytest.fixture(scope="class")
+    def env(self):
+        """Fixture to provide environment for tests."""
+        env = make_dual_arm_env(
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False
+        )
+        env.reset()
+        yield env
+        env.close()
+
+    def test_gripper_type_detection(self, env):
+        """Test that gripper type is correctly detected."""
+        gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)
+        
+        # Should have detected gripper type
+        assert hasattr(gripper, 'is_suction')
+        assert isinstance(gripper.is_suction, bool)
+
+    def test_gripper_with_lock(self, env):
+        """Test gripper controller with environment lock."""
+        env_lock = threading.RLock()
+        gripper = RobosuiteGripperController(
+            env, arm_id="right", robot_id=0, env_lock=env_lock
+        )
+        
+        assert gripper.env_lock is env_lock
+        
+        # Operations should work with lock
+        gripper.release()
+        time.sleep(0.1)
+        gripper.grasp()

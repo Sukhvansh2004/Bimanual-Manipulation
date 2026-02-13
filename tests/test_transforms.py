@@ -288,3 +288,231 @@ class TestTransformManager:
         np.testing.assert_array_almost_equal(t.translation, [0.5, 0, 0])
         assert t.is_static == False
 
+
+class TestStampedPoseEdgeCases:
+    """Test edge cases for StampedPose."""
+
+    def test_quaternion_near_zero_norm(self):
+        """Test quaternion normalization with very small values."""
+        pose = StampedPose(
+            pos=[0, 0, 0],
+            quat=[1e-12, 1e-12, 1e-12, 1e-12],  # Very small but not zero
+            frame_id="test"
+        )
+        # Should handle gracefully (normalize or keep as is)
+        assert pose is not None
+
+    def test_to_matrix_round_trip(self):
+        """Test that to_matrix and from_matrix are inverses."""
+        original = StampedPose(
+            pos=[1.5, -2.3, 0.7],
+            quat=R.from_euler('xyz', [30, 45, 60], degrees=True).as_quat(),
+            frame_id="test"
+        )
+        
+        matrix = original.to_matrix()
+        recovered = StampedPose.from_matrix(matrix, "test")
+        
+        np.testing.assert_array_almost_equal(original.position, recovered.position)
+        # Quaternions may differ by sign
+        assert np.allclose(original.quaternion, recovered.quaternion) or \
+               np.allclose(original.quaternion, -recovered.quaternion)
+
+    def test_copy_deep_independence(self):
+        """Test that copy is truly deep."""
+        original = StampedPose(
+            pos=[1, 2, 3],
+            quat=[0, 0, 0, 1],
+            frame_id="world"
+        )
+        
+        copied = original.copy()
+        
+        # Modify original
+        original.frame_id = "modified"
+        
+        # Copy should be unaffected
+        assert copied.frame_id == "world"
+
+    def test_model_dump_serialization(self):
+        """Test Pydantic model_dump serialization."""
+        pose = StampedPose(
+            pos=[1.0, 2.0, 3.0],
+            quat=[0, 0, 0, 1],
+            frame_id="world"
+        )
+        
+        dump = pose.model_dump()
+        
+        assert 'pos' in dump
+        assert 'quat' in dump
+        assert 'frame_id' in dump
+        assert dump['frame_id'] == 'world'
+        # pos/quat should be serialized as lists
+        assert isinstance(dump['pos'], list)
+        assert isinstance(dump['quat'], list)
+
+
+class TestTransformEdgeCases:
+    """Test edge cases for Transform."""
+
+    def test_transform_identity(self):
+        """Test identity transform creation."""
+        transform = Transform.identity("parent", "child")
+        
+        np.testing.assert_array_almost_equal(transform.translation, [0, 0, 0])
+        np.testing.assert_array_almost_equal(transform.rotation, [0, 0, 0, 1])
+        assert transform.is_static is True
+
+    def test_transform_from_matrix(self):
+        """Test Transform creation from 4x4 matrix."""
+        matrix = np.eye(4)
+        matrix[:3, 3] = [1, 2, 3]
+        matrix[:3, :3] = R.from_euler('z', 45, degrees=True).as_matrix()
+        
+        transform = Transform.from_matrix(matrix, "world", "object")
+        
+        np.testing.assert_array_almost_equal(transform.translation, [1, 2, 3])
+        assert transform.parent_frame == "world"
+        assert transform.child_frame == "object"
+
+    def test_transform_inverse(self):
+        """Test transform inverse."""
+        transform = Transform(
+            translation=[1, 0, 0],
+            rotation=[0, 0, 0, 1],
+            parent_frame="A",
+            child_frame="B"
+        )
+        
+        inverse = transform.inverse()
+        
+        assert inverse.parent_frame == "B"
+        assert inverse.child_frame == "A"
+        np.testing.assert_array_almost_equal(inverse.translation, [-1, 0, 0])
+
+    def test_transform_inverse_with_rotation(self):
+        """Test transform inverse with rotation."""
+        rot_90_z = R.from_euler('z', 90, degrees=True)
+        transform = Transform(
+            translation=[1, 0, 0],
+            rotation=rot_90_z.as_quat(),
+            parent_frame="A",
+            child_frame="B"
+        )
+        
+        inverse = transform.inverse()
+        
+        # Compose: inverse @ original should give identity
+        T = transform.to_matrix()
+        T_inv = inverse.to_matrix()
+        T_composed = T_inv @ T
+        
+        np.testing.assert_array_almost_equal(T_composed, np.eye(4), decimal=6)
+
+    def test_transform_invalid_translation_shape(self):
+        """Test error for invalid translation shape."""
+        with pytest.raises(ValueError, match="Translation must be 3D"):
+            Transform(
+                translation=[1, 2],  # 2D instead of 3D
+                rotation=[0, 0, 0, 1],
+                parent_frame="A",
+                child_frame="B"
+            )
+
+    def test_transform_invalid_rotation_shape(self):
+        """Test error for invalid rotation shape."""
+        with pytest.raises(ValueError, match="Rotation must be 4D"):
+            Transform(
+                translation=[1, 2, 3],
+                rotation=[0, 0, 1],  # 3D instead of 4D
+                parent_frame="A",
+                child_frame="B"
+            )
+
+
+class TestTransformManagerEdgeCases:
+    """Test edge cases for TransformManager."""
+
+    @pytest.fixture
+    def tf_manager(self):
+        """Create TransformManager without environment."""
+        return TransformManager(env=None, auto_discover=False)
+
+    def test_get_known_frames(self, tf_manager):
+        """Test getting known frames list."""
+        tf_manager.add_static_transform(Transform(
+            translation=[0, 0, 0], rotation=[0, 0, 0, 1],
+            parent_frame="A", child_frame="B"
+        ))
+        
+        frames = tf_manager.get_known_frames()
+        assert "A" in frames
+        assert "B" in frames
+        assert "world" in frames  # World is always known
+
+    def test_frame_exists(self, tf_manager):
+        """Test frame_exists method."""
+        tf_manager.add_static_transform(Transform(
+            translation=[0, 0, 0], rotation=[0, 0, 0, 1],
+            parent_frame="world", child_frame="test_frame"
+        ))
+        
+        assert tf_manager.frame_exists("test_frame") is True
+        assert tf_manager.frame_exists("nonexistent_frame") is False
+
+    def test_transform_pose_same_frame(self, tf_manager):
+        """Test transforming pose to same frame returns copy."""
+        pose = StampedPose(
+            pos=[1, 2, 3],
+            quat=[0, 0, 0, 1],
+            frame_id="world"
+        )
+        
+        result = tf_manager.transform_pose(pose, "world")
+        
+        np.testing.assert_array_almost_equal(result.position, pose.position)
+        assert result.frame_id == "world"
+
+    def test_add_static_transform_overwrite(self, tf_manager):
+        """Test that adding same transform twice overwrites."""
+        tf_manager.add_static_transform(Transform(
+            translation=[1, 0, 0], rotation=[0, 0, 0, 1],
+            parent_frame="world", child_frame="table"
+        ))
+        
+        # Add again with different translation
+        tf_manager.add_static_transform(Transform(
+            translation=[2, 0, 0], rotation=[0, 0, 0, 1],
+            parent_frame="world", child_frame="table"
+        ))
+        
+        t = tf_manager.get_transform("world", "table")
+        np.testing.assert_array_almost_equal(t.translation, [2, 0, 0])
+
+    def test_get_transform_same_frame(self, tf_manager):
+        """Test getting transform from frame to itself."""
+        t = tf_manager.get_transform("world", "world")
+        
+        np.testing.assert_array_almost_equal(t.translation, [0, 0, 0])
+        np.testing.assert_array_almost_equal(t.rotation, [0, 0, 0, 1])
+
+    def test_chain_of_transforms(self, tf_manager):
+        """Test chaining multiple transforms."""
+        # A -> B -> C -> D
+        tf_manager.add_static_transform(Transform(
+            translation=[1, 0, 0], rotation=[0, 0, 0, 1],
+            parent_frame="A", child_frame="B"
+        ))
+        tf_manager.add_static_transform(Transform(
+            translation=[0, 1, 0], rotation=[0, 0, 0, 1],
+            parent_frame="B", child_frame="C"
+        ))
+        tf_manager.add_static_transform(Transform(
+            translation=[0, 0, 1], rotation=[0, 0, 0, 1],
+            parent_frame="C", child_frame="D"
+        ))
+        
+        t_AD = tf_manager.get_transform("A", "D")
+        np.testing.assert_array_almost_equal(t_AD.translation, [1, 1, 1])
+

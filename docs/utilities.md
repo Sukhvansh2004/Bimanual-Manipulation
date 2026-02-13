@@ -6,15 +6,14 @@ The `utils` module provides reusable utility functions organized by domain. Thes
 
 ```python
 from robosuite_franka_manipulation.utils import (
-    # SE(3) Lie algebra
+    # SE(3) Lie algebra (from utils.se3)
     skew, unskew, SE3_log, SE3_exp, pose_to_SE3, SE3_to_pose,
-    compute_se3_distance, interpolate_SE3,
-    # Point cloud processing
+    compute_se3_distance, interpolate_pose, se3_to_matrix, matrix_to_se3,
+    # Point cloud processing (from utils.pointcloud)
     downsample_point_cloud, transform_point_cloud, validate_point_cloud,
     deproject_depth_to_point_cloud, estimate_pose_from_point_cloud,
-    # Serialization
-    to_json_serializable, from_json_to_numpy, convert_pose_to_json,
-    numpy_to_list, ensure_numpy
+    parse_camera_intrinsics, ensure_depth_2d, compute_point_cloud_bounds,
+    filter_point_cloud_by_range,
 )
 ```
 
@@ -34,7 +33,7 @@ SE(3) is the Special Euclidean group representing rigid body transformations (ro
 ```python
 from robosuite_franka_manipulation.utils import (
     pose_to_SE3, SE3_to_pose, SE3_log, SE3_exp,
-    compute_se3_distance, interpolate_SE3, skew, unskew,
+    compute_se3_distance, interpolate_pose, skew, unskew,
     se3_to_matrix, matrix_to_se3
 )
 import numpy as np
@@ -47,13 +46,23 @@ T = pose_to_SE3(position, quaternion)  # 4x4 matrix
 # Convert back to pose
 pos, quat = SE3_to_pose(T)
 
+# Compute twist (se(3) representation) from transform
+twist = SE3_log(T)  # 6D vector [omega, v]
+
+# Compute transform from twist
+T_from_twist = SE3_exp(twist)
+
 # Compute geodesic distance between two poses
 T1 = pose_to_SE3([0, 0, 0], [0, 0, 0, 1])
 T2 = pose_to_SE3([1, 0, 0], [0, 0, 0.707, 0.707])  # 90° yaw
-distance = compute_se3_distance(T1, T2)
+T_rel = np.linalg.inv(T1) @ T2
+twist = SE3_log(T_rel)
+distance = compute_se3_distance(twist, translation_weight=1.0, rotation_weight=1.0)
 
 # Interpolate between poses (geodesic on SE(3) manifold)
-T_interp = interpolate_SE3(T1, T2, s=0.5)  # Midpoint
+start_pos, start_quat = [0, 0, 0], [0, 0, 0, 1]
+end_pos, end_quat = [1, 0, 0], [0, 0, 0.707, 0.707]
+mid_pos, mid_quat = interpolate_pose(start_pos, start_quat, end_pos, end_quat, s=0.5)
 
 # Skew-symmetric matrix (so(3) representation)
 omega = [0, 0, 1]  # Rotation around z-axis

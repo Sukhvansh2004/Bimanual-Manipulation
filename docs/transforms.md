@@ -42,20 +42,26 @@ tf_manager.print_frame_tree()
 
 ### StampedPose
 
-A pose (position + orientation) with an associated coordinate frame and timestamp. It is a Pydantic model.
+A pose (position + orientation) with an associated coordinate frame and timestamp. It is a Pydantic model with field aliases for flexibility.
 
 ```python
 class StampedPose(BaseModel):
-    pos: np.ndarray         # [x, y, z]
-    quat: np.ndarray        # [x, y, z, w] - scipy convention
+    pos: np.ndarray         # [x, y, z] (alias: 'position')
+    quat: np.ndarray        # [x, y, z, w] - scipy convention (alias: 'quaternion')
     frame_id: str = constants.WORLD_FRAME # Frame this pose is expressed in
-    timestamp: float        # Time of creation
+    timestamp: float = time.time()        # Time of creation
 
-    # Properties for backward compatibility
+    # Properties for convenient access
     @property
     def position(self) -> np.ndarray: ...
     @property
     def quaternion(self) -> np.ndarray: ...
+    
+    # Class methods
+    @classmethod
+    def from_matrix(cls, matrix: np.ndarray, frame_id: str) -> "StampedPose": ...
+    def to_matrix(self) -> np.ndarray: ...
+    def copy(self) -> "StampedPose": ...
 ```
 
 Usage:
@@ -64,20 +70,35 @@ Usage:
 from robosuite_franka_manipulation.transforms import StampedPose
 from robosuite_franka_manipulation import constants
 
-# Create a pose (using aliases or property names)
+# Create a pose using aliases (pos/quat) or property names (position/quaternion)
 camera_pose = StampedPose(
     pos=[0.5, 0.0, 0.3],
     quat=[0, 0, 0, 1],
     frame_id="agentview"
 )
 
-# Access fields
-print(camera_pose.pos)
+# Alternative: using property names
+camera_pose = StampedPose(
+    position=[0.5, 0.0, 0.3],
+    quaternion=[0, 0, 0, 1],
+    frame_id="agentview"
+)
+
+# Access fields using either name
+print(camera_pose.pos)       # np.array([0.5, 0., 0.3])
 print(camera_pose.position)  # Same as .pos
 
-# Create from dictionary
+# Create from 4x4 transformation matrix
+matrix = np.eye(4)
+matrix[:3, 3] = [1, 2, 3]
+pose = StampedPose.from_matrix(matrix, constants.WORLD_FRAME)
+
+# Convert to matrix
+T = pose.to_matrix()  # Returns 4x4 homogeneous matrix
+
+# Create from dictionary (for API responses)
 detection = {'pos': [0.5, 0.0, 0.3], 'quat': [0, 0, 0, 1], 'frame_id': constants.WORLD_FRAME}
-pose = StampedPose.from_dict(detection)
+pose = StampedPose(**detection)
 ```
 
 ### Transform
@@ -119,24 +140,34 @@ Central manager for coordinate frame transformations. Maintains a tree of frames
 ```python
 from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation import constants
+import threading
 
 # Create with environment (auto-discovers frames)
-tf_manager = TransformManager(env)
+env_lock = threading.RLock()  # Optional lock for thread safety
+tf_manager = TransformManager(env, auto_discover=True, env_lock=env_lock)
 
 # Check available frames
 frames = tf_manager.get_known_frames()
 tf_manager.frame_exists("agentview")  # True
 
 # Get transform between any two frames
-transform = tf_manager.get_transform(constants.WORLD_FRAME, "agentview")  # camera -> world
+transform = tf_manager.get_transform(constants.WORLD_FRAME, "agentview")
 
-# Transform a pose
-camera_pose = StampedPose([0.5, 0.0, 0.3], [0, 0, 0, 1], "agentview")
+# Transform a pose between frames
+camera_pose = StampedPose(pos=[0.5, 0.0, 0.3], quat=[0, 0, 0, 1], frame_id="agentview")
 world_pose = tf_manager.transform_pose(camera_pose, constants.WORLD_FRAME)
 
 # Get current pose of a frame
 eef_pose = tf_manager.get_frame_pose("robot0_right_eef", constants.WORLD_FRAME)
 print(f"EEF position: {eef_pose.position}")
+
+# Add static transforms
+tf_manager.add_static_transform(Transform(
+    translation=[1, 0, 0],
+    rotation=[0, 0, 0, 1],
+    parent_frame="world",
+    child_frame="custom_frame"
+))
 ```
 
 ## Standard Frame Hierarchy
