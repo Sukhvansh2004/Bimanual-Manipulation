@@ -184,7 +184,7 @@ class RobotMeshVisualizer:
                 set_qpos(data, qpos_idx, joint_config)
                 
                 # Run forward kinematics
-                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
                 
                 # Extract transforms for robot geoms
                 transforms = {}
@@ -204,7 +204,7 @@ class RobotMeshVisualizer:
                 # Restore state
                 data.qpos[:] = qpos_backup
                 data.qvel[:] = qvel_backup
-                mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
     
     def visualize_robot_at_config(
         self,

@@ -164,7 +164,8 @@ def check_trajectory_feasibility(
     object_name: Optional[str] = None,
     check_collisions: bool = True,
     env_lock = None,
-    ignore_names: Optional[List[str]] = None
+    ignore_names: Optional[List[str]] = None,
+    arm: str = "right"
 ) -> Tuple[List[WaypointFeasibilityResult], bool]:
     """
     Check trajectory feasibility and return detailed per-waypoint results.
@@ -179,6 +180,7 @@ def check_trajectory_feasibility(
         check_collisions: Whether to check collisions.
         env_lock: Optional threading.RLock
         ignore_names: List of geom names to ignore in collision checking.
+        arm: Arm side ("right" or "left").
         
     Returns:
         Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
@@ -245,7 +247,8 @@ def check_trajectory_feasibility(
                     check_collisions=check_collisions,
                     ignore_names=current_ignore_names,
                     last_config=last_config,
-                    tf_manager=tf_manager
+                    tf_manager=tf_manager,
+                    arm=arm
                 )
                 
                 results.append(result)
@@ -274,7 +277,8 @@ def check_dual_trajectory_feasibility(
     object_name: Optional[str] = None,
     check_collisions: bool = True,
     env_lock = None,
-    ignore_names: Optional[List[str]] = None
+    ignore_names: Optional[List[str]] = None,
+    arm: str = "right"
 ) -> Tuple[List[WaypointFeasibilityResult], List[WaypointFeasibilityResult], bool]:
     """
     Check simultaneous feasibility of two robot trajectories.
@@ -348,7 +352,8 @@ def check_dual_trajectory_feasibility(
                     ignore_names=current_ignore_names,
                     last_config0=last_config0,
                     last_config1=last_config1,
-                    tf_manager=tf_manager
+                    tf_manager=tf_manager,
+                    arm=arm
                 )
                 
                 results0.append(res0)

@@ -56,21 +56,22 @@ def process_waypoint(
     check_collisions: bool,
     ignore_names: List[str],
     last_config: Optional[np.ndarray],
-    tf_manager: TransformManager
+    tf_manager: TransformManager,
+    arm: str = "right"
 ) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
     """Process a single waypoint: IK + Collision Check."""
     
     # 1. Prepare Target Pose
     target_pose = apply_ik_orientation_correction(pose)
         
-    site_name = f"gripper{robot_id}_right_ft_frame"
+    site_name = f"gripper{robot_id}_{arm}_ft_frame"
 
     # 2. Solve IK
     solutions = enumerate_ik_solutions_for_arm(
         env=env,
         robot_id=robot_id,
         target_pose=target_pose,
-        arm="right",
+        arm=arm,
         site_name=site_name,
         q_warm_start=last_config,
         num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
@@ -135,7 +136,8 @@ def process_dual_waypoint(
     ignore_names: List[str],
     last_config0: Optional[np.ndarray],
     last_config1: Optional[np.ndarray],
-    tf_manager: TransformManager
+    tf_manager: TransformManager,
+    arm: str = "right"
 ) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
     """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
     
@@ -143,15 +145,15 @@ def process_dual_waypoint(
     target0 = apply_ik_orientation_correction(pose0)
     target1 = apply_ik_orientation_correction(pose1)
         
-    site0 = f"gripper0_right_ft_frame"
-    site1 = f"gripper1_right_ft_frame"
+    site0 = f"gripper0_{arm}_ft_frame"
+    site1 = f"gripper1_{arm}_ft_frame"
 
     # 2. Solve IK for both arms
     solutions0 = enumerate_ik_solutions_for_arm(
         env=env,
         robot_id=0,
         target_pose=target0,
-        arm="right",
+        arm=arm,
         site_name=site0,
         q_warm_start=last_config0,
         num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
@@ -164,7 +166,7 @@ def process_dual_waypoint(
         env=env,
         robot_id=1,
         target_pose=target1,
-        arm="right",
+        arm=arm,
         site_name=site1,
         q_warm_start=last_config1,
         num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
