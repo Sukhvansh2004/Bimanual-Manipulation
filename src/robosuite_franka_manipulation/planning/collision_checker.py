@@ -6,7 +6,10 @@ Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 import numpy as np
 from typing import List, Tuple, Union, Optional
 import logging
-from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction
+)
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
@@ -57,11 +60,8 @@ def check_single_grasp_feasibility(
     if object_name and object_name not in current_ignore_names:
         current_ignore_names.append(object_name)
 
-    # Apply orientation correction: Rotate -90 deg around Z to align grasp with flange frame
-    target_pose = grasp.copy()
-    r_corr = R.from_euler('z', -90, degrees=True)
-    r_pose = R.from_quat(target_pose.quaternion)
-    target_pose.quaternion = (r_pose * r_corr).as_quat()
+    # Prepare Target Pose
+    target_pose = apply_ik_orientation_correction(grasp)
 
     # Get IK solutions for Flange site
     site_name = f"gripper{robot_id}_{arm}_ft_frame"
@@ -238,17 +238,9 @@ def check_dual_arm_pose_feasibility(
     if object_name and object_name not in current_ignore_names:
         current_ignore_names.append(object_name)
 
-    # --- Helper to apply 90 deg correction ---
-    def get_corrected_pose(pose_input: StampedPose) -> StampedPose:
-        pose = pose_input.copy()
-        r_corr = R.from_euler('z', -90, degrees=True)
-        r_pose = R.from_quat(pose.quaternion)
-        pose.quaternion = (r_pose * r_corr).as_quat()
-        return pose
-
     # Prepare targets
-    target0 = get_corrected_pose(eef_pose_robot0)
-    target1 = get_corrected_pose(eef_pose_robot1)
+    target0 = apply_ik_orientation_correction(eef_pose_robot0)
+    target1 = apply_ik_orientation_correction(eef_pose_robot1)
 
     q_solutions_0 = enumerate_ik_solutions_for_arm(
         env,

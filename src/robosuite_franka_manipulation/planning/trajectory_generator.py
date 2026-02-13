@@ -194,10 +194,6 @@ def check_trajectory_feasibility(
     if object_trajectory and object_trajectory[0].frame_id != constants.WORLD_FRAME:
         object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
 
-    # 90 degree pose correction (Rotate -90 deg around Z)
-    r_corr = R.from_euler('z', -90, degrees=True)
-    correction_quat = r_corr.as_quat()
-
     ctx = env_lock if env_lock is not None else nullcontext()
 
     results: List[WaypointFeasibilityResult] = []
@@ -249,8 +245,7 @@ def check_trajectory_feasibility(
                     check_collisions=check_collisions,
                     ignore_names=current_ignore_names,
                     last_config=last_config,
-                    tf_manager=tf_manager,
-                    correction_quat=correction_quat
+                    tf_manager=tf_manager
                 )
                 
                 results.append(result)
@@ -294,10 +289,6 @@ def check_dual_trajectory_feasibility(
     if object_trajectory and len(object_trajectory) != len(eef_trajectory0):
         logger.error("Object trajectory length mismatch")
         return [], [], False
-
-    # 90 degree pose correction (Rotate -90 deg around Z)
-    r_corr = R.from_euler('z', -90, degrees=True)
-    correction_quat = r_corr.as_quat()
 
     ctx = env_lock if env_lock is not None else nullcontext()
 
@@ -357,8 +348,7 @@ def check_dual_trajectory_feasibility(
                     ignore_names=current_ignore_names,
                     last_config0=last_config0,
                     last_config1=last_config1,
-                    tf_manager=tf_manager,
-                    correction_quat=correction_quat
+                    tf_manager=tf_manager
                 )
                 
                 results0.append(res0)

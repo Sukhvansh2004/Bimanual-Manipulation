@@ -72,4 +72,9 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
         # Contact must involve at least one robot geom
         mask &= (_robot_mask[g1] | _robot_mask[g2])
         
-        return np.any(mask)
+        if np.any(mask):
+            idx = np.where(mask)[0][0]
+            logger.info(f"Collision detected: {_geom_names[g1[idx]]} <-> {_geom_names[g2[idx]]} (dist={dist[idx]:.6e})")
+            return True
+            
+        return False

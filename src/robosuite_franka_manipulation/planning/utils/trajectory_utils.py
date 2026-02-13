@@ -11,7 +11,10 @@ import mujoco
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction
+)
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
@@ -53,17 +56,12 @@ def process_waypoint(
     check_collisions: bool,
     ignore_names: List[str],
     last_config: Optional[np.ndarray],
-    tf_manager: TransformManager,
-    correction_quat: Optional[np.ndarray] = None
+    tf_manager: TransformManager
 ) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
     """Process a single waypoint: IK + Collision Check."""
     
     # 1. Prepare Target Pose
-    target_pose = pose.copy()
-    if correction_quat is not None:
-        r_pose = R.from_quat(pose.quaternion)
-        r_corr = R.from_quat(correction_quat)
-        target_pose.quaternion = (r_pose * r_corr).as_quat()
+    target_pose = apply_ik_orientation_correction(pose)
         
     site_name = f"gripper{robot_id}_right_ft_frame"
 
@@ -82,6 +80,7 @@ def process_waypoint(
     )
     
     if not solutions:
+        logger.debug(f"  WP {waypoint_index}: IK failed")
         return WaypointFeasibilityResult(
             waypoint_index=waypoint_index,
             eef_pose=pose,
@@ -113,6 +112,7 @@ def process_waypoint(
             ), q_sol # New last_config
 
     # If no collision-free solution found, return the first IK solution as failure
+    logger.debug(f"  WP {waypoint_index}: IK succeeded but all in COLLISION")
     first_sol = solutions[0]
     return WaypointFeasibilityResult(
         waypoint_index=waypoint_index,
@@ -135,19 +135,13 @@ def process_dual_waypoint(
     ignore_names: List[str],
     last_config0: Optional[np.ndarray],
     last_config1: Optional[np.ndarray],
-    tf_manager: TransformManager,
-    correction_quat: Optional[np.ndarray] = None
+    tf_manager: TransformManager
 ) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
     """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
     
     # 1. Prepare Target Poses
-    target0 = pose0.copy()
-    target1 = pose1.copy()
-    
-    if correction_quat is not None:
-        r_corr = R.from_quat(correction_quat)
-        target0.quaternion = (R.from_quat(pose0.quaternion) * r_corr).as_quat()
-        target1.quaternion = (R.from_quat(pose1.quaternion) * r_corr).as_quat()
+    target0 = apply_ik_orientation_correction(pose0)
+    target1 = apply_ik_orientation_correction(pose1)
         
     site0 = f"gripper0_right_ft_frame"
     site1 = f"gripper1_right_ft_frame"

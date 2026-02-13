@@ -6,7 +6,9 @@ from typing import List, Optional, Sequence, Union, Iterable
 
 import numpy as np
 import mujoco
-from scipy.optimize import minimize
+import logging
+from scipy.optimize import least_squares
+from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -14,6 +16,8 @@ from robosuite_franka_manipulation.transforms import StampedPose, TransformManag
 from robosuite.utils.binding_utils import MjModel, MjData
 
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
+
+logger = logging.getLogger(__name__)
 
 ArrayLike = Union[Sequence[float], np.ndarray]
 
@@ -33,47 +37,53 @@ def solve_ik_scipy(
     pos_tol: float,
     ori_tol: float,
 ) -> Optional[np.ndarray]:
-    """IK using scipy.optimize.minimize with L-BFGS-B."""
+    """Residual-based IK using scipy.optimize.least_squares."""
     
     def fun(q):
         mujoco_utils.set_qpos(data, joint_qpos_idx, q)
         mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
         pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        # Cost is squared norm of errors
-        return 0.5 * (np.sum(pos_err**2) + np.sum(rot_err**2))
+        # Residual vector (6 elements)
+        return np.concatenate([pos_err, rot_err])
 
     def jac(q):
-        mujoco_utils.set_qpos(data, joint_qpos_idx, q)
-        mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
-        pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        
+        # We need the Jacobian of the residual vector.
+        # residual = target - current
+        # d(residual)/dq = -d(current)/dq = -mj_jacSite
         nv = int(model.nv)
         jacp = np.zeros((3, nv))
         jacr = np.zeros((3, nv))
         mujoco.mj_jacSite(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data), jacp, jacr, site_id)
         
-        J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-        err = np.concatenate([pos_err, rot_err])
-        
-        # dCost/dq = J^T * err
-        return J.T @ err
+        J_full = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+        return -J_full
 
-    res = minimize(
+    # Use Dogleg or TRF for robust constrained optimization
+    res = least_squares(
         fun,
         q_init,
         jac=jac,
-        method='L-BFGS-B',
-        bounds=list(zip(joint_lo, joint_hi)),
-        options={'ftol': 1e-12, 'gtol': 1e-12}
+        bounds=(joint_lo, joint_hi),
+        ftol=1e-12,
+        xtol=1e-12,
+        gtol=1e-12,
+        max_nfev=100,
+        method='trf' # Trust Region Reflective
     )
 
-    if res.success or res.fun < 1e-6:
+    if res.success or np.linalg.norm(res.fun) < 1e-4:
         q_final = res.x
         mujoco_utils.set_qpos(data, joint_qpos_idx, q_final)
         mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
         pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
-        if np.linalg.norm(pos_err) <= pos_tol and np.linalg.norm(rot_err) <= ori_tol:
+        pos_dist = np.linalg.norm(pos_err)
+        rot_dist = np.linalg.norm(rot_err)
+        if pos_dist <= pos_tol and rot_dist <= ori_tol:
             return q_final
+        else:
+            logger.debug(f"IK converged to local min: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
+    else:
+        logger.debug(f"IK solver failed: {res.message}")
 
     return None
 
@@ -219,6 +229,9 @@ def enumerate_ik_solutions_for_arm(
             # If no solutions found from priority seeds, try fallback seeds
             if not solutions:
                 run_ik_on_seeds(fallback_seeds)
+            
+            if not solutions:
+                logger.debug(f"No IK solutions found for robot {robot_id} at {target_pos}")
                 
         finally:
             data.qpos[:] = qpos_backup
@@ -228,3 +241,12 @@ def enumerate_ik_solutions_for_arm(
             mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
 
         return solutions
+
+
+def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
+    """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame."""
+    corrected = pose.copy()
+    r_corr = R.from_euler('z', -90, degrees=True)
+    r_pose = R.from_quat(corrected.quaternion)
+    corrected.quaternion = (r_pose * r_corr).as_quat()
+    return corrected
