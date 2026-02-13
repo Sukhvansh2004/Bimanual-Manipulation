@@ -32,7 +32,7 @@ class MockService:
 @pytest.fixture(scope="class")
 def service_manager(request):
     """Fixture to provide a running ServiceManager."""
-    manager = ServiceManager()
+    manager = ServiceManager(port=constants.SERVICE_MANAGER_PORT)
     manager.start()
     time.sleep(0.5)  # Allow manager to start
 

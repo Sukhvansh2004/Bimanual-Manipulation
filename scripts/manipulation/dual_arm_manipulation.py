@@ -744,7 +744,7 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
     else:
         print(f"Failed to send follow trajectory command: {response.get('message')}")
 
-def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], feasibility: np.ndarray, gripper_action: float = 0.0):
+def get_feasible_trajectory_segments(trajectory: List[StampedPose], feasibility: np.ndarray):
     """
     Groups feasible waypoints into continuous segments and executes them.
     A trajectory compromises a continuous set of feasible segments.
@@ -767,23 +767,7 @@ def execute_feasible_trajectory(robot_id: int, arm_id: str, trajectory: List[Sta
     if current_segment:
         segments.append(current_segment)
         
-    print(f"Executing {len(segments)} feasible segments for robot {robot_id}, arm {arm_id}")
-    
-    for i, segment in enumerate(segments):
-        print(f"  Executing segment {i+1}/{len(segments)} ({len(segment)} waypoints)")
-        follow_trajectory_command(robot_id, arm_id, segment, gripper_action)
-        
-        # Wait for segment to finish
-        while True:
-            status = get_arm_status(robot_id, arm_id)
-            if status != -1: # Not moving
-                if status == 0:
-                    print(f"  Segment {i+1} failed!")
-                    return False
-                break
-            time.sleep(0.5)
-            
-    print("Feasible trajectory execution complete.")
+    return segments
 
 
 def main() -> int:
@@ -889,7 +873,7 @@ Helper functions:
   cancel_move(robot_id, arm_id)          - Cancel a move command
   get_arm_status(robot_id, arm_id)       - Get arm status (-1: moving, 1: success, 0: fail)
   follow_trajectory(robot_id, arm, traj) - Follow a pre-defined trajectory
-  execute_feasible_trajectory(r_id, arm, traj, feas) - Execute feasible segments
+  get_feasible_trajectory_segments(r_id, arm, traj, feas) - Execute feasible segments
   load_trajectory_file(path)             - Load trajectory data from file
   visualize_trajectory_data(traj, results)- Visualize trajectory with status colors
   move_arm_on_trajectory(...)            - Move single arm on trajectory (Generator)
@@ -925,7 +909,7 @@ Press Ctrl+D or type exit() to quit
                     'cancel_move': cancel_move,
                     'get_arm_status': get_arm_status,
                     'follow_trajectory': follow_trajectory_command,
-                    'execute_feasible_trajectory': execute_feasible_trajectory,
+                    'get_feasible_trajectory_segments': get_feasible_trajectory_segments,
                     'load_trajectory_file': load_trajectory_file,
                     'visualize_trajectory_data': visualize_trajectory_data,
                     'move_arm_on_trajectory': move_arm_on_trajectory,

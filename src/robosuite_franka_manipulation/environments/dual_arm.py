@@ -182,7 +182,6 @@ class DualArmEnvironment(TwoArmEnv):
                 quat = np.array(spec.get('quat', constants.DEFAULT_OBJECT_QUATERNION.copy()))
                 
                 if is_ycb:
-
                     ycb_name = spec.get('ycb_name', 'unknown')
                     name = spec.get('instance_name', spec.get('name', f"{ycb_name}_0"))
 
@@ -192,16 +191,21 @@ class DualArmEnvironment(TwoArmEnv):
                     # Make the instance name distinct from the raw YCB asset prefix to avoid that failure.
                     if name == ycb_name:
                         name = f"{ycb_name}_0"
+                else:
+                    # Primitive objects
+                    name = spec.get('name', f'custom_obj_{len(mujoco_objects)}')
 
-                    # Ensure uniqueness across all objects in the scene.
-                    existing_names = {n for n, _, _, _ in self._added_objects}
-                    if name in existing_names:
-                        suffix = 1
+                # Ensure uniqueness across all objects in the scene.
+                existing_names = {n for n, _, _, _ in self._added_objects}
+                if name in existing_names:
+                    suffix = 1
+                    candidate = f"{name}_{suffix}"
+                    while candidate in existing_names:
+                        suffix += 1
                         candidate = f"{name}_{suffix}"
-                        while candidate in existing_names:
-                            suffix += 1
-                            candidate = f"{name}_{suffix}"
-                        name = candidate
+                    name = candidate
+
+                if is_ycb:
                     try:
                         obj = YCBObject(name=name, ycb_object_name=ycb_name)
                         logger.info(f"Added YCB object: {name} ({ycb_name})")
@@ -211,7 +215,6 @@ class DualArmEnvironment(TwoArmEnv):
                 else:
                     # Primitive objects
                     obj_type = spec.get('type', 'box')
-                    name = spec.get('name', f'custom_obj_{len(mujoco_objects)}')
                     size = spec.get('size', [0.05, 0.05, 0.05])
                     rgba = spec.get('rgba', [0.5, 0.5, 0.5, 1.0])
                     density = spec.get('density', 500.0)

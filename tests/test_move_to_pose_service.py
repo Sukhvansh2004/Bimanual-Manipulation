@@ -14,9 +14,11 @@ from robosuite_franka_manipulation.transforms import StampedPose
 class MockController:
     def __init__(self):
         self.move_called = False
+        self.follow_trajectory_called = False
         self.cancel_called = False
         self.last_target = None
         self.moving = False
+        self.last_status = 1
         self._stop_event = threading.Event()
         
     def move_to_pose(self, target_pose, **kwargs):
@@ -33,10 +35,22 @@ class MockController:
             time.sleep(0.05)
         self.moving = False
         return True
+
+    def follow_trajectory(self, trajectory, **kwargs):
+        self.follow_trajectory_called = True
+        self.moving = True
+        self._stop_event.clear()
+        time.sleep(0.2)
+        self.moving = False
+        return True
         
     def cancel_movement(self):
         self.cancel_called = True
         self._stop_event.set()
+    
+    def is_moving(self):
+        """Return whether the controller is currently moving."""
+        return self.moving
     
     def get_eef_pose_in_base(self):
         """Return current EEF pose."""
@@ -45,6 +59,7 @@ class MockController:
     def reset(self):
         """Reset mock state for next test."""
         self.move_called = False
+        self.follow_trajectory_called = False
         self.cancel_called = False
         self.last_target = None
         self.moving = False
@@ -53,7 +68,8 @@ class MockController:
 
 @pytest.fixture(scope="module")
 def service_manager():
-    manager = ServiceManager()
+    # Using constants.SERVICE_MANAGER_PORT which is patched by conftest.py
+    manager = ServiceManager(port=constants.SERVICE_MANAGER_PORT)
     manager.start()
     time.sleep(0.5)
     yield manager
@@ -62,7 +78,11 @@ def service_manager():
 
 @pytest.fixture(scope="module")
 def move_service_fixture(service_manager):
-    service = MoveToPoseService(manager_host=service_manager.host, manager_port=service_manager.port)
+    service = MoveToPoseService(
+        port=constants.MOVE_TO_POSE_SERVICE_PORT,
+        manager_host=service_manager.host, 
+        manager_port=service_manager.port
+    )
     
     # Register mock controllers
     left_controller = MockController()
@@ -163,7 +183,8 @@ class TestMoveToPoseServiceEdgeCases:
         })
         
         assert response["status"] == "success"
-        assert "moving" in response
+        # status_code: -1 = moving, 1 = success, 0 = failure
+        assert "status_code" in response
 
     def test_invalid_command(self, service_manager, move_service_fixture):
         """Test handling of invalid command."""
@@ -245,6 +266,57 @@ class TestMoveToPoseServiceEdgeCases:
         assert left_ctrl.move_called
         assert right_ctrl.move_called
 
+
+    def test_follow_trajectory_command(self, service_manager, move_service_fixture):
+        """Test FOLLOW_TRAJECTORY command."""
+        service, left_ctrl, right_ctrl = move_service_fixture
+        client = ServiceClient(manager_host=service_manager.host, manager_port=service_manager.port)
+        
+        left_ctrl.reset()
+        
+        trajectory = [
+            {"position": [0.5, 0.0, 0.5], "quaternion": [0, 0, 0, 1], "frame_id": "world"},
+            {"position": [0.6, 0.0, 0.6], "quaternion": [0, 0, 0, 1], "frame_id": "world"}
+        ]
+        
+        response = client.call("move_to_pose_service", {
+            "command": "FOLLOW_TRAJECTORY",
+            "robot_id": 0,
+            "arm": "right",
+            "trajectory": trajectory
+        })
+        
+        assert response["status"] == "success"
+        time.sleep(0.2)
+        assert left_ctrl.follow_trajectory_called
+
+    def test_concurrent_move_same_robot(self, service_manager, move_service_fixture):
+        """Test concurrent moves on same robot triggers cancellation of previous."""
+        service, left_ctrl, right_ctrl = move_service_fixture
+        client = ServiceClient(manager_host=service_manager.host, manager_port=service_manager.port)
+        
+        left_ctrl.reset()
+        
+        pose1 = {"position": [0.5, 0, 0.5], "quaternion": [0, 0, 0, 1]}
+        pose2 = {"position": [0.6, 0, 0.6], "quaternion": [0, 0, 0, 1]}
+        
+        client.call("move_to_pose_service", {
+            "command": "MOVE_TO_POSE",
+            "robot_id": 0,
+            "arm": "right",
+            "pose": pose1
+        })
+        time.sleep(0.1)
+        
+        response = client.call("move_to_pose_service", {
+            "command": "MOVE_TO_POSE",
+            "robot_id": 0,
+            "arm": "right",
+            "pose": pose2
+        })
+        
+        assert response["status"] == "success"
+        assert left_ctrl.cancel_called
 
 class TestMoveToPoseServicePoseFormats:
     """Test various pose input formats."""

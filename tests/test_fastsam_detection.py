@@ -8,13 +8,270 @@ import pytest
 import numpy as np
 import time
 from unittest.mock import MagicMock, patch
-
+import threading
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation.schema import DetectionSchema
 from robosuite_franka_manipulation import constants
 
+
+from robosuite_franka_manipulation.perception.object_detector import ObjectDetector
+from robosuite_franka_manipulation import constants
+
+from robosuite_franka_manipulation.utils.pointcloud import (
+    parse_camera_intrinsics, downsample_point_cloud, compute_point_cloud_bounds,
+    filter_point_cloud_by_range, validate_point_cloud, deproject_depth_to_point_cloud
+)
+
+class TestPointCloudUtils:
+    """Test point cloud utility functions."""
+
+    def test_parse_camera_intrinsics(self):
+        """Test parse_camera_intrinsics with different formats."""
+        # 1D array
+        k1 = np.array([800, 800, 320, 240])
+        assert parse_camera_intrinsics(k1) == (800.0, 800.0, 320.0, 240.0)
+        
+        # 2D matrix
+        k2 = np.array([[800, 0, 320], [0, 800, 240], [0, 0, 1]])
+        assert parse_camera_intrinsics(k2) == (800.0, 800.0, 320.0, 240.0)
+
+    def test_downsample_point_cloud(self):
+        """Test downsample_point_cloud method."""
+        pcd = np.random.randn(100, 3)
+        res = downsample_point_cloud(pcd, target_points=50, method='random')
+        assert len(res) == 50
+        
+        res_uniform = downsample_point_cloud(pcd, target_points=50, method='uniform')
+        assert len(res_uniform) == 50
+
+    def test_compute_point_cloud_bounds(self):
+        """Test compute_point_cloud_bounds method."""
+        pcd = np.array([[0, 0, 0], [1, 2, 3]])
+        min_b, max_b = compute_point_cloud_bounds(pcd)
+        np.testing.assert_array_equal(min_b, [0, 0, 0])
+        np.testing.assert_array_equal(max_b, [1, 2, 3])
+
+    def test_filter_point_cloud_by_range(self):
+        """Test filter_point_cloud_by_range method."""
+        pcd = np.array([[0, 0, 0], [10, 10, 10]])
+        res = filter_point_cloud_by_range(pcd, min_range=0, max_range=5)
+        assert len(res) == 1
+
+    def test_validate_point_cloud(self):
+        """Test validate_point_cloud method."""
+        assert validate_point_cloud(np.random.randn(10, 3)) is True
+        assert validate_point_cloud(np.array([])) is False
+        assert validate_point_cloud(np.array([[np.nan, 0, 0]])) is False
+
+    def test_deproject_depth_to_point_cloud(self):
+        """Test deproject_depth_to_point_cloud method."""
+        depth = np.ones((10, 10))
+        pcd = deproject_depth_to_point_cloud(depth, None, 800, 800, 320, 240, mujoco_convention=False)
+        assert pcd.shape == (100, 3)
+        assert np.all(pcd[:, 2] == 1.0)
+
+class TestFastSAMService:
+    """Test FastSAMService class."""
+
+    @pytest.fixture
+    def mock_tf_manager(self):
+        tfm = MagicMock(spec=TransformManager)
+        tfm.env = MagicMock()
+        tfm.env.camera_names = [constants.DEFAULT_CAMERA_NAME]
+        tfm.env.camera_widths = [640]
+        tfm.env.camera_heights = [480]
+        tfm.env_lock = None
+        return tfm
+
+    @pytest.fixture
+    def service(self, mock_tf_manager):
+        """Create a FastSAMService with mocked dependencies."""
+        with patch('robosuite_franka_manipulation.services.fastsam_service.zmq.Context'), \
+             patch('robosuite_franka_manipulation.services.fastsam_service.ServiceClient'), \
+             patch('robosuite_franka_manipulation.services.fastsam_service.ObjectDetector'), \
+             patch('robosuite_franka_manipulation.services.fastsam_service.get_camera_intrinsic_matrix'):
+            service = FastSAMService(mock_tf_manager, visualize=False)
+            return service
+
+    def test_normalize_depth(self, service):
+        """Test _normalize_depth method."""
+        depth = np.zeros((480, 640))
+        res = service._normalize_depth(depth)
+        assert res.shape == (480, 640)
+
+    @patch('robosuite_franka_manipulation.services.fastsam_service.get_real_depth_map')
+    def test_get_camera_data(self, mock_get_depth, service):
+        """Test _get_camera_data method."""
+        service.env.observation_spec.return_value = {
+            f"{service.camera_name}_image": np.zeros((480, 640, 3)),
+            f"{service.camera_name}_depth": np.zeros((480, 640))
+        }
+        mock_get_depth.return_value = np.zeros((480, 640))
+        
+        rgb, depth = service._get_camera_data()
+        assert rgb is not None
+        assert depth is not None
+
+    @patch('robosuite_franka_manipulation.services.fastsam_service.get_camera_extrinsic_matrix')
+    def test_process_detections(self, mock_extrinsic, service):
+        """Test _process_detections method."""
+        mock_extrinsic.return_value = np.eye(4)
+        rgb = np.zeros((480, 640, 3), dtype=np.uint8)
+        depth = np.zeros((480, 640))
+        
+        service.object_detector.detect_objects.return_value = []
+        res = service._process_detections(rgb, depth)
+        assert res == []
+
+    def test_handle_request_set_prompt(self, service):
+        """Test _handle_request with SET_PROMPT."""
+        req = {'command': 'SET_PROMPT', 'prompt': 'new_prompt'}
+        res = service._handle_request(req)
+        assert res['status'] == 'success'
+        assert service.current_prompt == 'new_prompt'
+
+    def test_handle_request_get_latest(self, service):
+        """Test _handle_request with GET_LATEST_DETECTION."""
+        service.latest_detections = [MagicMock(spec=DetectionSchema)]
+        req = {'command': 'GET_LATEST_DETECTION'}
+        res = service._handle_request(req)
+        assert res['status'] == 'success'
+        assert len(res['detections']) == 1
+
+    def test_start_stop(self, service):
+        """Test start and stop methods."""
+        service.service_client.register.return_value = {'status': 'success'}
+        
+        # Start
+        with patch('threading.Thread'):
+            service.start()
+            assert service.running is True
+        
+        # Stop
+        service.stop()
+        assert service.running is False
+
+    def test_continuous_detection_loop(self, service):
+        """Test _continuous_detection_loop method."""
+        service.running = True
+        
+        with patch.object(service, '_get_camera_data') as mock_data, \
+             patch.object(service, '_process_detections') as mock_process:
+            
+            mock_data.side_effect = [
+                (np.zeros((480, 640, 3)), np.zeros((480, 640))),
+                (None, None) # To break loop if we want, but we'll use flag
+            ]
+            mock_process.return_value = []
+            
+            # Run for a short time
+            def stop_soon():
+                time.sleep(0.2)
+                service.running = False
+                
+            threading.Thread(target=stop_soon).start()
+            service._continuous_detection_loop()
+            
+            assert mock_data.called
+            assert mock_process.called
+
+    def test_server_loop(self, service):
+        """Test _server_loop method."""
+        service.running = True
+        # Return True then False repeatedly to avoid StopIteration
+        service.socket.poll.side_effect = [True] + [False] * 100
+        service.socket.recv_json.return_value = {'command': 'GET_PROMPT'}
+        
+        def stop_soon():
+            time.sleep(0.2)
+            service.running = False
+            
+        threading.Thread(target=stop_soon).start()
+        service._server_loop()
+        
+        assert service.socket.send_json.called
+
+class TestObjectDetector:
+    """Test ObjectDetector class directly."""
+
+    @pytest.fixture
+    def detector(self):
+        """Create an ObjectDetector instance with mocked FastSAM model."""
+        with patch('robosuite_franka_manipulation.perception.object_detector.FastSAM'):
+            detector = ObjectDetector(visualize=False, debug=True)
+            return detector
+
+    def test_detector_initialization(self, detector):
+        """Test detector initialization."""
+        assert detector.camera_intrinsics is not None
+        assert detector.prompt == constants.DEFAULT_DETECTION_PROMPT
+
+    def test_set_prompt(self, detector):
+        """Test set_prompt method."""
+        old_prompt = detector.prompt
+        new_prompt = "green apple"
+        
+        with patch.object(detector, 'close_visualization_windows') as mock_close:
+            detector.set_prompt(new_prompt)
+            assert detector.prompt == new_prompt
+            mock_close.assert_called_once()
+
+    def test_get_intrinsic_params(self, detector):
+        """Test _get_intrinsic_params method."""
+        fx, fy, cx, cy = detector._get_intrinsic_params()
+        assert isinstance(fx, float)
+        assert fx > 0
+
+    def test_ensure_depth_2d(self, detector):
+        """Test _ensure_depth_2d method."""
+        h, w = detector.camera_height, detector.camera_width
+        
+        # Already 2D
+        depth_2d = np.zeros((h, w))
+        result = detector._ensure_depth_2d(depth_2d)
+        assert result.shape == (h, w)
+        
+        # Flat
+        depth_flat = np.zeros(h * w)
+        result = detector._ensure_depth_2d(depth_flat)
+        assert result.shape == (h, w)
+        
+        # Invalid shape
+        with pytest.raises(ValueError):
+            detector._ensure_depth_2d(np.zeros((10, 10, 10)))
+
+    def test_mask_to_point_cloud_empty(self, detector):
+        """Test _mask_to_point_cloud with empty mask."""
+        h, w = detector.camera_height, detector.camera_width
+        mask = np.zeros((h, w), dtype=bool)
+        depth = np.ones((h, w))
+        
+        pcd = detector._mask_to_point_cloud(mask, depth)
+        assert pcd.size == 0
+
+    @patch("cv2.imshow")
+    @patch("cv2.waitKey")
+    @patch("cv2.destroyWindow")
+    def test_visualization_methods(self, mock_destroy, mock_wait, mock_imshow, detector):
+        """Test visualization methods."""
+        detector.visualize = True
+        detector._current_window_names = ["test_window"]
+        
+        # Test close_visualization_windows
+        detector.close_visualization_windows()
+        mock_destroy.assert_called_with("test_window")
+        assert len(detector._current_window_names) == 0
+        
+        # Test _visualize_fastsam_results
+        mock_result = MagicMock()
+        mock_result.plot.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+        rgb_image = np.zeros((100, 100, 3), dtype=np.uint8)
+        
+        detector._visualize_fastsam_results(mock_result, rgb_image)
+        assert mock_imshow.called
+        assert mock_wait.called
 
 class TestDetectionSchemaFormat:
     """Test DetectionSchema format and validation."""
@@ -189,7 +446,8 @@ class TestFastSAMServiceCommands:
 @pytest.fixture(scope="class")
 def perception_services(request):
     """Fixture to provide a running ServiceManager and FastSAMService."""
-    manager = ServiceManager()
+    
+    manager = ServiceManager(port=constants.SERVICE_MANAGER_PORT)
     manager.start()
     
     env = make_dual_arm_env(
@@ -200,10 +458,15 @@ def perception_services(request):
     env.reset()
     
     tf_manager = TransformManager(env)
-    fastsam_service = FastSAMService(tf_manager, visualize=False)
+    fastsam_service = FastSAMService(
+        tf_manager, 
+        visualize=False,
+        port=constants.FASTSAM_SERVICE_PORT,
+        manager_port=constants.SERVICE_MANAGER_PORT
+    )
     fastsam_service.start()
     
-    time.sleep(2)  # Allow services to start
+    time.sleep(5)  # Allow more time for FastSAM model loading
 
     def teardown():
         fastsam_service.stop()
@@ -223,7 +486,14 @@ class TestPerception:
         manager, service = perception_services
         client = ServiceClient(manager_host=manager.host, manager_port=manager.port)
         
-        response = client.call("fastsam_service", {"command": "GET_LATEST_DETECTION"})
+        # Give more time for at least one detection loop to complete
+        max_retries = 10
+        response = None
+        for _ in range(max_retries):
+            response = client.call("fastsam_service", {"command": "GET_LATEST_DETECTION"})
+            if response and response.get("status") == "success":
+                break
+            time.sleep(2)
         
         assert response is not None
         assert response["status"] == "success"
