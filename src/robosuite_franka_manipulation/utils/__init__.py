@@ -99,10 +99,6 @@ __all__ = [
     'create_primitive_object',
     # Mesh utils
     'load_mesh_and_sample',
-    # Motion primitives
-    'compute_approach_pose',
-    'compute_retreat_pose',
-    'compute_linear_waypoints',
     # Suction weld utilities
     'apply_suction_weld',
     'clear_suction_cache',
