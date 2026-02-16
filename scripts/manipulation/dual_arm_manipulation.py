@@ -9,18 +9,18 @@ import time
 import logging
 import code
 import atexit
-import os
 import signal
-import sys
-from typing import Any, Optional, List
-import numpy as np
+from typing import Any
 
 from robosuite_franka_manipulation import (
-    DualArmManipulationSystem, detect, get_grasps, get_grasps_mesh, get_eef, 
-    set_prompt, go_to_pose, load_trajectory_file, visualize_trajectory_data, 
-    cancel_move, get_arm_status, follow_eef_trajectory,
-    constants, StampedPose, create_ycb_object, env_step
+    DualArmManipulationSystem, constants, StampedPose
 )
+from robosuite_franka_manipulation.system_manager import (
+    detect, get_grasps, get_grasps_mesh, get_eef, 
+    set_prompt, go_to_pose, load_trajectory_file, visualize_trajectory_data, 
+    cancel_move, get_arm_status, follow_eef_trajectory
+)
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
 
 # Configure logging
 logging.basicConfig(

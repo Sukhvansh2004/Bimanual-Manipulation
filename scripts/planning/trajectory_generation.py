@@ -28,7 +28,7 @@ import robosuite.utils.transform_utils as T
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils import (
+from robosuite_franka_manipulation.utils.env_utils import (
     create_ycb_object, 
     env_step, 
     create_primitive_object, 
@@ -49,10 +49,8 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
     check_trajectory_feasibility
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
-from robosuite_franka_manipulation.planning.utils import (
-    visualize_trajectory,
-    RobotMeshVisualizer
-)
+from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
+from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
 
 def setup_logging(level: int = logging.INFO):
     """Configure logging."""

@@ -15,7 +15,7 @@ import numpy as np
 import meshcat
 
 from robosuite.wrappers import VisualizationWrapper
-from robosuite_franka_manipulation import constants
+import robosuite_franka_manipulation.constants as constants
 from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env
 from robosuite_franka_manipulation.teleop.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController

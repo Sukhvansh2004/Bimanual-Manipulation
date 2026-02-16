@@ -17,7 +17,9 @@ import time
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.planning.utils import load_trajectory, visualize_trajectory, RobotMeshVisualizer
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory
+from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
+from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

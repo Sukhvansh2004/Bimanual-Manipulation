@@ -3,15 +3,17 @@
 Dual-Arm Handover Demo using Trajectory Files
 """
 
+import os
 import time
 import logging
 from typing import List, Optional
 import meshcat
 
 from robosuite_franka_manipulation import (
-    DualArmManipulationSystem, env_step, constants, 
-    GraspGenerator, create_ycb_object
+    DualArmManipulationSystem, constants
 )
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
