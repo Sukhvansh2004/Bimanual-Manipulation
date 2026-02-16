@@ -330,6 +330,7 @@ def main() -> None:
     all_grasps = grasp_generator.generate_grasps(
         object_name="flatPlate", 
         gripper_types=["finger", "suction"], 
+        collision_check="Inter",
         num_grasps=200,
         env_lock=env_lock
     )

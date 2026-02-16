@@ -282,7 +282,7 @@ def main() -> None:
     grasp_generator = GraspGenerator(env=env)
     
     logger.info("Generating grasp candidates for Finger and Suction grippers...")
-    all_grasps = grasp_generator.generate_grasps(object_name="flatPlate", gripper_types=["finger", "suction"], num_grasps=200, env_lock=env_lock)
+    all_grasps = grasp_generator.generate_grasps(object_name="flatPlate", gripper_types=["finger", "suction"], collision_check="Inter", num_grasps=200, env_lock=env_lock)
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     

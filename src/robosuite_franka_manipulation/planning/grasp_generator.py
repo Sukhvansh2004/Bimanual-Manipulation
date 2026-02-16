@@ -50,6 +50,7 @@ class GraspGenerator:
         self,
         object_name: str,
         gripper_types: Union[str, List[str]],
+        collision_check: Optional[str],
         num_grasps: int = constants.DEFAULT_NUM_GRASPS,
         env_lock=None
     ) -> List[GraspSchema]:
@@ -60,6 +61,7 @@ class GraspGenerator:
             object_name: Name of the object in the environment.
             gripper_types: Type of gripper(s) ('parallel_jaw', 'suction', 'franka_panda', etc.).
             num_grasps: Number of grasps to generate.
+            collision_check: Type of collision checking ('Inter', 'Intra', None).
             env_lock: Optional lock for environment access.
             
         Returns:
@@ -82,6 +84,7 @@ class GraspGenerator:
             object_pose=pose,
             gripper_type=g_types,
             num_grasps=num_grasps,
+            collision_check=collision_check,
         )
         
         logger.info(f"Requesting {num_grasps} grasps for {object_name} ({g_types}) from Grasp Service...")
