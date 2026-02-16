@@ -54,9 +54,9 @@ from robosuite_franka_manipulation.utils.env_utils import (
 from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 from robosuite_franka_manipulation.utils.primitives import (
-    compute_approach_pose,
-    compute_retreat_pose,
-    compute_linear_waypoints,
+    DualArmHandoverPlanner,
+    ObjectGraspPrimitive,
+    ReleaseRetreatPrimitive,
 )
 
 from robosuite_franka_manipulation.utils.suction_weld import (
@@ -99,6 +99,10 @@ __all__ = [
     'create_primitive_object',
     # Mesh utils
     'load_mesh_and_sample',
+    # Motion primitives
+    'DualArmHandoverPlanner',
+    'ObjectGraspPrimitive',
+    'ReleaseRetreatPrimitive',
     # Suction weld utilities
     'apply_suction_weld',
     'clear_suction_cache',
