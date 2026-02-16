@@ -20,7 +20,6 @@ from robosuite_franka_manipulation.utils.se3 import (
     interpolate_pose,
 )
 from robosuite_franka_manipulation.utils import env_step
-from robosuite_franka_manipulation.utils.primitives import compute_approach_pose
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging
 
@@ -231,10 +230,7 @@ class RobosuiteArmController:
     def move_to_pose(self, target_pose: StampedPose, 
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     gripper_action: float = 0.0,
-                    approach: bool = False,
                     dt: float = constants.TRAJECTORY_TIME_STEP,
-                    approach_distance: float = constants.DEFAULT_APPROACH_DISTANCE,
-                    approach_axis: str = constants.DEFAULT_APPROACH_AXIS,
                     num_steps: int = constants.TRAJECTORY_NUM_POINTS) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
@@ -251,14 +247,8 @@ class RobosuiteArmController:
             gripper_action: Raw gripper action to maintain during movement.
                             - For Parallel Gripper: 1.0 (Open), -1.0 (Closed).
                             - For Suction Gripper: 1.0 (Release/Off), -1.0 (Grasp/On).
-            approach: If True, first move to an approach pose offset along the target's local axis,
-                     then move to the actual target. Useful for grasp approach motions.
-            approach_distance: Distance to offset for approach (meters). Default 0.1m (10cm).
-            approach_axis: Local axis of target frame to offset along ('x', 'y', or 'z').
-                          Default 'z' (gripper approach direction).
-            timeout: Maximum number of steps to execute. If None, uses trajectory waypoint count.
-                    This is kept for backwards compatibility but is generally not needed.
-            num_steps: Number of waypoints to generate for the trajectory. If provided, overrides timeout-based logic.
+            dt: Time step between waypoints (seconds).
+            num_steps: Number of waypoints to generate for the trajectory.
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
@@ -268,39 +258,6 @@ class RobosuiteArmController:
             # Clear stop event at start
             self._stop_event.clear()
 
-            # Handle approach motion: first move to approach pose, then to target
-            if approach:
-                logger.debug(f"Target pose before approach computation: pos={target_pose.position}, frame_id={target_pose.frame_id}")
-                approach_pose = compute_approach_pose(
-                    target_pose, 
-                    approach_distance=approach_distance,
-                    approach_axis=approach_axis
-                )
-                logger.debug(f"Approach enabled: moving to approach pose first (offset {approach_distance}m along local {approach_axis}-axis)")
-                logger.debug(f"Approach pose: pos={approach_pose.position}, frame_id={approach_pose.frame_id}")
-                
-                # Move to approach pose first (without approach, to avoid recursion)
-                approach_success = self.move_to_pose(
-                    approach_pose,
-                    threshold=threshold,
-                    gripper_action=gripper_action,
-                    approach=False,  # Don't recurse
-                    num_steps=num_steps
-                )
-                
-                if self._stop_event.is_set():
-                    logger.info(f"Movement cancelled during approach for robot{self.robot_id}_{self.arm_id}")
-                    self.last_status = 0
-                    return False
-                
-                if not approach_success:
-                    logger.warning("Failed to reach approach pose")
-                    # Continue to try reaching target anyway
-                else:
-                    logger.debug("Approach pose reached successfully")
-                
-                logger.debug("Now moving to final target pose")
-                
             # Transform to robot base frame if needed
             if target_pose.frame_id != self.base_frame:
                 logger.debug(f"Transforming target pose from '{target_pose.frame_id}' to '{self.base_frame}'")
@@ -427,7 +384,8 @@ class RobosuiteArmController:
     def follow_trajectory(self, trajectory: List[StampedPose], 
                           gripper_action: float = 0.0,
                           dt: float = constants.TRAJECTORY_TIME_STEP,
-                          threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,) -> bool:
+                          threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+                          num_steps: Optional[int] = None) -> bool:
         """
         Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
@@ -436,7 +394,7 @@ class RobosuiteArmController:
             gripper_action: Gripper action to maintain.
             dt: Time step between waypoints.
             threshold: Convergence threshold for the final waypoint.
-            num_steps: Optional maximum number of steps. Defaults to len(trajectory) + 50.
+            num_steps: Optional maximum number of steps. Defaults to len(trajectory) * 2.
             
         Returns:
             bool: True if final waypoint reached, False otherwise.
@@ -469,7 +427,7 @@ class RobosuiteArmController:
                 self._visualize_se3_trajectory(positions, quaternions)
             
             num_waypoints = len(positions)
-            max_steps = num_waypoints * 2
+            max_steps = num_steps if num_steps is not None else num_waypoints * 2
             
             current_waypoint_idx = 0
             steps_taken = 0

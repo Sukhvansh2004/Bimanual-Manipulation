@@ -642,7 +642,8 @@ def test_predict_and_filter_sorting_and_collision(mock_grasp_service, mock_const
         object_pose=StampedPose(**pose_args),
         pcd_np=None,
         mesh_path=None,
-        num_grasps=10
+        num_grasps=10,
+        collision_check="Inter"
     )
     
     # Assert
@@ -692,7 +693,7 @@ def test_intra_gripper_collision(mock_grasp_service, mock_constants):
         pcd_np=None,
         mesh_path=None,
         num_grasps=10,
-        filter_intra_collision=True
+        collision_check="Intra"
     )
     
     # g_high (0.9) should survive. g_low (0.8) should be filtered.
@@ -783,6 +784,7 @@ def test_visualization_flag_handling(mock_grasp_service, mock_constants):
         pcd_np=None,
         mesh_path=None,
         num_grasps=1,
+        collision_check="Intra",
         visualize_gripper_mesh=True
     )
     
@@ -797,6 +799,7 @@ def test_visualization_flag_handling(mock_grasp_service, mock_constants):
         pcd_np=None,
         mesh_path=None,
         num_grasps=1,
+        collision_check="Intra",
         visualize_gripper_mesh=False
     )
     

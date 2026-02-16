@@ -6,7 +6,7 @@ Grasp Service - Grasp prediction service for segmented point clouds.
 import zmq
 import numpy as np
 import threading
-from typing import Dict, Any, Optional, cast, List, Tuple
+from typing import Dict, Any, Optional, cast, List, Tuple, Literal
 import logging
 import trimesh
 import trimesh.transformations as tra
@@ -380,7 +380,7 @@ class GraspService:
                                    pcd_np: Optional[np.ndarray], 
                                    mesh_path: Optional[str], 
                                    num_grasps: int,
-                                   filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING,
+                                   collision_check: Literal[None, "Inter", "Intra"] = None,
                                    visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
         """
         Predict grasps sequentially for each requested gripper type.
@@ -432,18 +432,19 @@ class GraspService:
 
             valid_candidates = candidates_with_points
 
-            # 1. Filter against PREVIOUSLY occupied space (Inter-Gripper / Inter-Batch)
-            if occupied_pcd_points:
-                logger.debug(f"Doing inter-gripper for gripper {gripper_type_simple} #{i} filtering against existing occupied space.")
-                scene_obstacle = np.concatenate(occupied_pcd_points, axis=0)
-                valid_candidates = self._filter_batch_against_obstacles(valid_candidates, scene_obstacle)
-                logger.debug(f"After inter-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
-            
-            # 2. Filter internally (Intra-Gripper) using recursive logic
-            if filter_intra_collision:
-                logger.debug(f"Doing intra-gripper filtering for gripper {gripper_type_simple} #{i}.")
-                valid_candidates = self._recursive_filter(valid_candidates)
-                logger.debug(f"After intra-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+            if collision_check is not None:
+                # 1. Filter against PREVIOUSLY occupied space (Inter-Gripper / Inter-Batch)
+                if occupied_pcd_points:
+                    logger.debug(f"Doing inter-gripper for gripper {gripper_type_simple} #{i} filtering against existing occupied space.")
+                    scene_obstacle = np.concatenate(occupied_pcd_points, axis=0)
+                    valid_candidates = self._filter_batch_against_obstacles(valid_candidates, scene_obstacle)
+                    logger.debug(f"After inter-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
+                
+                # 2. Filter internally (Intra-Gripper) using recursive logic
+                if collision_check == "Intra":
+                    logger.debug(f"Doing intra-gripper filtering for gripper {gripper_type_simple} #{i}.")
+                    valid_candidates = self._recursive_filter(valid_candidates)
+                    logger.debug(f"After intra-gripper filtering, {len(valid_candidates)}/{len(candidates_with_points)} grasps remain for {gripper_type_simple} #{i}")
 
             # Add to final list and update occupied space
             for g, pts in valid_candidates:
@@ -495,7 +496,7 @@ class GraspService:
             pcd_np=pcd_np,
             mesh_path=mesh_path,
             num_grasps=req.num_grasps,
-            filter_intra_collision=req.filter_intra_collision,
+            collision_check=req.collision_check,
             visualize_gripper_mesh=req.visualize_gripper_mesh
         )
         

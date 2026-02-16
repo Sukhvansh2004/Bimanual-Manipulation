@@ -77,7 +77,6 @@ def test_move_command(service_manager, move_service_fixture):
         "arm": "right",
         "pose": pose,
         "gripper_action": 1.0,
-        "approach": True
     })
     
     assert response["status"] == "success"

@@ -180,6 +180,7 @@ class MoveToPoseService:
             arm_id = request.arm
             gripper_action = request.gripper_action
             trajectory = request.trajectory
+            num_steps = request.num_steps if request.num_steps is not None else len(trajectory)
 
             key = (robot_id, arm_id)
             if key not in self.controllers:
@@ -193,6 +194,7 @@ class MoveToPoseService:
                     controller.follow_trajectory(
                         trajectory=trajectory,
                         gripper_action=gripper_action,
+                        num_steps=num_steps,
                     )
                     logger.info(f"Trajectory following complete for robot {robot_id}, arm {arm_id}")
                 except Exception as e:
@@ -241,7 +243,6 @@ class MoveToPoseService:
             robot_id = request.robot_id
             arm_id = request.arm
             gripper_action = request.gripper_action
-            approach = request.approach
             target_pose = request.pose
             num_steps = request.num_steps
 
@@ -257,7 +258,6 @@ class MoveToPoseService:
                     controller.move_to_pose(
                         target_pose=target_pose,
                         gripper_action=gripper_action,
-                        approach=approach,
                         num_steps=num_steps
                     )
                     logger.info(f"Move complete for robot {robot_id}, arm {arm_id}")

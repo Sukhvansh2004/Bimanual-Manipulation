@@ -102,7 +102,6 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Default number of grasps to predict
 DEFAULT_NUM_GRASPS = 200
-DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING = False
 GRASPGEN_POINTCLOUD_SIZE = 4096  # Number of points for GraspGen input
 GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper collision mesh for occupancy checking
 MESH_SCALE = 1.0  # Default scale for object meshes
@@ -165,8 +164,6 @@ TRAJECTORY_TIME_STEP = 0.05  # Time step between waypoints (seconds)
 TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in SE(3) distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movement needed
-DEFAULT_APPROACH_DISTANCE = 0.1  # Default approach distance (meters)
-DEFAULT_APPROACH_AXIS = 'z'  # Default approach axis for pre-grasp
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

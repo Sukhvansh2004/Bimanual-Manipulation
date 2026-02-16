@@ -2,7 +2,7 @@
 Pydantic models for data validation and JSON serialization across services.
 """
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Literal
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import numpy as np
 import time
@@ -67,7 +67,7 @@ class GraspRequest(BaseSchema):
     object_pose: Optional[StampedPose] = None
     object_name: Optional[str] = None
     num_grasps: int = constants.DEFAULT_NUM_GRASPS
-    filter_intra_collision: bool = constants.DEFAULT_INTRA_GRIPPER_COLLISION_FILTERING
+    collision_check: Literal[None, "Inter", "Intra"]
     visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH
     gripper_type: List[str] = Field(..., min_length=1)
 
@@ -107,7 +107,6 @@ class MoveToPoseRequest(BaseSchema):
     arm: str = "right"
     pose: StampedPose
     gripper_action: float = 0.0
-    approach: bool = False
     num_steps: Optional[int] = None
 
 class FollowTrajectoryRequest(BaseSchema):
@@ -116,6 +115,7 @@ class FollowTrajectoryRequest(BaseSchema):
     arm: str = "right"
     trajectory: List[StampedPose]
     gripper_action: float = 0.0
+    num_steps: Optional[int] = None
 
 class GetArmStatusRequest(BaseSchema):
     command: str

@@ -448,7 +448,7 @@ def detect():
         return []
 
 
-def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS):
+def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS, collision_check: Optional[str] = None):
     """Quick helper to generate grasps for a detection."""
     pcd = detection.get('pcd', [])
     pose = detection.get('pose', {})
@@ -463,7 +463,8 @@ def get_grasps(detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS)
         'pcd': pcd,
         'object_pose': pose,
         'gripper_type': gripper_type,
-        'num_grasps': num_grasps
+        'num_grasps': num_grasps,
+        'collision_check': collision_check
     })
     
     if response.get('status') == 'success':
@@ -481,7 +482,7 @@ def get_grasps_mesh(
         object_name: str, 
         num_grasps=constants.DEFAULT_NUM_GRASPS, 
         gripper_type='suction', 
-        intra_gripper_collision_check=False,
+        collision_check: Optional[str] = None,
         visualize_gripper_mesh=True
         ):
     """Quick helper to generate grasps given an object pose."""
@@ -493,7 +494,7 @@ def get_grasps_mesh(
         'object_name': object_name,
         'num_grasps': num_grasps,
         'gripper_type': gripper_type,  # Use simplified type: 'finger' or 'suction'
-        'filter_intra_collision': intra_gripper_collision_check,
+        'collision_check': collision_check,
         'visualize_gripper_mesh': visualize_gripper_mesh
     })
     
@@ -566,7 +567,7 @@ def set_prompt(prompt):
     else:
         print(f"Failed to change prompt: {response.get('message')}")
 
-def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, approach: bool = False, num_steps: Optional[int] = None):
+def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, num_steps: Optional[int] = None):
     """Quick helper to move an arm to a pose."""
     assert system.service_client is not None, "Service client not initialized"
     
@@ -579,7 +580,6 @@ def go_to_pose(pose: StampedPose, robot_id: int, arm_id: str, gripper_action: fl
         'arm': arm_id,
         'pose': pose_dict,
         'gripper_action': gripper_action,
-        'approach': approach,
         'num_steps': num_steps
     })
     
@@ -725,7 +725,7 @@ def get_arm_status(robot_id: int, arm_id: str):
         print(f"Failed to get arm status: {response.get('message')}")
         return None
 
-def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0):
+def follow_eef_trajectory(robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0, num_steps: Optional[int] = None):
     """Quick helper to send a follow trajectory command."""
     assert system.service_client is not None, "Service client not initialized"
     
@@ -737,6 +737,7 @@ def follow_trajectory_command(robot_id: int, arm_id: str, trajectory: List[Stamp
         'arm': arm_id,
         'trajectory': traj_dicts,
         'gripper_action': gripper_action,
+        'num_steps': num_steps
     })
     
     if response.get('status') == 'success':
@@ -928,7 +929,7 @@ Press Ctrl+D or type exit() to quit
                     'go_to_pose': go_to_pose,
                     'cancel_move': cancel_move,
                     'get_arm_status': get_arm_status,
-                    'follow_trajectory': follow_trajectory_command,
+                    'follow_eef_trajectory': follow_eef_trajectory,
                     'get_feasible_trajectory': get_feasible_trajectory,
                     'follow_joint_trajectory': follow_joint_trajectory,
                     'load_trajectory_file': load_trajectory_file,
