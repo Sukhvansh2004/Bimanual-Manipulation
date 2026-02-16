@@ -1,142 +1,365 @@
-"""
-Motion primitives for robotic manipulation.
-
-This module provides utility functions for common manipulation motion patterns
-such as approach motions, retreat motions, and linear trajectories.
-"""
+# TODO: Switch from linear translation → minimum jerk trajectories.
 
 import numpy as np
+from typing import List, Dict
 from scipy.spatial.transform import Rotation as R, Slerp
-from typing import Tuple
 
 from robosuite_franka_manipulation.transforms import StampedPose
 
 
-def compute_approach_pose(target_pose: StampedPose, 
-                          approach_distance: float = 0.1,
-                          approach_axis: str = 'z') -> StampedPose:
+# Utilities
+def resolve_axis(axis, quaternion):
     """
-    Compute an approach pose by offsetting along the target pose's local axis.
-    
-    The approach pose has the same orientation as the target but is offset
-    along the specified local axis of the target frame. This is useful for
-    approaching a grasp pose from "above" (along the gripper's approach direction).
-    
-    Args:
-        target_pose: The target pose to approach
-        approach_distance: Distance to offset along the approach axis (meters).
-                          Positive values move in the positive axis direction.
-        approach_axis: Which local axis to offset along ('x', 'y', or 'z').
-                      For gripper approach, typically 'z' (gripper pointing direction).
-    
-    Returns:
-        StampedPose: The approach pose with same orientation but offset position
+    Resolve a motion axis.
+
+    axis options:
+        'x','y','z','-x','-y','-z'  -> EE frame
+        np.ndarray(3,)              -> world frame
+        callable(quaternion)->axis  -> custom
     """
-    # Get rotation matrix from target quaternion
-    rot = R.from_quat(target_pose.quaternion)
-    rot_matrix = rot.as_matrix()
-    
-    # Get the local axis direction in world frame
-    axis_map = {'x': 0, 'y': 1, 'z': 2}
-    axis_idx = axis_map.get(approach_axis.lower(), 2)
-    
-    # The approach direction is the specified axis of the target frame
-    # For a gripper, Z typically points along the approach direction
-    approach_direction = rot_matrix[:, axis_idx]
-    
-    # Compute approach position (offset backwards along the approach axis)
-    # Negative because we want to approach FROM a distance
-    approach_position = np.array(target_pose.position) - approach_distance * approach_direction
-    
-    return StampedPose(
-        position=approach_position,
-        quaternion=target_pose.quaternion,  # Same orientation
-        frame_id=target_pose.frame_id
-    )
+    # Convert quaternion to rotation matrix for axis resolution
+    rot = R.from_quat(quaternion)
+    rotation = rot.as_matrix()
+
+    if callable(axis):
+        vec = axis(rotation)
+
+    elif isinstance(axis, str):
+        mapping = {
+            'x': rotation[:, 0],
+            'y': rotation[:, 1],
+            'z': rotation[:, 2],
+            '-x': -rotation[:, 0],
+            '-y': -rotation[:, 1],
+            '-z': -rotation[:, 2],
+        }
+
+        if axis.lower() not in mapping:
+            raise ValueError(f"Invalid axis string: {axis}")
+
+        vec = mapping[axis.lower()]
+
+    else:
+        vec = np.asarray(axis)
+
+    norm = np.linalg.norm(vec)
+
+    if norm < 1e-8:
+        raise ValueError("Axis has near-zero magnitude.")
+
+    return vec / norm
 
 
-def compute_retreat_pose(current_pose: StampedPose,
-                         retreat_distance: float = 0.1,
-                         retreat_axis: str = 'z') -> StampedPose:
+def slerp_quat(q1, q2, alpha):
     """
-    Compute a retreat pose by offsetting along the current pose's local axis.
-    
-    Similar to approach, but typically used after grasping to move away from
-    the object/surface.
-    
-    Args:
-        current_pose: The current pose to retreat from
-        retreat_distance: Distance to offset along the retreat axis (meters)
-        retreat_axis: Which local axis to retreat along ('x', 'y', or 'z')
-    
-    Returns:
-        StampedPose: The retreat pose
+    Proper spherical interpolation between quaternions.
+    Produces constant angular velocity.
     """
-    # Get rotation matrix from current quaternion
-    rot = R.from_quat(current_pose.quaternion)
-    rot_matrix = rot.as_matrix()
-    
-    # Get the local axis direction in world frame
-    axis_map = {'x': 0, 'y': 1, 'z': 2}
-    axis_idx = axis_map.get(retreat_axis.lower(), 2)
-    
-    # The retreat direction is the specified axis of the current frame
-    retreat_direction = rot_matrix[:, axis_idx]
-    
-    # Compute retreat position (offset along the axis - opposite of approach)
-    retreat_position = np.array(current_pose.position) + retreat_distance * retreat_direction
-    
-    return StampedPose(
-        position=retreat_position,
-        quaternion=current_pose.quaternion,  # Same orientation
-        frame_id=current_pose.frame_id
-    )
+    key_times = [0, 1]
+    rotations = R.from_quat([q1, q2])
+    slerp_obj = Slerp(key_times, rotations)
+
+    return slerp_obj([alpha]).as_quat()[0]
 
 
-def compute_linear_waypoints(start_pose: StampedPose,
-                              end_pose: StampedPose,
-                              num_waypoints: int = 10) -> list:
+def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int):
     """
-    Compute linear interpolation waypoints between two poses.
-    
-    Interpolates position linearly and orientation using SLERP.
-    
-    Args:
-        start_pose: Starting pose
-        end_pose: Ending pose
-        num_waypoints: Number of waypoints including start and end
-    
-    Returns:
-        List of StampedPose waypoints
+    Interpolate SE(3) using linear translation + SLERP rotation.
     """
-    if num_waypoints < 2:
-        return [end_pose]
-    
-    waypoints = []
-    
-    start_pos = np.array(start_pose.position)
-    end_pos = np.array(end_pose.position)
-    
-    start_rot = R.from_quat(start_pose.quaternion)
-    end_rot = R.from_quat(end_pose.quaternion)
-    
-    for i in range(num_waypoints):
-        t = i / (num_waypoints - 1)
-        
-        # Linear position interpolation
-        pos = start_pos + t * (end_pos - start_pos)
-        
-        # SLERP for orientation
-        key_rots = R.from_quat([
-            start_rot.as_quat(),
-            end_rot.as_quat()
-        ])
-        rot = Slerp([0, 1], key_rots)([t])[0]
-        
-        waypoints.append(StampedPose(
-            position=pos,
-            quaternion=rot.as_quat(),
-            frame_id=start_pose.frame_id
-        ))
-    
-    return waypoints
+    traj = []
+
+    for i in range(steps):
+        a = i / (steps - 1) if steps > 1 else 0.0
+
+        pos = (1 - a) * p1.position + a * p2.position
+        quat = slerp_quat(p1.quaternion, p2.quaternion, a)
+
+        traj.append(StampedPose(position=pos, quaternion=quat, frame_id=p1.frame_id))
+
+    return traj
+
+
+def sigmoid_ramp(steps):
+    x = np.linspace(-6, 6, steps)
+    s = 1 / (1 + np.exp(-x))
+    return (s - s.min()) / (s.max() - s.min())
+
+
+class DualArmHandoverPlanner:
+
+    def __init__(
+        self,
+        grasp_transfer: StampedPose,
+        grasp_receiver: StampedPose,
+        handover_object_pose: StampedPose,
+        pre_align_offset=np.array([0, 0, -0.10]),
+        retreat_distance=0.05,
+        approach_steps=50,
+        ramp_steps=60,
+        transfer_retreat_axis='-z',
+        receiver_approach_axis='-z',
+    ):
+
+        self.G1 = grasp_transfer
+        self.G2 = grasp_receiver
+        self.obj_pose = handover_object_pose
+
+        self.pre_align_offset = pre_align_offset
+        self.retreat_distance = retreat_distance
+
+        self.approach_steps = approach_steps
+        self.ramp_steps = ramp_steps
+
+        self.transfer_retreat_axis = transfer_retreat_axis
+        self.receiver_approach_axis = receiver_approach_axis
+
+    def ee_pose_from_object(self, obj_pose: StampedPose, grasp: StampedPose):
+        """
+        T_ee = T_obj * inverse(G)
+        """
+        T_obj = obj_pose.as_matrix()
+        G = grasp.as_matrix()
+
+        T_ee = T_obj @ np.linalg.inv(G)
+        return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
+
+    def plan_pre_alignment(self):
+
+        aligned_obj = StampedPose(
+            position=self.obj_pose.position + self.pre_align_offset,
+            quaternion=self.obj_pose.quaternion,
+            frame_id=self.obj_pose.frame_id
+        )
+
+        receiver_pre = self.ee_pose_from_object(aligned_obj, self.G2)
+        transfer_hold = self.ee_pose_from_object(self.obj_pose, self.G1)
+
+        return receiver_pre, transfer_hold
+
+    def plan_receiver_approach(self, receiver_pre):
+
+        receiver_final = self.ee_pose_from_object(
+            self.obj_pose,
+            self.G2
+        )
+
+        axis_vec = resolve_axis(
+            self.receiver_approach_axis,
+            receiver_final.quaternion
+        )
+
+        distance = np.linalg.norm(
+            receiver_pre.position - receiver_final.position
+        )
+
+        receiver_pre = StampedPose(
+            position=receiver_final.position + axis_vec * distance,
+            quaternion=receiver_final.quaternion,
+            frame_id=receiver_final.frame_id
+        )
+
+        receiver_traj = interpolate_pose(
+            receiver_pre,
+            receiver_final,
+            self.approach_steps
+        )
+
+        return receiver_traj, receiver_final
+
+    def plan_force_ramp(self, receiver_final):
+
+        transfer_pose = self.ee_pose_from_object(
+            self.obj_pose,
+            self.G1
+        )
+
+        ramp = sigmoid_ramp(self.ramp_steps)
+
+        forces = [
+            {
+                "F_transfer": 1 - a,
+                "F_receiver": 0.2 + 0.8 * a
+            }
+            for a in ramp
+        ]
+
+        transfer_traj = [transfer_pose] * self.ramp_steps
+        receiver_traj = [receiver_final] * self.ramp_steps
+
+        return transfer_traj, receiver_traj, forces
+
+    def plan_retreat(self):
+
+        transfer_pose = self.ee_pose_from_object(
+            self.obj_pose,
+            self.G1
+        )
+
+        retreat_vec = resolve_axis(
+            self.transfer_retreat_axis,
+            transfer_pose.quaternion
+        )
+
+        retreat_pos = transfer_pose.position + \
+                      retreat_vec * self.retreat_distance
+
+        retreat_pose = StampedPose(
+            position=retreat_pos,
+            quaternion=transfer_pose.quaternion,
+            frame_id=transfer_pose.frame_id
+        )
+
+        return interpolate_pose(
+            transfer_pose,
+            retreat_pose,
+            30
+        )
+
+    # ---------------------------------
+
+    def generate_trajectory(self) -> Dict[str, List[StampedPose]]:
+
+        receiver_pre, transfer_hold = self.plan_pre_alignment()
+
+        receiver_approach, receiver_final = \
+            self.plan_receiver_approach(receiver_pre)
+
+        transfer_ramp, receiver_ramp, forces = \
+            self.plan_force_ramp(receiver_final)
+
+        retreat_traj = self.plan_retreat()
+
+        return {
+            "receiver_pre": [receiver_pre],
+            "transfer_hold": [transfer_hold],
+            "receiver_approach": receiver_approach,
+            "force_ramp_transfer": transfer_ramp,
+            "force_ramp_receiver": receiver_ramp,
+            "force_schedule": forces,
+            "transfer_retreat": retreat_traj
+        }
+
+
+class ObjectGraspPrimitive:
+
+    def __init__(
+        self,
+        object_pose: StampedPose,
+        grasp_transform: StampedPose,
+        pregrasp_distance=0.10,
+        approach_axis='-z',
+        approach_steps=50,
+        grasp_steps=25
+    ):
+
+        self.obj_pose = object_pose
+        self.G = grasp_transform
+
+        self.pregrasp_distance = pregrasp_distance
+        self.approach_axis = approach_axis
+        self.approach_steps = approach_steps
+        self.grasp_steps = grasp_steps
+
+    # ---------------------------------
+
+    def ee_from_object(self, obj_pose, grasp):
+
+        T_obj = obj_pose.as_matrix()
+        G = grasp.as_matrix()
+
+        T_ee = T_obj @ np.linalg.inv(G)
+        return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
+
+    # ---------------------------------
+
+    def compute_grasp_pose(self):
+        return self.ee_from_object(self.obj_pose, self.G)
+
+    # ---------------------------------
+
+    def compute_pregrasp_pose(self, grasp_pose):
+
+        approach_vec = resolve_axis(
+            self.approach_axis,
+            grasp_pose.quaternion
+        )
+
+        pre_pos = grasp_pose.position + \
+                  approach_vec * self.pregrasp_distance
+
+        return StampedPose(
+            position=pre_pos,
+            quaternion=grasp_pose.quaternion,
+            frame_id=grasp_pose.frame_id
+        )
+
+    # ---------------------------------
+
+    def generate_trajectory(self):
+
+        grasp_pose = self.compute_grasp_pose()
+        pregrasp_pose = self.compute_pregrasp_pose(grasp_pose)
+
+        approach_traj = interpolate_pose(
+            pregrasp_pose,
+            grasp_pose,
+            self.approach_steps
+        )
+
+        return {
+            "pregrasp": pregrasp_pose,
+            "approach": approach_traj,
+            "grasp_pose": grasp_pose
+        }
+
+
+class ReleaseRetreatPrimitive:
+
+    def __init__(
+        self,
+        retreat_distance=0.05,
+        retreat_axis='-z',
+        retreat_steps=30,
+        settle_time=0.1
+    ):
+
+        self.retreat_distance = retreat_distance
+        self.retreat_axis = retreat_axis
+        self.retreat_steps = retreat_steps
+        self.settle_time = settle_time
+
+    def compute_retreat_pose(self, release_pose: StampedPose):
+
+        retreat_vec = resolve_axis(
+            self.retreat_axis,
+            release_pose.quaternion
+        )
+
+        retreat_pos = release_pose.position + \
+                      retreat_vec * self.retreat_distance
+
+        return StampedPose(
+            position=retreat_pos,
+            quaternion=release_pose.quaternion,
+            frame_id=release_pose.frame_id
+        )
+
+
+    def generate_trajectory(
+        self,
+        release_pose: StampedPose
+    ) -> Dict[str, List[StampedPose]]:
+
+        retreat_pose = self.compute_retreat_pose(release_pose)
+
+        retreat_traj = interpolate_pose(
+            release_pose,
+            retreat_pose,
+            self.retreat_steps
+        )
+
+        return {
+            "release_pose": release_pose,
+            "settle_time": self.settle_time,
+            "retreat": retreat_traj
+        }
