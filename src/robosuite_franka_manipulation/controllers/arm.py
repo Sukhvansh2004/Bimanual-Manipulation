@@ -370,13 +370,13 @@ class RobosuiteArmController:
             pos_error_norm = np.linalg.norm(pos_error)
             ori_error_norm = np.linalg.norm(ori_error_vec)
             
-            logger.info(f"Trajectory complete: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
-            
             if pos_error_norm < threshold and ori_error_norm < threshold:
                 self.last_status = 1
+                logger.info(f"ROBOT: {self.robot_id}:{self.arm_id} - Trajectory converged: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
                 return True
             
             self.last_status = 0
+            logger.info(f"ROBOT: {self.robot_id}:{self.arm_id} - Trajectory didn't converge: final pos_err={pos_error_norm:.4f}m, ori_err={ori_error_norm:.4f}rad")
             return False
         finally:
             self.is_moving = False
@@ -470,11 +470,12 @@ class RobosuiteArmController:
                 # Check convergence if targeting the final waypoint
                 if current_waypoint_idx == num_waypoints - 1:
                     if np.linalg.norm(pos_delta) < threshold and np.linalg.norm(ori_delta) < threshold:
-                        logger.debug(f"Trajectory converged at step {steps_taken}")
+                        logger.debug(f"ROBOT: {self.robot_id}:{self.arm_id} - Trajectory converged at step {steps_taken}")
                         self.last_status = 1
                         return True
             
             self.last_status = 0
+            logger.info(f"ROBOT: {self.robot_id}:{self.arm_id} - Trajectory didn't converge after {steps_taken} steps, final pos_err={np.linalg.norm(pos_delta):.4f}m, ori_err={np.linalg.norm(ori_delta):.4f}rad")
             return False
         finally:
             self.is_moving = False
