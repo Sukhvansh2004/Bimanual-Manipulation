@@ -494,7 +494,7 @@ class RobosuiteArmController:
             logger.info(f"Following {'smoothened ' if smoothen else ''}pre-defined trajectory for robot{self.robot_id}_{self.arm_id} ({len(trajectory)} waypoints)")
             
             if smoothen:
-                traj_num_steps = num_steps if num_steps is not None else len(trajectory) * 2
+                traj_num_steps = num_steps if num_steps is not None else len(trajectory)
                 positions, quaternions = self.smoothen_trajectory(trajectory, num_steps=traj_num_steps)
             else:
                 # Transform all waypoints to robot base frame
@@ -515,7 +515,7 @@ class RobosuiteArmController:
                 self._visualize_se3_trajectory(positions, quaternions)
             
             num_waypoints = len(positions)
-            max_steps = num_steps if num_steps is not None else num_waypoints * 2
+            max_steps = num_steps * 2 if num_steps is not None else num_waypoints * 2
             
             current_waypoint_idx = 0
             steps_taken = 0
