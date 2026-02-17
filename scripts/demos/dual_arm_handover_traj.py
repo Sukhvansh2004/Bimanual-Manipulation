@@ -43,7 +43,7 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
     return None
 
 def main():
-    parser = argparse.ArgumentParser(description="Dual-Arm Handover Demo using Trajectory Files")
+    parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--visualize", action="store_true", help="Enable visualization in robosuite")
     parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
@@ -75,9 +75,6 @@ def main():
     register_mesh_extraction_env(system.env)
     
     vis = meshcat.Visualizer(zmq_url=args.zmq_url)
-    if args.meshcat_tf:
-        vis.delete()
-        logger.info("MeshCat cleared.")
 
     try:
         # 2. Load Trajectories
@@ -168,7 +165,7 @@ def main():
             if next_handover_idx != -1 and next_handover_idx > current_idx:
                 logger.info(f"Robot {current_robot} following segment to handover at {next_handover_idx}...")
                 segment = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx+1 : next_handover_idx+1]
-                current_arm.follow_trajectory(segment, gripper_action=1.0)
+                current_arm.follow_trajectory(segment, gripper_action=1.0, num_steps=200)
                 current_idx = next_handover_idx
                 
                 logger.info(f"Executing handover at {current_idx}...")
