@@ -1,14 +1,14 @@
 # TODO: Switch from linear translation → minimum jerk trajectories.
 
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Union, Callable, Any, Tuple
 from scipy.spatial.transform import Rotation as R, Slerp
 
 from robosuite_franka_manipulation.transforms import StampedPose
 
 
 # Utilities
-def resolve_axis(axis, quaternion):
+def resolve_axis(axis: Union[str, np.ndarray, Callable[[np.ndarray], np.ndarray]], quaternion: np.ndarray) -> np.ndarray:
     """
     Resolve a motion axis.
 
@@ -50,7 +50,7 @@ def resolve_axis(axis, quaternion):
     return vec / norm
 
 
-def slerp_quat(q1, q2, alpha):
+def slerp_quat(q1: np.ndarray, q2: np.ndarray, alpha: float) -> np.ndarray:
     """
     Proper spherical interpolation between quaternions.
     Produces constant angular velocity.
@@ -62,7 +62,7 @@ def slerp_quat(q1, q2, alpha):
     return slerp_obj([alpha]).as_quat()[0]
 
 
-def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int):
+def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int) -> List[StampedPose]:
     """
     Interpolate SE(3) using linear translation + SLERP rotation.
     """
@@ -79,7 +79,7 @@ def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int):
     return traj
 
 
-def sigmoid_ramp(steps):
+def sigmoid_ramp(steps: int) -> np.ndarray:
     x = np.linspace(-6, 6, steps)
     s = 1 / (1 + np.exp(-x))
     return (s - s.min()) / (s.max() - s.min())
@@ -92,12 +92,12 @@ class DualArmHandoverPlanner:
         grasp_transfer: StampedPose,
         grasp_receiver: StampedPose,
         handover_object_pose: StampedPose,
-        pre_align_offset=np.array([0, 0, -0.10]),
-        retreat_distance=0.05,
-        approach_steps=50,
-        ramp_steps=60,
-        transfer_retreat_axis='-z',
-        receiver_approach_axis='-z',
+        pre_align_offset: np.ndarray = np.array([0, 0, -0.10]),
+        retreat_distance: float = 0.05,
+        approach_steps: int = 50,
+        ramp_steps: int = 60,
+        transfer_retreat_axis: str = '-z',
+        receiver_approach_axis: str = '-z',
     ):
 
         self.G1 = grasp_transfer
@@ -113,17 +113,17 @@ class DualArmHandoverPlanner:
         self.transfer_retreat_axis = transfer_retreat_axis
         self.receiver_approach_axis = receiver_approach_axis
 
-    def ee_pose_from_object(self, obj_pose: StampedPose, grasp: StampedPose):
+    def ee_pose_from_object(self, obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
         """
         T_ee = T_obj * inverse(G)
         """
-        T_obj = obj_pose.as_matrix()
-        G = grasp.as_matrix()
+        T_obj = obj_pose.to_matrix()
+        G = grasp.to_matrix()
 
         T_ee = T_obj @ np.linalg.inv(G)
         return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
 
-    def plan_pre_alignment(self):
+    def plan_pre_alignment(self) -> Tuple[StampedPose, StampedPose]:
 
         aligned_obj = StampedPose(
             position=self.obj_pose.position + self.pre_align_offset,
@@ -136,7 +136,7 @@ class DualArmHandoverPlanner:
 
         return receiver_pre, transfer_hold
 
-    def plan_receiver_approach(self, receiver_pre):
+    def plan_receiver_approach(self, receiver_pre: StampedPose) -> Tuple[List[StampedPose], StampedPose]:
 
         receiver_final = self.ee_pose_from_object(
             self.obj_pose,
@@ -166,7 +166,7 @@ class DualArmHandoverPlanner:
 
         return receiver_traj, receiver_final
 
-    def plan_force_ramp(self, receiver_final):
+    def plan_force_ramp(self, receiver_final: StampedPose) -> Tuple[List[StampedPose], List[StampedPose], List[Dict[str, float]]]:
 
         transfer_pose = self.ee_pose_from_object(
             self.obj_pose,
@@ -188,7 +188,7 @@ class DualArmHandoverPlanner:
 
         return transfer_traj, receiver_traj, forces
 
-    def plan_retreat(self):
+    def plan_retreat(self) -> List[StampedPose]:
 
         transfer_pose = self.ee_pose_from_object(
             self.obj_pose,
@@ -217,7 +217,7 @@ class DualArmHandoverPlanner:
 
     # ---------------------------------
 
-    def generate_trajectory(self) -> Dict[str, List[StampedPose]]:
+    def generate_trajectory(self) -> Dict[str, Any]:
 
         receiver_pre, transfer_hold = self.plan_pre_alignment()
 
@@ -246,10 +246,10 @@ class ObjectGraspPrimitive:
         self,
         object_pose: StampedPose,
         grasp_transform: StampedPose,
-        pregrasp_distance=0.10,
-        approach_axis='-z',
-        approach_steps=50,
-        grasp_steps=25
+        pregrasp_distance: float = 0.10,
+        approach_axis: str = '-z',
+        approach_steps: int = 50,
+        grasp_steps: int = 25
     ):
 
         self.obj_pose = object_pose
@@ -262,22 +262,22 @@ class ObjectGraspPrimitive:
 
     # ---------------------------------
 
-    def ee_from_object(self, obj_pose, grasp):
+    def ee_from_object(self, obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
 
-        T_obj = obj_pose.as_matrix()
-        G = grasp.as_matrix()
+        T_obj = obj_pose.to_matrix()
+        G = grasp.to_matrix()
 
         T_ee = T_obj @ np.linalg.inv(G)
         return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
 
     # ---------------------------------
 
-    def compute_grasp_pose(self):
+    def compute_grasp_pose(self) -> StampedPose:
         return self.ee_from_object(self.obj_pose, self.G)
 
     # ---------------------------------
 
-    def compute_pregrasp_pose(self, grasp_pose):
+    def compute_pregrasp_pose(self, grasp_pose: StampedPose) -> StampedPose:
 
         approach_vec = resolve_axis(
             self.approach_axis,
@@ -295,7 +295,7 @@ class ObjectGraspPrimitive:
 
     # ---------------------------------
 
-    def generate_trajectory(self):
+    def generate_trajectory(self) -> Dict[str, Any]:
 
         grasp_pose = self.compute_grasp_pose()
         pregrasp_pose = self.compute_pregrasp_pose(grasp_pose)
@@ -317,10 +317,10 @@ class ReleaseRetreatPrimitive:
 
     def __init__(
         self,
-        retreat_distance=0.05,
-        retreat_axis='-z',
-        retreat_steps=30,
-        settle_time=0.1
+        retreat_distance: float = 0.05,
+        retreat_axis: str = '-z',
+        retreat_steps: int = 30,
+        settle_time: float = 0.1
     ):
 
         self.retreat_distance = retreat_distance
@@ -328,7 +328,7 @@ class ReleaseRetreatPrimitive:
         self.retreat_steps = retreat_steps
         self.settle_time = settle_time
 
-    def compute_retreat_pose(self, release_pose: StampedPose):
+    def compute_retreat_pose(self, release_pose: StampedPose) -> StampedPose:
 
         retreat_vec = resolve_axis(
             self.retreat_axis,
@@ -348,7 +348,7 @@ class ReleaseRetreatPrimitive:
     def generate_trajectory(
         self,
         release_pose: StampedPose
-    ) -> Dict[str, List[StampedPose]]:
+    ) -> Dict[str, Any]:
 
         retreat_pose = self.compute_retreat_pose(release_pose)
 
