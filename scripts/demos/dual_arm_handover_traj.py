@@ -24,9 +24,15 @@ from robosuite_franka_manipulation.planning.utils.visualization_utils import (
 )
 from robosuite_franka_manipulation.utils.primitives import ObjectGraspPrimitive, DualArmHandoverPlanner
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def setup_logging(level: int = logging.INFO):
+    """Configure logging."""
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        force=True
+    )
 
 def find_first_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) -> Optional[int]:
     """Find the index of the first feasible waypoint."""
@@ -48,7 +54,13 @@ def main():
     parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
     parser.add_argument("--smoothen", action="store_true", help="Whether to smoothen trajectories during execution")
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
+
+    if args.debug:
+        setup_logging(logging.DEBUG)
+    else:
+        setup_logging(logging.INFO)
 
     # 1. Environment Setup (Shelf and Plate)
     shelf_pos = [-0.7, 0.0, 0.0]
@@ -137,8 +149,10 @@ def main():
         grasp_traj_data = grasp_primitive.generate_trajectory()
         
         current_arm.move_to_pose(grasp_traj_data["pregrasp"])
+        logger.debug(f"Robot {current_robot} moved to pregrasp pose and releasing gripper.")
         current_gripper.release()
         current_arm.follow_trajectory(grasp_traj_data["approach"], smoothen=args.smoothen, num_steps=200)
+        logger.debug(f"Robot {current_robot} followed approach trajectory to grasp pose and grasping.")
         current_gripper.grasp()
         time.sleep(0.5)
 
