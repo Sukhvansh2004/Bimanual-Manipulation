@@ -18,7 +18,7 @@ import threading
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
 from robosuite_franka_manipulation.transforms import (
     TransformManager, 
     stream_transforms_to_meshcat, 
@@ -26,7 +26,7 @@ from robosuite_franka_manipulation.transforms import (
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory
 from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
-from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
+from robosuite_franka_manipulation.planning.utils import RobotMeshVisualizer, ObjectMeshVisualizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +39,8 @@ def main():
     parser.add_argument("--name", type=str, default=None, help="Name/Tag for the trajectory in MeshCat (defaults to file name)")
     parser.add_argument("--step", type=int, default=10, help="Step interval for robot mesh visualization")
     parser.add_argument("--robot-mesh-vis", action="store_true", help="Whether to visualize robot meshes at waypoints")
+    parser.add_argument("--object-mesh-vis", action="store_true", help="Whether to visualize object meshes at waypoints")
+    parser.add_argument("--object-name", type=str, default="flatPlate", help="Name of the object to visualize")
     parser.add_argument("--visualize-object-trajectory", action="store_true", help="Whether to visualize object trajectory (if available)")
     parser.add_argument("--opacity", type=float, default=0.4, help="Opacity for robot meshes")
     parser.add_argument("--clear", action="store_true", help="Clear MeshCat before visualizing")
@@ -79,6 +81,9 @@ def main():
         has_offscreen_renderer=False, 
         use_camera_obs=False
     )
+    for _ in range(10):
+        env_step(env)
+
     register_mesh_extraction_env(env)
     tf_manager = TransformManager(env=env)
 
@@ -98,6 +103,7 @@ def main():
         daemon=True
     ).start()
     
+    obj_traj = None  # Initialize object trajectory variable for later use
     # 5. Process each file
     for file_path in files:
         base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -120,15 +126,6 @@ def main():
             tf_manager=tf_manager,
         )
 
-        # Visualize object trajectory
-        if args.visualize_object_trajectory and obj_traj is not None:
-            visualize_trajectory(
-                vis=vis,
-                trajectory=obj_traj,
-                name=f"{traj_name}_object",
-                tf_manager=tf_manager,
-            )
-        
         # Visualize Robot Meshes
         if waypoint_results and args.robot_mesh_vis:
             logger.info(f"  -> Visualizing robot {args.robot_id} meshes for '{traj_name}'...")
@@ -140,6 +137,27 @@ def main():
                 step_interval=args.step,
                 opacity=args.opacity
             )
+
+    # Visualize object trajectory
+    if args.visualize_object_trajectory and obj_traj is not None:
+        visualize_trajectory(
+            vis=vis,
+            trajectory=obj_traj,
+            name=f"{args.object_name}_trajectory",
+            tf_manager=tf_manager,
+        )
+    
+
+    # Visualize Object Meshes
+    if obj_traj is not None and args.object_mesh_vis:
+        logger.info(f"  -> Visualizing object '{args.object_name}' meshes")
+        obj_mesh_vis = ObjectMeshVisualizer(vis=vis, tf_manager=tf_manager)
+        obj_mesh_vis.visualize_trajectory(
+            object_name=args.object_name,
+            object_trajectory=obj_traj,
+            step_interval=args.step,
+            opacity=args.opacity
+        )
 
     logger.info("Visualization complete. Keep script running to view TFs and Scene.")
     try:

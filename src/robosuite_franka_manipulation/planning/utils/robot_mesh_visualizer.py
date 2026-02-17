@@ -10,15 +10,13 @@ joint configurations and their feasibility status as input.
 
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional
 from contextlib import nullcontext
 import mujoco
 
 import meshcat
 import meshcat.geometry as g
-import meshcat.transformations as tf
 
-from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (

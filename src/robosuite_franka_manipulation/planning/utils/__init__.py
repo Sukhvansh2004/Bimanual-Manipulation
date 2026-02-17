@@ -28,6 +28,9 @@ from robosuite_franka_manipulation.planning.utils.visualization_utils import (
 from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
     RobotMeshVisualizer
 )
+from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import (
+    ObjectMeshVisualizer
+)
 
 __all__ = [
     # IK utilities
@@ -53,4 +56,5 @@ __all__ = [
     # Visualization utilities
     'visualize_trajectory',
     'RobotMeshVisualizer',
+    'ObjectMeshVisualizer',
 ]
