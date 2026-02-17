@@ -503,7 +503,7 @@ def go_to_pose(system: DualArmManipulationSystem, pose: StampedPose, robot_id: i
     else:
         logger.info(f"Failed to send move command: {response.get('message')}")
 
-def follow_eef_trajectory(system: DualArmManipulationSystem, robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0, num_steps: Optional[int] = None):
+def follow_eef_trajectory(system: DualArmManipulationSystem, robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0, num_steps: Optional[int] = None, smoothen: bool = False):
     """Quick helper to send a follow trajectory command."""
     assert system.service_client is not None, "Service client not initialized"
     traj_dicts = [p.model_dump() for p in trajectory]
@@ -513,7 +513,8 @@ def follow_eef_trajectory(system: DualArmManipulationSystem, robot_id: int, arm_
         'arm': arm_id,
         'trajectory': traj_dicts,
         'gripper_action': gripper_action,
-        'num_steps': num_steps
+        'num_steps': num_steps,
+        'smoothen': smoothen
     })
     if response.get('status') == 'success':
         logger.info(f"Follow trajectory command sent to robot {robot_id}, arm {arm_id}")

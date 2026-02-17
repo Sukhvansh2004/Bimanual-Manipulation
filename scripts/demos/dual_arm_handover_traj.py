@@ -46,6 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--visualize", action="store_true", help="Enable visualization in robosuite")
     parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
+    parser.add_argument("--smoothen", action="store_true", help="Whether to smoothen trajectories during execution")
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
     args = parser.parse_args()
 
@@ -62,6 +63,9 @@ def main():
         create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
     ]
 
+    vis = meshcat.Visualizer(zmq_url=args.zmq_url)
+    vis.delete()  # Clear MeshCat
+
     system = DualArmManipulationSystem(
         visualize=args.visualize, 
         meshcat_tf=args.meshcat_tf,
@@ -73,8 +77,6 @@ def main():
     )
     system.start(start_teleop_thread=False)
     register_mesh_extraction_env(system.env)
-    
-    vis = meshcat.Visualizer(zmq_url=args.zmq_url)
 
     try:
         # 2. Load Trajectories
@@ -136,7 +138,7 @@ def main():
         
         current_arm.move_to_pose(grasp_traj_data["pregrasp"])
         current_gripper.release()
-        current_arm.follow_trajectory(grasp_traj_data["approach"])
+        current_arm.follow_trajectory(grasp_traj_data["approach"], smoothen=args.smoothen, num_steps=200)
         current_gripper.grasp()
         time.sleep(0.5)
 
@@ -165,7 +167,7 @@ def main():
             if next_handover_idx != -1 and next_handover_idx > current_idx:
                 logger.info(f"Robot {current_robot} following segment to handover at {next_handover_idx}...")
                 segment = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx+1 : next_handover_idx+1]
-                current_arm.follow_trajectory(segment, gripper_action=1.0, num_steps=200)
+                current_arm.follow_trajectory(segment, gripper_action=1.0, num_steps=200, smoothen=args.smoothen)
                 current_idx = next_handover_idx
                 
                 logger.info(f"Executing handover at {current_idx}...")
@@ -182,14 +184,14 @@ def main():
                 
                 other_arm.move_to_pose(h_traj["receiver_pre"][0])
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
-                other_arm.follow_trajectory(h_traj["receiver_approach"])
+                other_arm.follow_trajectory(h_traj["receiver_approach"], smoothen=args.smoothen, num_steps=200)
                 
                 other_gripper.grasp()
                 time.sleep(0.5)
                 current_gripper.release()
                 time.sleep(0.5)
                 
-                current_arm.follow_trajectory(h_traj["transfer_retreat"])
+                current_arm.follow_trajectory(h_traj["transfer_retreat"], smoothen=args.smoothen, num_steps=200)
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
@@ -198,7 +200,7 @@ def main():
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
                     segment = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx+1 : last_idx+1]
-                    current_arm.follow_trajectory(segment, gripper_action=1.0)
+                    current_arm.follow_trajectory(segment, gripper_action=1.0, smoothen=args.smoothen, num_steps=200)
                     current_idx = last_idx
                 break
 

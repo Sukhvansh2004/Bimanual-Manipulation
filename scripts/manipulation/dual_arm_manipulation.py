@@ -143,7 +143,7 @@ Helper functions:
                 'go_to_pose': lambda p, r, a, g=0.0, n=None: go_to_pose(system, p, r, a, g, n),
                 'cancel_move': lambda r, a: cancel_move(system, r, a),
                 'get_arm_status': lambda r, a: get_arm_status(system, r, a),
-                'follow_eef_trajectory': lambda r, a, t, g=0.0, n=None: follow_eef_trajectory(system, r, a, t, g, n),
+                'follow_eef_trajectory': lambda r, a, t, g=0.0, n=None, s=False: follow_eef_trajectory(system, r, a, t, g, n, s),
                 'load_trajectory_file': load_trajectory_file,
                 'visualize_trajectory_data': lambda t, w=None, n="trajectory": visualize_trajectory_data(system, t, w, n),
                 'env_step': lambda a=None, r=None, arm=None: env_step(system.env, a, r, arm),

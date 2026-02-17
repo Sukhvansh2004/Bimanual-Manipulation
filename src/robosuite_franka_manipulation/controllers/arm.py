@@ -222,6 +222,88 @@ class RobosuiteArmController:
         
         return np.array(positions), np.array(quaternions)
 
+    def smoothen_trajectory(self, trajectory: List[StampedPose], num_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Smoothens a trajectory by applying a quintic polynomial timing law (velocity profile).
+        The resulting trajectory will have 'num_steps' waypoints, starting and ending at rest
+        with zero acceleration (jerk-limited).
+        
+        Args:
+            trajectory: List of waypoints to smoothen.
+            num_steps: Number of waypoints in the output trajectory.
+            
+        Returns:
+            positions: Smoothened position array (N, 3).
+            quaternions: Smoothened quaternion array (N, 4).
+        """
+        if not trajectory:
+            return np.array([]), np.array([])
+        
+        # Ensure all waypoints are in the same frame (base_frame)
+        base_trajectory = []
+        for pose in trajectory:
+            if pose.frame_id != self.base_frame:
+                base_trajectory.append(self.tf_manager.transform_pose(pose, self.base_frame))
+            else:
+                base_trajectory.append(pose)
+        
+        if len(base_trajectory) == 1:
+            pos = np.tile(base_trajectory[0].position, (num_steps, 1))
+            quat = np.tile(base_trajectory[0].quaternion, (num_steps, 1))
+            return pos, quat
+
+        # 1. Extract positions and quaternions
+        positions = np.array([p.position for p in base_trajectory])
+        quats = np.array([p.quaternion for p in base_trajectory])
+        
+        # 2. Compute cumulative distance along the path for interpolation
+        diffs = np.diff(positions, axis=0)
+        segment_lengths = np.linalg.norm(diffs, axis=1)
+        cumulative_dist = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+        total_dist = cumulative_dist[-1]
+        
+        if total_dist < 1e-8:
+            # All positions are the same, use index-based normalization for rotation smoothening
+            cumulative_dist = np.linspace(0, 1, len(base_trajectory))
+            total_dist = 1.0
+
+        # 3. Generate quintic polynomial interpolation parameters s(t) in [0, total_dist]
+        s_profile = self._quintic_polynomial(
+            s0=0.0, sf=total_dist,
+            v0=0.0, vf=0.0,
+            a0=0.0, af=0.0,
+            num_points=num_steps
+        )
+        
+        # 4. Interpolate poses along the path using the smoothened distance profile
+        smooth_pos = []
+        smooth_quat = []
+        
+        for s in s_profile:
+            # Find the segment that contains distance s
+            idx = np.searchsorted(cumulative_dist, s)
+            
+            if idx == 0:
+                smooth_pos.append(positions[0])
+                smooth_quat.append(quats[0])
+            elif idx >= len(cumulative_dist):
+                smooth_pos.append(positions[-1])
+                smooth_quat.append(quats[-1])
+            else:
+                # Interpolate linearly for position and SLERP for rotation within the segment
+                d0 = cumulative_dist[idx-1]
+                d1 = cumulative_dist[idx]
+                
+                # Local interpolation parameter within segment [0, 1]
+                alpha = (s - d0) / (d1 - d0) if (d1 - d0) > 1e-9 else 0.0
+                
+                p_interp, q_interp = interpolate_pose(positions[idx-1], quats[idx-1], positions[idx], quats[idx], alpha)
+                
+                smooth_pos.append(p_interp)
+                smooth_quat.append(q_interp)
+                
+        return np.array(smooth_pos), np.array(smooth_quat)
+
     def cancel_movement(self) -> None:
         """Cancel the current movement."""
         logger.info(f"Cancelling movement for robot{self.robot_id}_{self.arm_id}")
@@ -385,7 +467,8 @@ class RobosuiteArmController:
                           gripper_action: float = 0.0,
                           dt: float = constants.TRAJECTORY_TIME_STEP,
                           threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
-                          num_steps: Optional[int] = None) -> bool:
+                          num_steps: Optional[int] = None,
+                          smoothen: bool = False) -> bool:
         """
         Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
@@ -395,6 +478,7 @@ class RobosuiteArmController:
             dt: Time step between waypoints.
             threshold: Convergence threshold for the final waypoint.
             num_steps: Optional maximum number of steps. Defaults to len(trajectory) * 2.
+            smoothen: Whether to smoothen the trajectory using a quintic polynomial.
             
         Returns:
             bool: True if final waypoint reached, False otherwise.
@@ -407,20 +491,24 @@ class RobosuiteArmController:
                 self.last_status = 1
                 return True
 
-            logger.info(f"Following pre-defined trajectory for robot{self.robot_id}_{self.arm_id} ({len(trajectory)} waypoints)")
+            logger.info(f"Following {'smoothened ' if smoothen else ''}pre-defined trajectory for robot{self.robot_id}_{self.arm_id} ({len(trajectory)} waypoints)")
             
-            # Transform all waypoints to robot base frame
-            base_trajectory = []
-            for i, pose in enumerate(trajectory):
-                if pose.frame_id != self.base_frame:
-                    base_pose = self.tf_manager.transform_pose(pose, self.base_frame)
-                    base_trajectory.append(base_pose)
-                else:
-                    base_trajectory.append(pose)
-            
-            # Extract positions and quaternions
-            positions = np.array([p.position for p in base_trajectory])
-            quaternions = np.array([p.quaternion for p in base_trajectory])
+            if smoothen:
+                traj_num_steps = num_steps if num_steps is not None else len(trajectory) * 2
+                positions, quaternions = self.smoothen_trajectory(trajectory, num_steps=traj_num_steps)
+            else:
+                # Transform all waypoints to robot base frame
+                base_trajectory = []
+                for i, pose in enumerate(trajectory):
+                    if pose.frame_id != self.base_frame:
+                        base_pose = self.tf_manager.transform_pose(pose, self.base_frame)
+                        base_trajectory.append(base_pose)
+                    else:
+                        base_trajectory.append(pose)
+                
+                # Extract positions and quaternions
+                positions = np.array([p.position for p in base_trajectory])
+                quaternions = np.array([p.quaternion for p in base_trajectory])
             
             if self.visualize:
                 self._clear_trajectory_visualization()
