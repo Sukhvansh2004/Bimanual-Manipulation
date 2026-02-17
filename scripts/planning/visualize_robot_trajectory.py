@@ -109,7 +109,18 @@ def main():
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         traj_name = args.name if (args.name and len(files) == 1) else base_name
         
-        logger.info(f"Processing '{file_path}' as '{traj_name}'...")
+        # Determine robot_id
+        if len(files) and args.robot_id == 1:
+            robot_id = args.robot_id
+        else:
+            if "robot0" in base_name:
+                robot_id = 0
+            elif "robot1" in base_name:
+                robot_id = 1
+            else:
+                robot_id = None
+        
+        logger.info(f"Processing '{file_path}' as '{traj_name}' (robot_id: {robot_id})...")
         
         try:
             eef_traj, obj_traj, joints, waypoint_results = load_trajectory(file_path)
@@ -128,15 +139,18 @@ def main():
 
         # Visualize Robot Meshes
         if waypoint_results and args.robot_mesh_vis:
-            logger.info(f"  -> Visualizing robot {args.robot_id} meshes for '{traj_name}'...")
-            mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager)
-            mesh_vis.visualize_trajectory_configs(
-                trajectory_id=traj_name,
-                robot_id=args.robot_id,
-                waypoint_results=waypoint_results,
-                step_interval=args.step,
-                opacity=args.opacity
-            )
+            if robot_id is not None:
+                logger.info(f"  -> Visualizing robot {robot_id} meshes for '{traj_name}'...")
+                mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager)
+                mesh_vis.visualize_trajectory_configs(
+                    trajectory_id=traj_name,
+                    robot_id=robot_id,
+                    waypoint_results=waypoint_results,
+                    step_interval=args.step,
+                    opacity=args.opacity
+                )
+            else:
+                logger.warning(f"  -> Skipping robot mesh visualization for '{traj_name}': robot_id not found in filename.")
 
     # Visualize object trajectory
     if args.visualize_object_trajectory and obj_traj is not None:
