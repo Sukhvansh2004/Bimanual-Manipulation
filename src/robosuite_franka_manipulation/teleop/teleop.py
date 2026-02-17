@@ -24,9 +24,8 @@ logger = logging.getLogger(__name__)
 
 class KeyboardOverride(Keyboard):
     """
-    A subclass of robosuite's Keyboard that explicitly ignores the Space key.
-    This prevents robosuite from reacting to Space (e.g., resetting env),
-    allowing the Teleop class to handle Space exclusively.
+    A subclass of robosuite's Keyboard that explicitly ignores the Space key
+    and extends get_arm_action to handle JOINT_POSITION controllers.
     """
     def on_press(self, key):
         if key == Key.space:
@@ -34,6 +33,25 @@ class KeyboardOverride(Keyboard):
         
         # Pass all other keys to the original robosuite handler
         super().on_press(key)
+
+    def get_arm_action(self, robot, arm, norm_delta, goal_update_mode="target"):
+        """Override to handle JOINT_POSITION controllers.
+
+        Robosuite's default implementation only supports OSC and whole-body IK.
+        For JOINT_POSITION controllers we return the normalised EEF delta as-is;
+        the teleop run-loop converts it to joint space via the Jacobian.
+        """
+        from robosuite.controllers.parts.arm import OperationalSpaceController
+
+        if isinstance(robot.part_controllers[arm], OperationalSpaceController):
+            return super().get_arm_action(robot, arm, norm_delta, goal_update_mode)
+
+        # Non-OSC controller (e.g. JOINT_POSITION): pass through the
+        # normalised 6-D EEF delta; conversion happens in KeyboardTeleop.run().
+        return {
+            "delta": norm_delta.copy(),
+            "abs": norm_delta.copy(),
+        }
 
 class KeyboardTeleop:
     """
@@ -109,19 +127,15 @@ class KeyboardTeleop:
         """
         sim = self.env.sim
 
-        # Resolve the EEF body from the site name
-        eef_site = robot.robot_model.eef_name[arm_name]
-        eef_site_id = sim.model.site_name2id(eef_site)
-        eef_body_id = sim.model.site_bodyid[eef_site_id]
-        eef_body_name = sim.model.body_id2name(eef_body_id)
+        # eef_name is a body name (e.g. "robot0_right_hand")
+        eef_body_name = robot.robot_model.eef_name[arm_name]
 
-        # Get arm joint names and their DOF indices (Jacobian columns)
-        arm_joints = robot.robot_model.arm_joints
-        if isinstance(arm_joints, dict):
-            arm_joint_names = arm_joints[arm_name]
-        else:
-            arm_joint_names = arm_joints
+        # Get this arm's joint names using the per-arm split index
+        split = robot._joint_split_idx
+        start, end = (None, split) if arm_name == "right" else (split, None)
+        arm_joint_names = robot.robot_arm_joints[start:end]
 
+        # Map joint names → DOF addresses (Jacobian column indices)
         dof_indices = []
         for jn in arm_joint_names:
             jnt_id = sim.model.joint_name2id(jn)
@@ -139,15 +153,12 @@ class KeyboardTeleop:
         return J_pinv @ eef_delta[:6]
 
     def _get_joint_positions(self, robot, arm_name: str) -> np.ndarray:
-        """Read current joint positions for an arm."""
+        """Read current joint positions for a specific arm."""
         sim = self.env.sim
-        if hasattr(robot, f'{arm_name}_arm_joint_indexes'):
-            idx = getattr(robot, f'{arm_name}_arm_joint_indexes')
-        elif hasattr(robot, 'arm_joint_indexes'):
-            idx = robot.arm_joint_indexes
-        else:
-            idx = robot.joint_indexes
-        return sim.data.qpos[idx].copy()
+        split = robot._joint_split_idx
+        start, end = (None, split) if arm_name == "right" else (split, None)
+        idx = robot._ref_arm_joint_pos_indexes[start:end]
+        return np.array(sim.data.qpos[idx]).copy()
 
     def run(self) -> None:
         """Run teleoperation loop. If env_lock is provided, guard env access with it."""

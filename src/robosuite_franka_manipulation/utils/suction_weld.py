@@ -373,7 +373,7 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
             else:
                 logger.warning("Cannot determine per-robot action dims; skipping suction weld.")
                 return
-        if per_robot_dim <= 0:
+        if any(d <= 0 for d in per_robot_dims):
             return
 
         action_vec = np.asarray(action, dtype=np.float64).reshape(-1)

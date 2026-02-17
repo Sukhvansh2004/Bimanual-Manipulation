@@ -303,7 +303,7 @@ class DualArmManipulationSystem:
             self.teleop.run()
             
         except Exception as e:
-            logger.error(f"Teleoperation error: {e}")
+            logger.error(f"Teleoperation error: {e}", exc_info=True)
         finally:
             self._stop_teleop()
 
