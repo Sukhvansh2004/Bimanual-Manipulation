@@ -555,6 +555,12 @@ class RobosuiteArmController:
                 sleep_time = max(0, target_time - elapsed)
                 time.sleep(sleep_time)
                 
+                if steps_taken % 20 == 0:
+                    current_pos_error = np.linalg.norm(pos_delta)
+                    current_ori_error = np.linalg.norm(ori_delta)
+                    logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                            f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
+                    
                 # Check convergence if targeting the final waypoint
                 if current_waypoint_idx == num_waypoints - 1:
                     if np.linalg.norm(pos_delta) < threshold and np.linalg.norm(ori_delta) < threshold:
