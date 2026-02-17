@@ -140,7 +140,7 @@ def enumerate_ik_solutions_for_arm(
     - Run Scipy-based IK from each seed; keep converged solutions; de-duplicate.
 
     Returns:
-        List of joint angle arrays of shape (f{constants.DEFAULT_ROBOT_ACTION_DIM},).
+        List of joint angle arrays of shape (f{constants.FRANKA_ARM_DOF},).
     """
 
     ctx = env_lock if env_lock is not None else nullcontext()
@@ -149,8 +149,8 @@ def enumerate_ik_solutions_for_arm(
         data = env.sim.data
 
         joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
-        if len(joint_ids) != constants.DEFAULT_ROBOT_ACTION_DIM:
-            raise RuntimeError(f"Expected {constants.DEFAULT_ROBOT_ACTION_DIM} arm joints for robot{robot_id}, found {len(joint_ids)}.")
+        if len(joint_ids) != constants.FRANKA_ARM_DOF:
+            raise RuntimeError(f"Expected {constants.FRANKA_ARM_DOF} arm joints for robot{robot_id}, found {len(joint_ids)}.")
 
         joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
         joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)

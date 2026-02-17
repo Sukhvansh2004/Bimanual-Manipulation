@@ -21,7 +21,8 @@ class RobosuiteGripperController:
         self.env_lock = env_lock
         self.arm_id = arm_id
         self.robot_id = robot_id
-        self.robot_action_dim = constants.DEFAULT_ROBOT_ACTION_DIM
+        # Dynamically determine per-robot action dim from the actual robot
+        self.robot_action_dim = self.env.robots[self.robot_id].action_dim
         self.total_action_dim = self.env.action_dim
         
         # Detect gripper type

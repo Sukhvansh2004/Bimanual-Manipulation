@@ -225,7 +225,7 @@ def check_dual_arm_pose_feasibility(
         env_lock: Optional threading.RLock used to guard sim state.
 
     Returns:
-        A list of entries: ``[q_arm0 ({constants.DEFAULT_ROBOT_ACTION_DIM},), q_arm1 ({constants.DEFAULT_ROBOT_ACTION_DIM},), feasible_bool]``.
+        A list of entries: ``[q_arm0 ({constants.FRANKA_ARM_DOF},), q_arm1 ({constants.FRANKA_ARM_DOF},), feasible_bool]``.
 
     Notes
     - If either arm has no IK solutions, returns an empty list.

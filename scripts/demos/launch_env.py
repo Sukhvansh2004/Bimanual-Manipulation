@@ -174,11 +174,14 @@ def run_random_actions(env, num_steps=200, render=True):
         for _ in range(num_steps):
             action = np.random.uniform(-0.3, 0.3, action_dim)
             
-            # Zero out gripper actions
-            if action_dim >= 7:
-                action[6] = 0
-            if action_dim >= 14:
-                action[13] = 0
+            # Zero out gripper actions (at the last dim of each robot's segment)
+            offset = 0
+            for robot in env.robots:
+                rdim = robot.action_dim
+                gripper_idx = offset + rdim - 1
+                if gripper_idx < action_dim:
+                    action[gripper_idx] = 0
+                offset += rdim
             
             env.step(action)
             

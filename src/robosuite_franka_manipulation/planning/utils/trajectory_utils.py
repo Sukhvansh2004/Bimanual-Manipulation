@@ -323,7 +323,7 @@ def save_trajectory(
                 joint_configs.append(r.joint_config)
             else:
                 # Use NaN array for failed IK
-                joint_configs.append(np.full(constants.DEFAULT_ROBOT_ACTION_DIM, np.nan))
+                joint_configs.append(np.full(constants.FRANKA_ARM_DOF, np.nan))
         data_dict['joint_configs'] = np.array(joint_configs)
         
         # EEF poses from results (in case eef_trajectory not separately provided)
