@@ -68,7 +68,7 @@ def main():
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
         use_fastsam=False, 
-        use_graspgen_service=False,
+        use_grasp_service=False,
         has_renderer=True
     )
     system.start(start_teleop_thread=False)
