@@ -7,6 +7,8 @@ import os
 import time
 import logging
 import numpy as np
+import argparse
+import threading
 from typing import List, Optional
 import meshcat
 
@@ -41,23 +43,32 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
     return None
 
 def main():
+    parser = argparse.ArgumentParser(description="Dual-Arm Handover Demo using Trajectory Files")
+    parser.add_argument("--visualize", action="store_true", help="Enable visualization in robosuite")
+    parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
+    parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
+    args = parser.parse_args()
+
     # 1. Environment Setup (Plate)
     ycb_objects = [create_ycb_object(ycb_name="plate", position=[0.0, 0.0, 0.85])]
     system = DualArmManipulationSystem(
-        visualize=True, 
+        visualize=args.visualize, 
+        meshcat_tf=args.meshcat_tf,
         ycb_objects=ycb_objects, 
         use_fastsam=False, 
         has_renderer=True
     )
     system.start(start_teleop_thread=False)
     
-    vis = meshcat.Visualizer(zmq_url=str(constants.MESHCAT_ZMQ_URL))
-    vis.delete()
+    vis = meshcat.Visualizer(zmq_url=args.zmq_url)
+    if args.meshcat_tf:
+        vis.delete()
+        logger.info("MeshCat cleared.")
 
     try:
         # 2. Load Trajectories
-        traj_path0 = "data/robot0_trajectory_0.npz"
-        traj_path1 = "data/robot1_trajectory_0.npz"
+        traj_path0 = "data/robot0_trajectory_8.npz"
+        traj_path1 = "data/robot1_trajectory_2.npz"
         
         logger.info(f"Loading trajectories: {traj_path0}, {traj_path1}")
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)

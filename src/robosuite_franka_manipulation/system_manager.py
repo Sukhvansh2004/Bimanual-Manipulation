@@ -165,7 +165,7 @@ class DualArmManipulationSystem:
             def _run_meshcat_tf() -> None:
                 assert self.env is not None
                 assert self.tf_manager is not None
-                cfg = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True)
+                cfg = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
                 stream_transforms_to_meshcat(
                     env=self.env,
                     env_lock=self.env_lock,
