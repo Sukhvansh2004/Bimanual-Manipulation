@@ -20,7 +20,7 @@ from robosuite_franka_manipulation.system_manager import (
     set_prompt, go_to_pose, load_trajectory_file, visualize_trajectory_data, 
     cancel_move, get_arm_status, follow_eef_trajectory
 )
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, env_step
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env, env_step
 
 # Configure logging
 logging.basicConfig(
@@ -73,9 +73,17 @@ def main() -> int:
     
     args = parser.parse_args()
     
-    ycb_objects = []
-    ycb_objects.append(create_ycb_object(ycb_name="plate"))
-    ycb_objects.append(create_ycb_object(ycb_name="shelf", position=[-0.7, 0.0, 0.0], quaternion=[0.0, 0.0, 0.70710678, 0.70710678]))
+    shelf_pos = [-0.7, 0.0, 0.0]
+    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
+    plate_pos = [0.0, 0.0, 0.85]
+    plate_quat = [0, 0, 0, 1]
+
+    ycb_objects = [
+        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
+    ]
+    custom_objects = [
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
+    ]
 
     # Create and start system
     global system
@@ -85,6 +93,7 @@ def main() -> int:
         detection_prompt=args.prompt,
         meshcat_tf=args.meshcat_tf,
         ycb_objects=ycb_objects,
+        custom_objects=custom_objects,
         use_fastsam=args.use_fastsam,
         use_grasp_service=args.use_graspgen,
     )
@@ -102,6 +111,7 @@ def main() -> int:
     
     try:
         system.start(start_teleop_thread=False)
+        register_mesh_extraction_env(system.env)
         time.sleep(1.0)
         
         banner = """

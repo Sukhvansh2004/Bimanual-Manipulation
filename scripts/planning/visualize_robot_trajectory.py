@@ -18,6 +18,7 @@ import threading
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env
 from robosuite_franka_manipulation.transforms import (
     TransformManager, 
     stream_transforms_to_meshcat, 
@@ -59,7 +60,26 @@ def main():
         files = [args.path]
 
     # 3. Create Environment and TF Manager
-    env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
+    shelf_pos = [-0.7, 0.0, 0.0]
+    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
+    plate_pos = [0.0, 0.0, 0.85]
+    plate_quat = [0, 0, 0, 1]
+
+    ycb_objects = [
+        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
+    ]
+    custom_objects = [
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
+    ]
+
+    env = make_dual_arm_env(
+        ycb_objects=ycb_objects,
+        custom_objects=custom_objects,
+        has_renderer=False, 
+        has_offscreen_renderer=False, 
+        use_camera_obs=False
+    )
+    register_mesh_extraction_env(env)
     tf_manager = TransformManager(env=env)
 
     # 4. Stream TFs and Scene to MeshCat

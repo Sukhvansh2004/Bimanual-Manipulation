@@ -15,7 +15,7 @@ import meshcat
 from robosuite_franka_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
@@ -49,16 +49,30 @@ def main():
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
     args = parser.parse_args()
 
-    # 1. Environment Setup (Plate)
-    ycb_objects = [create_ycb_object(ycb_name="plate", position=[0.0, 0.0, 0.85])]
+    # 1. Environment Setup (Shelf and Plate)
+    shelf_pos = [-0.7, 0.0, 0.0]
+    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
+    plate_pos = [0.0, 0.0, 0.85]
+    plate_quat = [0, 0, 0, 1]
+
+    ycb_objects = [
+        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
+    ]
+    custom_objects = [
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
+    ]
+
     system = DualArmManipulationSystem(
         visualize=args.visualize, 
         meshcat_tf=args.meshcat_tf,
-        ycb_objects=ycb_objects, 
+        ycb_objects=ycb_objects,
+        custom_objects=custom_objects,
         use_fastsam=False, 
+        use_graspgen_service=False,
         has_renderer=True
     )
     system.start(start_teleop_thread=False)
+    register_mesh_extraction_env(system.env)
     
     vis = meshcat.Visualizer(zmq_url=args.zmq_url)
     if args.meshcat_tf:
