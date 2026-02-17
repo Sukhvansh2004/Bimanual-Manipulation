@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--robot-id", type=int, default=0, help="Robot ID (0 or 1)")
     parser.add_argument("--name", type=str, default="trajectory", help="Name/Tag for the trajectory in MeshCat")
     parser.add_argument("--step", type=int, default=10, help="Step interval for robot mesh visualization")
+    parser.add_argument("--robot-mesh-vis", action="store_true", help="Whether to visualize robot meshes at waypoints")
+    parser.add_argument("--visualize-object-trajectory", action="store_true", help="Whether to visualize object trajectory (if available)")
     parser.add_argument("--opacity", type=float, default=0.4, help="Opacity for robot meshes")
     parser.add_argument("--clear", action="store_true", help="Clear MeshCat before visualizing")
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
@@ -55,19 +57,27 @@ def main():
     env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
     tf_manager = TransformManager(env=env)
     
-    # 4. Visualize EEF Path and Object Trajectory
+    # 4. Visualize Trajectory
     logger.info(f"Visualizing EEF path as '{args.name}'...")
     visualize_trajectory(
         vis=vis,
-        eef_trajectory=eef_traj,
+        trajectory=eef_traj,
         waypoint_results=waypoint_results,
         name=args.name,
         tf_manager=tf_manager,
-        object_trajectory=obj_traj
     )
+
+    if args.visualize_object_trajectory and obj_traj is not None:
+        logger.info(f"Visualizing object trajectory as '{args.name}_object'...")
+        visualize_trajectory(
+            vis=vis,
+            trajectory=obj_traj,
+            name=f"{args.name}_object",
+            tf_manager=tf_manager,
+        )
     
     # 5. Visualize Robot Meshes
-    if waypoint_results:
+    if waypoint_results and args.robot_mesh_vis:
         logger.info(f"Visualizing robot {args.robot_id} meshes every {args.step} steps...")
         mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager)
         
@@ -80,8 +90,6 @@ def main():
             step_interval=args.step,
             opacity=args.opacity
         )
-    else:
-        logger.warning("No waypoint results (joint configs/feasibility) found in file. Skipping mesh visualization.")
 
     logger.info("Visualization complete. Keep MeshCat open to view.")
 
