@@ -32,6 +32,10 @@ class RobosuiteArmController:
     This class abstracts the control of a single robot arm in a robosuite environment.
     It takes a target pose (position and orientation) and generates actions
     to move the end-effector to that pose.
+    
+    Supports multiple controller types:
+    - OSC_POSE (delta/absolute): Operational space control using EEF pose
+    - JOINT_POSITION (delta/absolute): Joint position control
     """
     def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, 
                  transform_manager: Optional[TransformManager] = None, env_lock: Optional[threading.RLock] = None,
@@ -55,8 +59,17 @@ class RobosuiteArmController:
         # Use a stable unique TF base frame (robosuite can reuse robot.name across robots)
         self.base_frame = f"robot{robot_id}_base"
 
-        # Action space: 6 pose + 1 gripper
-        self.action_dim_per_robot = constants.DEFAULT_ROBOT_ACTION_DIM
+        # Detect controller configuration
+        self._controller_name, self._input_type = self._detect_controller_config()
+        logger.debug(f"Detected controller: {self._controller_name}, input_type: {self._input_type}")
+        
+        # Action dimensions based on controller type
+        self._arm_action_dim = constants.CONTROLLER_ACTION_DIMS.get(
+            self._controller_name, 
+            constants.CONTROLLER_ACTION_DIMS[constants.ControllerName.OSC_POSE]
+        )
+        # Total action dim = arm action + gripper (usually 1)
+        self.action_dim_per_robot = self._arm_action_dim + 1  # +1 for gripper
         self.total_action_dim = self.env.action_dim
         
         # Transform manager for frame conversions
@@ -65,6 +78,50 @@ class RobosuiteArmController:
         self._stop_event = threading.Event()
         self.is_moving = False
         self.last_status = 1  # 1 for success, 0 for failure
+    
+    def _detect_controller_config(self) -> Tuple[str, str]:
+        """
+        Detect the controller name and input type from the robot's configuration.
+        
+        Returns:
+            (controller_name, input_type): Tuple of strings
+        """
+        controller_name = constants.DEFAULT_CONTROLLER_NAME
+        input_type = constants.DEFAULT_INPUT_TYPE
+        
+        try:
+            robot = self._get_robot()
+            if hasattr(robot, 'part_controllers') and robot.part_controllers:
+                for arm_name, controller in robot.part_controllers.items():
+                    if hasattr(controller, 'name'):
+                        controller_name = controller.name
+                    if hasattr(controller, 'input_type'):
+                        input_type = controller.input_type
+                    break
+        except Exception as e:
+            logger.debug(f"Could not detect controller config: {e}")
+        
+        return controller_name, input_type
+    
+    @property
+    def controller_name(self) -> str:
+        """Get the current controller name."""
+        return self._controller_name
+    
+    @property
+    def input_type(self) -> str:
+        """Get the current input type."""
+        return self._input_type
+    
+    @property
+    def is_absolute_mode(self) -> bool:
+        """Check if controller is in absolute mode."""
+        return self._input_type == constants.InputType.ABSOLUTE
+    
+    @property
+    def is_joint_position_controller(self) -> bool:
+        """Check if controller is JOINT_POSITION type."""
+        return self._controller_name == constants.ControllerName.JOINT_POSITION
 
     def _get_robot(self):
         """Get fresh robot reference from environment.
@@ -76,6 +133,26 @@ class RobosuiteArmController:
 
     def _eef_body_name(self) -> str:
         return self._get_robot().robot_model.eef_name[self.arm_id]
+    
+    def get_joint_positions(self) -> np.ndarray:
+        """Get current joint positions of the arm.
+        
+        Returns:
+            Array of joint positions (7 for Franka Panda)
+        """
+        robot = self._get_robot()
+        try:
+            if hasattr(robot, f'{self.arm_id}_arm_joint_indexes'):
+                joint_indices = getattr(robot, f'{self.arm_id}_arm_joint_indexes')
+            elif hasattr(robot, 'arm_joint_indexes'):
+                joint_indices = robot.arm_joint_indexes
+            else:
+                joint_indices = robot.joint_indexes
+            
+            return self.env.sim.data.qpos[joint_indices].copy()
+        except Exception as e:
+            logger.warning(f"Could not read joint positions: {e}")
+            return constants.FRANKA_HOME_JOINT_POSITION.copy()
 
     def get_eef_pose_in_base(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return current end-effector pose expressed in the robot base frame.
@@ -92,6 +169,178 @@ class RobosuiteArmController:
         pos = transform.translation.copy()
         quat = transform.rotation.copy()
         return pos, quat
+    
+    def _solve_ik_for_pose(
+        self,
+        target_pos: np.ndarray,
+        target_quat: np.ndarray,
+        q_warm_start: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Solve IK for a target EEF pose and return the best joint configuration.
+        
+        Uses the planning module's IK solver.
+        The target pose is expected in the robot base frame and will be internally
+        transformed to world frame for IK (which operates in world coords).
+        
+        Args:
+            target_pos: Target EEF position [x, y, z] in robot base frame
+            target_quat: Target EEF quaternion [x, y, z, w] in robot base frame  
+            q_warm_start: Optional warm-start joint config (uses current if None).
+                          Pass a known-good config (e.g. from planning NPZ) to
+                          help IK converge for hard-to-reach poses.
+            
+        Returns:
+            Joint configuration array (7,) or None if IK fails
+        """
+        # Create StampedPose in base frame; the IK solver will transform to world internally
+        target_stamped = StampedPose(
+            position=target_pos.tolist(),
+            quaternion=target_quat.tolist(),
+            frame_id=self.base_frame,
+        )
+        
+        if q_warm_start is None:
+            q_warm_start = self.get_joint_positions()
+        
+        # Lazy import to avoid circular dependency
+        # (arm → planning → services → arm)
+        from robosuite_franka_manipulation.planning.utils.ik_utils import (
+            enumerate_ik_solutions_for_arm,
+            apply_ik_orientation_correction,
+        )
+
+        # The eef body frame (used by TransformManager / get_eef_pose_in_base)
+        # is rotated ~90° around Z relative to the MuJoCo ft_frame site that
+        # the IK solver targets.  apply_ik_orientation_correction compensates
+        # for this so the IK solution matches the body-frame convention.
+        target_stamped = apply_ik_orientation_correction(target_stamped)
+
+        site_name = f"gripper{self.robot_id}_{self.arm_id}_ft_frame"
+
+        solutions = enumerate_ik_solutions_for_arm(
+            self.env,
+            robot_id=self.robot_id,
+            target_pose=target_stamped,
+            tf_manager=self.tf_manager,
+            arm=self.arm_id,
+            site_name=site_name,
+            q_warm_start=q_warm_start,
+            env_lock=self.env_lock,
+            max_solutions=1,  # We only need one good solution
+        )
+        
+        if not solutions:
+            logger.warning(
+                f"No IK solution found for robot{self.robot_id}_{self.arm_id} "
+                f"at pos={target_pos}, quat={target_quat}"
+            )
+            return None
+        
+        return solutions[0]
+
+    def construct_robot_action(
+        self,
+        target_pos: np.ndarray,
+        target_quat: np.ndarray,
+        gripper_action: float = 0.0,
+        current_pos: Optional[np.ndarray] = None,
+        current_quat: Optional[np.ndarray] = None,
+        q_warm_start: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Construct a robot action based on the current controller configuration.
+        
+        This method abstracts the action construction for different controller types
+        and input modes (delta vs absolute).
+        
+        For OSC_POSE:
+            - delta: computes [pos_delta, ori_delta, gripper]
+            - absolute: uses [pos_target, ori_rotvec, gripper]
+            
+        For JOINT_POSITION:
+            - Automatically solves IK to convert pose to joint targets
+            - delta: computes [joint_delta, gripper]
+            - absolute: uses [joint_target, gripper]
+        
+        Args:
+            target_pos: Target position [x, y, z] in robot base frame
+            target_quat: Target quaternion [x, y, z, w] in robot base frame
+            gripper_action: Gripper action value
+            current_pos: Current position (if None, reads from environment)
+            current_quat: Current quaternion (if None, reads from environment)
+            q_warm_start: Optional warm-start joint config for IK (uses current if None)
+            
+        Returns:
+            Robot action array of appropriate dimension
+        """
+        if self.is_joint_position_controller:
+            # Solve IK to convert pose target to joint target
+            target_joints = self._solve_ik_for_pose(target_pos, target_quat, q_warm_start=q_warm_start)
+            if target_joints is None:
+                return None
+            return self.construct_joint_action(target_joints, gripper_action)
+        
+        # Get current pose if not provided
+        if current_pos is None or current_quat is None:
+            current_pos, current_quat = self.get_eef_pose_in_base()
+        
+        robot_action = np.zeros(self.action_dim_per_robot)
+        
+        if self.is_absolute_mode:
+            # Absolute mode: send target pose directly
+            # OSC_POSE absolute expects [x, y, z, rx, ry, rz] where rotation is axis-angle
+            target_rotvec = R.from_quat(target_quat).as_rotvec()
+            robot_action[:3] = target_pos
+            robot_action[3:6] = target_rotvec
+        else:
+            # Delta mode: compute difference from current to target
+            pos_delta = target_pos - current_pos
+            ori_error = R.from_quat(target_quat) * R.from_quat(current_quat).inv()
+            ori_delta = ori_error.as_rotvec()
+            robot_action[:3] = pos_delta
+            robot_action[3:6] = ori_delta
+        
+        robot_action[-1] = gripper_action  # Gripper action is always last
+        return robot_action
+    
+    def construct_joint_action(
+        self,
+        target_joints: np.ndarray,
+        gripper_action: float = 0.0,
+        current_joints: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Construct a robot action for JOINT_POSITION controller.
+        
+        Args:
+            target_joints: Target joint positions [j1, ..., j7]
+            gripper_action: Gripper action value
+            current_joints: Current joint positions (if None, reads from environment)
+            
+        Returns:
+            Robot action array for JOINT_POSITION controller
+        """
+        if not self.is_joint_position_controller:
+            raise NotImplementedError(
+                f"construct_joint_action requires JOINT_POSITION controller. "
+                f"Current controller is: {self._controller_name}"
+            )
+        
+        robot_action = np.zeros(self.action_dim_per_robot)
+        
+        if self.is_absolute_mode:
+            # Absolute mode: send target joints directly
+            robot_action[:7] = target_joints
+        else:
+            # Delta mode: compute difference from current to target
+            if current_joints is None:
+                current_joints = self.get_joint_positions()
+            joint_delta = target_joints - current_joints
+            robot_action[:7] = joint_delta
+        
+        robot_action[-1] = gripper_action
+        return robot_action
 
     @staticmethod
     def _quintic_polynomial(s0: float, sf: float, v0: float = 0.0, vf: float = 0.0, 
@@ -313,7 +562,8 @@ class RobosuiteArmController:
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     gripper_action: float = 0.0,
                     dt: float = constants.TRAJECTORY_TIME_STEP,
-                    num_steps: int = constants.TRAJECTORY_NUM_POINTS) -> bool:
+                    num_steps: int = constants.TRAJECTORY_NUM_POINTS,
+                    q_warm_start: Optional[np.ndarray] = None) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
@@ -331,6 +581,8 @@ class RobosuiteArmController:
                             - For Suction Gripper: 1.0 (Release/Off), -1.0 (Grasp/On).
             dt: Time step between waypoints (seconds).
             num_steps: Number of waypoints to generate for the trajectory.
+            q_warm_start: Optional warm-start joint config for IK (e.g. from planning NPZ).
+                          Helps IK converge for hard-to-reach poses at workspace limits.
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
@@ -373,9 +625,9 @@ class RobosuiteArmController:
                 self.last_status = 1
                 return True  # Already at target
 
-            # Trajectory execution: send delta commands to follow the quintic trajectory
-            # The OSC controller expects delta commands (since input_type='delta'),
-            # so we compute the delta from current position to next waypoint
+            # Trajectory execution: commands are generated based on controller configuration
+            # For delta mode: compute delta from current position to next waypoint
+            # For absolute mode: send target position directly
             num_waypoints = len(positions)
             max_steps = num_waypoints * 2
             
@@ -384,6 +636,11 @@ class RobosuiteArmController:
             current_waypoint_idx = 0 
             steps_taken = 0
             start_time = time.time()
+            
+            # Sequential IK warm-starting: use caller's hint for the first
+            # call, then chain through current joint positions so each IK
+            # warm-starts from the previous solution (like the planning pipeline).
+            _ik_ws = q_warm_start
             
             while steps_taken < max_steps:
                 # Check for cancellation
@@ -403,20 +660,31 @@ class RobosuiteArmController:
                 # Get current pose
                 current_pos, current_quat = self.get_eef_pose_in_base()
                 
-                # Compute error to current waypoint target
+                # Compute error (used for convergence check and delta mode)
                 pos_delta = target_pos_step - current_pos
                 ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
                 ori_delta = ori_error.as_rotvec()
                 
-                # Construct action with scaled delta
-                robot_action = np.zeros(self.action_dim_per_robot)
-                robot_action[:3] = pos_delta  # Position delta
-                robot_action[3:6] = ori_delta  # Orientation delta
-                robot_action[6] = gripper_action
+                # Construct action using helper method (handles delta/absolute mode)
+                robot_action = self.construct_robot_action(
+                    target_pos_step, target_quat_step,
+                    gripper_action=gripper_action,
+                    current_pos=current_pos, current_quat=current_quat,
+                    q_warm_start=_ik_ws
+                )
+                
+                if robot_action is None:
+                    # IK failed for this waypoint; skip it
+                    logger.debug(f"IK failed at waypoint {current_waypoint_idx}, skipping")
+                    steps_taken += 1
+                    continue
                 
                 # Step the environment
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                # Chain IK: next call uses current joints (≈ previous IK solution)
+                _ik_ws = None
                 
                 steps_taken += 1
                 
@@ -468,7 +736,8 @@ class RobosuiteArmController:
                           dt: float = constants.TRAJECTORY_TIME_STEP,
                           threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
                           num_steps: Optional[int] = None,
-                          smoothen: bool = False) -> bool:
+                          smoothen: bool = False,
+                          q_warm_start: Optional[np.ndarray] = None) -> bool:
         """
         Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
@@ -479,6 +748,7 @@ class RobosuiteArmController:
             threshold: Convergence threshold for the final waypoint.
             num_steps: Optional maximum number of steps. Defaults to len(trajectory) * 2.
             smoothen: Whether to smoothen the trajectory using a quintic polynomial.
+            q_warm_start: Optional warm-start joint config for IK at workspace limits.
             
         Returns:
             bool: True if final waypoint reached, False otherwise.
@@ -521,6 +791,9 @@ class RobosuiteArmController:
             steps_taken = 0
             start_time = time.time()
             
+            # Sequential IK warm-starting (see move_to_pose for rationale)
+            _ik_ws = q_warm_start
+            
             while steps_taken < max_steps:
                 if self._stop_event.is_set():
                     logger.info(f"Trajectory following cancelled for robot{self.robot_id}_{self.arm_id}")
@@ -536,17 +809,30 @@ class RobosuiteArmController:
                 
                 current_pos, current_quat = self.get_eef_pose_in_base()
                 
+                # Compute error for convergence check
                 pos_delta = target_pos_step - current_pos
                 ori_error = R.from_quat(target_quat_step) * R.from_quat(current_quat).inv()
                 ori_delta = ori_error.as_rotvec()
                 
-                robot_action = np.zeros(self.action_dim_per_robot)
-                robot_action[:3] = pos_delta
-                robot_action[3:6] = ori_delta
-                robot_action[6] = gripper_action
+                # Construct action using helper method (handles delta/absolute mode)
+                robot_action = self.construct_robot_action(
+                    target_pos_step, target_quat_step,
+                    gripper_action=gripper_action,
+                    current_pos=current_pos, current_quat=current_quat,
+                    q_warm_start=_ik_ws
+                )
+                
+                if robot_action is None:
+                    # IK failed for this waypoint; skip it
+                    logger.debug(f"IK failed at waypoint {current_waypoint_idx}, skipping")
+                    steps_taken += 1
+                    continue
                 
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                # Chain IK: next call uses current joints (≈ previous IK solution)
+                _ik_ws = None
                 
                 steps_taken += 1
                 
@@ -555,12 +841,13 @@ class RobosuiteArmController:
                 sleep_time = max(0, target_time - elapsed)
                 time.sleep(sleep_time)
                 
+                # Log progress periodically
                 if steps_taken % 20 == 0:
-                    current_pos_error = np.linalg.norm(pos_delta)
-                    current_ori_error = np.linalg.norm(ori_delta)
-                    logger.debug(f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
-                            f"pos_err={current_pos_error:.4f}m, ori_err={current_ori_error:.4f}rad")
-                    
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                        f"pos_err={np.linalg.norm(pos_delta):.4f}m, ori_err={np.linalg.norm(ori_delta):.4f}rad"
+                    )
+
                 # Check convergence if targeting the final waypoint
                 if current_waypoint_idx == num_waypoints - 1:
                     if np.linalg.norm(pos_delta) < threshold and np.linalg.norm(ori_delta) < threshold:
@@ -574,6 +861,301 @@ class RobosuiteArmController:
         finally:
             self.is_moving = False
     
+    def _plan_joint_quintic_trajectory(
+        self,
+        start_joints: np.ndarray,
+        target_joints: np.ndarray,
+        num_steps: int,
+    ) -> np.ndarray:
+        """
+        Plan a quintic polynomial trajectory in joint space.
+
+        Each joint is independently interpolated using a quintic polynomial
+        with zero velocity/acceleration boundary conditions.
+
+        Args:
+            start_joints: Start joint configuration (7,)
+            target_joints: Target joint configuration (7,)
+            num_steps: Number of interpolation steps
+
+        Returns:
+            Array of joint configs (num_steps, 7)
+        """
+        n_joints = len(start_joints)
+        trajectory = np.zeros((num_steps, n_joints))
+
+        # Generate quintic interpolation parameter s(t) in [0, 1]
+        s_traj = self._quintic_polynomial(
+            s0=0.0, sf=1.0, v0=0.0, vf=0.0, a0=0.0, af=0.0,
+            num_points=num_steps,
+        )
+
+        for j in range(n_joints):
+            trajectory[:, j] = start_joints[j] + s_traj * (target_joints[j] - start_joints[j])
+
+        return trajectory
+
+    def move_to_joint_config(
+        self,
+        target_joints: np.ndarray,
+        gripper_action: float = 0.0,
+        num_steps: int = constants.TRAJECTORY_NUM_POINTS,
+        dt: float = constants.TRAJECTORY_TIME_STEP,
+        threshold: float = 0.05,
+    ) -> bool:
+        """
+        Move the arm to a target joint configuration using a quintic trajectory.
+
+        Only supported when the controller is ``JOINT_POSITION``.
+
+        Args:
+            target_joints: Target joint angles (7,).
+            gripper_action: Gripper action value.
+            num_steps: Number of trajectory steps for the quintic plan.
+            dt: Time step between steps.
+            threshold: Max joint-space L-inf error for convergence (rad).
+
+        Returns:
+            True if converged, False otherwise.
+
+        Raises:
+            RuntimeError: If the controller is not JOINT_POSITION.
+        """
+        if not self.is_joint_position_controller:
+            raise RuntimeError(
+                "move_to_joint_config() requires a JOINT_POSITION controller. "
+                f"Current controller: {self.controller_name}"
+            )
+
+        target_joints = np.asarray(target_joints, dtype=np.float64)
+        if target_joints.shape != (7,):
+            raise ValueError(f"target_joints must be shape (7,), got {target_joints.shape}")
+
+        self.is_moving = True
+        try:
+            self._stop_event.clear()
+
+            traj_num_steps = max(2, num_steps)  # Ensure at least start and end points
+
+            current_joints = self.get_joint_positions()
+            trajectory = self._plan_joint_quintic_trajectory(
+                current_joints, target_joints, traj_num_steps
+            )
+
+            total_waypoints = len(trajectory)
+            max_steps = total_waypoints * 2
+
+            logger.info(
+                f"ROBOT {self.robot_id}:{self.arm_id} - Moving to joint config "
+                f"({total_waypoints} waypoints, max {max_steps} steps)"
+            )
+
+            current_wp_idx = 0
+            steps_taken = 0
+            start_time = time.time()
+
+            while steps_taken < max_steps:
+                if self._stop_event.is_set():
+                    logger.info(
+                        f"move_to_joint_config cancelled for "
+                        f"robot{self.robot_id}_{self.arm_id}"
+                    )
+                    self.last_status = 0
+                    return False
+
+                if current_wp_idx < total_waypoints - 1:
+                    current_wp_idx += 1
+
+                target_wp = trajectory[current_wp_idx]
+                robot_action = self.construct_joint_action(
+                    target_wp, gripper_action=gripper_action
+                )
+
+                with self.env_lock if self.env_lock else nullcontext():
+                    env_step(
+                        self.env,
+                        robot_action,
+                        robot_id=self.robot_id,
+                        arm=self.arm_id,
+                    )
+
+                steps_taken += 1
+
+                elapsed = time.time() - start_time
+                target_time = steps_taken * dt
+                time.sleep(max(0, target_time - elapsed))
+
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    cur_joints = self.get_joint_positions()
+                    cur_error = np.max(np.abs(cur_joints - target_joints))
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_wp_idx}/{total_waypoints-1}, "
+                        f"max joint err={cur_error:.4f} rad"
+                    )
+
+                # Convergence check at last waypoint
+                if current_wp_idx == total_waypoints - 1:
+                    cur_joints = self.get_joint_positions()
+                    joint_error = np.max(np.abs(cur_joints - target_joints))
+                    if joint_error < threshold:
+                        self.last_status = 1
+                        logger.info(
+                            f"ROBOT {self.robot_id}:{self.arm_id} - "
+                            f"Joint config converged at step {steps_taken} "
+                            f"(max err={joint_error:.4f} rad)"
+                        )
+                        return True
+
+            # Final convergence report
+            final_joints = self.get_joint_positions()
+            final_error = np.max(np.abs(final_joints - target_joints))
+            self.last_status = 0
+            logger.info(
+                f"ROBOT {self.robot_id}:{self.arm_id} - "
+                f"Joint config did NOT converge after {steps_taken} steps "
+                f"(max err={final_error:.4f} rad)"
+            )
+            return False
+        finally:
+            self.is_moving = False
+
+    def follow_joint_trajectory(
+        self,
+        joint_trajectory: List[np.ndarray],
+        gripper_action: float = 0.0,
+        dt: float = constants.TRAJECTORY_TIME_STEP,
+        threshold: float = 0.05,
+        num_steps: Optional[int] = None,
+        smoothen: bool = False,
+    ) -> bool:
+        """
+        Follow a pre-defined trajectory in joint space.
+
+        Only supported when the controller is ``JOINT_POSITION``.
+
+        Args:
+            joint_trajectory: List of joint configurations, each shape (7,).
+            gripper_action: Gripper action value.
+            dt: Time step between waypoints.
+            threshold: Convergence threshold (L-inf in radians) at the final
+                waypoint.
+            num_steps: Maximum number of environment steps.  Defaults to
+                ``len(joint_trajectory) * 2``.
+            smoothen: If True, re-plan using a quintic polynomial between the
+                first and last waypoints (ignoring intermediate waypoints).
+
+        Returns:
+            True if the final waypoint is reached, False otherwise.
+
+        Raises:
+            RuntimeError: If the controller is not JOINT_POSITION.
+        """
+        if not self.is_joint_position_controller:
+            raise RuntimeError(
+                "follow_joint_trajectory() requires a JOINT_POSITION controller. "
+                f"Current controller: {self.controller_name}"
+            )
+
+        self.is_moving = True
+        try:
+            self._stop_event.clear()
+
+            if not joint_trajectory:
+                self.last_status = 1
+                return True
+
+            # Convert to numpy
+            waypoints = [np.asarray(jt, dtype=np.float64) for jt in joint_trajectory]
+            n_waypoints = len(waypoints)
+
+            if smoothen:
+                traj_steps = num_steps if num_steps is not None else n_waypoints
+                current_joints = self.get_joint_positions()
+                joint_configs = self._plan_joint_quintic_trajectory(
+                    current_joints, waypoints[-1], traj_steps
+                )
+            else:
+                joint_configs = np.array(waypoints)
+
+            total_waypoints = len(joint_configs)
+            max_steps = num_steps * 2 if num_steps is not None else total_waypoints * 2
+
+            logger.info(
+                f"Following joint trajectory for robot{self.robot_id}_{self.arm_id} "
+                f"({total_waypoints} waypoints, max {max_steps} steps)"
+            )
+
+            current_wp_idx = 0
+            steps_taken = 0
+            start_time = time.time()
+
+            while steps_taken < max_steps:
+                if self._stop_event.is_set():
+                    logger.info(
+                        f"Joint trajectory cancelled for "
+                        f"robot{self.robot_id}_{self.arm_id}"
+                    )
+                    self.last_status = 0
+                    return False
+
+                if current_wp_idx < total_waypoints - 1:
+                    current_wp_idx += 1
+
+                target_wp = joint_configs[current_wp_idx]
+                robot_action = self.construct_joint_action(
+                    target_wp, gripper_action=gripper_action
+                )
+
+                with self.env_lock if self.env_lock else nullcontext():
+                    env_step(
+                        self.env,
+                        robot_action,
+                        robot_id=self.robot_id,
+                        arm=self.arm_id,
+                    )
+
+                steps_taken += 1
+
+                elapsed = time.time() - start_time
+                target_time = steps_taken * dt
+                time.sleep(max(0, target_time - elapsed))
+
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    current_joints = self.get_joint_positions()
+                    joint_error = np.max(np.abs(current_joints - target_wp))
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_wp_idx}/{total_waypoints-1}, "
+                        f"max joint err={joint_error:.4f} rad"
+                    )
+
+                # Convergence check at last waypoint
+                if current_wp_idx == total_waypoints - 1:
+                    current_joints = self.get_joint_positions()
+                    joint_error = np.max(np.abs(current_joints - target_wp))
+                    if joint_error < threshold:
+                        self.last_status = 1
+                        logger.info(
+                            f"ROBOT {self.robot_id}:{self.arm_id} - "
+                            f"Joint trajectory converged at step {steps_taken} "
+                            f"(max err={joint_error:.4f} rad)"
+                        )
+                        return True
+
+            # Final convergence report
+            final_joints = self.get_joint_positions()
+            final_error = np.max(np.abs(final_joints - joint_configs[-1]))
+            self.last_status = 0
+            logger.info(
+                f"ROBOT {self.robot_id}:{self.arm_id} - "
+                f"Joint trajectory did NOT converge after {steps_taken} steps "
+                f"(max err={final_error:.4f} rad)"
+            )
+            return False
+        finally:
+            self.is_moving = False
+
     def _clear_trajectory_visualization(self) -> None:
         """Clear all trajectory visualizations from MeshCat."""
         if self._meshcat_vis is None:

@@ -92,7 +92,7 @@ class DualArmHandoverPlanner:
         grasp_transfer: StampedPose,
         grasp_receiver: StampedPose,
         handover_object_pose: StampedPose,
-        pre_align_offset: np.ndarray = np.array([0, 0, -0.10]),
+        pre_align_offset: np.ndarray = np.array([0, 0, -0.20]),
         retreat_distance: float = 0.05,
         approach_steps: int = 50,
         ramp_steps: int = 60,

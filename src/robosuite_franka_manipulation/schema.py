@@ -128,6 +128,27 @@ class CancelMoveRequest(BaseSchema):
     robot_id: int = 0
     arm: str = "right"
 
+class MoveToJointConfigRequest(BaseSchema):
+    """Request to move to a target joint configuration (JOINT_POSITION controller only)."""
+    command: str
+    robot_id: int = 0
+    arm: str = "right"
+    joint_config: List[float] = Field(..., min_length=7, max_length=7,
+                                       description="Target joint angles (7 DOF)")
+    gripper_action: float = 0.0
+    num_steps: int = constants.TRAJECTORY_NUM_POINTS
+
+class FollowJointTrajectoryRequest(BaseSchema):
+    """Request to follow a joint-space trajectory (JOINT_POSITION controller only)."""
+    command: str
+    robot_id: int = 0
+    arm: str = "right"
+    joint_trajectory: List[List[float]] = Field(..., min_length=1,
+                                                 description="List of joint configs, each 7 DOF")
+    gripper_action: float = 0.0
+    num_steps: Optional[int] = None
+    smoothen: bool = False
+
 class MoveToPoseResponse(ResponseStatus):
     pass
 

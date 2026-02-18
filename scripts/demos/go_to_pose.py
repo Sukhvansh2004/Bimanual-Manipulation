@@ -125,7 +125,7 @@ if __name__ == '__main__':
     env = None
     try:
         # Create environment
-        env = make_dual_arm_env(robots=['Panda', 'Panda'])
+        env = make_dual_arm_env()
         env.reset()
 
         # Create reentrant lock for thread safety

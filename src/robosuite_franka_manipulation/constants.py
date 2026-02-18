@@ -60,7 +60,7 @@ GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.keys())
 # For suction gripper: identity transform (no offset)
 GRIPPER_GRASP_OFFSETS = {
     'franka_panda': {
-        'position': np.array([0.0, 0.0, 0.0]),
+        'position': np.array([0.0, 0.0, 0.1]),
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
@@ -126,8 +126,8 @@ DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 IK_NUM_SEED_CONFIGS = 48  # Number of random seed configurations for IK
 IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 0.1  # Position tolerance (meters)
-IK_ORI_TOLERANCE = 0.05  # Orientation tolerance (radians)
+IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
+IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
 IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
@@ -148,6 +148,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # Object Trajectory Generation
+INTERPOLATION_TYPE = 'linear'  # 'linear' (decoupled lerp+slerp) or 'SE3' (geodesic on SE(3) manifold)
 OBJECT_TRAJ_NUM_STEPS = 50  # Default number of steps for object trajectory
 OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
 OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
@@ -202,7 +203,10 @@ DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.75, 0.75, 0.05)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
-DEFAULT_ROBOT_ACTION_DIM = 7  # 6 DOF + 1 gripper
+# Number of arm joints on a Franka Panda (excludes gripper DOF).
+# Per-robot action dim = FRANKA_ARM_DOF + gripper_dof and depends on the
+# controller; use robot.action_dim at runtime instead of hard-coding.
+FRANKA_ARM_DOF = 7
 
 # Robot base configurations (position, quaternion) from world frame
 # quaternions are [x, y, z, w]
@@ -236,15 +240,54 @@ DEFAULT_USE_CAMERA_OBS = True
 
 # Controller configuration
 DEFAULT_CONTROLLER_TYPE = 'BASIC'
-DEFAULT_CONTROLLER_NAME = 'OSC_POSE'
+DEFAULT_CONTROLLER_NAME = 'JOINT_POSITION'
 DEFAULT_GRIPPER_CONTROLLER_TYPE = 'GRIP'
 DEFAULT_INPUT_REF_FRAME = 'base'  # Controller input reference frame (base = robot base frame)
-DEFAULT_INPUT_TYPE = 'delta'
+DEFAULT_INPUT_TYPE = 'absolute'
 
 DEFAULT_KP = 1000  # Position stiffness (default is ~150)
 DEFAULT_DAMPING_RATIO = 1.0  # Critical damping (default is ~1.0)
 DEFAULT_KP_LIMITS = [0, 1000]  # Allow higher stiffness values
 DEFAULT_DAMPING_RATIO_LIMITS = [0, 2]  # Allow higher damping
+
+# =============================================================================
+# Controller Types and Input Modes
+# =============================================================================
+
+# Supported controller names (from robosuite)
+class ControllerName:
+    """Supported controller names."""
+    OSC_POSE = 'OSC_POSE'           # Operational Space Control for end-effector pose
+    JOINT_POSITION = 'JOINT_POSITION'  # Joint position control
+
+# Supported input types
+class InputType:
+    """Input types for controllers."""
+    DELTA = 'delta'       # Delta (incremental) control
+    ABSOLUTE = 'absolute'  # Absolute (target) control
+
+# Valid combinations
+SUPPORTED_CONTROLLER_NAMES = [ControllerName.OSC_POSE, ControllerName.JOINT_POSITION]
+SUPPORTED_INPUT_TYPES = [InputType.DELTA, InputType.ABSOLUTE]
+
+# Action dimensions for different controller types (excluding gripper)
+# For Franka Panda: 7 DOF arm
+CONTROLLER_ACTION_DIMS = {
+    ControllerName.OSC_POSE: 6,        # [x, y, z, rx, ry, rz]
+    ControllerName.JOINT_POSITION: 7,  # [j1, j2, j3, j4, j5, j6, j7]
+}
+
+# Default home joint configuration for Franka Panda (radians)
+# This is a neutral pose with arm slightly bent
+FRANKA_HOME_JOINT_POSITION = np.array([
+    0.0,    # joint1
+    -0.785, # joint2 (-45 deg)
+    0.0,    # joint3
+    -2.356, # joint4 (-135 deg)
+    0.0,    # joint5
+    1.571,  # joint6 (90 deg)
+    0.785,  # joint7 (45 deg)
+])
 
 # =============================================================================
 # Coordinate Frame Names

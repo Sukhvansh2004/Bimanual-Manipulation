@@ -364,12 +364,16 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
 
         total_action_dim = env.action_dim
 
-        # Calculate action dimensions per robot
-        if total_action_dim % len(robots) == 0:
-            per_robot_dim = total_action_dim // len(robots)
-        else:
-            per_robot_dim = constants.DEFAULT_ROBOT_ACTION_DIM
-        if per_robot_dim <= 0:
+        # Calculate action dimensions per robot (use actual robot dims)
+        per_robot_dims = [r.action_dim for r in robots]
+        # Fallback: even split
+        if sum(per_robot_dims) != total_action_dim:
+            if total_action_dim % len(robots) == 0:
+                per_robot_dims = [total_action_dim // len(robots)] * len(robots)
+            else:
+                logger.warning("Cannot determine per-robot action dims; skipping suction weld.")
+                return
+        if any(d <= 0 for d in per_robot_dims):
             return
 
         action_vec = np.asarray(action, dtype=np.float64).reshape(-1)
@@ -401,7 +405,9 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                     continue
 
                 # Get gripper action value
-                gripper_action_index = ridx * per_robot_dim + (per_robot_dim - 1)
+                this_robot_dim = per_robot_dims[ridx]
+                robot_action_offset = sum(per_robot_dims[:ridx])
+                gripper_action_index = robot_action_offset + (this_robot_dim - 1)
                 if gripper_action_index < 0 or gripper_action_index >= action_vec.size:
                     continue
                 gripper_action = float(action_vec[gripper_action_index])

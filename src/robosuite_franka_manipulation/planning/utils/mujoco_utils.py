@@ -62,10 +62,9 @@ def get_joint_limits(model, joint_ids: Sequence[int]) -> Tuple[np.ndarray, np.nd
 
 
 def get_eef_site_name(robot_id: int, arm: str = "right") -> str:
-    """Get the end-effector site name."""
-    # In this repo's robosuite configs we use the single "right" arm.
-    # Site naming convention from env inspection: gripper{robot_id}_right_grip_site
-    return f"gripper{robot_id}_{arm}_grip_site"
+    """Get the end-effector flange site name (where the gripper mounts to the arm)."""
+    # ft_frame is the force-torque frame at the robot-gripper flange interface.
+    return f"gripper{robot_id}_{arm}_ft_frame"
 
 
 def get_qpos(data, qpos_idx: np.ndarray) -> np.ndarray:

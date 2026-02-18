@@ -13,7 +13,8 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.schema import (
     ResponseStatus, MoveToPoseRequest, CancelMoveRequest, MoveToPoseResponse,
-    ArmStatusResponse, GetArmStatusRequest, FollowTrajectoryRequest
+    ArmStatusResponse, GetArmStatusRequest, FollowTrajectoryRequest,
+    MoveToJointConfigRequest, FollowJointTrajectoryRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,12 @@ class MoveToPoseService:
             elif command == "FOLLOW_TRAJECTORY":
                 req = FollowTrajectoryRequest(**request)
                 return self._handle_follow_trajectory(req)
+            elif command == "MOVE_TO_JOINT_CONFIG":
+                req = MoveToJointConfigRequest(**request)
+                return self._handle_move_to_joint_config(req)
+            elif command == "FOLLOW_JOINT_TRAJECTORY":
+                req = FollowJointTrajectoryRequest(**request)
+                return self._handle_follow_joint_trajectory(req)
             elif command == "CANCEL_MOVE":
                 req = CancelMoveRequest(**request)
                 return self._handle_cancel(req)
@@ -306,6 +313,138 @@ class MoveToPoseService:
 
         except Exception as e:
             return ResponseStatus(status="error", message=f"Failed to process move request: {e}").model_dump()
+
+    def _handle_move_to_joint_config(self, request: MoveToJointConfigRequest) -> Dict:
+        """Handle MOVE_TO_JOINT_CONFIG command."""
+        try:
+            import numpy as np
+
+            robot_id = request.robot_id
+            arm_id = request.arm
+            gripper_action = request.gripper_action
+            target_joints = np.array(request.joint_config, dtype=np.float64)
+            num_steps = request.num_steps
+
+            key = (robot_id, arm_id)
+            if key not in self.controllers:
+                return ResponseStatus(
+                    status="error",
+                    message=f"No controller registered for robot {robot_id}, arm {arm_id}",
+                ).model_dump()
+
+            controller = self.controllers[key]
+
+            def joint_move_task():
+                try:
+                    logger.info(f"Starting joint config move for robot {robot_id}, arm {arm_id}")
+                    controller.move_to_joint_config(
+                        target_joints=target_joints,
+                        gripper_action=gripper_action,
+                        num_steps=num_steps,
+                    )
+                    logger.info(f"Joint config move complete for robot {robot_id}, arm {arm_id}")
+                except Exception as e:
+                    logger.error(f"Joint config move failed for robot {robot_id}, arm {arm_id}: {e}")
+
+            with self.state_lock:
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                self.active_moves = {k: v for k, v in self.active_moves.items() if v.is_alive()}
+
+                if key in self.active_moves and self.active_moves[key].is_alive():
+                    logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
+                    controller.cancel_movement()
+                    self.state_lock.release()
+                    try:
+                        self.active_moves[key].join(timeout=5.0)
+                    finally:
+                        self.state_lock.acquire()
+
+                    if self.active_moves[key].is_alive():
+                        return ResponseStatus(
+                            status="error",
+                            message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}.",
+                        ).model_dump()
+
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                thread = threading.Thread(target=joint_move_task, daemon=True)
+                self.active_moves[key] = thread
+                thread.start()
+
+            return MoveToPoseResponse(message="Joint config move started").model_dump()
+
+        except Exception as e:
+            return ResponseStatus(status="error", message=f"Failed to process joint config request: {e}").model_dump()
+
+    def _handle_follow_joint_trajectory(self, request: FollowJointTrajectoryRequest) -> Dict:
+        """Handle FOLLOW_JOINT_TRAJECTORY command."""
+        try:
+            import numpy as np
+
+            robot_id = request.robot_id
+            arm_id = request.arm
+            gripper_action = request.gripper_action
+            joint_trajectory = [np.array(jt, dtype=np.float64) for jt in request.joint_trajectory]
+            num_steps = request.num_steps
+            smoothen = request.smoothen
+
+            key = (robot_id, arm_id)
+            if key not in self.controllers:
+                return ResponseStatus(
+                    status="error",
+                    message=f"No controller registered for robot {robot_id}, arm {arm_id}",
+                ).model_dump()
+
+            controller = self.controllers[key]
+
+            def joint_traj_task():
+                try:
+                    logger.info(f"Starting joint trajectory for robot {robot_id}, arm {arm_id}")
+                    controller.follow_joint_trajectory(
+                        joint_trajectory=joint_trajectory,
+                        gripper_action=gripper_action,
+                        num_steps=num_steps,
+                        smoothen=smoothen,
+                    )
+                    logger.info(f"Joint trajectory complete for robot {robot_id}, arm {arm_id}")
+                except Exception as e:
+                    logger.error(f"Joint trajectory failed for robot {robot_id}, arm {arm_id}: {e}")
+
+            with self.state_lock:
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                self.active_moves = {k: v for k, v in self.active_moves.items() if v.is_alive()}
+
+                if key in self.active_moves and self.active_moves[key].is_alive():
+                    logger.warning(f"Robot {robot_id} arm {arm_id} is already moving. Cancelling previous move.")
+                    controller.cancel_movement()
+                    self.state_lock.release()
+                    try:
+                        self.active_moves[key].join(timeout=5.0)
+                    finally:
+                        self.state_lock.acquire()
+
+                    if self.active_moves[key].is_alive():
+                        return ResponseStatus(
+                            status="error",
+                            message=f"Previous move failed to cancel for robot {robot_id}, arm {arm_id}.",
+                        ).model_dump()
+
+                if not self.running:
+                    return ResponseStatus(status="error", message="Service is stopping").model_dump()
+
+                thread = threading.Thread(target=joint_traj_task, daemon=True)
+                self.active_moves[key] = thread
+                thread.start()
+
+            return MoveToPoseResponse(message="Joint trajectory following started").model_dump()
+
+        except Exception as e:
+            return ResponseStatus(status="error", message=f"Failed to process joint trajectory request: {e}").model_dump()
 
     def _handle_cancel(self, request: CancelMoveRequest) -> Dict:
         """Handle CANCEL_MOVE command."""

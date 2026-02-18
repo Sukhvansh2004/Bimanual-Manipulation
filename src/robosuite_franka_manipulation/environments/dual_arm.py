@@ -408,29 +408,68 @@ def make_dual_arm_env(
     camera_name: str = constants.DEFAULT_CAMERA_NAME,
     camera_height: int = constants.DEFAULT_CAMERA_HEIGHT,
     camera_width: int = constants.DEFAULT_CAMERA_WIDTH,
+    controller_name: str = constants.DEFAULT_CONTROLLER_NAME,
+    input_type: str = constants.DEFAULT_INPUT_TYPE,
 ) -> DualArmEnvironment:
     """
     Creates a DualArmEnvironment configured for a dual-arm Franka task.
-    """
-
-    # Load the OSC_POSE part controller config
-    osc_pose_config = load_part_controller_config(default_controller=constants.DEFAULT_CONTROLLER_NAME)
-    osc_pose_config["gripper"] = {"type": constants.DEFAULT_GRIPPER_CONTROLLER_TYPE}
-    osc_pose_config["input_ref_frame"] = constants.DEFAULT_INPUT_REF_FRAME
-    osc_pose_config["input_type"] = constants.DEFAULT_INPUT_TYPE
     
-    # Increase impedance (stiffness and damping) for better resistance to external forces
-    # Higher kp = stiffer position control, higher damping_ratio = more stable
-    osc_pose_config["kp"] = constants.DEFAULT_KP  # Position stiffness (default is ~150)
-    osc_pose_config["damping_ratio"] = constants.DEFAULT_DAMPING_RATIO  # Critical damping (default is ~1.0)
-    osc_pose_config["kp_limits"] = constants.DEFAULT_KP_LIMITS  # Allow higher stiffness values
-    osc_pose_config["damping_ratio_limits"] = constants.DEFAULT_DAMPING_RATIO_LIMITS  # Allow higher damping
+    Args:
+        custom_objects: List of custom object specifications.
+        ycb_objects: List of YCB object specifications (name string or dict).
+        has_renderer: Whether to enable on-screen rendering.
+        has_offscreen_renderer: Whether to enable off-screen rendering.
+        use_camera_obs: Whether to include camera observations.
+        camera_name: Name of the camera to use.
+        camera_height: Height of camera images.
+        camera_width: Width of camera images.
+        controller_name: Controller type. Options:
+            - 'OSC_POSE': Operational Space Control for end-effector pose
+            - 'JOINT_POSITION': Joint position control
+        input_type: Input mode for the controller. Options:
+            - 'delta': Incremental/relative control
+            - 'absolute': Target/absolute control
+            
+    Returns:
+        DualArmEnvironment: The configured environment.
+        
+    Example:
+        # Absolute JOINT_POSITION (default)
+        env = make_dual_arm_env()
+        
+        # Absolute OSC_POSE
+        env = make_dual_arm_env(controller_name='OSC_POSE', input_type='absolute')
+        
+        # Delta JOINT_POSITION
+        env = make_dual_arm_env(controller_name='JOINT_POSITION', input_type='delta')
+        
+        # Absolute JOINT_POSITION
+        env = make_dual_arm_env(controller_name='JOINT_POSITION', input_type='absolute')
+    """
+    # Validate controller configuration
+    if controller_name not in constants.SUPPORTED_CONTROLLER_NAMES:
+        raise ValueError(f"Unsupported controller_name: '{controller_name}'. "
+                        f"Must be one of {constants.SUPPORTED_CONTROLLER_NAMES}")
+    if input_type not in constants.SUPPORTED_INPUT_TYPES:
+        raise ValueError(f"Unsupported input_type: '{input_type}'. "
+                        f"Must be one of {constants.SUPPORTED_INPUT_TYPES}")
+
+    # Load the part controller config for the specified controller
+    part_config = load_part_controller_config(default_controller=controller_name)
+    part_config["gripper"] = {"type": constants.DEFAULT_GRIPPER_CONTROLLER_TYPE}
+    part_config["input_ref_frame"] = constants.DEFAULT_INPUT_REF_FRAME
+    part_config["input_type"] = input_type
+    
+    part_config["kp"] = constants.DEFAULT_KP
+    part_config["damping_ratio"] = constants.DEFAULT_DAMPING_RATIO
+    part_config["kp_limits"] = constants.DEFAULT_KP_LIMITS
+    part_config["damping_ratio_limits"] = constants.DEFAULT_DAMPING_RATIO_LIMITS
 
     # Create the composite controller config
     controller_config = {
         "type": constants.DEFAULT_CONTROLLER_TYPE,
         "body_parts": {
-            "right": osc_pose_config,
+            "right": part_config,
             "right_gripper": {
                 "type": constants.DEFAULT_GRIPPER_CONTROLLER_TYPE
             }
@@ -439,6 +478,8 @@ def make_dual_arm_env(
     
     # For dual-arm, controller_configs should be a list of configs
     controller_configs = [controller_config, controller_config]
+    
+    logger.info(f"Creating dual-arm environment with controller: {controller_name}, input_type: {input_type}")
     
     # Normalize YCB object specs
     normalized_ycb_objects = []
