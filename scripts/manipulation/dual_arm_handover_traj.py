@@ -153,11 +153,12 @@ def main():
         grasp_primitive = ObjectGraspPrimitive(object_pose=obj_pose, grasp_transform=current_grasp)
         grasp_traj_data = grasp_primitive.generate_trajectory()
         
+        logger.info(f"Robot {current_robot} moving to pre-grasp pose...")
         current_arm.move_to_pose(grasp_traj_data["pregrasp"])
-        logger.debug(f"Robot {current_robot} moved to pregrasp pose and releasing gripper.")
-        current_gripper.release()
+
+        logger.info(f"Robot {current_robot} following grasp approach trajectory...")
         current_arm.follow_trajectory(grasp_traj_data["approach"])
-        logger.debug(f"Robot {current_robot} followed approach trajectory to grasp pose and grasping.")
+
         current_gripper.grasp()
         time.sleep(0.5)
 
@@ -201,8 +202,13 @@ def main():
                 other_arm = system.right_arm if current_robot == 0 else system.left_arm
                 other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
                 
+                logger.info(f"Robot {current_robot} moving to handover pre-pose...")
                 other_arm.move_to_pose(h_traj["receiver_pre"][0])
+
+                logger.info(f"Robot {current_robot} following handover approach trajectory...")
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
+
+                logger.info(f"Robot {current_robot} executing handover approach...")
                 other_arm.follow_trajectory(h_traj["receiver_approach"])
                 
                 other_gripper.grasp()
@@ -210,6 +216,7 @@ def main():
                 current_gripper.release()
                 time.sleep(0.5)
                 
+                logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
                 current_robot = 1 - current_robot
                 current_arm = other_arm

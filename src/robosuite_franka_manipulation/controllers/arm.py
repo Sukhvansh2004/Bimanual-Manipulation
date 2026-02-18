@@ -232,10 +232,11 @@ class RobosuiteArmController:
         )
         
         if not solutions:
-            raise RuntimeError(
+            logger.warning(
                 f"No IK solution found for robot{self.robot_id}_{self.arm_id} "
                 f"at pos={target_pos}, quat={target_quat}"
             )
+            return None
         
         return solutions[0]
 
@@ -275,6 +276,8 @@ class RobosuiteArmController:
         if self.is_joint_position_controller:
             # Solve IK to convert pose target to joint target
             target_joints = self._solve_ik_for_pose(target_pos, target_quat)
+            if target_joints is None:
+                return None
             return self.construct_joint_action(target_joints, gripper_action)
         
         # Get current pose if not provided
@@ -660,6 +663,12 @@ class RobosuiteArmController:
                     current_pos=current_pos, current_quat=current_quat
                 )
                 
+                if robot_action is None:
+                    # IK failed for this waypoint; skip it
+                    logger.debug(f"IK failed at waypoint {current_waypoint_idx}, skipping")
+                    steps_taken += 1
+                    continue
+                
                 # Step the environment
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
@@ -793,6 +802,12 @@ class RobosuiteArmController:
                     gripper_action=gripper_action,
                     current_pos=current_pos, current_quat=current_quat
                 )
+                
+                if robot_action is None:
+                    # IK failed for this waypoint; skip it
+                    logger.debug(f"IK failed at waypoint {current_waypoint_idx}, skipping")
+                    steps_taken += 1
+                    continue
                 
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
