@@ -637,6 +637,11 @@ class RobosuiteArmController:
             steps_taken = 0
             start_time = time.time()
             
+            # Sequential IK warm-starting: use caller's hint for the first
+            # call, then chain through current joint positions so each IK
+            # warm-starts from the previous solution (like the planning pipeline).
+            _ik_ws = q_warm_start
+            
             while steps_taken < max_steps:
                 # Check for cancellation
                 if self._stop_event.is_set():
@@ -665,7 +670,7 @@ class RobosuiteArmController:
                     target_pos_step, target_quat_step,
                     gripper_action=gripper_action,
                     current_pos=current_pos, current_quat=current_quat,
-                    q_warm_start=q_warm_start
+                    q_warm_start=_ik_ws
                 )
                 
                 if robot_action is None:
@@ -677,6 +682,9 @@ class RobosuiteArmController:
                 # Step the environment
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                # Chain IK: next call uses current joints (≈ previous IK solution)
+                _ik_ws = None
                 
                 steps_taken += 1
                 
@@ -783,6 +791,9 @@ class RobosuiteArmController:
             steps_taken = 0
             start_time = time.time()
             
+            # Sequential IK warm-starting (see move_to_pose for rationale)
+            _ik_ws = q_warm_start
+            
             while steps_taken < max_steps:
                 if self._stop_event.is_set():
                     logger.info(f"Trajectory following cancelled for robot{self.robot_id}_{self.arm_id}")
@@ -808,7 +819,7 @@ class RobosuiteArmController:
                     target_pos_step, target_quat_step,
                     gripper_action=gripper_action,
                     current_pos=current_pos, current_quat=current_quat,
-                    q_warm_start=q_warm_start
+                    q_warm_start=_ik_ws
                 )
                 
                 if robot_action is None:
@@ -819,6 +830,9 @@ class RobosuiteArmController:
                 
                 with self.env_lock if self.env_lock else nullcontext():
                     env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+                
+                # Chain IK: next call uses current joints (≈ previous IK solution)
+                _ik_ws = None
                 
                 steps_taken += 1
                 
