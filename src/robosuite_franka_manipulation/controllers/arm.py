@@ -206,14 +206,26 @@ class RobosuiteArmController:
         
         # Lazy import to avoid circular dependency
         # (arm → planning → services → arm)
-        from robosuite_franka_manipulation.planning.utils.ik_utils import enumerate_ik_solutions_for_arm
-        
+        from robosuite_franka_manipulation.planning.utils.ik_utils import (
+            enumerate_ik_solutions_for_arm,
+            apply_ik_orientation_correction,
+        )
+
+        # The eef body frame (used by TransformManager / get_eef_pose_in_base)
+        # is rotated ~90° around Z relative to the MuJoCo ft_frame site that
+        # the IK solver targets.  apply_ik_orientation_correction compensates
+        # for this so the IK solution matches the body-frame convention.
+        target_stamped = apply_ik_orientation_correction(target_stamped)
+
+        site_name = f"gripper{self.robot_id}_{self.arm_id}_ft_frame"
+
         solutions = enumerate_ik_solutions_for_arm(
             self.env,
             robot_id=self.robot_id,
             target_pose=target_stamped,
             tf_manager=self.tf_manager,
             arm=self.arm_id,
+            site_name=site_name,
             q_warm_start=q_warm_start,
             env_lock=self.env_lock,
             max_solutions=1,  # We only need one good solution
