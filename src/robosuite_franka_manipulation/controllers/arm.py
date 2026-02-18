@@ -186,13 +186,12 @@ class RobosuiteArmController:
         Args:
             target_pos: Target EEF position [x, y, z] in robot base frame
             target_quat: Target EEF quaternion [x, y, z, w] in robot base frame  
-            q_warm_start: Optional warm-start joint config (uses current if None)
+            q_warm_start: Optional warm-start joint config (uses current if None).
+                          Pass a known-good config (e.g. from planning NPZ) to
+                          help IK converge for hard-to-reach poses.
             
         Returns:
-            Joint configuration array (7,)
-            
-        Raises:
-            RuntimeError: If no IK solution is found
+            Joint configuration array (7,) or None if IK fails
         """
         # Create StampedPose in base frame; the IK solver will transform to world internally
         target_stamped = StampedPose(
@@ -247,6 +246,7 @@ class RobosuiteArmController:
         gripper_action: float = 0.0,
         current_pos: Optional[np.ndarray] = None,
         current_quat: Optional[np.ndarray] = None,
+        q_warm_start: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Construct a robot action based on the current controller configuration.
@@ -269,13 +269,14 @@ class RobosuiteArmController:
             gripper_action: Gripper action value
             current_pos: Current position (if None, reads from environment)
             current_quat: Current quaternion (if None, reads from environment)
+            q_warm_start: Optional warm-start joint config for IK (uses current if None)
             
         Returns:
             Robot action array of appropriate dimension
         """
         if self.is_joint_position_controller:
             # Solve IK to convert pose target to joint target
-            target_joints = self._solve_ik_for_pose(target_pos, target_quat)
+            target_joints = self._solve_ik_for_pose(target_pos, target_quat, q_warm_start=q_warm_start)
             if target_joints is None:
                 return None
             return self.construct_joint_action(target_joints, gripper_action)
@@ -561,7 +562,8 @@ class RobosuiteArmController:
                     threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD, 
                     gripper_action: float = 0.0,
                     dt: float = constants.TRAJECTORY_TIME_STEP,
-                    num_steps: int = constants.TRAJECTORY_NUM_POINTS) -> bool:
+                    num_steps: int = constants.TRAJECTORY_NUM_POINTS,
+                    q_warm_start: Optional[np.ndarray] = None) -> bool:
         """
         Moves the robot's end-effector to the target position and orientation using a quintic polynomial trajectory.
         
@@ -579,6 +581,8 @@ class RobosuiteArmController:
                             - For Suction Gripper: 1.0 (Release/Off), -1.0 (Grasp/On).
             dt: Time step between waypoints (seconds).
             num_steps: Number of waypoints to generate for the trajectory.
+            q_warm_start: Optional warm-start joint config for IK (e.g. from planning NPZ).
+                          Helps IK converge for hard-to-reach poses at workspace limits.
         
         Returns:
             bool: True if pose was reached within threshold, False otherwise
@@ -660,7 +664,8 @@ class RobosuiteArmController:
                 robot_action = self.construct_robot_action(
                     target_pos_step, target_quat_step,
                     gripper_action=gripper_action,
-                    current_pos=current_pos, current_quat=current_quat
+                    current_pos=current_pos, current_quat=current_quat,
+                    q_warm_start=q_warm_start
                 )
                 
                 if robot_action is None:
@@ -723,7 +728,8 @@ class RobosuiteArmController:
                           dt: float = constants.TRAJECTORY_TIME_STEP,
                           threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
                           num_steps: Optional[int] = None,
-                          smoothen: bool = False) -> bool:
+                          smoothen: bool = False,
+                          q_warm_start: Optional[np.ndarray] = None) -> bool:
         """
         Follows a pre-defined end-effector trajectory in constants.WORLD_FRAME.
         
@@ -734,6 +740,7 @@ class RobosuiteArmController:
             threshold: Convergence threshold for the final waypoint.
             num_steps: Optional maximum number of steps. Defaults to len(trajectory) * 2.
             smoothen: Whether to smoothen the trajectory using a quintic polynomial.
+            q_warm_start: Optional warm-start joint config for IK at workspace limits.
             
         Returns:
             bool: True if final waypoint reached, False otherwise.
@@ -800,7 +807,8 @@ class RobosuiteArmController:
                 robot_action = self.construct_robot_action(
                     target_pos_step, target_quat_step,
                     gripper_action=gripper_action,
-                    current_pos=current_pos, current_quat=current_quat
+                    current_pos=current_pos, current_quat=current_quat,
+                    q_warm_start=q_warm_start
                 )
                 
                 if robot_action is None:

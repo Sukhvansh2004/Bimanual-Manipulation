@@ -53,6 +53,8 @@ def main():
     parser.add_argument("--visualize", action="store_true", help="Enable visualization in robosuite")
     parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
     parser.add_argument("--smoothen", action="store_true", help="Whether to smoothen trajectories during execution")
+    parser.add_argument("--traj0", type=str, default="data/robot0_trajectory_8.npz", help="Path to robot0 trajectory NPZ file")
+    parser.add_argument("--traj1", type=str, default="data/robot1_trajectory_2.npz", help="Path to robot1 trajectory NPZ file")
     parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
@@ -93,8 +95,8 @@ def main():
 
     try:
         # 2. Load Trajectories
-        traj_path0 = "data/robot0_trajectory_8.npz"
-        traj_path1 = "data/robot1_trajectory_2.npz"
+        traj_path0 = args.traj0
+        traj_path1 = args.traj1
         
         logger.info(f"Loading trajectories: {traj_path0}, {traj_path1}")
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)
@@ -153,11 +155,15 @@ def main():
         grasp_primitive = ObjectGraspPrimitive(object_pose=obj_pose, grasp_transform=current_grasp)
         grasp_traj_data = grasp_primitive.generate_trajectory()
         
+        # Use planning joint config as IK hint for initial grasp
+        current_joints = (joints0 if current_robot == 0 else joints1)
+        q_warm_start_grasp = current_joints[current_idx] if current_joints[current_idx] is not None else None
+        
         logger.info(f"Robot {current_robot} moving to pre-grasp pose...")
-        current_arm.move_to_pose(grasp_traj_data["pregrasp"])
+        current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
 
         logger.info(f"Robot {current_robot} following grasp approach trajectory...")
-        current_arm.follow_trajectory(grasp_traj_data["approach"])
+        current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start_grasp)
 
         current_gripper.grasp()
         time.sleep(0.5)
@@ -202,14 +208,20 @@ def main():
                 other_arm = system.right_arm if current_robot == 0 else system.left_arm
                 other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
                 
-                logger.info(f"Robot {current_robot} moving to handover pre-pose...")
-                other_arm.move_to_pose(h_traj["receiver_pre"][0])
+                # Use planning joint configs as IK hints for the handover poses
+                other_joints = joints1 if current_robot == 0 else joints0
+                q_warm_start_receiver = other_joints[current_idx] if other_joints[current_idx] is not None else None
+                current_joints_h = joints0 if current_robot == 0 else joints1
+                q_warm_start_transfer = current_joints_h[current_idx] if current_joints_h[current_idx] is not None else None
+                
+                logger.info(f"Robot {1 - current_robot} moving to handover pre-pose...")
+                other_arm.move_to_pose(h_traj["receiver_pre"][0], q_warm_start=q_warm_start_receiver)
 
-                logger.info(f"Robot {current_robot} following handover approach trajectory...")
-                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
+                logger.info(f"Robot {current_robot} moving to handover hold pose...")
+                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, q_warm_start=q_warm_start_transfer)
 
-                logger.info(f"Robot {current_robot} executing handover approach...")
-                other_arm.follow_trajectory(h_traj["receiver_approach"])
+                logger.info(f"Robot {1 - current_robot} executing handover approach...")
+                other_arm.follow_trajectory(h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver)
                 
                 other_gripper.grasp()
                 time.sleep(0.5)
