@@ -5,6 +5,7 @@ import threading
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 import logging
 import numpy as np
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,27 @@ def _get_ids_for_prefixes(prefixes):
         ids.update(_prefix_to_ids[pref])
     return list(ids)
 
-def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-6, env_lock: threading.RLock = None, ignore_names: list = None) -> bool:
-    """Return True if either robot has any contacts below the threshold, excluding ignored names."""
+def in_collision(
+    env: DualArmEnvironment,
+    *,
+    contact_dist_threshold: float = 1e-6,
+    env_lock: threading.RLock = None,
+    ignore_names: Optional[List[str]] = None,
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
+) -> bool:
+    """Return True if either robot has any contacts below the threshold.
+
+    Args:
+        env: The simulation environment.
+        contact_dist_threshold: Distance threshold for considering a contact.
+        env_lock: Optional lock for thread safety.
+        ignore_names: List of geom name prefixes to ignore entirely
+            (contacts where *either* geom matches are discarded).
+        ignore_pairs: List of ``(prefix_a, prefix_b)`` tuples.  A contact is
+            discarded when one geom matches *prefix_a* AND the other matches
+            *prefix_b*.  This allows selectively ignoring object-gripper
+            contacts while still detecting object-arm contacts.
+    """
 
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:
@@ -57,7 +77,7 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
         if not np.any(mask):
             return False
 
-        # 2. Ignore names filter
+        # 2. Ignore names filter (blanket ignore)
         if ignore_names:
             ignore_ids = _get_ids_for_prefixes(ignore_names)
             if ignore_ids:
@@ -68,7 +88,23 @@ def in_collision(env: DualArmEnvironment, *, contact_dist_threshold: float = 1e-
                 if not np.any(mask):
                     return False
 
-        # 3. Robot membership filter
+        # 3. Ignore pairs filter (selective ignore between two groups)
+        if ignore_pairs:
+            for prefix_a, prefix_b in ignore_pairs:
+                ids_a = _get_ids_for_prefixes([prefix_a])
+                ids_b = _get_ids_for_prefixes([prefix_b])
+                if ids_a and ids_b:
+                    mask_a = np.zeros(model.ngeom, dtype=bool)
+                    mask_b = np.zeros(model.ngeom, dtype=bool)
+                    mask_a[ids_a] = True
+                    mask_b[ids_b] = True
+                    # Ignore contacts where (g1 in A and g2 in B) OR (g1 in B and g2 in A)
+                    pair_mask = (mask_a[g1] & mask_b[g2]) | (mask_b[g1] & mask_a[g2])
+                    mask &= ~pair_mask
+                    if not np.any(mask):
+                        return False
+
+        # 4. Robot membership filter
         # Contact must involve at least one robot geom
         mask &= (_robot_mask[g1] | _robot_mask[g2])
         

@@ -224,9 +224,10 @@ def check_trajectory_feasibility(
         try:
             last_config = None # Keep track of the last valid configuration for warm start
             
-            # Resolve ignore names
-            current_ignore_names = resolve_ignore_names(object_name, ignore_names)
-            logger.debug(f"Collision checking will ignore geoms: {current_ignore_names}")
+            # Resolve ignore names and pairs
+            # Object-gripper contacts are selectively ignored; object-arm contacts are still detected
+            current_ignore_names, current_ignore_pairs = resolve_ignore_names(object_name, ignore_names, robot_id=robot_id)
+            logger.debug(f"Collision checking: ignore_names={current_ignore_names}, ignore_pairs={current_ignore_pairs}")
 
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
@@ -248,7 +249,8 @@ def check_trajectory_feasibility(
                     ignore_names=current_ignore_names,
                     last_config=last_config,
                     tf_manager=tf_manager,
-                    arm=arm
+                    arm=arm,
+                    ignore_pairs=current_ignore_pairs,
                 )
                 
                 results.append(result)
@@ -326,8 +328,15 @@ def check_dual_trajectory_feasibility(
             last_config0 = None 
             last_config1 = None
             
-            # Resolve ignore names
-            current_ignore_names = resolve_ignore_names(object_name, ignore_names)
+            # Resolve ignore names and pairs for dual-arm
+            # Both robots hold the object at different times, so create pairs for both grippers
+            current_ignore_names, current_ignore_pairs = resolve_ignore_names(object_name, ignore_names)
+            # Add object-gripper pairs for both robots
+            if object_name:
+                current_ignore_pairs.extend([
+                    (object_name, "gripper0"),
+                    (object_name, "gripper1"),
+                ])
 
             for i in range(len(eef_trajectory0)):
                 # 1. Update Object Pose if provided
@@ -351,7 +360,8 @@ def check_dual_trajectory_feasibility(
                     last_config0=last_config0,
                     last_config1=last_config1,
                     tf_manager=tf_manager,
-                    arm=arm
+                    arm=arm,
+                    ignore_pairs=current_ignore_pairs,
                 )
                 
                 results0.append(res0)

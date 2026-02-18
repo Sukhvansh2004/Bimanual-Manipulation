@@ -39,13 +39,38 @@ class WaypointFeasibilityResult:
     ik_success: bool  # True if IK found a solution
     collision_free: bool  # True if no collision detected
 
-def resolve_ignore_names(object_name: Optional[str], ignore_names: Optional[List[str]]) -> List[str]:
-    """Helper to resolve ignore names list including object body geoms."""
+def resolve_ignore_names(
+    object_name: Optional[str],
+    ignore_names: Optional[List[str]],
+    robot_id: Optional[int] = None,
+) -> Tuple[List[str], List[Tuple[str, str]]]:
+    """Resolve ignore names and ignore pairs for collision checking.
+
+    Object-gripper contacts for the *holding* robot are selectively ignored
+    via ``ignore_pairs`` so that object-arm collisions are still detected.
+
+    Args:
+        object_name: Geom name prefix of the grasped object (e.g. ``"flatPlate"``).
+        ignore_names: Extra geom prefixes to blanket-ignore (e.g. the *other*
+            robot ``["robot1", "gripper1"]``).
+        robot_id: The robot that is holding the object.  When provided, an
+            ``ignore_pair`` of ``(object_name, "gripper{robot_id}")`` is
+            generated so only the gripper-object contact is ignored.
+
+    Returns:
+        (ignore_names, ignore_pairs): The first list is passed to
+            ``in_collision`` as ``ignore_names`` and the second as
+            ``ignore_pairs``.
+    """
     current_ignore_names = list(ignore_names) if ignore_names else []
-    if object_name and object_name not in current_ignore_names:
-        current_ignore_names.append(object_name)
-        
-    return current_ignore_names
+    ignore_pairs: List[Tuple[str, str]] = []
+
+    if object_name and robot_id is not None:
+            # Only ignore object <-> gripper contacts for the holding robot
+            gripper_prefix = f"gripper{robot_id}"
+            ignore_pairs.append((object_name, gripper_prefix))
+
+    return current_ignore_names, ignore_pairs
 
 def process_waypoint(
     env: DualArmEnvironment,
@@ -57,7 +82,8 @@ def process_waypoint(
     ignore_names: List[str],
     last_config: Optional[np.ndarray],
     tf_manager: TransformManager,
-    arm: str = "right"
+    arm: str = "right",
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
     """Process a single waypoint: IK + Collision Check."""
     
@@ -100,7 +126,7 @@ def process_waypoint(
         if check_collisions:
             set_qpos(data, qpos_idx, q_sol)
             mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
-            collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+            collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs)
         
         if collision_free:
             return WaypointFeasibilityResult(
@@ -137,7 +163,8 @@ def process_dual_waypoint(
     last_config0: Optional[np.ndarray],
     last_config1: Optional[np.ndarray],
     tf_manager: TransformManager,
-    arm: str = "right"
+    arm: str = "right",
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
     """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
     
@@ -193,7 +220,7 @@ def process_dual_waypoint(
                     if last_config1 is not None:
                         set_qpos(data, qpos_idx1, last_config1)
                     mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
-                    if not in_collision(env, env_lock=None, ignore_names=ignore_names):
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs):
                         best_q0 = q0
                         res0_col = True
                         break
@@ -215,7 +242,7 @@ def process_dual_waypoint(
                     if last_config0 is not None:
                         set_qpos(data, qpos_idx0, last_config0)
                     mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
-                    if not in_collision(env, env_lock=None, ignore_names=ignore_names):
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs):
                         best_q1 = q1
                         res1_col = True
                         break
@@ -248,7 +275,7 @@ def process_dual_waypoint(
                 set_qpos(data, qpos_idx0, q0)
                 set_qpos(data, qpos_idx1, q1)
                 mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
-                collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names)
+                collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs)
             
             if collision_free:
                 res0 = WaypointFeasibilityResult(
