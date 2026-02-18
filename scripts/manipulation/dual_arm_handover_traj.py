@@ -75,8 +75,9 @@ def main():
         create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
     ]
 
-    vis = meshcat.Visualizer(zmq_url=args.zmq_url)
-    vis.delete()  # Clear MeshCat
+    if args.visualize:
+        vis = meshcat.Visualizer(zmq_url=args.zmq_url)
+        vis.delete()  # Clear MeshCat
 
     system = DualArmManipulationSystem(
         visualize=args.visualize, 
