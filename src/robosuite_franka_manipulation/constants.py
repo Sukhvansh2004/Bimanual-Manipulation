@@ -60,7 +60,7 @@ GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.keys())
 # For suction gripper: identity transform (no offset)
 GRIPPER_GRASP_OFFSETS = {
     'franka_panda': {
-        'position': np.array([0.0, 0.0, 0.1]),
+        'position': np.array([0.0, 0.0, 0.02]),
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
