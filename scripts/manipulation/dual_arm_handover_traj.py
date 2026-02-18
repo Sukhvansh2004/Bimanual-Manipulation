@@ -22,7 +22,7 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
     visualize_trajectory, visualize_handover_plan
 )
-from robosuite_franka_manipulation.utils.primitives import ObjectGraspPrimitive, DualArmHandoverPlanner
+from robosuite_franka_manipulation.utils.primitives import ObjectGraspPrimitive, DualArmHandoverPlanner, extract_grasp_transform
 
 logger = logging.getLogger(__name__)
 
@@ -116,20 +116,10 @@ def main():
             visualize_trajectory(vis, eef_traj1, res1, name="robot1_traj", tf_manager=system.tf_manager)
 
         # 4. Extract grasps from first points of trajectories
-        # T_ee = T_obj @ inv(G) => G = inv(inv(T_obj) @ T_ee) = inv(T_ee) @ T_obj
+        # G = inv(T_ee) @ T_obj — object pose in EE frame
         logger.info("Extracting grasps from trajectory first waypoints...")
-        
-        # Robot 0
-        T_obj0 = obj_traj0[0].to_matrix()
-        T_ee0 = eef_traj0[0].to_matrix()
-        G0_mat = np.linalg.inv(T_ee0) @ T_obj0
-        grasp0 = StampedPose.from_matrix(G0_mat, frame_id=obj_traj0[0].frame_id)
-        
-        # Robot 1
-        T_obj1 = obj_traj1[0].to_matrix()
-        T_ee1 = eef_traj1[0].to_matrix()
-        G1_mat = np.linalg.inv(T_ee1) @ T_obj1
-        grasp1 = StampedPose.from_matrix(G1_mat, frame_id=obj_traj1[0].frame_id)
+        grasp0 = extract_grasp_transform(eef_traj0[0], obj_traj0[0])
+        grasp1 = extract_grasp_transform(eef_traj1[0], obj_traj1[0])
 
         if not grasp0 or not grasp1:
             logger.error("Failed to extract necessary grasps.")

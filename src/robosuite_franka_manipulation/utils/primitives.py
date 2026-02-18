@@ -4,7 +4,7 @@ import numpy as np
 from typing import List, Dict, Union, Callable, Any, Tuple
 from scipy.spatial.transform import Rotation as R, Slerp
 
-from robosuite_franka_manipulation.transforms import StampedPose
+from robosuite_franka_manipulation.transforms import StampedPose, Transform
 
 
 # Utilities
@@ -79,6 +79,75 @@ def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int) -> List[Stamp
     return traj
 
 
+def compute_ee_pose(obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
+    """
+    Compute end-effector pose in world frame from an object pose and a grasp transform.
+
+    Uses Transform composition: T_ee = T_obj @ inv(G)
+    where G represents the object pose in the EE frame (ee <- object).
+
+    Args:
+        obj_pose: Object pose in world frame (world <- object)
+        grasp: Grasp transform — object pose relative to EE (ee <- object)
+
+    Returns:
+        EE pose in the same frame as obj_pose (world <- ee)
+    """
+    T_obj = Transform(
+        translation=obj_pose.position,
+        rotation=obj_pose.quaternion,
+        parent_frame=obj_pose.frame_id,
+        child_frame="object",
+    )
+    G = Transform(
+        translation=grasp.position,
+        rotation=grasp.quaternion,
+        parent_frame="ee",
+        child_frame="object",
+    )
+    # world <- object  @  object <- ee  =  world <- ee
+    T_ee = T_obj.compose(G.inverse())
+    return StampedPose(
+        position=T_ee.translation,
+        quaternion=T_ee.rotation,
+        frame_id=T_ee.parent_frame,
+    )
+
+
+def extract_grasp_transform(ee_pose: StampedPose, obj_pose: StampedPose) -> StampedPose:
+    """
+    Extract the grasp transform from an EE pose and an object pose.
+
+    Computes G = inv(T_ee) @ T_obj, i.e. the object pose in the EE frame.
+
+    Args:
+        ee_pose: End-effector pose in world frame (world <- ee)
+        obj_pose: Object pose in world frame (world <- object)
+
+    Returns:
+        Grasp as StampedPose representing object-in-EE (ee <- object)
+    """
+    T_ee = Transform(
+        translation=ee_pose.position,
+        rotation=ee_pose.quaternion,
+        parent_frame=ee_pose.frame_id,
+        child_frame="ee",
+    )
+    T_obj = Transform(
+        translation=obj_pose.position,
+        rotation=obj_pose.quaternion,
+        parent_frame=obj_pose.frame_id,
+        child_frame="object",
+    )
+    # ee <- world  @  world <- object  =  ee <- object
+    G = T_ee.inverse().compose(T_obj)
+    return StampedPose(
+        position=G.translation,
+        quaternion=G.rotation,
+        frame_id=G.parent_frame,
+    )
+
+
 def sigmoid_ramp(steps: int) -> np.ndarray:
     x = np.linspace(-6, 6, steps)
     s = 1 / (1 + np.exp(-x))
@@ -86,13 +155,36 @@ def sigmoid_ramp(steps: int) -> np.ndarray:
 
 
 class DualArmHandoverPlanner:
+    """
+    Plans a dual-arm handover sequence between a transfer arm and a receiver arm.
+
+    All poses are expected in the world frame. Grasp transforms (G1, G2) represent
+    the object pose in each EE's frame (ee <- object).
+
+    The planner produces five phases:
+        1. Pre-alignment  — receiver moves to a standoff pose offset from the object.
+        2. Approach        — receiver interpolates from standoff to the grasp pose.
+        3. Force ramp      — both arms hold; grip force transfers via sigmoid ramp.
+        4. Retreat          — transfer arm backs away along its retreat axis.
+
+    Args:
+        grasp_transfer: Grasp transform for the transfer arm (ee <- object).
+        grasp_receiver: Grasp transform for the receiver arm (ee <- object).
+        handover_object_pose: Object pose in world frame at the handover location.
+        pre_align_distance: Standoff distance along pre_align_axis (metres).
+        pre_align_axis: EE-frame axis for pre-alignment offset ('x','y','z','-x','-y','-z').
+        retreat_distance: Distance the transfer arm retreats after release (metres).
+        approach_steps: Number of interpolation steps for receiver approach.
+        ramp_steps: Number of steps for the force transfer sigmoid ramp.
+        transfer_retreat_axis: EE-frame axis for transfer arm retreat.
+    """
 
     def __init__(
         self,
         grasp_transfer: StampedPose,
         grasp_receiver: StampedPose,
         handover_object_pose: StampedPose,
-        pre_align_distance: float = 0.20,
+        pre_align_distance: float = 0.10,
         pre_align_axis: str = '-z',
         retreat_distance: float = 0.05,
         approach_steps: int = 50,
@@ -113,20 +205,19 @@ class DualArmHandoverPlanner:
 
         self.transfer_retreat_axis = transfer_retreat_axis
 
-    def ee_pose_from_object(self, obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
-        """
-        T_ee = T_obj * inverse(G)
-        """
-        T_obj = obj_pose.to_matrix()
-        G = grasp.to_matrix()
-
-        T_ee = T_obj @ np.linalg.inv(G)
-        return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
-
     def plan_pre_alignment(self) -> Tuple[StampedPose, StampedPose]:
+        """
+        Compute the receiver's standoff pose and the transfer arm's hold pose.
+
+        The standoff pose is offset from the receiver's final grasp pose along
+        ``pre_align_axis`` in the receiver-EE frame.
+
+        Returns:
+            (receiver_pre, transfer_hold) — both in world frame.
+        """
 
         # Compute receiver's final EE pose at the object, then offset along the resolved axis
-        receiver_final = self.ee_pose_from_object(self.obj_pose, self.G2)
+        receiver_final = compute_ee_pose(self.obj_pose, self.G2)
 
         pre_align_vec = resolve_axis(
             self.pre_align_axis,
@@ -139,13 +230,23 @@ class DualArmHandoverPlanner:
             frame_id=receiver_final.frame_id
         )
 
-        transfer_hold = self.ee_pose_from_object(self.obj_pose, self.G1)
+        transfer_hold = compute_ee_pose(self.obj_pose, self.G1)
 
         return receiver_pre, transfer_hold
 
     def plan_receiver_approach(self, receiver_pre: StampedPose) -> Tuple[List[StampedPose], StampedPose]:
+        """
+        Interpolate the receiver from its standoff pose to the final grasp pose.
 
-        receiver_final = self.ee_pose_from_object(
+        Args:
+            receiver_pre: Receiver standoff pose in world frame.
+
+        Returns:
+            (trajectory, receiver_final) — list of interpolated world-frame poses
+            and the final grasp pose.
+        """
+
+        receiver_final = compute_ee_pose(
             self.obj_pose,
             self.G2
         )
@@ -159,8 +260,21 @@ class DualArmHandoverPlanner:
         return receiver_traj, receiver_final
 
     def plan_force_ramp(self, receiver_final: StampedPose) -> Tuple[List[StampedPose], List[StampedPose], List[Dict[str, float]]]:
+        """
+        Generate static-pose trajectories for both arms during force transfer.
 
-        transfer_pose = self.ee_pose_from_object(
+        Both arms hold their grasp poses while grip forces transition from
+        transfer to receiver via a sigmoid ramp.
+
+        Args:
+            receiver_final: Receiver's final grasp pose in world frame.
+
+        Returns:
+            (transfer_traj, receiver_traj, force_schedule) — pose lists and
+            per-step force weights {"F_transfer", "F_receiver"}.
+        """
+
+        transfer_pose = compute_ee_pose(
             self.obj_pose,
             self.G1
         )
@@ -181,8 +295,17 @@ class DualArmHandoverPlanner:
         return transfer_traj, receiver_traj, forces
 
     def plan_retreat(self) -> List[StampedPose]:
+        """
+        Generate a retreat trajectory for the transfer arm after release.
 
-        transfer_pose = self.ee_pose_from_object(
+        The arm moves along ``transfer_retreat_axis`` (resolved in its EE frame)
+        by ``retreat_distance`` metres.
+
+        Returns:
+            List of world-frame poses from the hold pose to the retreated pose.
+        """
+
+        transfer_pose = compute_ee_pose(
             self.obj_pose,
             self.G1
         )
@@ -210,6 +333,21 @@ class DualArmHandoverPlanner:
     # ---------------------------------
 
     def generate_trajectory(self) -> Dict[str, Any]:
+        """
+        Generate the full handover trajectory dictionary.
+
+        All output poses are in world frame.
+
+        Returns:
+            Dict with keys:
+                - receiver_pre: [StampedPose] — standoff pose.
+                - transfer_hold: [StampedPose] — transfer arm hold pose.
+                - receiver_approach: List[StampedPose] — approach trajectory.
+                - force_ramp_transfer: List[StampedPose] — transfer hold during ramp.
+                - force_ramp_receiver: List[StampedPose] — receiver hold during ramp.
+                - force_schedule: List[Dict] — per-step force weights.
+                - transfer_retreat: List[StampedPose] — retreat trajectory.
+        """
 
         receiver_pre, transfer_hold = self.plan_pre_alignment()
 
@@ -233,6 +371,25 @@ class DualArmHandoverPlanner:
 
 
 class ObjectGraspPrimitive:
+    """
+    Plans an approach-and-grasp trajectory for a single arm.
+
+    All poses are expected in the world frame. The grasp transform (G)
+    represents the object pose in the EE's frame (ee <- object).
+
+    The planner produces:
+        1. Grasp pose     — EE pose that places the gripper at the object.
+        2. Pre-grasp pose — offset from grasp along ``approach_axis`` in EE frame.
+        3. Approach trajectory — interpolation from pre-grasp to grasp.
+
+    Args:
+        object_pose: Object pose in world frame (world <- object).
+        grasp_transform: Grasp transform — object in EE frame (ee <- object).
+        pregrasp_distance: Standoff distance along approach_axis (metres).
+        approach_axis: EE-frame axis for the approach direction.
+        approach_steps: Number of interpolation steps.
+        grasp_steps: Number of steps to hold at grasp (unused currently).
+    """
 
     def __init__(
         self,
@@ -254,22 +411,19 @@ class ObjectGraspPrimitive:
 
     # ---------------------------------
 
-    def ee_from_object(self, obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
-
-        T_obj = obj_pose.to_matrix()
-        G = grasp.to_matrix()
-
-        T_ee = T_obj @ np.linalg.inv(G)
-        return StampedPose.from_matrix(T_ee, obj_pose.frame_id)
-
-    # ---------------------------------
-
-    def compute_grasp_pose(self) -> StampedPose:
-        return self.ee_from_object(self.obj_pose, self.G)
-
-    # ---------------------------------
-
     def compute_pregrasp_pose(self, grasp_pose: StampedPose) -> StampedPose:
+        """
+        Compute the pre-grasp standoff pose.
+
+        Offsets from ``grasp_pose`` along ``approach_axis`` (resolved in the
+        grasp pose's EE frame) by ``pregrasp_distance``.
+
+        Args:
+            grasp_pose: The target grasp pose in world frame.
+
+        Returns:
+            Pre-grasp pose in world frame.
+        """
 
         approach_vec = resolve_axis(
             self.approach_axis,
@@ -288,8 +442,19 @@ class ObjectGraspPrimitive:
     # ---------------------------------
 
     def generate_trajectory(self) -> Dict[str, Any]:
+        """
+        Generate the full grasp trajectory dictionary.
 
-        grasp_pose = self.compute_grasp_pose()
+        All output poses are in world frame.
+
+        Returns:
+            Dict with keys:
+                - pregrasp: StampedPose — standoff pose.
+                - approach: List[StampedPose] — approach trajectory.
+                - grasp_pose: StampedPose — final grasp pose.
+        """
+
+        grasp_pose = compute_ee_pose(self.obj_pose, self.G)
         pregrasp_pose = self.compute_pregrasp_pose(grasp_pose)
 
         approach_traj = interpolate_pose(
@@ -306,6 +471,18 @@ class ObjectGraspPrimitive:
 
 
 class ReleaseRetreatPrimitive:
+    """
+    Plans a retreat trajectory after releasing an object.
+
+    The retreat direction is resolved in the release pose's EE frame.
+    All poses are expected and returned in world frame.
+
+    Args:
+        retreat_distance: How far to retreat (metres).
+        retreat_axis: EE-frame axis for the retreat direction.
+        retreat_steps: Number of interpolation steps.
+        settle_time: Time to wait after release before retreating (seconds).
+    """
 
     def __init__(
         self,
@@ -321,6 +498,18 @@ class ReleaseRetreatPrimitive:
         self.settle_time = settle_time
 
     def compute_retreat_pose(self, release_pose: StampedPose) -> StampedPose:
+        """
+        Compute the retreated EE pose.
+
+        Offsets from ``release_pose`` along ``retreat_axis`` (resolved in the
+        release pose's EE frame) by ``retreat_distance``.
+
+        Args:
+            release_pose: The EE pose at the moment of release, in world frame.
+
+        Returns:
+            Retreated pose in world frame.
+        """
 
         retreat_vec = resolve_axis(
             self.retreat_axis,
@@ -341,6 +530,18 @@ class ReleaseRetreatPrimitive:
         self,
         release_pose: StampedPose
     ) -> Dict[str, Any]:
+        """
+        Generate the retreat trajectory dictionary.
+
+        Args:
+            release_pose: The EE pose at release, in world frame.
+
+        Returns:
+            Dict with keys:
+                - release_pose: StampedPose — the input release pose.
+                - settle_time: float — seconds to wait before retreat.
+                - retreat: List[StampedPose] — retreat trajectory in world frame.
+        """
 
         retreat_pose = self.compute_retreat_pose(release_pose)
 

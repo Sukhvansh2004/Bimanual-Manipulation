@@ -60,6 +60,8 @@ from robosuite_franka_manipulation.utils.primitives import (
     DualArmHandoverPlanner,
     ObjectGraspPrimitive,
     ReleaseRetreatPrimitive,
+    compute_ee_pose,
+    extract_grasp_transform,
 )
 
 from robosuite_franka_manipulation.utils.suction_weld import (
@@ -109,6 +111,8 @@ __all__ = [
     'DualArmHandoverPlanner',
     'ObjectGraspPrimitive',
     'ReleaseRetreatPrimitive',
+    'compute_ee_pose',
+    'extract_grasp_transform',
     # Suction weld utilities
     'apply_suction_weld',
     'clear_suction_cache',
