@@ -11,12 +11,14 @@ from typing import Any, Optional
 from pynput import keyboard as pynput_keyboard
 from pynput.keyboard import Key
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from robosuite.devices import Keyboard
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils import env_step, get_action_persistence_manager, reset_action_persistence
+from robosuite_franka_manipulation.planning.utils.ik_utils import compute_arm_jacobian
 
 import time
 
@@ -117,6 +119,11 @@ class KeyboardTeleop:
         Convert a 6D EEF delta (pos + ori) to a 7-DOF joint delta via the
         damped Jacobian pseudo-inverse.
 
+        The Jacobian is evaluated at the ``ft_frame`` flange site (the same
+        frame used by the IK solver) rather than the EEF body, and the
+        rotational part of the delta is corrected for the ~90° Z-offset
+        between the body frame and the flange site frame.
+
         Args:
             robot: Robot instance from env.robots
             arm_name: Name of the arm (e.g. "right")
@@ -125,32 +132,28 @@ class KeyboardTeleop:
         Returns:
             7-element joint delta array
         """
-        sim = self.env.sim
+        robot_id = self.env.robots.index(robot)
 
-        # eef_name is a body name (e.g. "robot0_right_hand")
-        eef_body_name = robot.robot_model.eef_name[arm_name]
+        # Compute site-based Jacobian at the flange (ft_frame)
+        J = compute_arm_jacobian(
+            self.env,
+            robot_id=robot_id,
+            arm=arm_name,
+            env_lock=self.env_lock,
+        )  # (6, 7), world frame
 
-        # Get this arm's joint names using the per-arm split index
-        split = robot._joint_split_idx
-        start, end = (None, split) if arm_name == "right" else (split, None)
-        arm_joint_names = robot.robot_arm_joints[start:end]
-
-        # Map joint names → DOF addresses (Jacobian column indices)
-        dof_indices = []
-        for jn in arm_joint_names:
-            jnt_id = sim.model.joint_name2id(jn)
-            dof_indices.append(sim.model.jnt_dofadr[jnt_id])
-
-        # Full body Jacobian (3, nv) → extract relevant columns
-        jacp = sim.data.get_body_jacp(eef_body_name).reshape(3, -1)[:, dof_indices]
-        jacr = sim.data.get_body_jacr(eef_body_name).reshape(3, -1)[:, dof_indices]
-        J = np.vstack([jacp, jacr])  # (6, 7)
+        # The keyboard delta is relative to the EEF body frame which is
+        # rotated ~90° around Z w.r.t. the ft_frame site.  Rotate the
+        # rotational part of the delta so it aligns with the site frame.
+        R_correction = R.from_euler('z', -90, degrees=True).as_matrix()  # (3, 3)
+        delta = eef_delta[:6].copy()
+        delta[3:6] = R_correction @ delta[3:6]
 
         # Damped pseudo-inverse for numerical stability at singularities
         damping = 1e-4
         J_pinv = J.T @ np.linalg.inv(J @ J.T + damping * np.eye(6))  # (7, 6)
 
-        return J_pinv @ eef_delta[:6]
+        return J_pinv @ delta
 
     def _get_joint_positions(self, robot, arm_name: str) -> np.ndarray:
         """Read current joint positions for a specific arm."""

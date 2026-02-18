@@ -115,6 +115,81 @@ def unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> Lis
     return uniq
 
 
+def compute_arm_jacobian(
+    env: DualArmEnvironment,
+    *,
+    robot_id: int,
+    arm: str = "right",
+    q_config: Optional[np.ndarray] = None,
+    site_name: Optional[str] = None,
+    env_lock: threading.RLock = None,
+) -> np.ndarray:
+    """Compute the 6×7 geometric Jacobian at the EEF flange site.
+
+    The Jacobian maps 7-DOF joint velocities to 6-D spatial velocities
+    ``[v_x, v_y, v_z, ω_x, ω_y, ω_z]`` expressed in the **world frame**,
+    evaluated at the ``ft_frame`` site (the flange where the gripper mounts).
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Index of the robot (0 or 1).
+        arm: Which arm (``"right"`` or ``"left"``).
+        q_config: Joint configuration (7,) at which to evaluate the Jacobian.
+            If *None*, the current simulation configuration is used.
+        site_name: Override for the MuJoCo site name.  Defaults to
+            ``get_eef_site_name(robot_id, arm)``.
+        env_lock: Optional reentrant lock guarding the environment.
+
+    Returns:
+        ``np.ndarray`` of shape ``(6, 7)`` – the stacked translational and
+        rotational Jacobian columns for the arm joints.
+    """
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+
+        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
+        if len(joint_ids) != constants.FRANKA_ARM_DOF:
+            raise RuntimeError(
+                f"Expected {constants.FRANKA_ARM_DOF} arm joints for "
+                f"robot{robot_id}, found {len(joint_ids)}."
+            )
+
+        joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
+        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+
+        if site_name is None:
+            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+        site_id = int(model.site_name2id(site_name))
+
+        model_native = mujoco_utils.get_native_mj_object(model)
+        data_native = mujoco_utils.get_native_mj_object(data)
+
+        # Optionally set a custom joint configuration
+        restore = False
+        if q_config is not None:
+            qpos_backup = np.array(data.qpos, copy=True)
+            qvel_backup = np.array(data.qvel, copy=True)
+            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_config)
+            mujoco.mj_fwdPosition(model_native, data_native)
+            restore = True
+
+        nv = int(model_native.nv)
+        jacp = np.zeros((3, nv))
+        jacr = np.zeros((3, nv))
+        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+
+        J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])  # (6, 7)
+
+        if restore:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_fwdPosition(model_native, data_native)
+
+        return J
+
+
 def enumerate_ik_solutions_for_arm(
     env: DualArmEnvironment,
     *,
