@@ -20,7 +20,7 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
-    visualize_trajectory
+    visualize_trajectory, visualize_handover_plan
 )
 from robosuite_franka_manipulation.utils.primitives import ObjectGraspPrimitive, DualArmHandoverPlanner
 
@@ -205,22 +205,29 @@ def main():
                 )
                 h_traj = h_planner.generate_trajectory()
                 
+                # Visualize handover plan in MeshCat
+                if args.visualize:
+                    visualize_handover_plan(
+                        vis, h_traj,
+                        name=f"handover_{current_idx}",
+                        tf_manager=system.tf_manager,
+                    )
+                
                 other_arm = system.right_arm if current_robot == 0 else system.left_arm
                 other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
                 
                 # Use planning joint configs as IK hints for the handover poses
                 other_joints = joints1 if current_robot == 0 else joints0
                 q_warm_start_receiver = other_joints[current_idx] if other_joints[current_idx] is not None else None
-                current_joints_h = joints0 if current_robot == 0 else joints1
-                q_warm_start_transfer = current_joints_h[current_idx] if current_joints_h[current_idx] is not None else None
                 
                 logger.info(f"Robot {1 - current_robot} moving to handover pre-pose...")
-                other_arm.move_to_pose(h_traj["receiver_pre"][0], q_warm_start=q_warm_start_receiver)
+                other_arm.move_to_pose(h_traj["receiver_pre"][0])
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
-                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, q_warm_start=q_warm_start_transfer)
+                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
 
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
+                other_gripper.release()
                 other_arm.follow_trajectory(h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver)
                 
                 other_gripper.grasp()

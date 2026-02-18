@@ -106,3 +106,98 @@ def visualize_trajectory(
         
         # Set transform for the whole waypoint group (marker + potentially frame)
         vis[waypoint_path].set_transform(pose.to_matrix())
+
+
+def visualize_handover_plan(
+    vis: meshcat.Visualizer,
+    handover_data: dict,
+    name: str = "handover",
+    tf_manager: Optional[TransformManager] = None,
+) -> None:
+    """Visualize the handover plan produced by DualArmHandoverPlanner.
+
+    Draws:
+      - receiver_pre pose (cyan frame + sphere)
+      - transfer_hold pose (magenta frame + sphere)
+      - receiver_approach trajectory (line + frames)
+      - transfer_retreat trajectory (line + frames)
+      - object handover pose (yellow sphere, if inferable)
+
+    Call *after* ``DualArmHandoverPlanner.generate_trajectory()`` and pass
+    the returned dict.
+
+    Args:
+        vis: MeshCat visualizer instance.
+        handover_data: Dict returned by ``DualArmHandoverPlanner.generate_trajectory()``.
+        name: Group name in MeshCat.
+        tf_manager: Optional TransformManager for frame conversion to world.
+    """
+    root = f"{constants.VIS_PLANNING_ROOT}/handover/{name}"
+    vis[root].delete()
+
+    def _to_world(pose: StampedPose) -> StampedPose:
+        if pose.frame_id == constants.WORLD_FRAME or tf_manager is None:
+            return pose
+        return tf_manager.transform_pose(pose, constants.WORLD_FRAME)
+
+    def _draw_pose(path: str, pose: StampedPose, color: int, sphere_r: float = 0.015,
+                   frame_h: float = 0.08, frame_r: float = 0.003, label: str = ""):
+        """Draw a coordinate frame + coloured sphere at *pose*."""
+        wp = _to_world(pose)
+        T = wp.to_matrix()
+        vis[path].set_transform(T)
+        vis[f"{path}/sphere"].set_object(
+            g.Sphere(sphere_r), g.MeshBasicMaterial(color=color, opacity=0.85)
+        )
+        make_frame(vis, f"{path}/frame", h=frame_h, radius=frame_r, o=0.9)
+        vis[f"{path}/frame"].set_transform(np.eye(4))  # relative to parent
+        if label:
+            logger.info(f"  {label}: pos={wp.position}, quat={wp.quaternion}")
+
+    def _draw_traj(path: str, traj: List[StampedPose], color: int, line_color: int,
+                   sphere_r: float = 0.008, frame_step: int = 10, label: str = ""):
+        """Draw a trajectory as a line with periodic frames."""
+        world_traj = [_to_world(p) for p in traj]
+        points = np.array([p.position for p in world_traj])  # (N, 3)
+
+        # Line
+        vis[f"{path}/line"].set_object(
+            g.Line(g.PointsGeometry(points.T), g.LineBasicMaterial(linewidth=2, color=line_color))
+        )
+
+        # Start / end markers + periodic frames
+        for i, wp in enumerate(world_traj):
+            if i == 0 or i == len(world_traj) - 1 or i % frame_step == 0:
+                wp_path = f"{path}/wp_{i}"
+                vis[wp_path].set_transform(wp.to_matrix())
+                vis[f"{wp_path}/sphere"].set_object(
+                    g.Sphere(sphere_r), g.MeshBasicMaterial(color=color, opacity=0.7)
+                )
+                make_frame(vis, f"{wp_path}/frame", h=0.04, radius=0.0015, o=0.7)
+                vis[f"{wp_path}/frame"].set_transform(np.eye(4))
+
+        if label:
+            logger.info(f"  {label}: {len(traj)} waypoints, "
+                        f"start={world_traj[0].position}, end={world_traj[-1].position}")
+
+    logger.info(f"Visualizing handover plan '{name}':")
+
+    # --- Key poses ---
+    if "receiver_pre" in handover_data and handover_data["receiver_pre"]:
+        _draw_pose(f"{root}/receiver_pre", handover_data["receiver_pre"][0],
+                   color=0x00DDDD, label="receiver_pre")   # cyan
+
+    if "transfer_hold" in handover_data and handover_data["transfer_hold"]:
+        _draw_pose(f"{root}/transfer_hold", handover_data["transfer_hold"][0],
+                   color=0xDD00DD, label="transfer_hold")  # magenta
+
+    # --- Trajectories ---
+    if "receiver_approach" in handover_data and handover_data["receiver_approach"]:
+        _draw_traj(f"{root}/receiver_approach", handover_data["receiver_approach"],
+                   color=0x00AAFF, line_color=0x00CCFF, label="receiver_approach")
+
+    if "transfer_retreat" in handover_data and handover_data["transfer_retreat"]:
+        _draw_traj(f"{root}/transfer_retreat", handover_data["transfer_retreat"],
+                   color=0xFF6600, line_color=0xFF8800, label="transfer_retreat")
+
+    logger.info(f"Handover plan '{name}' visualized in MeshCat.")
