@@ -740,7 +740,7 @@ class RobosuiteArmController:
             logger.info(f"Following {'smoothened ' if smoothen else ''}pre-defined trajectory for robot{self.robot_id}_{self.arm_id} ({len(trajectory)} waypoints)")
             
             if smoothen:
-                traj_num_steps = num_steps if num_steps is not None else len(trajectory) * 2
+                traj_num_steps = num_steps if num_steps is not None else len(trajectory)
                 positions, quaternions = self.smoothen_trajectory(trajectory, num_steps=traj_num_steps)
             else:
                 # Transform all waypoints to robot base frame
@@ -761,7 +761,7 @@ class RobosuiteArmController:
                 self._visualize_se3_trajectory(positions, quaternions)
             
             num_waypoints = len(positions)
-            max_steps = num_steps if num_steps is not None else num_waypoints * 2
+            max_steps = num_steps * 2 if num_steps is not None else num_waypoints * 2
             
             current_waypoint_idx = 0
             steps_taken = 0
@@ -804,6 +804,13 @@ class RobosuiteArmController:
                 sleep_time = max(0, target_time - elapsed)
                 time.sleep(sleep_time)
                 
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_waypoint_idx}/{num_waypoints-1}, "
+                        f"pos_err={np.linalg.norm(pos_delta):.4f}m, ori_err={np.linalg.norm(ori_delta):.4f}rad"
+                    )
+
                 # Check convergence if targeting the final waypoint
                 if current_waypoint_idx == num_waypoints - 1:
                     if np.linalg.norm(pos_delta) < threshold and np.linalg.norm(ori_delta) < threshold:
@@ -839,14 +846,16 @@ class RobosuiteArmController:
         """
         n_joints = len(start_joints)
         trajectory = np.zeros((num_steps, n_joints))
+
+        # Generate quintic interpolation parameter s(t) in [0, 1]
+        s_traj = self._quintic_polynomial(
+            s0=0.0, sf=1.0, v0=0.0, vf=0.0, a0=0.0, af=0.0,
+            num_points=num_steps,
+        )
+
         for j in range(n_joints):
-            for i in range(num_steps):
-                trajectory[i, j] = self._quintic_polynomial(
-                    float(start_joints[j]),
-                    float(target_joints[j]),
-                    i,
-                    num_steps,
-                )
+            trajectory[:, j] = start_joints[j] + s_traj * (target_joints[j] - start_joints[j])
+
         return trajectory
 
     def move_to_joint_config(
@@ -889,18 +898,26 @@ class RobosuiteArmController:
         try:
             self._stop_event.clear()
 
+            traj_num_steps = max(2, num_steps)  # Ensure at least start and end points
+
             current_joints = self.get_joint_positions()
             trajectory = self._plan_joint_quintic_trajectory(
-                current_joints, target_joints, num_steps
+                current_joints, target_joints, traj_num_steps
             )
+
+            total_waypoints = len(trajectory)
+            max_steps = total_waypoints * 2
 
             logger.info(
                 f"ROBOT {self.robot_id}:{self.arm_id} - Moving to joint config "
-                f"over {num_steps} steps"
+                f"({total_waypoints} waypoints, max {max_steps} steps)"
             )
 
+            current_wp_idx = 0
+            steps_taken = 0
             start_time = time.time()
-            for step_idx in range(num_steps):
+
+            while steps_taken < max_steps:
                 if self._stop_event.is_set():
                     logger.info(
                         f"move_to_joint_config cancelled for "
@@ -909,9 +926,12 @@ class RobosuiteArmController:
                     self.last_status = 0
                     return False
 
-                waypoint = trajectory[step_idx]
+                if current_wp_idx < total_waypoints - 1:
+                    current_wp_idx += 1
+
+                target_wp = trajectory[current_wp_idx]
                 robot_action = self.construct_joint_action(
-                    waypoint, gripper_action=gripper_action
+                    target_wp, gripper_action=gripper_action
                 )
 
                 with self.env_lock if self.env_lock else nullcontext():
@@ -922,25 +942,42 @@ class RobosuiteArmController:
                         arm=self.arm_id,
                     )
 
+                steps_taken += 1
+
                 elapsed = time.time() - start_time
-                target_time = (step_idx + 1) * dt
+                target_time = steps_taken * dt
                 time.sleep(max(0, target_time - elapsed))
 
-            # Convergence check
-            final_joints = self.get_joint_positions()
-            joint_error = np.max(np.abs(final_joints - target_joints))
-            if joint_error < threshold:
-                self.last_status = 1
-                logger.info(
-                    f"ROBOT {self.robot_id}:{self.arm_id} - "
-                    f"Joint config converged (max err={joint_error:.4f} rad)"
-                )
-                return True
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    cur_joints = self.get_joint_positions()
+                    cur_error = np.max(np.abs(cur_joints - target_joints))
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_wp_idx}/{total_waypoints-1}, "
+                        f"max joint err={cur_error:.4f} rad"
+                    )
 
+                # Convergence check at last waypoint
+                if current_wp_idx == total_waypoints - 1:
+                    cur_joints = self.get_joint_positions()
+                    joint_error = np.max(np.abs(cur_joints - target_joints))
+                    if joint_error < threshold:
+                        self.last_status = 1
+                        logger.info(
+                            f"ROBOT {self.robot_id}:{self.arm_id} - "
+                            f"Joint config converged at step {steps_taken} "
+                            f"(max err={joint_error:.4f} rad)"
+                        )
+                        return True
+
+            # Final convergence report
+            final_joints = self.get_joint_positions()
+            final_error = np.max(np.abs(final_joints - target_joints))
             self.last_status = 0
             logger.info(
                 f"ROBOT {self.robot_id}:{self.arm_id} - "
-                f"Joint config did NOT converge (max err={joint_error:.4f} rad)"
+                f"Joint config did NOT converge after {steps_taken} steps "
+                f"(max err={final_error:.4f} rad)"
             )
             return False
         finally:
@@ -996,7 +1033,7 @@ class RobosuiteArmController:
             n_waypoints = len(waypoints)
 
             if smoothen:
-                traj_steps = num_steps if num_steps is not None else n_waypoints * 2
+                traj_steps = num_steps if num_steps is not None else n_waypoints
                 current_joints = self.get_joint_positions()
                 joint_configs = self._plan_joint_quintic_trajectory(
                     current_joints, waypoints[-1], traj_steps
@@ -1005,7 +1042,7 @@ class RobosuiteArmController:
                 joint_configs = np.array(waypoints)
 
             total_waypoints = len(joint_configs)
-            max_steps = num_steps if num_steps is not None else total_waypoints * 2
+            max_steps = num_steps * 2 if num_steps is not None else total_waypoints * 2
 
             logger.info(
                 f"Following joint trajectory for robot{self.robot_id}_{self.arm_id} "
@@ -1046,6 +1083,15 @@ class RobosuiteArmController:
                 elapsed = time.time() - start_time
                 target_time = steps_taken * dt
                 time.sleep(max(0, target_time - elapsed))
+
+                # Log progress periodically
+                if steps_taken % 20 == 0:
+                    current_joints = self.get_joint_positions()
+                    joint_error = np.max(np.abs(current_joints - target_wp))
+                    logger.debug(
+                        f"Step {steps_taken}/{max_steps}, waypoint {current_wp_idx}/{total_waypoints-1}, "
+                        f"max joint err={joint_error:.4f} rad"
+                    )
 
                 # Convergence check at last waypoint
                 if current_wp_idx == total_waypoints - 1:

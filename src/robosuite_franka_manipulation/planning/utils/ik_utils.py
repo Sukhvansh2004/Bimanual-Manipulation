@@ -96,7 +96,6 @@ def solve_ik_scipy(
     rot_dist = np.linalg.norm(rot_err)
 
     if pos_dist <= pos_tol and rot_dist <= ori_tol:
-        logger.debug(f"IK solution found: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
         return q_final
     
     if not res.success:

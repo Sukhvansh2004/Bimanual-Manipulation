@@ -154,7 +154,7 @@ def main():
         current_arm.move_to_pose(grasp_traj_data["pregrasp"])
         logger.debug(f"Robot {current_robot} moved to pregrasp pose and releasing gripper.")
         current_gripper.release()
-        current_arm.follow_trajectory(grasp_traj_data["approach"], num_steps=200)
+        current_arm.follow_trajectory(grasp_traj_data["approach"])
         logger.debug(f"Robot {current_robot} followed approach trajectory to grasp pose and grasping.")
         current_gripper.grasp()
         time.sleep(0.5)
@@ -201,14 +201,14 @@ def main():
                 
                 other_arm.move_to_pose(h_traj["receiver_pre"][0])
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
-                other_arm.follow_trajectory(h_traj["receiver_approach"], num_steps=200)
+                other_arm.follow_trajectory(h_traj["receiver_approach"])
                 
                 other_gripper.grasp()
                 time.sleep(0.5)
                 current_gripper.release()
                 time.sleep(0.5)
                 
-                current_arm.follow_trajectory(h_traj["transfer_retreat"], num_steps=200)
+                current_arm.follow_trajectory(h_traj["transfer_retreat"])
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
