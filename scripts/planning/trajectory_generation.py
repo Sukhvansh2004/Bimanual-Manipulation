@@ -180,7 +180,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
     parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
     parser.add_argument("--output-dir", type=str, default=constants.DATA_DIR, help="Output directory for data")
-    parser.add_argument("--filename", type=str, default="shelf_trajectory.npz", help="Output filename")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--num-workers", type=int, default=multiprocessing.cpu_count() // 2, help="Number of parallel workers")
     
