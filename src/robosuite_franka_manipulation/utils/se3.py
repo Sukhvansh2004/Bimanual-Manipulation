@@ -24,8 +24,10 @@ References:
 """
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R, Slerp
 from typing import Tuple
+
+from robosuite_franka_manipulation import constants
 
 
 def skew(v: np.ndarray) -> np.ndarray:
@@ -339,9 +341,19 @@ def interpolate_SE3(T_start: np.ndarray, T_end: np.ndarray, s: float) -> np.ndar
 
 def interpolate_pose(start_pos: np.ndarray, start_quat: np.ndarray, 
                      end_pos: np.ndarray, end_quat: np.ndarray, 
-                     t: float) -> Tuple[np.ndarray, np.ndarray]:
+                     t: float,
+                     interpolation_type: str = None) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Interpolate between two poses using SE(3) geodesic interpolation.
+    Interpolate between two poses.
+    
+    Supports two modes controlled by ``interpolation_type``
+    (defaults to ``constants.INTERPOLATION_TYPE``):
+    
+    - ``'linear'``: Decoupled interpolation — linear (lerp) for translation,
+      spherical linear (slerp) for rotation. Faster, but rotation and
+      translation are not coupled.
+    - ``'SE3'``: Geodesic interpolation on the SE(3) manifold.  Produces
+      coupled rotation-translation motion along the shortest path.
     
     Args:
         start_pos: Start position [x, y, z]
@@ -349,13 +361,26 @@ def interpolate_pose(start_pos: np.ndarray, start_quat: np.ndarray,
         end_pos: End position [x, y, z]
         end_quat: End quaternion [x, y, z, w]
         t: Interpolation parameter in [0, 1]
+        interpolation_type: 'linear' or 'SE3' (default: constants.INTERPOLATION_TYPE)
         
     Returns:
         Tuple of (position, quaternion)
     """
-    T_start = pose_to_SE3(start_pos, start_quat)
-    T_end = pose_to_SE3(end_pos, end_quat)
+    if interpolation_type is None:
+        interpolation_type = constants.INTERPOLATION_TYPE
     
-    T_interp = interpolate_SE3(T_start, T_end, t)
-    
-    return SE3_to_pose(T_interp)
+    if interpolation_type == 'linear':
+        pos = (1 - t) * np.asarray(start_pos) + t * np.asarray(end_pos)
+        
+        r_start = R.from_quat(start_quat)
+        r_end = R.from_quat(end_quat)
+        slerp = Slerp([0.0, 1.0], R.concatenate([r_start, r_end]))
+        quat = slerp([t]).as_quat()[0]
+        
+        return pos, quat
+    else:
+        # SE(3) geodesic interpolation
+        T_start = pose_to_SE3(start_pos, start_quat)
+        T_end = pose_to_SE3(end_pos, end_quat)
+        T_interp = interpolate_SE3(T_start, T_end, t)
+        return SE3_to_pose(T_interp)

@@ -51,6 +51,7 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
 from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
 from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
+from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import ObjectMeshVisualizer
 
 def setup_logging(level: int = logging.INFO):
     """Configure logging."""
@@ -140,15 +141,25 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
                 tf_manager=worker_tf_manager
             )
             
-            if vis_args and vis_args.get('visualize_robot_meshes'):
-                mesh_visualizer = RobotMeshVisualizer(vis=worker_vis, tf_manager=worker_tf_manager, base_path=f"robot{robot_id}_configs")
+            if vis_args and vis_args.get('visualize_mesh'):
+                sample_ratio = vis_args.get('mesh_sample_ratio', 0.5)
+                step_interval = vis_args.get('mesh_step_interval', 10)
+                opacity = vis_args.get('mesh_opacity', 0.2)
+                
+                # Robot mesh visualization
+                mesh_visualizer = RobotMeshVisualizer(
+                    vis=worker_vis, tf_manager=worker_tf_manager,
+                    base_path=f"robot{robot_id}_configs",
+                    mesh_sample_ratio=sample_ratio
+                )
                 mesh_visualizer.visualize_trajectory_configs(
                     trajectory_id=f"grasp_{i}",
                     robot_id=robot_id,
                     waypoint_results=results,
-                    step_interval=vis_args.get('mesh_step_interval', 10),
-                    opacity=vis_args.get('mesh_opacity', 0.2)
+                    step_interval=step_interval,
+                    opacity=opacity
                 )
+                
         
         return {
             'id': i,
@@ -180,12 +191,14 @@ def main() -> None:
     parser.add_argument("--target-quat", type=float, nargs=4, default=default_target_quat, help="Target quaternion [x, y, z, w]")
     
     # Visualization arguments
-    parser.add_argument("--visualize-robot-meshes", action="store_true", default=False,
-                        help="Visualize robot configurations as meshes along trajectories")
+    parser.add_argument("--visualize-mesh", action="store_true", default=False,
+                        help="Visualize robot and object meshes along trajectories")
     parser.add_argument("--mesh-step-interval", type=int, default=constants.VIS_MESH_STEP_INTERVAL,
-                        help=f"Visualize robot mesh every N waypoints (default: {constants.VIS_MESH_STEP_INTERVAL})")
+                        help=f"Visualize mesh every N waypoints (default: {constants.VIS_MESH_STEP_INTERVAL})")
     parser.add_argument("--mesh-opacity", type=float, default=constants.VIS_MESH_OPACITY,
-                        help=f"Opacity for robot mesh visualization (0-1, default: {constants.VIS_MESH_OPACITY})")
+                        help=f"Opacity for mesh visualization (0-1, default: {constants.VIS_MESH_OPACITY})")
+    parser.add_argument("--mesh-sample-ratio", type=float, default=0.5,
+                        help="Fraction of mesh faces to keep for faster rendering (0-1, default: 0.5)")
     
     args = parser.parse_args()
 
@@ -303,6 +316,20 @@ def main() -> None:
     )
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
+    # Visualize object meshes along trajectory (once, shared across all grasps)
+    if args.visualize_mesh:
+        logger.info("Visualizing object meshes along trajectory...")
+        obj_mesh_visualizer = ObjectMeshVisualizer(
+            vis=vis, tf_manager=tf_manager,
+            mesh_sample_ratio=args.mesh_sample_ratio
+        )
+        obj_mesh_visualizer.visualize_trajectory(
+            object_name="flatPlate",
+            object_trajectory=object_trajectory,
+            step_interval=args.mesh_step_interval,
+            opacity=args.mesh_opacity
+        )
+    
     logger.info("Object trajectory generated.")
     
     # 6. Generate Grasps and Feasible EEF Trajectories
@@ -347,9 +374,10 @@ def main() -> None:
     start_time = time.time()
 
     vis_args = {
-        'visualize_robot_meshes': args.visualize_robot_meshes,
+        'visualize_mesh': args.visualize_mesh,
         'mesh_step_interval': args.mesh_step_interval,
-        'mesh_opacity': args.mesh_opacity
+        'mesh_opacity': args.mesh_opacity,
+        'mesh_sample_ratio': args.mesh_sample_ratio
     }
 
     with multiprocessing.Pool(

@@ -50,7 +50,8 @@ class RobotMeshVisualizer:
         self, 
         vis: meshcat.Visualizer,
         tf_manager: TransformManager,
-        base_path: str = "trajectory_configs"
+        base_path: str = "trajectory_configs",
+        mesh_sample_ratio: float = 1.0
     ):
         """
         Initialize the RobotMeshVisualizer.
@@ -60,11 +61,14 @@ class RobotMeshVisualizer:
             tf_manager: TransformManager for frame conversions
             base_path: Base path in MeshCat hierarchy for all trajectory visualizations.
                        If None, uses constants.VIS_PLANNING_ROOT/constants.VIS_ROBOT_CONFIG_PATH
+            mesh_sample_ratio: Fraction of mesh faces to keep (0-1). Lower values
+                               speed up MeshCat rendering at the cost of visual quality.
         """
         self.vis = vis
         self.tf_manager = tf_manager
         self.env = tf_manager.env
         self.env_lock = tf_manager.env_lock
+        self.mesh_sample_ratio = max(0.01, min(1.0, mesh_sample_ratio))
         # Use planning root path for organization
         if base_path == "trajectory_configs":
             # Default value - use constants
@@ -124,6 +128,12 @@ class RobotMeshVisualizer:
             
             vertices = np.array(model.mesh_vert[vert_adr:vert_adr + vert_num])
             faces = np.array(model.mesh_face[face_adr:face_adr + face_num])
+            
+            # Subsample faces to reduce MeshCat rendering load
+            if self.mesh_sample_ratio < 1.0 and len(faces) > 10:
+                num_keep = max(4, int(len(faces) * self.mesh_sample_ratio))
+                idx = np.linspace(0, len(faces) - 1, num_keep, dtype=int)
+                faces = faces[idx]
             
             geometry = g.TriangularMeshGeometry(vertices, faces)
             

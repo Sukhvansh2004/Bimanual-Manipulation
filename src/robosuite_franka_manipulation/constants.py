@@ -148,6 +148,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # Object Trajectory Generation
+INTERPOLATION_TYPE = 'linear'  # 'linear' (decoupled lerp+slerp) or 'SE3' (geodesic on SE(3) manifold)
 OBJECT_TRAJ_NUM_STEPS = 50  # Default number of steps for object trajectory
 OBJECT_TRAJ_LIFT_HEIGHT = 0.2  # Height to lift object during trajectory (meters)
 OBJECT_TRAJ_APPROACH_OFFSET = 0.3  # Approach offset distance (meters)
