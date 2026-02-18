@@ -337,9 +337,27 @@ def enumerate_ik_solutions_for_arm(
 
 
 def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
-    """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame."""
+    """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame.
+    
+    Converts a pose from body-frame convention to site-frame convention.
+    Used before IK solving.
+    """
     corrected = pose.copy()
     r_corr = R.from_euler('z', -90, degrees=True)
+    r_pose = R.from_quat(corrected.quaternion)
+    corrected.quaternion = (r_pose * r_corr).as_quat()
+    return corrected
+
+
+def reverse_ik_orientation_correction(pose: StampedPose) -> StampedPose:
+    """Apply +90 degree Z rotation to convert from site-frame to body-frame convention.
+    
+    This is the inverse of apply_ik_orientation_correction.
+    Used when converting stored site-frame EEF poses back to body-frame
+    for use with move_to_pose / follow_trajectory.
+    """
+    corrected = pose.copy()
+    r_corr = R.from_euler('z', 90, degrees=True)
     r_pose = R.from_quat(corrected.quaternion)
     corrected.quaternion = (r_pose * r_corr).as_quat()
     return corrected
