@@ -215,16 +215,17 @@ class DualArmEnvironment(TwoArmEnv):
                     size = spec.get('size', [0.05, 0.05, 0.05])
                     rgba = spec.get('rgba', [0.5, 0.5, 0.5, 1.0])
                     density = spec.get('density', 500.0)
+                    friction = spec.get('friction', None)
                     
                     if obj_type == 'box':
-                        obj = BoxObject(name=name, size=[s/2.0 for s in size], rgba=rgba, density=density, joints="default")
+                        obj = BoxObject(name=name, size=[s/2.0 for s in size], rgba=rgba, density=density, friction=friction, joints="default")
                     elif obj_type == 'cylinder':
-                        obj = CylinderObject(name=name, size=size, rgba=rgba, density=density, joints="default")
+                        obj = CylinderObject(name=name, size=size, rgba=rgba, density=density, friction=friction, joints="default")
                     elif obj_type in ('ball', 'sphere'):
                         radius = size[0] if isinstance(size, (list, tuple)) else size
-                        obj = BallObject(name=name, size=[radius], rgba=rgba, density=density, joints="default")
+                        obj = BallObject(name=name, size=[radius], rgba=rgba, density=density, friction=friction, joints="default")
                     elif obj_type == 'capsule':
-                        obj = CapsuleObject(name=name, size=size, rgba=rgba, density=density, joints="default")
+                        obj = CapsuleObject(name=name, size=size, rgba=rgba, density=density, friction=friction, joints="default")
                     else:
                         logger.warning(f"Unknown object type: {obj_type}")
                         continue

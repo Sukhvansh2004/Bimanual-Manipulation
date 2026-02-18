@@ -22,7 +22,9 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
     visualize_trajectory, visualize_handover_plan
 )
-from robosuite_franka_manipulation.utils.primitives import ObjectGraspPrimitive, DualArmHandoverPlanner, extract_grasp_transform
+from robosuite_franka_manipulation.utils.primitives import (
+    ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ def main():
         create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
     ]
     custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100, friction=[1.0, 0.005, 0.0001])
     ]
 
     if args.visualize:
@@ -239,9 +241,17 @@ def main():
                     current_idx = last_idx
                 break
 
-        logger.info("Releasing object...")
+        # 6. Release and Retreat
+        logger.info(f"Robot {current_robot} releasing object and retreating...")
+        release_pose = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx]
+        release_primitive = ReleaseRetreatPrimitive()
+        release_traj_data = release_primitive.generate_trajectory(release_pose)
+
         current_gripper.release()
-        time.sleep(1.0)
+        time.sleep(release_traj_data["settle_time"])
+
+        logger.info(f"Robot {current_robot} following retreat trajectory...")
+        current_arm.follow_trajectory(release_traj_data["retreat"])
         logger.info("Done!")
 
     except Exception as e:

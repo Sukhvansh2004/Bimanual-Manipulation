@@ -243,6 +243,7 @@ def create_primitive_object(
     quat: Optional[List[float]] = None,
     rgba: Optional[List[float]] = None,
     density: float = 500.0,
+    friction: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Create a primitive object specification for the environment.
@@ -255,6 +256,7 @@ def create_primitive_object(
         quat: Optional [x, y, z, w] quaternion for orientation (default: identity)
         rgba: Optional [r, g, b, a] color values
         density: Object density in kg/m³
+        friction: Optional [slide, spin, roll] MuJoCo friction coefficients
     
     Returns:
         Dictionary with object specification
@@ -266,6 +268,7 @@ def create_primitive_object(
         'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
         'quat': quat if quat else [0.0, 0.0, 0.0, 1.0],
         'rgba': rgba if rgba else [0.5, 0.5, 0.5, 1.0],
+        'friction': friction,
         'density': density,
     }
 

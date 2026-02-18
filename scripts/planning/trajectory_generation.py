@@ -362,8 +362,8 @@ def main() -> None:
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
-    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=10)
-    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=10)
+    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=20)
+    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=20)
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
