@@ -460,17 +460,10 @@ def make_dual_arm_env(
     part_config["input_ref_frame"] = constants.DEFAULT_INPUT_REF_FRAME
     part_config["input_type"] = input_type
     
-    # Configure impedance parameters based on controller type
-    if controller_name == constants.ControllerName.OSC_POSE:
-        # OSC_POSE specific settings: higher stiffness for better tracking
-        part_config["kp"] = constants.DEFAULT_KP
-        part_config["damping_ratio"] = constants.DEFAULT_DAMPING_RATIO
-        part_config["kp_limits"] = constants.DEFAULT_KP_LIMITS
-        part_config["damping_ratio_limits"] = constants.DEFAULT_DAMPING_RATIO_LIMITS
-    elif controller_name == constants.ControllerName.JOINT_POSITION:
-        # JOINT_POSITION specific settings
-        # Use robosuite defaults or configure here if needed
-        pass
+    part_config["kp"] = constants.DEFAULT_KP
+    part_config["damping_ratio"] = constants.DEFAULT_DAMPING_RATIO
+    part_config["kp_limits"] = constants.DEFAULT_KP_LIMITS
+    part_config["damping_ratio_limits"] = constants.DEFAULT_DAMPING_RATIO_LIMITS
 
     # Create the composite controller config
     controller_config = {

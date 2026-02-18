@@ -102,6 +102,9 @@ def main():
         if res0 is None or res1 is None:
             logger.error("Feasibility results missing from trajectory files.")
             return
+        if joints0 is None or joints1 is None:
+            logger.error("Joint config data missing from trajectory files.")
+            return
 
         # 3. Visualization of Trajectories
         logger.info("Visualizing trajectories in MeshCat...")
@@ -151,7 +154,7 @@ def main():
         current_arm.move_to_pose(grasp_traj_data["pregrasp"])
         logger.debug(f"Robot {current_robot} moved to pregrasp pose and releasing gripper.")
         current_gripper.release()
-        current_arm.follow_trajectory(grasp_traj_data["approach"], smoothen=args.smoothen, num_steps=200)
+        current_arm.follow_trajectory(grasp_traj_data["approach"], num_steps=200)
         logger.debug(f"Robot {current_robot} followed approach trajectory to grasp pose and grasping.")
         current_gripper.grasp()
         time.sleep(0.5)
@@ -180,8 +183,8 @@ def main():
             
             if next_handover_idx != -1 and next_handover_idx > current_idx:
                 logger.info(f"Robot {current_robot} following segment to handover at {next_handover_idx}...")
-                segment = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx+1 : next_handover_idx+1]
-                current_arm.follow_trajectory(segment, gripper_action=1.0, num_steps=200, smoothen=args.smoothen)
+                joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : next_handover_idx+1])
+                current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, num_steps=200, smoothen=args.smoothen)
                 current_idx = next_handover_idx
                 
                 logger.info(f"Executing handover at {current_idx}...")
@@ -198,14 +201,14 @@ def main():
                 
                 other_arm.move_to_pose(h_traj["receiver_pre"][0])
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
-                other_arm.follow_trajectory(h_traj["receiver_approach"], smoothen=args.smoothen, num_steps=200)
+                other_arm.follow_trajectory(h_traj["receiver_approach"], num_steps=200)
                 
                 other_gripper.grasp()
                 time.sleep(0.5)
                 current_gripper.release()
                 time.sleep(0.5)
                 
-                current_arm.follow_trajectory(h_traj["transfer_retreat"], smoothen=args.smoothen, num_steps=200)
+                current_arm.follow_trajectory(h_traj["transfer_retreat"], num_steps=200)
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
@@ -213,8 +216,8 @@ def main():
                 last_idx = find_last_feasible_point(res_current)
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
-                    segment = (eef_traj0 if current_robot == 0 else eef_traj1)[current_idx+1 : last_idx+1]
-                    current_arm.follow_trajectory(segment, gripper_action=1.0, smoothen=args.smoothen, num_steps=200)
+                    joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : last_idx+1])
+                    current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, smoothen=args.smoothen, num_steps=200)
                     current_idx = last_idx
                 break
 

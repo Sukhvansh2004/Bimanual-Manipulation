@@ -143,10 +143,12 @@ class KeyboardTeleop:
         )  # (6, 7), world frame
 
         # The keyboard delta is relative to the EEF body frame which is
-        # rotated ~90° around Z w.r.t. the ft_frame site.  Rotate the
-        # rotational part of the delta so it aligns with the site frame.
+        # rotated ~90° around Z w.r.t. the ft_frame site.  Rotate both
+        # the translational and rotational parts so they align with the
+        # site frame used by the Jacobian.
         R_correction = R.from_euler('z', -90, degrees=True).as_matrix()  # (3, 3)
         delta = eef_delta[:6].copy()
+        delta[0:3] = R_correction @ delta[0:3]
         delta[3:6] = R_correction @ delta[3:6]
 
         # Damped pseudo-inverse for numerical stability at singularities
