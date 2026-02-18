@@ -92,26 +92,26 @@ class DualArmHandoverPlanner:
         grasp_transfer: StampedPose,
         grasp_receiver: StampedPose,
         handover_object_pose: StampedPose,
-        pre_align_offset: np.ndarray = np.array([0, 0, -0.20]),
+        pre_align_distance: float = 0.20,
+        pre_align_axis: str = '-z',
         retreat_distance: float = 0.05,
         approach_steps: int = 50,
         ramp_steps: int = 60,
         transfer_retreat_axis: str = '-z',
-        receiver_approach_axis: str = '-z',
     ):
 
         self.G1 = grasp_transfer
         self.G2 = grasp_receiver
         self.obj_pose = handover_object_pose
 
-        self.pre_align_offset = pre_align_offset
+        self.pre_align_distance = pre_align_distance
+        self.pre_align_axis = pre_align_axis
         self.retreat_distance = retreat_distance
 
         self.approach_steps = approach_steps
         self.ramp_steps = ramp_steps
 
         self.transfer_retreat_axis = transfer_retreat_axis
-        self.receiver_approach_axis = receiver_approach_axis
 
     def ee_pose_from_object(self, obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
         """
@@ -125,13 +125,20 @@ class DualArmHandoverPlanner:
 
     def plan_pre_alignment(self) -> Tuple[StampedPose, StampedPose]:
 
-        aligned_obj = StampedPose(
-            position=self.obj_pose.position + self.pre_align_offset,
-            quaternion=self.obj_pose.quaternion,
-            frame_id=self.obj_pose.frame_id
+        # Compute receiver's final EE pose at the object, then offset along the resolved axis
+        receiver_final = self.ee_pose_from_object(self.obj_pose, self.G2)
+
+        pre_align_vec = resolve_axis(
+            self.pre_align_axis,
+            receiver_final.quaternion
         )
 
-        receiver_pre = self.ee_pose_from_object(aligned_obj, self.G2)
+        receiver_pre = StampedPose(
+            position=receiver_final.position + pre_align_vec * self.pre_align_distance,
+            quaternion=receiver_final.quaternion,
+            frame_id=receiver_final.frame_id
+        )
+
         transfer_hold = self.ee_pose_from_object(self.obj_pose, self.G1)
 
         return receiver_pre, transfer_hold
@@ -141,21 +148,6 @@ class DualArmHandoverPlanner:
         receiver_final = self.ee_pose_from_object(
             self.obj_pose,
             self.G2
-        )
-
-        axis_vec = resolve_axis(
-            self.receiver_approach_axis,
-            receiver_final.quaternion
-        )
-
-        distance = np.linalg.norm(
-            receiver_pre.position - receiver_final.position
-        )
-
-        receiver_pre = StampedPose(
-            position=receiver_final.position + axis_vec * distance,
-            quaternion=receiver_final.quaternion,
-            frame_id=receiver_final.frame_id
         )
 
         receiver_traj = interpolate_pose(
