@@ -224,7 +224,7 @@ def main() -> None:
         create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
     ]
     custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
+        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100)
     ]
     
     # Create env (headless for planning script, visualization handled by Meshcat)
