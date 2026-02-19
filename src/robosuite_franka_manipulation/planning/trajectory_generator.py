@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.utils.se3 import interpolate_pose, pose_to_SE3
+from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite.utils import transform_utils as T
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
