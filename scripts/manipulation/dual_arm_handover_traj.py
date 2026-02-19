@@ -11,11 +11,11 @@ import argparse
 import threading
 from typing import List, Optional
 import meshcat
-
+from contextlib import nullcontext
 from robosuite_franka_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env
+from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
@@ -49,6 +49,12 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
         if waypoint_results[i].is_feasible:
             return i
     return None
+
+def stabilise(env, env_lock: threading.RLock, steps: int = 10):
+    """Step the environment a few times to stabilize after gripper actions."""
+    with env_lock if env_lock else nullcontext():
+        for _ in range(steps):
+            env_step(env)
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
@@ -158,7 +164,7 @@ def main():
         current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start_grasp)
 
         current_gripper.grasp()
-        time.sleep(0.5)
+        stabilise(system.env, system.env_lock)
 
         while current_idx < len(res0) - 1:
             res_current = res0 if current_robot == 0 else res1
@@ -223,9 +229,8 @@ def main():
                 other_arm.follow_trajectory(h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver)
                 
                 other_gripper.grasp()
-                time.sleep(0.5)
+                stabilise(system.env, system.env_lock)
                 current_gripper.release()
-                time.sleep(0.5)
                 
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
@@ -248,10 +253,13 @@ def main():
         release_traj_data = release_primitive.generate_trajectory(release_pose)
 
         current_gripper.release()
-        time.sleep(release_traj_data["settle_time"])
+        stabilise(system.env, system.env_lock)
 
         logger.info(f"Robot {current_robot} following retreat trajectory...")
-        current_arm.follow_trajectory(release_traj_data["retreat"])
+        current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
+        stabilise(system.env, system.env_lock)
+
+        time.sleep(5)  # Pause to observe final state
         logger.info("Done!")
 
     except Exception as e:
