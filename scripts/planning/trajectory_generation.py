@@ -310,15 +310,11 @@ def main() -> None:
     # ----------------------
     plan_cfg = exp_cfg.planning
     traj_num_steps = plan_cfg.num_steps
-    traj_lift_height = plan_cfg.lift_height
-    traj_approach_offset = plan_cfg.approach_offset
     
     object_trajectory = generate_object_trajectory(
         start_pose_stamped, 
         target_pose_stamped, 
         num_steps=traj_num_steps,
-        lift_height=traj_lift_height,
-        approach_offset=traj_approach_offset,
         tf_manager=tf_manager
     )
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)

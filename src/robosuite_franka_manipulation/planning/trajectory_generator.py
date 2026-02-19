@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.utils.se3 import interpolate_pose
+from robosuite_franka_manipulation.utils.se3 import interpolate_pose, pose_to_SE3
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite.utils import transform_utils as T
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
@@ -36,8 +36,6 @@ def generate_object_trajectory(
     target_pose: StampedPose, 
     tf_manager: TransformManager,
     num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS, 
-    lift_height: float = constants.OBJECT_TRAJ_LIFT_HEIGHT,
-    approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
 ) -> List[StampedPose]:
     """Generate a trajectory using SE(3) interpolation through waypoints for object insertion.
     
@@ -45,9 +43,7 @@ def generate_object_trajectory(
         start_pose: Start pose as StampedPose
         target_pose: Target pose as StampedPose
         tf_manager: TransformManager for frame conversion
-        num_steps: Number of steps for the trajectory
-        lift_height: Height to lift object during trajectory
-        approach_offset: Offset distance for approach phase
+        num_steps: Number of interpolation steps
         
     Returns:
         List of StampedPose objects representing the trajectory
@@ -65,43 +61,11 @@ def generate_object_trajectory(
     frame_id = start_pose.frame_id # Use common frame
     
     trajectory_points = []
-    
-    start_pos = start_pose.position
-    start_quat = start_pose.quaternion
-    
-    end_pos = target_pose.position
-    end_quat = target_pose.quaternion
-    
-    # Define waypoints in SE(3)
-    # 1. Lift up (same orientation as start)
-    lift_pos = start_pos.copy()
-    lift_pos[2] += lift_height
-    lift_quat = start_quat.copy()
-    
-    # 2. Approach object (pre-align orientation with target)
-    # Move to approach position, and start rotating towards target orientation
-    approach_pos = end_pos.copy()
-    approach_pos[0] += approach_offset  # Stand back from object
-    approach_quat = end_quat.copy() 
-    
-    # Define segments as (start_p, start_q, end_p, end_q, steps)
-    # Use configurable ratios from constants
-    segments = [
-        (start_pos, start_quat, lift_pos, lift_quat, int(num_steps * constants.OBJECT_TRAJ_LIFT_RATIO)),
-        (lift_pos, lift_quat, approach_pos, approach_quat, int(num_steps * constants.OBJECT_TRAJ_APPROACH_RATIO)),
-        (approach_pos, approach_quat, end_pos, end_quat, int(num_steps * constants.OBJECT_TRAJ_INSERT_RATIO))
-    ]
-    
-    for p_start, q_start, p_end, q_end, steps in segments:
-        for i in range(steps):
-            t = i / float(steps) if steps > 0 else 0
-            # Use SE(3) interpolation utility
-            pos, quat = interpolate_pose(p_start, q_start, p_end, q_end, t)
-            trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
-            
-    # Ensure final point is included
-    trajectory_points.append(StampedPose(position=end_pos, quaternion=end_quat, frame_id=frame_id))
-            
+    for i in range(num_steps + 1):
+        t = i / float(num_steps)
+        pos, quat = interpolate_pose(start_pose.position, start_pose.quaternion, target_pose.position, target_pose.quaternion, t)
+        trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
+
     return trajectory_points
 
 
