@@ -1,0 +1,69 @@
+{
+    "name": "ycb_mug_table_to_shelf",
+    "description": "Move a YCB mug from the table onto a shelf slot.",
+
+    "environment": {
+        "ycb_objects": [
+            {
+                "ycb_name": "shelf",
+                "position": [-0.7, 0.0, 0.0],
+                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678]
+            },
+            {
+                "ycb_name": "mug",
+                "position": [0.0, 0.0, 0.90],
+                "quaternion": [0, 0, 0, 1]
+            }
+        ],
+        "custom_objects": []
+    },
+
+    "task": {
+        "manipulated_object": "mug_0",
+        "start_pose": null,
+        "target_pose": {
+            "position": [-0.55, 0.05, 1.35],
+            "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
+        }
+    },
+
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": "Inter",
+        "num_steps": 50,
+        "lift_height": 0.15,
+        "approach_offset": 0.25
+    },
+
+    "collision_filter": {
+        "exclude_patterns": ["mug"]
+    },
+
+    "visualization": {
+        "visualize_mesh": false,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000"
+    },
+
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": false,
+        "traj0": null,
+        "traj1": null
+    },
+
+    "runtime": {
+        "debug": false,
+        "num_workers": 0
+    }
+}

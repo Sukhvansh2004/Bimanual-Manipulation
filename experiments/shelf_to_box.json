@@ -1,0 +1,130 @@
+{
+    "name": "shelf_to_box",
+    "description": "Move a flat plate from the shelf into a small boundary/extrusion box on the table.",
+
+    "environment": {
+        "ycb_objects": [
+            {
+                "ycb_name": "shelf",
+                "position": [-0.7, 0.0, 0.0],
+                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678]
+            }
+        ],
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "flatPlate",
+                "size": [0.3, 0.3, 0.02],
+                "position": [-0.55, 0.05, 1.35],
+                "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678],
+                "density": 100,
+                "friction": null,
+                "rgba": null
+            },
+            {
+                "type": "box",
+                "name": "boundaryBoxBottom",
+                "size": [0.34, 0.34, 0.005],
+                "position": [0.0, 0.0, 0.83],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Base of the boundary box"
+            },
+            {
+                "type": "box",
+                "name": "boundaryBoxWallFront",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.0, -0.163, 0.855],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Front wall of boundary box"
+            },
+            {
+                "type": "box",
+                "name": "boundaryBoxWallBack",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.0, 0.163, 0.855],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Back wall of boundary box"
+            },
+            {
+                "type": "box",
+                "name": "boundaryBoxWallLeft",
+                "size": [0.015, 0.34, 0.04],
+                "position": [-0.163, 0.0, 0.855],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Left wall of boundary box"
+            },
+            {
+                "type": "box",
+                "name": "boundaryBoxWallRight",
+                "size": [0.015, 0.34, 0.04],
+                "position": [0.163, 0.0, 0.855],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Right wall of boundary box"
+            }
+        ]
+    },
+
+    "task": {
+        "manipulated_object": "flatPlate",
+        "start_pose": null,
+        "target_pose": {
+            "position": [0.0, 0.0, 0.86],
+            "quaternion": [0, 0, 0, 1]
+        }
+    },
+
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": "Inter",
+        "num_steps": 50,
+        "lift_height": 0.2,
+        "approach_offset": 0.3
+    },
+
+    "collision_filter": {
+        "exclude_patterns": ["flatPlate", "plate"]
+    },
+
+    "visualization": {
+        "visualize_mesh": false,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000"
+    },
+
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": false,
+        "traj0": null,
+        "traj1": null
+    },
+
+    "runtime": {
+        "debug": false,
+        "num_workers": 0
+    }
+}
