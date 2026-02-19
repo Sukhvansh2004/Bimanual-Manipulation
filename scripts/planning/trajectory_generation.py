@@ -58,8 +58,7 @@ from robosuite_franka_manipulation.planning.utils.visualization_utils import vis
 from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
 from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import ObjectMeshVisualizer
 from robosuite_franka_manipulation.experiment_config import (
-    load_experiment, detect_start_pose, get_collision_filter_fn,
-    ExperimentConfig, VisualizationConfig, OutputConfig, RuntimeConfig
+    load_experiment, detect_start_pose, get_collision_filter_fn, ExperimentConfig
 )
 
 def setup_logging(level: int = logging.INFO):
@@ -194,14 +193,10 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
         return None
 
 def main() -> None:
-    # Default values (used when no experiment JSON is provided)
-    default_target_pos = [-0.55, 0.05, 1.35]
-    default_target_quat = [-0.70710678, 0.0, 0.0, 0.70710678]
-    
     parser = argparse.ArgumentParser(description="Generate and visualize manipulation trajectory")
     
-    # Experiment configuration (required for full functionality)
-    parser.add_argument("--experiment", type=str, default=None,
+    # Experiment configuration (required)
+    parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config (e.g. experiments/table_to_shelf.json)")
     
     # Minimal CLI overrides – everything else lives in the experiment JSON
@@ -211,22 +206,15 @@ def main() -> None:
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
-    # Load experiment configuration (or fall back to legacy defaults)
+    # Load experiment configuration
     # ---------------------------------------------------------------
-    exp_cfg: ExperimentConfig = None  # type: ignore
-    if args.experiment:
-        exp_cfg = load_experiment(args.experiment)
-        logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
     
-    # Resolve runtime settings: CLI overrides > JSON > defaults
-    if exp_cfg is not None:
-        rt_cfg = exp_cfg.runtime
-        vis_cfg = exp_cfg.visualization
-        out_cfg = exp_cfg.output
-    else:
-        rt_cfg = RuntimeConfig()
-        vis_cfg = VisualizationConfig()
-        out_cfg = OutputConfig()
+    # Resolve runtime settings: CLI overrides > JSON
+    rt_cfg = exp_cfg.runtime
+    vis_cfg = exp_cfg.visualization
+    out_cfg = exp_cfg.output
     
     debug = args.debug or rt_cfg.debug
     num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
@@ -241,25 +229,10 @@ def main() -> None:
     
     # 1. Setup Environment
     # --------------------
-    if exp_cfg is not None:
-        ycb_objects = exp_cfg.ycb_objects
-        custom_objects = exp_cfg.custom_objects
-        object_name = exp_cfg.task.manipulated_object
-        collision_exclude_patterns = exp_cfg.collision_filter.exclude_patterns
-    else:
-        # Legacy hardcoded defaults
-        shelf_pos = [-0.7, 0.0, 0.0]
-        shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-        plate_pos = [0.0, 0.0, 0.85]
-        plate_quat = [0, 0, 0, 1]
-        ycb_objects = [
-            create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-        ]
-        custom_objects = [
-            create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100)
-        ]
-        object_name = "flatPlate"
-        collision_exclude_patterns = ["flatPlate", "plate"]
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
+    object_name = exp_cfg.task.manipulated_object
+    collision_exclude_patterns = exp_cfg.collision_filter.exclude_patterns
     
     logger.info("Creating planning environment with %d YCB + %d custom objects...",
                 len(ycb_objects), len(custom_objects))
@@ -308,7 +281,7 @@ def main() -> None:
     start_pos = None
     start_quat = None
     
-    if exp_cfg is not None and exp_cfg.task.start_pose is not None:
+    if exp_cfg.task.start_pose is not None:
         start_pos = exp_cfg.task.start_pose.position
         start_quat = exp_cfg.task.start_pose.quaternion
         logger.info(f"Using experiment start pose: pos={start_pos}")
@@ -321,33 +294,24 @@ def main() -> None:
             start_quat = detected.quaternion
             logger.info(f"Detected object pose: pos={start_pos}")
         else:
-            logger.warning("Auto-detection failed, using first custom object position as fallback.")
-            if custom_objects:
-                start_pos = np.array(custom_objects[0].get('pos', [0, 0, 0.85]))
-                start_quat = np.array(custom_objects[0].get('quat', [0, 0, 0, 1]))
-            else:
-                start_pos = np.array([0.0, 0.0, 0.85])
-                start_quat = np.array([0, 0, 0, 1])
+            logger.error("Auto-detection failed and no start_pose in experiment JSON.")
+            sys.exit(1)
     
     start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
     
-    # Determine Target Pose  (experiment JSON > legacy default)
-    if exp_cfg is not None:
-        target_pos = exp_cfg.task.target_pose.position
-        target_quat = exp_cfg.task.target_pose.quaternion
-    else:
-        target_pos = np.array(default_target_pos)
-        target_quat = np.array(default_target_quat)
+    # Target Pose (from experiment JSON)
+    target_pos = exp_cfg.task.target_pose.position
+    target_quat = exp_cfg.task.target_pose.quaternion
     target_pose_stamped = StampedPose(position=target_pos, quaternion=target_quat, frame_id=constants.WORLD_FRAME)
     
     logger.info(f"Planning from {start_pose_stamped.position} to {target_pose_stamped.position}")
     
     # 4. Generate Object Trajectory
     # ----------------------
-    plan_cfg = exp_cfg.planning if exp_cfg else None
-    traj_num_steps = plan_cfg.num_steps if plan_cfg else constants.OBJECT_TRAJ_NUM_STEPS
-    traj_lift_height = plan_cfg.lift_height if plan_cfg else constants.OBJECT_TRAJ_LIFT_HEIGHT
-    traj_approach_offset = plan_cfg.approach_offset if plan_cfg else constants.OBJECT_TRAJ_APPROACH_OFFSET
+    plan_cfg = exp_cfg.planning
+    traj_num_steps = plan_cfg.num_steps
+    traj_lift_height = plan_cfg.lift_height
+    traj_approach_offset = plan_cfg.approach_offset
     
     object_trajectory = generate_object_trajectory(
         start_pose_stamped, 
@@ -394,10 +358,10 @@ def main() -> None:
     grasp_generator = GraspGenerator(env=env)
     
     # Step 6a: Get grasps for both robots together
-    grasp_gripper_types = plan_cfg.gripper_types if plan_cfg else ["finger", "suction"]
-    grasp_num = plan_cfg.num_grasps if plan_cfg else 200
-    grasp_entropy_n = plan_cfg.num_entropy_grasps if plan_cfg else 20
-    grasp_collision_mode = plan_cfg.collision_check if plan_cfg else "Inter"
+    grasp_gripper_types = plan_cfg.gripper_types
+    grasp_num = plan_cfg.num_grasps
+    grasp_entropy_n = plan_cfg.num_entropy_grasps
+    grasp_collision_mode = plan_cfg.collision_check
     
     logger.info("Generating grasps for %s (types: %s)...", object_name, grasp_gripper_types)
     all_grasps = grasp_generator.generate_grasps(
@@ -493,13 +457,11 @@ def main() -> None:
 
     # 9. Save Trajectories
     # ---------------------------------------------
-    # Determine output directory: JSON output_dir > data/<experiment_name> > data/
+    # Determine output directory: JSON output_dir > data/<experiment_name>
     if out_cfg.output_dir is not None:
         output_dir = out_cfg.output_dir
-    elif exp_cfg is not None:
-        output_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
     else:
-        output_dir = constants.DATA_DIR
+        output_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
     
     should_save = args.save_traj or out_cfg.save_trajectories
     

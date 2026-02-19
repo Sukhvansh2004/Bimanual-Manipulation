@@ -20,7 +20,7 @@ from robosuite_franka_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
-from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig, ExecutionConfig, VisualizationConfig, RuntimeConfig
+from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
@@ -63,28 +63,20 @@ def stabilise(env, env_lock: threading.RLock, steps: int = 10):
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
-    parser.add_argument("--experiment", type=str, default=None,
+    parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config (e.g. experiments/table_to_shelf.json)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
-    # Load experiment configuration (or fall back to legacy defaults)
+    # Load experiment configuration
     # ---------------------------------------------------------------
-    exp_cfg: ExperimentConfig = None  # type: ignore
-    if args.experiment:
-        exp_cfg = load_experiment(args.experiment)
-        logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
 
-    # Resolve section configs: JSON > defaults
-    if exp_cfg is not None:
-        exec_cfg = exp_cfg.execution
-        vis_cfg = exp_cfg.visualization
-        rt_cfg = exp_cfg.runtime
-    else:
-        exec_cfg = ExecutionConfig()
-        vis_cfg = VisualizationConfig()
-        rt_cfg = RuntimeConfig()
+    exec_cfg = exp_cfg.execution
+    vis_cfg = exp_cfg.visualization
+    rt_cfg = exp_cfg.runtime
 
     debug = args.debug or rt_cfg.debug
     if debug:
@@ -93,21 +85,8 @@ def main():
         setup_logging(logging.INFO)
 
     # 1. Environment Setup
-    if exp_cfg is not None:
-        ycb_objects = exp_cfg.ycb_objects
-        custom_objects = exp_cfg.custom_objects
-    else:
-        # Legacy hardcoded defaults
-        shelf_pos = [-0.7, 0.0, 0.0]
-        shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-        plate_pos = [0.0, 0.0, 0.85]
-        plate_quat = [0, 0, 0, 1]
-        ycb_objects = [
-            create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-        ]
-        custom_objects = [
-            create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100, friction=[1.0, 0.005, 0.0001])
-        ]
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
 
     if exec_cfg.visualize:
         vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
@@ -127,12 +106,12 @@ def main():
 
     try:
         # 2. Load Trajectories
-        # Resolve paths: experiment config > legacy defaults
-        default_traj0 = "data/robot0_trajectory_8.npz"
-        default_traj1 = "data/robot1_trajectory_2.npz"
-        
-        traj_path0 = exec_cfg.traj0 or default_traj0
-        traj_path1 = exec_cfg.traj1 or default_traj1
+        # Resolve trajectory paths from experiment config
+        if not exec_cfg.traj0 or not exec_cfg.traj1:
+            logger.error("Trajectory paths (traj0, traj1) must be set in the experiment JSON execution section.")
+            return
+        traj_path0 = exec_cfg.traj0
+        traj_path1 = exec_cfg.traj1
         
         logger.info(f"Loading trajectories: {traj_path0}, {traj_path1}")
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)
