@@ -241,7 +241,7 @@ class ObjectMeshVisualizer:
         color: int = 0x0000ff
     ) -> None:
         """Visualize object along a trajectory."""
-        base_traj_path = f"{self.base_path}/object_meshes/{object_name}"
+        base_traj_path = f"{self.base_path}/{object_name}"
         
         for i, pose in enumerate(object_trajectory):
             if i % step_interval != 0 and i != len(object_trajectory) - 1:

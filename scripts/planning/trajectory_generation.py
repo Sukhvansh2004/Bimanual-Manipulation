@@ -169,7 +169,6 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
                 # Robot mesh visualization
                 mesh_visualizer = RobotMeshVisualizer(
                     vis=worker_vis, tf_manager=worker_tf_manager,
-                    base_path=f"robot{robot_id}_configs",
                     mesh_sample_ratio=sample_ratio
                 )
                 mesh_visualizer.visualize_trajectory_configs(
