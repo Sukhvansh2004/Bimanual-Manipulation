@@ -6,15 +6,15 @@
         "ycb_objects": [
             {
                 "ycb_name": "shelf",
-                "position": [-0.7, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678]
+                "position": [-0.6, 0.0, 0.0],
+                "quaternion": [0.01852, 0.01852, 0.70686, 0.70686]
             }
         ],
         "custom_objects": [
             {
                 "type": "box",
                 "name": "flatPlate",
-                "size": [0.3, 0.3, 0.02],
+                "size": [0.26, 0.26, 0.02],
                 "position": [0.0, 0.0, 0.85],
                 "quaternion": [0, 0, 0, 1],
                 "density": 100,
@@ -28,7 +28,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.55, 0.05, 1.35],
+            "position": [-0.45, 0.05, 1.35],
             "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
         }
     },

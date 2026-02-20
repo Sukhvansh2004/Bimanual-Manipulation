@@ -18,12 +18,13 @@ import threading
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
+from robosuite_franka_manipulation.utils.env_utils import env_step, register_mesh_extraction_env
 from robosuite_franka_manipulation.transforms import (
     TransformManager, 
     stream_transforms_to_meshcat, 
     MeshcatTFVisualizerConfig
 )
+from robosuite_franka_manipulation.experiment_config import load_experiment
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory
 from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
 from robosuite_franka_manipulation.planning.utils import RobotMeshVisualizer, ObjectMeshVisualizer
@@ -35,45 +36,44 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="Visualize robot trajectory in MeshCat")
     parser.add_argument("path", type=str, help="Path to trajectory .npz file or directory")
+    parser.add_argument("--experiment", type=str, required=True,
+                        help="Path to experiment JSON config (e.g. experiments/table_to_shelf.json)")
     parser.add_argument("--robot-id", type=int, default=0, help="Robot ID (0 or 1)")
     parser.add_argument("--name", type=str, default=None, help="Name/Tag for the trajectory in MeshCat (defaults to file name)")
     parser.add_argument("--step", type=int, default=10, help="Step interval for robot mesh visualization")
     parser.add_argument("--robot-mesh-vis", action="store_true", help="Whether to visualize robot meshes at waypoints")
     parser.add_argument("--object-mesh-vis", action="store_true", help="Whether to visualize object meshes at waypoints")
-    parser.add_argument("--object-name", type=str, default="flatPlate", help="Name of the object to visualize")
+    parser.add_argument("--object-name", type=str, default=None, help="Name of the object to visualize (defaults to experiment's manipulated_object)")
     parser.add_argument("--visualize-object-trajectory", action="store_true", help="Whether to visualize object trajectory (if available)")
     parser.add_argument("--opacity", type=float, default=0.4, help="Opacity for robot meshes")
     parser.add_argument("--clear", action="store_true", help="Clear MeshCat before visualizing")
-    parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
+    parser.add_argument("--zmq-url", type=str, default=None, help="MeshCat ZMQ URL (defaults to experiment config or constants)")
     
     args = parser.parse_args()
     
-    # 1. Initialize Visualizer
-    vis = meshcat.Visualizer(zmq_url=args.zmq_url)
+    # 1. Load experiment configuration
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
+    object_name = args.object_name or exp_cfg.task.manipulated_object
+    zmq_url = args.zmq_url or getattr(exp_cfg.visualization, 'zmq_url', None) or str(constants.MESHCAT_ZMQ_URL)
+
+    # 2. Initialize Visualizer
+    vis = meshcat.Visualizer(zmq_url=zmq_url)
     if args.clear:
         vis.delete()
         logger.info("MeshCat cleared.")
         
-    # 2. Collect Files
+    # 3. Collect Files
     if os.path.isdir(args.path):
         files = sorted([os.path.join(args.path, f) for f in os.listdir(args.path) if f.endswith(".npz")])
         logger.info(f"Found {len(files)} trajectory files in {args.path}")
     else:
         files = [args.path]
 
-    # 3. Create Environment and TF Manager
-    shelf_pos = [-0.7, 0.0, 0.0]
-    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-    plate_pos = [0.0, 0.0, 0.85]
-    plate_quat = [0, 0, 0, 1]
-
-    ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-    ]
-    custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
-    ]
-
+    # 4. Create Environment and TF Manager
     env = make_dual_arm_env(
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
@@ -87,7 +87,7 @@ def main():
     register_mesh_extraction_env(env)
     tf_manager = TransformManager(env=env)
 
-    # 4. Stream TFs and Scene to MeshCat
+    # 5. Stream TFs and Scene to MeshCat
     logger.info("Starting TF and Scene stream to MeshCat...")
     env_lock = threading.Lock()
     stream_config = MeshcatTFVisualizerConfig(clear=False, visualize_scene=True)
@@ -104,7 +104,7 @@ def main():
     ).start()
     
     obj_traj = None  # Initialize object trajectory variable for later use
-    # 5. Process each file
+    # 6. Process each file
     for file_path in files:
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         traj_name = args.name if (args.name and len(files) == 1) else base_name
@@ -157,17 +157,17 @@ def main():
         visualize_trajectory(
             vis=vis,
             trajectory=obj_traj,
-            name=f"{args.object_name}_trajectory",
+            name=f"{object_name}_trajectory",
             tf_manager=tf_manager,
         )
     
 
     # Visualize Object Meshes
     if obj_traj is not None and args.object_mesh_vis:
-        logger.info(f"  -> Visualizing object '{args.object_name}' meshes")
+        logger.info(f"  -> Visualizing object '{object_name}' meshes")
         obj_mesh_vis = ObjectMeshVisualizer(vis=vis, tf_manager=tf_manager)
         obj_mesh_vis.visualize_trajectory(
-            object_name=args.object_name,
+            object_name=object_name,
             object_trajectory=obj_traj,
             step_interval=args.step,
             opacity=args.opacity

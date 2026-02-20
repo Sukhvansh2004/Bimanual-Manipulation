@@ -6,8 +6,8 @@
         "ycb_objects": [
             {
                 "ycb_name": "shelf",
-                "position": [-0.7, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678]
+                "position": [-0.6, 0.0, 0.0],
+                "quaternion": [0.01852, 0.01852, 0.70686, 0.70686]
             },
             {
                 "ycb_name": "mug",
@@ -22,7 +22,7 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.55, 0.05, 1.35],
+            "position": [-0.45, 0.05, 1.35],
             "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
         }
     },
