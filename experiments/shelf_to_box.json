@@ -103,7 +103,7 @@
     },
 
     "visualization": {
-        "visualize_mesh": false,
+        "visualize_mesh": true,
         "mesh_step_interval": 10,
         "mesh_opacity": 0.4,
         "mesh_sample_ratio": 0.5,
@@ -125,6 +125,6 @@
 
     "runtime": {
         "debug": false,
-        "num_workers": 0
+        "num_workers": 2
     }
 }

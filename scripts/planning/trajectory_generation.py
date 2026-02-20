@@ -468,7 +468,7 @@ def main() -> None:
                 if user_input in ('y', 'yes'):
                     should_save = True
         except EOFError:
-            pass
+            logger.error("No input available to confirm saving trajectories. Skipping save.")
             
     if should_save and (robot0_trajectory_results or robot1_trajectory_results):
         os.makedirs(output_dir, exist_ok=True)
