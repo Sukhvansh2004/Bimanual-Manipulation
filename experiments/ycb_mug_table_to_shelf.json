@@ -7,7 +7,8 @@
             {
                 "ycb_name": "shelf",
                 "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604]
+                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "is_static": true
             },
             {
                 "ycb_name": "mug",

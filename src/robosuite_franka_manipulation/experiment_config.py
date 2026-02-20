@@ -132,12 +132,14 @@ def _build_ycb_objects(items: List[Dict]) -> List[Dict[str, Any]]:
     """Convert JSON ycb_objects list to env-ready dicts via ``create_ycb_object``."""
     result = []
     for item in items:
-        result.append(create_ycb_object(
+        obj = create_ycb_object(
             ycb_name=item["ycb_name"],
             instance_name=item.get("instance_name"),
             position=item.get("position"),
             quaternion=item.get("quaternion"),
-        ))
+            is_static=item.get("is_static", False),
+        )
+        result.append(obj)
     return result
 
 

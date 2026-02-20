@@ -129,6 +129,11 @@ def main():
             logger.info("Visualizing trajectories in MeshCat...")
             visualize_trajectory(vis, eef_traj0, res0, name="robot0_traj", tf_manager=system.tf_manager)
             visualize_trajectory(vis, eef_traj1, res1, name="robot1_traj", tf_manager=system.tf_manager)
+            # Object trajectories (no feasibility results, use distinct colors)
+            if obj_traj0:
+                visualize_trajectory(vis, obj_traj0, name="object_traj0", color=0xff00ff, tf_manager=system.tf_manager)
+            if obj_traj1:
+                visualize_trajectory(vis, obj_traj1, name="object_traj1", color=0xffff00, tf_manager=system.tf_manager)
 
         # 4. Extract grasps from first points of trajectories
         # G = inv(T_ee) @ T_obj — object pose in EE frame

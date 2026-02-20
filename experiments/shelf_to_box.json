@@ -7,7 +7,8 @@
             {
                 "ycb_name": "shelf",
                 "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604]
+                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "is_static": true
             }
         ],
         "custom_objects": [
@@ -18,7 +19,7 @@
                 "position": [-0.444, 0.023, 1.35],
                 "quaternion": [-0.704416, 0.061625, -0.061625, 0.704416],
                 "density": 100,
-                "friction": null,
+                "friction": [1.0, 1.0, 1.0],
                 "rgba": null
             },
             {
@@ -119,8 +120,8 @@
         "visualize": true,
         "meshcat_tf": true,
         "smoothen": false,
-        "traj0": null,
-        "traj1": null
+        "traj0": "data/shelf_to_box/robot0_trajectory_5.npz",
+        "traj1": "data/shelf_to_box/robot1_trajectory_0.npz"
     },
 
     "runtime": {

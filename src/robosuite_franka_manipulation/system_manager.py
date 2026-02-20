@@ -13,10 +13,11 @@ import sys
 from typing import Any, Optional, List
 import numpy as np
 import meshcat
+from scipy.spatial.transform import Rotation as R
 
 from robosuite.wrappers import VisualizationWrapper
 import robosuite_franka_manipulation.constants as constants
-from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env
+from robosuite_franka_manipulation.environments.dual_arm import make_dual_arm_env, DualArmEnvironment
 from robosuite_franka_manipulation.teleop.teleop import KeyboardTeleop
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.controllers.gripper import RobosuiteGripperController
@@ -72,7 +73,7 @@ class DualArmManipulationSystem:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.env: Any = None
+        self.env: DualArmEnvironment = None
         self.tf_manager: Optional[TransformManager] = None
         self.teleop: Optional[KeyboardTeleop] = None
         self.teleop_thread: Optional[threading.Thread] = None
@@ -214,11 +215,43 @@ class DualArmManipulationSystem:
             with self.env_lock:
                 env_step(self.env)
         
+        # Register dynamic TF frames for every object in the scene
+        self._register_object_frames()
+
         self.running = True
         
         logger.info("\n" + "="*70)
         logger.info("System Ready!")
         logger.info("="*70)
+
+    def _register_object_frames(self):
+        """Register dynamic TF frames for every object in the scene."""
+        if self.tf_manager is None or self.env is None:
+            return
+
+        for name in self.env.get_object_names():
+            def _make_provider(obj_name):
+                def provider() -> Transform:
+                    with self.env_lock:
+                        pose_4x4 = self.env.get_object_pose(obj_name)
+                    if pose_4x4 is None:
+                        return Transform.identity("world", f"object/{obj_name}")
+                    pos = pose_4x4[:3, 3]
+                    quat_xyzw = R.from_matrix(pose_4x4[:3, :3]).as_quat()
+                    return Transform(
+                        translation=pos,
+                        rotation=quat_xyzw,
+                        parent_frame="world",
+                        child_frame=f"object/{obj_name}",
+                    )
+                return provider
+
+            self.tf_manager.add_dynamic_transform(
+                frame_id=f"object/{name}",
+                parent_frame="world",
+                provider=_make_provider(name),
+            )
+            logger.info(f"   Registered dynamic TF frame 'object/{name}'")
         
     def _start_services(self):
         """Start all services."""
