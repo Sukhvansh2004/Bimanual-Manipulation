@@ -121,7 +121,7 @@
         "meshcat_tf": true,
         "smoothen": false,
         "traj0": "data/shelf_to_box/robot0_trajectory_5.npz",
-        "traj1": "data/shelf_to_box/robot1_trajectory_0.npz"
+        "traj1": "data/shelf_to_box/robot1_trajectory_10.npz"
     },
 
     "runtime": {
