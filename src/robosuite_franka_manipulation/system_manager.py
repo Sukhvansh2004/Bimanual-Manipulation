@@ -230,28 +230,30 @@ class DualArmManipulationSystem:
             return
 
         for name in self.env.get_object_names():
-            def _make_provider(obj_name):
+            frame_id = name
+
+            def _make_provider(obj_name, fid):
                 def provider() -> Transform:
                     with self.env_lock:
                         pose_4x4 = self.env.get_object_pose(obj_name)
                     if pose_4x4 is None:
-                        return Transform.identity("world", f"object/{obj_name}")
+                        return Transform.identity("world", fid)
                     pos = pose_4x4[:3, 3]
                     quat_xyzw = R.from_matrix(pose_4x4[:3, :3]).as_quat()
                     return Transform(
                         translation=pos,
                         rotation=quat_xyzw,
                         parent_frame="world",
-                        child_frame=f"object/{obj_name}",
+                        child_frame=fid,
                     )
                 return provider
 
             self.tf_manager.add_dynamic_transform(
-                frame_id=f"object/{name}",
+                frame_id=frame_id,
                 parent_frame="world",
-                provider=_make_provider(name),
+                provider=_make_provider(name, frame_id),
             )
-            logger.info(f"   Registered dynamic TF frame 'object/{name}'")
+            logger.info(f"   Registered dynamic TF frame '{frame_id}'")
         
     def _start_services(self):
         """Start all services."""
