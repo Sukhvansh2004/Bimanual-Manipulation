@@ -28,6 +28,9 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     process_waypoint,
     process_dual_waypoint,
 )
+from robosuite_franka_manipulation.planning.object_trajectory_planner import (
+    plan_object_trajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +38,26 @@ def generate_object_trajectory(
     start_pose: StampedPose, 
     target_pose: StampedPose, 
     tf_manager: TransformManager,
-    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS, 
+    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS,
+    env: Optional[DualArmEnvironment] = None,
+    object_name: Optional[str] = None,
+    env_lock=None,
 ) -> List[StampedPose]:
-    """Generate a trajectory using SE(3) interpolation through waypoints for object insertion.
+    """Generate a collision-free trajectory for the object from start to target pose.
+    
+    When *env* and *object_name* are provided, an RRT-Connect planner is used
+    to find a collision-free path (ignoring contacts with robot arms/grippers).
+    If the planner fails, or if *env* is not provided, falls back to simple
+    SE(3) interpolation.
     
     Args:
         start_pose: Start pose as StampedPose
         target_pose: Target pose as StampedPose
         tf_manager: TransformManager for frame conversion
         num_steps: Number of interpolation steps
+        env: (Optional) DualArmEnvironment for collision-aware planning
+        object_name: (Optional) Name of the object in MuJoCo (required when env is given)
+        env_lock: (Optional) Threading lock for environment access
         
     Returns:
         List of StampedPose objects representing the trajectory
@@ -57,8 +71,28 @@ def generate_object_trajectory(
     # If still mismatch (should not happen if tf_manager works), warn
     if start_pose.frame_id != target_pose.frame_id:
         logger.warning(f"Frame mismatch in generate_object_trajectory: {start_pose.frame_id} vs {target_pose.frame_id}")
-        
-    frame_id = start_pose.frame_id # Use common frame
+
+    # ---- Collision-aware planning (when env is available) ----
+    if env is not None and object_name is not None:
+        logger.info("Using RRT-Connect planner for collision-aware object trajectory.")
+        trajectory, success = plan_object_trajectory(
+            env=env,
+            object_name=object_name,
+            start_pose=start_pose,
+            target_pose=target_pose,
+            tf_manager=tf_manager,
+            num_steps=num_steps,
+            env_lock=env_lock,
+        )
+        if success:
+            return trajectory
+        else:
+            logger.warning("RRT planner failed — returned trajectory is a direct interpolation fallback.")
+            return trajectory
+
+    # ---- Fallback: simple SE(3) interpolation ----
+    logger.info("No environment provided — using direct SE(3) interpolation for object trajectory.")
+    frame_id = start_pose.frame_id
     
     trajectory_points = []
     for i in range(num_steps + 1):

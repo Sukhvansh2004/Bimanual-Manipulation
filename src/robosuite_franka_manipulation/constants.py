@@ -144,6 +144,23 @@ COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 
 # =============================================================================
+# RRT-Connect Object Trajectory Planner
+# =============================================================================
+
+RRT_MAX_ITERATIONS = 5000       # Maximum RRT-Connect iterations
+RRT_STEP_SIZE = 0.05            # Step size for tree extension (meters in SE(3) weighted distance)
+RRT_GOAL_BIAS = 0.15            # Probability of sampling the goal pose
+RRT_ROTATION_WEIGHT = 0.1       # Weight for rotation distance (radians -> equivalent meters)
+RRT_COLLISION_RESOLUTION = 0.02 # Resolution for edge collision checking (meters)
+RRT_CONNECT_MAX_STEPS = 50      # Max connect steps toward a target node
+RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoothing
+RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
+RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
+RRT_MIN_Z = 0.78                # Minimum z height for planning (slightly below table surface)
+# Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
+RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.78], [0.8, 0.8, 1.6]]
+
+# =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
 

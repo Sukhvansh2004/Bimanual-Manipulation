@@ -34,6 +34,29 @@ def _get_ids_for_prefixes(prefixes):
         ids.update(_prefix_to_ids[pref])
     return list(ids)
 
+
+# ── Public accessors for cached geom metadata ──────────────────────────────
+# These allow other modules (e.g. object_trajectory_planner) to reuse the
+# geom caches without duplicating the iteration/prefix-matching logic.
+
+def get_geom_ids_by_prefix(model, prefix: str) -> np.ndarray:
+    """Return an array of geom IDs whose names start with *prefix*.
+
+    Initialises the internal geom caches on first call for a given model.
+    """
+    _ensure_geom_caches(model)
+    return np.array(_get_ids_for_prefixes([prefix]), dtype=int)
+
+
+def get_robot_geom_mask(model) -> np.ndarray:
+    """Return a boolean mask of shape ``(ngeom,)`` that is True for robot/gripper geoms.
+
+    Initialises the internal geom caches on first call for a given model.
+    """
+    _ensure_geom_caches(model)
+    return _robot_mask
+
+
 def in_collision(
     env: DualArmEnvironment,
     *,

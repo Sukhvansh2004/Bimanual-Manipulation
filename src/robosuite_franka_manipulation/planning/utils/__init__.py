@@ -5,7 +5,11 @@ from robosuite_franka_manipulation.planning.utils.ik_utils import (
     solve_ik_scipy,
     unique_solutions
 )
-from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
+from robosuite_franka_manipulation.planning.utils.collision_utils import (
+    in_collision,
+    get_geom_ids_by_prefix,
+    get_robot_geom_mask,
+)
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
@@ -39,6 +43,8 @@ __all__ = [
     'unique_solutions',
     # Collision utilities
     'in_collision',
+    'get_geom_ids_by_prefix',
+    'get_robot_geom_mask',
     # MuJoCo utilities
     'get_arm_joint_ids',
     'get_joint_qpos_indices',

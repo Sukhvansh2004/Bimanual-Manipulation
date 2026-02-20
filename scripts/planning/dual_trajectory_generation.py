@@ -260,7 +260,14 @@ def main() -> None:
     # 4. Generate Object Trajectory
     # -----------------------------
     logger.info("Generating object trajectory...")
-    object_trajectory = generate_object_trajectory(start_pose_stamped, target_pose_stamped, num_steps=constants.OBJECT_TRAJ_NUM_STEPS, tf_manager=tf_manager)
+    object_trajectory = generate_object_trajectory(
+        start_pose_stamped, target_pose_stamped,
+        num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
+        tf_manager=tf_manager,
+        env=env,
+        object_name="flatPlate",
+        env_lock=env_lock,
+    )
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     # Visualize Target

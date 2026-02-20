@@ -314,7 +314,10 @@ def main() -> None:
         start_pose_stamped, 
         target_pose_stamped, 
         num_steps=traj_num_steps,
-        tf_manager=tf_manager
+        tf_manager=tf_manager,
+        env=env,
+        object_name=object_name,
+        env_lock=env_lock,
     )
     visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
