@@ -147,93 +147,223 @@ pip install -e .
 
 ## Usage
 
-### Experiment-Based Trajectory Planning
-
-The primary workflow uses JSON experiment configs to define manipulation tasks:
-
-```bash
-# Run a single experiment
-python scripts/planning/trajectory_generation.py \
-    --experiment experiments/flatPlate_table_to_shelf.json
-
-# Run dual-arm trajectory planning
-python scripts/planning/dual_trajectory_generation.py \
-    --experiment experiments/ycb_mug_table_to_rack.json
-
-# Run all experiments in batch (meshcat disabled for speed)
-python scripts/run_all_experiments.py
-```
-
 Each experiment JSON specifies the environment setup, object to manipulate, target pose, planning parameters, visualization settings, and more. See [Experiment Configuration](#experiment-configuration) below.
 
-### Visualize RRT Planning
+---
+
+### Planning Scripts
+
+#### `scripts/planning/trajectory_generation.py`
+
+Main **single-robot** trajectory planner. Loads an experiment config, builds the environment, plans an object trajectory from start to goal, generates grasps, evaluates feasible EEF trajectories with multiprocessing, visualizes results in Meshcat, and optionally saves trajectories to disk. This is the script invoked by `run_all_experiments.py`.
 
 ```bash
-# Watch the RRT-Connect planner in Meshcat (trees, Bézier curves, collision checks)
-python scripts/demos/visualize_rrt.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/planning/trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/planning/trajectory_generation.py --experiment experiments/ycb_mug_table_to_rack.json --save-traj --no-meshcat
+python scripts/planning/trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --debug
 ```
 
-### Main Script: Dual-Arm Manipulation System
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--debug` | `False` | Enable debug logging (overrides JSON) |
+| `--save-traj` | `False` | Force-save trajectories (overrides JSON) |
+| `--no-meshcat` | `False` | Disable all Meshcat visualization |
 
-The interactive entry point starts all services and provides a shell:
+#### `scripts/planning/dual_trajectory_generation.py`
+
+Generates and evaluates **dual-arm** manipulation trajectories. Creates grasps for both robots, pairs them (N×M), then evaluates simultaneous feasibility for each grasp pair using multiprocessing with persistent worker environments.
 
 ```bash
-python scripts/manipulation/dual_arm_manipulation.py --visualize
+python scripts/planning/dual_trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/planning/dual_trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj --no-meshcat
 ```
 
-**Arguments**:
-- `--visualize`: Enable OpenCV visualization of FastSAM detections
-- `--debug`: Enable debug logging
-- `--prompt <text>`: Set initial detection prompt (default: "object")
-- `--meshcat-tf`: Enable Meshcat transform visualization
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--debug` | `False` | Enable debug logging (overrides JSON) |
+| `--save-traj` | `False` | Force-save trajectories (overrides JSON) |
+| `--no-meshcat` | `False` | Disable all Meshcat visualization |
 
-This starts:
-1. Dual-arm robosuite environment with visualization
-2. Service Manager for service discovery
-3. FastSAM Service for object detection
-4. Grasp Service for grasp prediction
-5. MoveToPose Service for autonomous arm control
-6. Keyboard teleoperation (main thread)
-7. Interactive Python shell (background thread)
+#### `scripts/planning/visualize_robot_trajectory.py`
 
-### Interactive Shell Commands
+Loads `.npz` trajectory file(s) and visualizes them in Meshcat with feasibility-colored waypoints, optional robot/object mesh overlays. Supports processing a whole directory at once.
 
-Once the system is running, use these in the interactive shell:
+```bash
+# Single trajectory with robot meshes
+python scripts/planning/visualize_robot_trajectory.py data/shelf_to_box/robot0_trajectory_0.npz \
+    --experiment experiments/flatPlate_shelf_to_box.json --robot-mesh-vis --step 5
+
+# All trajectories in a directory
+python scripts/planning/visualize_robot_trajectory.py data/shelf_to_box/ \
+    --experiment experiments/flatPlate_shelf_to_box.json --clear --visualize-object-trajectory
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `path` (positional) | **required** | `.npz` file or directory of `.npz` files |
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--robot-id` | `0` | Robot ID (0 or 1) |
+| `--name` | filename | MeshCat label for the trajectory |
+| `--step` | `10` | Step interval for robot mesh visualization |
+| `--robot-mesh-vis` | `False` | Visualize robot meshes at waypoints |
+| `--object-mesh-vis` | `False` | Visualize object meshes at waypoints |
+| `--object-name` | from config | Object name to visualize |
+| `--visualize-object-trajectory` | `False` | Visualize object trajectory if available |
+| `--opacity` | `0.4` | Opacity for robot meshes |
+| `--clear` | `False` | Clear Meshcat before visualizing |
+| `--zmq-url` | `None` | Meshcat ZMQ URL |
+
+#### `scripts/run_all_experiments.py`
+
+Batch runner — sequentially invokes `trajectory_generation.py` for every experiment JSON in `experiments/`. Auto-disables visualization and enables trajectory saving.
+
+```bash
+python scripts/run_all_experiments.py
+python scripts/run_all_experiments.py --only flatPlate_shelf_to_box flatPlate_table_to_shelf
+python scripts/run_all_experiments.py --workers 4
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--only` | all | Run only the listed experiment names (without `.json`) |
+| `--workers` | from config | Override `num_workers` for all experiments |
+
+---
+
+### Manipulation Scripts
+
+#### `scripts/manipulation/dual_arm_manipulation.py`
+
+Starts the full `DualArmManipulationSystem` (FastSAM, GraspGen, MeshCat TF) and drops into an interactive Python shell exposing helper functions for live experimentation.
+
+```bash
+python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --visualize --meshcat-tf
+python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json --no-fastsam --no-graspgen
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--prompt` | `""` | Default detection prompt |
+| `--visualize` | `False` | Enable OpenCV visualization of FastSAM |
+| `--debug` | `False` | Enable debug logging |
+| `--meshcat-tf` | `False` | Stream TF frames to Meshcat |
+| `--no-fastsam` | (enabled) | Disable FastSAM service |
+| `--no-graspgen` | (enabled) | Disable GraspGen service |
+
+**Interactive shell commands** (available once the system starts):
 
 ```python
-# Detect objects in the scene
->>> detections = detect()
-
-# Generate grasps for a detection
->>> grasps = get_grasps(detections[0])
-
-# Get end-effector coordinates
->>> get_eef()
-
-# Change detection prompt
->>> set_prompt('red cup')
-
-# Move an arm to a pose
->>> go_to_pose(pose, robot_id=0, arm_id='right')
-
-# Cancel a move
->>> cancel_move(robot_id=0, arm_id='right')
-
-# Access controllers directly
->>> system.left_arm.move_to_pose([0.5, -0.3, 0.4], [0, 0, 0, 1])
->>> system.left_gripper.open()
->>> system.right_gripper.close()
+detections = detect()                                # Run FastSAM detection
+grasps = get_grasps(detections[0])                   # Generate grasps
+get_eef()                                            # Print EEF poses
+set_prompt('red cup')                                # Change detection prompt
+go_to_pose(pose, robot_id=0, arm_id='right')         # Move arm to pose
+cancel_move(robot_id=0, arm_id='right')              # Cancel active move
+follow_eef_trajectory(traj, robot_id=0, arm='right') # Follow a trajectory
+system.left_arm.move_to_pose([0.5, -0.3, 0.4], [0, 0, 0, 1])
+system.left_gripper.open()
+system.right_gripper.close()
 ```
 
-### Execute Pre-Planned Trajectories
+#### `scripts/manipulation/dual_arm_handover_traj.py`
+
+Execute a dual-arm handover using pre-computed trajectory files. Loads trajectory paths from the experiment config's `execution.traj0`/`traj1` fields, extracts grasp transforms, and orchestrates: approach → grasp → follow trajectory → handover → release & retreat.
 
 ```bash
-# Execute a dual-arm handover using saved trajectory files
-python scripts/manipulation/dual_arm_handover_traj.py \
-    --experiment experiments/ycb_mug_rack_to_table.json
+python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/ycb_mug_rack_to_table.json --debug
 ```
 
-### Teleoperation Controls
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--debug` | `False` | Enable debug logging |
+
+---
+
+### Demo Scripts
+
+#### `scripts/demos/launch_env.py`
+
+Launch and visualize the dual-arm environment with optional primitive objects and/or YCB dataset objects.
+
+```bash
+python scripts/demos/launch_env.py --with-objects
+python scripts/demos/launch_env.py --ycb mug apple banana
+python scripts/demos/launch_env.py --list-ycb
+python scripts/demos/launch_env.py --ycb-all 5 --random-actions --steps 500
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--with-objects` | `False` | Add sample primitive objects (red block, green cylinder, blue sphere) |
+| `--ycb` | `None` | Add YCB objects by name |
+| `--ycb-all N` | `0` | Add the first N available YCB objects |
+| `--list-ycb` | `False` | List available YCB objects and exit |
+| `--random-actions` | `False` | Run random actions instead of idle visualization |
+| `--steps` | `200` | Number of random-action steps |
+| `--no-render` | `False` | Disable rendering |
+| `--headless` | `False` | Run in headless mode |
+
+#### `scripts/demos/visualize_rrt.py`
+
+Visualize RRT-Connect path planning in Meshcat in real time — search bounds, tree edges (cyan/orange), collision-rejected samples (red), raw path (green), and smoothed path (yellow).
+
+```bash
+python scripts/demos/visualize_rrt.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/demos/visualize_rrt.py --experiment experiments/flatPlate_table_to_shelf.json --delay 0.01 --max-iter 2000
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--delay` | `0.0` | Seconds to sleep per Meshcat draw call (slow-motion) |
+| `--max-iter` | from config | Override RRT max iterations |
+| `--step-size` | from config | Override RRT step size |
+| `--goal-bias` | from config | Override RRT goal bias |
+| `--no-smooth` | `False` | Skip path smoothing |
+| `--zmq-url` | `None` | Meshcat ZMQ URL |
+| `--no-scene` | `False` | Skip streaming MuJoCo scene to Meshcat |
+
+#### `scripts/demos/go_to_pose.py`
+
+Demonstrates Cartesian pose control. Creates a `DualArmPoseController`, starts a Meshcat TF visualizer, and commands each end-effector to move to a target pose. **No CLI arguments.**
+
+```bash
+python scripts/demos/go_to_pose.py
+```
+
+#### `scripts/demos/gripper_move.py`
+
+Interactive gripper demo — opens and closes both robot grippers in sequence, pausing for user input between steps. **No CLI arguments.**
+
+```bash
+python scripts/demos/gripper_move.py
+```
+
+---
+
+### Teleoperation
+
+#### `scripts/teleop/teleop_dual_arm.py`
+
+Keyboard teleoperation of both Panda robots with configurable sensitivity.
+
+```bash
+python scripts/teleop/teleop_dual_arm.py
+python scripts/teleop/teleop_dual_arm.py --pos-sensitivity 2.0 --rot-sensitivity 0.5
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--pos-sensitivity` | `1.0` | Scale factor for position inputs |
+| `--rot-sensitivity` | `1.0` | Scale factor for rotation inputs |
+
+**Teleoperation keybindings:**
 
 | Key | Action |
 |-----|--------|
@@ -246,24 +376,33 @@ python scripts/manipulation/dual_arm_handover_traj.py \
 | `s` | Switch active arm |
 | `q` | Exit teleoperation |
 
-### Demo Scripts
+---
+
+### Transform Visualization
+
+#### `scripts/transforms/transform_visualizer_meshcat.py`
+
+RViz-like TF visualizer for Meshcat. Continuously streams all `TransformManager` frames (coordinate triads + text labels) to a running Meshcat server. Requires `meshcat-server` to be running separately.
 
 ```bash
-# Test arm position control
-python scripts/demos/go_to_pose.py
+# Terminal 1: start meshcat server
+meshcat-server
 
-# Test gripper open/close
-python scripts/demos/gripper_move.py
-
-# Launch environment with custom/YCB objects
-python scripts/demos/launch_env.py --with-objects --ycb apple banana
-
-# Standalone teleoperation
-python scripts/teleop/teleop_dual_arm.py
-
-# Visualize Meshcat transforms
+# Terminal 2: run the visualizer
 python scripts/transforms/transform_visualizer_meshcat.py
+python scripts/transforms/transform_visualizer_meshcat.py --fps 10 --no-labels
+python scripts/transforms/transform_visualizer_meshcat.py --axis-length 0.2 --axis-radius 0.01
 ```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--fps` | `20.0` | Update rate in Hz |
+| `--zmq-url` | `tcp://127.0.0.1:6000` | Meshcat ZMQ URL |
+| `--axis-length` | `0.12` | Axis triad length (metres) |
+| `--axis-radius` | `0.008` | Axis triad radius (metres) |
+| `--labels` / `--no-labels` | enabled | Render frame name labels |
+| `--label-offset` | `0.05` | Z offset (m) for label placement |
+| `--no-clear` | `False` | Don't clear visualizer on start |
 
 ## Experiment Configuration
 
