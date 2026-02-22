@@ -93,6 +93,7 @@ def main() -> int:
     ycb_objects = exp_cfg.ycb_objects
     custom_objects = exp_cfg.custom_objects
     table_full_size = exp_cfg.table_full_size
+    enable_meshcat = exp_cfg.visualization.enable_meshcat
 
     # Create and start system
     global system
@@ -100,7 +101,7 @@ def main() -> int:
         visualize=args.visualize,
         debug=args.debug,
         detection_prompt=args.prompt,
-        meshcat_tf=args.meshcat_tf,
+        meshcat_tf=args.meshcat_tf or enable_meshcat,
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
         use_fastsam=args.use_fastsam,
