@@ -665,11 +665,15 @@ def rrt_connect_se3(
                     a_is_start = not a_is_start
                     continue
                 
-                # Check the edge is collision-free
+                # Check the edge is collision-free.
+                # skip_endpoints=True because both ends are already validated:
+                #   nearest — already in the tree (or root, assumed valid)
+                #   new_pos — just checked by check_object_pose_collision above
                 if not _collision_free_segment(
                     env, object_name,
                     nearest.pos, nearest.quat, new_pos, new_quat,
                     object_geom_ids, robot_mask, obj_joint_addr,
+                    skip_endpoints=True,
                 ):
                     if rrt_vis is not None:
                         rrt_vis.draw_collision_sample(new_pos)
@@ -705,10 +709,13 @@ def rrt_connect_se3(
                     ):
                         break
                     
+                    # skip_endpoints=True: current_pos is in the tree,
+                    # steered_pos was just validated above.
                     if not _collision_free_segment(
                         env, object_name,
                         current_pos, current_quat, steered_pos, steered_quat,
                         object_geom_ids, robot_mask, obj_joint_addr,
+                        skip_endpoints=True,
                     ):
                         break
                     
