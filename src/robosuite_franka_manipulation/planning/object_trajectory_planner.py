@@ -12,10 +12,12 @@ Uses MuJoCo for collision checking against static environment geometry
 import numpy as np
 import mujoco
 import logging
+import time
 from typing import List, Optional, Tuple
 from contextlib import nullcontext
 from scipy.spatial.transform import Rotation as R
 from dataclasses import dataclass, field
+import meshcat.geometry as mg
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
@@ -34,6 +36,153 @@ from robosuite_franka_manipulation.planning.utils.collision_utils import (
 from robosuite.utils import transform_utils as T
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Meshcat RRT Visualization Helper
+# ============================================================================
+
+class RRTVisualizer:
+    """Draws RRT tree growth, collision samples, and paths in Meshcat.
+
+    All drawing is done under ``vis["rrt_debug/"]`` so it can be cleared
+    easily between runs.
+
+    Colours:
+    - **cyan** / **orange** – tree_a / tree_b edges
+    - **red** – collision-rejected samples
+    - **green** – final path
+    - **white sphere** – start, **magenta sphere** – goal
+    """
+
+    def __init__(self, vis, delay: float = 0.0):
+        """
+        Args:
+            vis: A ``meshcat.Visualizer`` instance.
+            delay: Seconds to sleep after each draw call (useful for
+                   watching the search in real-time).  0 = no delay.
+        """
+        self._vis = vis
+        self._delay = delay
+        self._root = vis["rrt_debug"]
+        self._edge_counter = 0
+        self._collision_counter = 0
+        self._root.delete()  # clear previous run
+
+    # -- helpers --
+    def _sleep(self):
+        if self._delay > 0:
+            time.sleep(self._delay)
+
+    @staticmethod
+    def _color_int(r: int, g: int, b: int) -> int:
+        return (r << 16) | (g << 8) | b
+
+    def _draw_sphere(self, name: str, pos: np.ndarray, radius: float, color: int):
+        self._root[name].set_object(
+            mg.Sphere(radius),
+            mg.MeshPhongMaterial(color=color, opacity=0.9),
+        )
+        tf = np.eye(4)
+        tf[:3, 3] = pos
+        self._root[name].set_transform(tf)
+
+    def _draw_line(self, name: str, p1: np.ndarray, p2: np.ndarray, color: int):
+        pts = np.column_stack([p1, p2]).astype(np.float32)
+        self._root[name].set_object(
+            mg.LineSegments(
+                mg.PointsGeometry(pts),
+                mg.LineBasicMaterial(color=color, linewidth=1),
+            )
+        )
+
+    # -- public API --
+    def draw_start_goal(self, start_pos: np.ndarray, goal_pos: np.ndarray):
+        """Draw start (white) and goal (magenta) spheres."""
+        self._draw_sphere("start", start_pos, 0.015, 0xffffff)
+        self._draw_sphere("goal", goal_pos, 0.015, 0xff00ff)
+        self._sleep()
+
+    def draw_tree_edge(self, parent_pos: np.ndarray, child_pos: np.ndarray,
+                       is_tree_a: bool):
+        """Draw a tree edge (cyan for tree_a, orange for tree_b)."""
+        color = self._color_int(0, 200, 255) if is_tree_a else self._color_int(255, 165, 0)
+        name = f"edges/e{self._edge_counter}"
+        self._edge_counter += 1
+        self._draw_line(name, parent_pos, child_pos, color)
+        self._sleep()
+
+    def draw_collision_sample(self, pos: np.ndarray):
+        """Draw a small red dot for a rejected (collision) sample."""
+        name = f"collisions/c{self._collision_counter}"
+        self._collision_counter += 1
+        self._draw_sphere(name, pos, 0.005, 0xff0000)
+
+    def draw_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
+        """Draw the final path as thick green line segments."""
+        if len(path) < 2:
+            return
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"path/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0x00ff00, linewidth=4),
+                )
+            )
+        self._sleep()
+
+    def draw_smoothed_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
+        """Draw the smoothed path as thick yellow line segments."""
+        if len(path) < 2:
+            return
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"smoothed_path/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0xffff00, linewidth=4),
+                )
+            )
+        self._sleep()
+
+    def draw_bounds(self, pos_bounds: np.ndarray):
+        """Draw the workspace bounding box as wireframe."""
+        import meshcat.geometry as mg
+        lo, hi = pos_bounds[0], pos_bounds[1]
+        # 12 edges of a box
+        corners = np.array([
+            [lo[0], lo[1], lo[2]],
+            [hi[0], lo[1], lo[2]],
+            [hi[0], hi[1], lo[2]],
+            [lo[0], hi[1], lo[2]],
+            [lo[0], lo[1], hi[2]],
+            [hi[0], lo[1], hi[2]],
+            [hi[0], hi[1], hi[2]],
+            [lo[0], hi[1], hi[2]],
+        ])
+        edges = [
+            (0, 1), (1, 2), (2, 3), (3, 0),
+            (4, 5), (5, 6), (6, 7), (7, 4),
+            (0, 4), (1, 5), (2, 6), (3, 7),
+        ]
+        for idx, (a, b) in enumerate(edges):
+            pts = np.column_stack([corners[a], corners[b]]).astype(np.float32)
+            self._root[f"bounds/e{idx}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0x888888, linewidth=1),
+                )
+            )
+
+    def log_iteration(self, iteration: int, tree_a_size: int, tree_b_size: int):
+        """Periodically log progress (every 100 iterations)."""
+        if iteration % 100 == 0 and iteration > 0:
+            logger.info(f"  RRT iteration {iteration}: tree_a={tree_a_size}, tree_b={tree_b_size}")
 
 
 # ============================================================================
@@ -383,6 +532,7 @@ def rrt_connect_se3(
     step_size: float = None,
     goal_bias: float = None,
     pos_bounds: np.ndarray = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
 ) -> RRTResult:
     """
     Plan a collision-free path for an object using RRT-Connect in SE(3).
@@ -402,6 +552,7 @@ def rrt_connect_se3(
         step_size: Step size for tree extension.
         goal_bias: Probability of sampling the goal.
         pos_bounds: Workspace bounds (2, 3) array.
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
         
     Returns:
         RRTResult with success flag and path.
@@ -468,12 +619,20 @@ def rrt_connect_se3(
             
             logger.info(f"Direct path has collisions. Running RRT-Connect (max_iter={max_iterations})...")
             
+            # Visualization: draw start/goal and bounds
+            if rrt_vis is not None:
+                rrt_vis.draw_start_goal(start_pos, goal_pos)
+                rrt_vis.draw_bounds(pos_bounds)
+            
             # Initialize trees
             tree_a = [RRTNode(pos=start_pos.copy(), quat=start_quat.copy())]
             tree_b = [RRTNode(pos=goal_pos.copy(), quat=goal_quat.copy())]
             a_is_start = True  # Track which tree is which
             
             for iteration in range(max_iterations):
+                # Visualization: periodic logging
+                if rrt_vis is not None:
+                    rrt_vis.log_iteration(iteration, len(tree_a), len(tree_b))
                 # Sample random pose (with goal bias)
                 if np.random.random() < goal_bias:
                     if a_is_start:
@@ -499,6 +658,8 @@ def rrt_connect_se3(
                     env, object_name, new_pos, new_quat,
                     object_geom_ids, robot_mask, obj_joint_addr,
                 ):
+                    if rrt_vis is not None:
+                        rrt_vis.draw_collision_sample(new_pos)
                     # Swap trees and continue
                     tree_a, tree_b = tree_b, tree_a
                     a_is_start = not a_is_start
@@ -510,6 +671,8 @@ def rrt_connect_se3(
                     nearest.pos, nearest.quat, new_pos, new_quat,
                     object_geom_ids, robot_mask, obj_joint_addr,
                 ):
+                    if rrt_vis is not None:
+                        rrt_vis.draw_collision_sample(new_pos)
                     tree_a, tree_b = tree_b, tree_a
                     a_is_start = not a_is_start
                     continue
@@ -517,6 +680,8 @@ def rrt_connect_se3(
                 # Add node to tree_a
                 new_idx_a = len(tree_a)
                 tree_a.append(RRTNode(pos=new_pos, quat=new_quat, parent=nearest_idx))
+                if rrt_vis is not None:
+                    rrt_vis.draw_tree_edge(nearest.pos, new_pos, is_tree_a=a_is_start)
                 
                 # CONNECT tree_b toward the new node in tree_a
                 connected = False
@@ -549,6 +714,8 @@ def rrt_connect_se3(
                     
                     connect_idx_b = len(tree_b)
                     tree_b.append(RRTNode(pos=steered_pos, quat=steered_quat, parent=parent_b_idx))
+                    if rrt_vis is not None:
+                        rrt_vis.draw_tree_edge(current_pos, steered_pos, is_tree_a=(not a_is_start))
                     parent_b_idx = connect_idx_b
                     
                     # Check if we've reached the target node
@@ -564,6 +731,8 @@ def rrt_connect_se3(
                                f"(tree sizes: {len(tree_a)}, {len(tree_b)})")
                     
                     path = _extract_path(tree_a, new_idx_a, tree_b, connect_idx_b, a_is_start)
+                    if rrt_vis is not None:
+                        rrt_vis.draw_path(path)
                     
                     return RRTResult(
                         success=True,
@@ -602,6 +771,7 @@ def smooth_path(
     path: List[Tuple[np.ndarray, np.ndarray]],
     env_lock=None,
     max_smoothing_iterations: int = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """
     Smooth an RRT path using iterative shortcutting.
@@ -616,6 +786,7 @@ def smooth_path(
         path: List of (position, quaternion) waypoints.
         env_lock: Optional threading lock.
         max_smoothing_iterations: Number of shortcut attempts.
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
         
     Returns:
         Smoothed path.
@@ -675,6 +846,8 @@ def smooth_path(
                     smoothed = smoothed[:i + 1] + smoothed[j:]
             
             logger.info(f"Path smoothing: {len(path)} -> {len(smoothed)} waypoints")
+            if rrt_vis is not None:
+                rrt_vis.draw_smoothed_path(smoothed)
         
         finally:
             data.qpos[:] = qpos_backup
@@ -764,6 +937,7 @@ def plan_object_trajectory(
     goal_bias: float = None,
     pos_bounds: np.ndarray = None,
     smoothing_iterations: int = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
 ) -> Tuple[List[StampedPose], bool]:
     """
     Plan a collision-free object trajectory from start to target pose.
@@ -787,6 +961,7 @@ def plan_object_trajectory(
         goal_bias: RRT goal bias (default from constants).
         pos_bounds: Workspace bounds (2, 3) array (default from constants).
         smoothing_iterations: Path smoothing iterations (default from constants).
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
         
     Returns:
         Tuple of (trajectory as list of StampedPose, planning_success bool).
@@ -836,6 +1011,7 @@ def plan_object_trajectory(
         step_size=step_size,
         goal_bias=goal_bias,
         pos_bounds=pos_bounds,
+        rrt_vis=rrt_vis,
     )
     
     if result.success:
@@ -847,6 +1023,7 @@ def plan_object_trajectory(
             env, object_name, result.path,
             env_lock=env_lock,
             max_smoothing_iterations=smoothing_iterations,
+            rrt_vis=rrt_vis,
         )
         
         # Densify to the desired number of waypoints
