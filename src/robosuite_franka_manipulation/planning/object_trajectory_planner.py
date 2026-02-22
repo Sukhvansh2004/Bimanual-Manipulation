@@ -1119,6 +1119,111 @@ def _bezier_smooth_path(
     return [(smooth_pos[i], smooth_quat[i]) for i in range(n)]
 
 
+def _bezier_smooth_one_segment(
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    seg_idx: int,
+    samples_per_segment: int,
+    tension: float = 0.33,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Evaluate the Bézier curve for a **single** segment of the shortcut path.
+
+    The full path is needed so that Catmull-Rom tangents at the segment
+    endpoints use the neighbouring waypoints for continuity.
+
+    Args:
+        path: The full shortcut waypoint list.
+        seg_idx: Index of the segment (``path[seg_idx]`` → ``path[seg_idx+1]``).
+        samples_per_segment: Dense samples to emit for this segment.
+        tension: Bézier tension.
+
+    Returns:
+        List of ``samples_per_segment + 1`` (pos, quat) samples
+        (inclusive of both endpoints).
+    """
+    positions = [p for p, _ in path]
+    quaternions = [q for _, q in path]
+    n = len(positions)
+
+    # --- Position control points (Catmull-Rom) ---
+    def _tangent(idx):
+        if idx == 0:
+            return positions[1] - positions[0]
+        elif idx == n - 1:
+            return positions[-1] - positions[-2]
+        else:
+            return positions[idx + 1] - positions[idx - 1]
+
+    P0 = positions[seg_idx]
+    P3 = positions[seg_idx + 1]
+    chord = np.linalg.norm(P3 - P0)
+    t0 = _tangent(seg_idx)
+    t1 = _tangent(seg_idx + 1)
+    t0n = np.linalg.norm(t0)
+    t1n = np.linalg.norm(t1)
+    P1 = P0 + (tension * (chord / t0n) * t0 if t0n > 1e-12 else 0.0)
+    P2 = P3 - (tension * (chord / t1n) * t1 if t1n > 1e-12 else 0.0)
+
+    # --- Rotation control quaternions (so(3) tangent) ---
+    def _log_rel(qa, qb):
+        return (R.from_quat(qa).inv() * R.from_quat(qb)).as_rotvec()
+
+    def _apply_rv(q, rv):
+        return (R.from_quat(q) * R.from_rotvec(rv)).as_quat()
+
+    def _rot_tangent(idx):
+        if idx == 0:
+            return _log_rel(quaternions[0], quaternions[1])
+        elif idx == n - 1:
+            return _log_rel(quaternions[-2], quaternions[-1])
+        else:
+            fwd = _log_rel(quaternions[idx], quaternions[idx + 1])
+            bwd = _log_rel(quaternions[idx - 1], quaternions[idx])
+            return 0.5 * (fwd + bwd)
+
+    q0 = quaternions[seg_idx]
+    q3 = quaternions[seg_idx + 1]
+    angle_chord = np.linalg.norm(_log_rel(q0, q3))
+    rv0 = _rot_tangent(seg_idx)
+    rv1 = _rot_tangent(seg_idx + 1)
+    rv0n = np.linalg.norm(rv0)
+    rv1n = np.linalg.norm(rv1)
+    s0 = tension * (angle_chord / rv0n) if rv0n > 1e-12 else 0.0
+    s1 = tension * (angle_chord / rv1n) if rv1n > 1e-12 else 0.0
+    q1 = _apply_rv(q0, s0 * rv0)
+    q2 = _apply_rv(q3, -s1 * rv1)
+    qctrl = [q0, q1, q2, q3]
+
+    # --- Sample ---
+    pts: List[Tuple[np.ndarray, np.ndarray]] = []
+    for k in range(samples_per_segment + 1):
+        t = k / float(samples_per_segment)
+        pos = _eval_cubic_bezier(P0, P1, P2, P3, t)
+        quat = _decasteljau_slerp(qctrl, t)
+        pts.append((pos, quat))
+    return pts
+
+
+def _linear_interpolate_segment(
+    p_start: Tuple[np.ndarray, np.ndarray],
+    p_end: Tuple[np.ndarray, np.ndarray],
+    num_samples: int,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Linearly interpolate (position lerp + quaternion slerp) between two poses.
+
+    Returns ``num_samples + 1`` points (inclusive of both endpoints).
+    """
+    pts: List[Tuple[np.ndarray, np.ndarray]] = []
+    for k in range(num_samples + 1):
+        t = k / float(num_samples)
+        pos, quat = interpolate_pose(
+            p_start[0], p_start[1], p_end[0], p_end[1], t
+        )
+        pts.append((pos, quat))
+    return pts
+
+
 def smooth_path(
     env: DualArmEnvironment,
     object_name: str,
@@ -1128,18 +1233,20 @@ def smooth_path(
     rrt_vis: Optional[RRTVisualizer] = None,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """
-    Smooth an RRT path using shortcutting followed by cubic Bézier fitting.
+    Smooth an RRT path using shortcutting followed by **per-segment** cubic
+    Bézier fitting (hybrid approach).
 
     **Phase 1 – Shortcutting**: Randomly select two waypoints and try to
     connect them directly.  If the direct connection is collision-free,
     remove the intermediate waypoints.  This gives a topologically simpler
     path.
 
-    **Phase 2 – Bézier smoothing**: Fit a composite cubic Bézier spline
-    (Catmull-Rom tangent construction) through the remaining waypoints for
-    both position (R^3) and orientation (SO(3) via De Casteljau SLERP).
-    The resulting curve is collision-checked; if any sampled point collides
-    the Bézier result is discarded and the shortcut-only path is returned.
+    **Phase 2 – Hybrid Bézier smoothing**: For each segment of the
+    shortcut path, fit a cubic Bézier curve and collision-check it.
+    Segments where the Bézier is collision-free get the smooth curve;
+    segments where any sample point collides fall back to simple linear
+    interpolation between the two endpoints.  This guarantees the final
+    path is always collision-free while being as smooth as possible.
 
     Args:
         env: Environment.
@@ -1191,49 +1298,63 @@ def smooth_path(
             if rrt_vis is not None:
                 rrt_vis.draw_shortcut_path(shortcut)
 
-            # Phase 2: Bézier smoothing
-            # Use more samples when segments are few (shortcutted path is sparse)
+            # Phase 2: per-segment hybrid Bézier smoothing
             samples_per_seg = max(8, 40 // max(1, len(shortcut) - 1))
 
-            # Compute and visualise control polygon before evaluating the curve
+            # Compute and visualise control polygon
             positions = [p for p, _ in shortcut]
             ctrl_segments = _compute_bezier_control_points(positions, tension=0.33)
             if rrt_vis is not None and ctrl_segments:
                 rrt_vis.draw_bezier_control_polygon(ctrl_segments)
 
-            bezier_path = _bezier_smooth_path(
-                shortcut,
-                samples_per_segment=samples_per_seg,
-                tension=0.33,
+            num_segs = len(shortcut) - 1
+            bezier_seg_ok = [False] * num_segs  # track per-segment success
+            result: List[Tuple[np.ndarray, np.ndarray]] = []
+
+            for seg_idx in range(num_segs):
+                # Evaluate Bézier for this segment
+                bez_pts = _bezier_smooth_one_segment(
+                    shortcut, seg_idx,
+                    samples_per_segment=samples_per_seg,
+                    tension=0.33,
+                )
+
+                # Collision-check the Bézier samples
+                seg_collides = False
+                for pos, quat in bez_pts:
+                    if check_object_pose_collision(
+                        env, object_name, pos, quat,
+                        object_geom_ids, robot_mask, obj_joint_addr,
+                    ):
+                        seg_collides = True
+                        break
+
+                if not seg_collides:
+                    # Use smooth Bézier points
+                    bezier_seg_ok[seg_idx] = True
+                    # Skip the first point of non-first segments (already
+                    # included as the last point of the previous segment)
+                    start = 1 if seg_idx > 0 else 0
+                    result.extend(bez_pts[start:])
+                else:
+                    # Fallback: linear interpolation for this segment
+                    lin_pts = _linear_interpolate_segment(
+                        shortcut[seg_idx], shortcut[seg_idx + 1],
+                        num_samples=samples_per_seg,
+                    )
+                    start = 1 if seg_idx > 0 else 0
+                    result.extend(lin_pts[start:])
+
+            n_ok = sum(bezier_seg_ok)
+            logger.info(
+                "Phase 2 hybrid Bézier: %d/%d segments smoothed, "
+                "%d fell back to linear (%d total dense waypoints)",
+                n_ok, num_segs, num_segs - n_ok, len(result),
             )
 
-            # Collision-check the Bézier-smoothed path
-            bezier_ok = True
-            for pos, quat in bezier_path:
-                if check_object_pose_collision(
-                    env, object_name, pos, quat,
-                    object_geom_ids, robot_mask, obj_joint_addr,
-                ):
-                    bezier_ok = False
-                    break
-
-            # Visualise the Bézier curve (cyan if ok, red if colliding)
+            # Visualise: Bézier curve coloured per segment
             if rrt_vis is not None:
-                rrt_vis.draw_bezier_curve(bezier_path, collision_free=bezier_ok)
-
-            if bezier_ok:
-                logger.info(
-                    "Phase 2 Bézier smoothing: %d -> %d dense waypoints (collision-free)",
-                    len(shortcut), len(bezier_path),
-                )
-                result = bezier_path
-            else:
-                logger.warning(
-                    "Phase 2 Bézier smoothing produced collisions — "
-                    "falling back to shortcut-only path (%d waypoints)",
-                    len(shortcut),
-                )
-                result = shortcut
+                rrt_vis.draw_bezier_curve(result, collision_free=(n_ok == num_segs))
 
             if rrt_vis is not None:
                 rrt_vis.draw_smoothed_path(result)
