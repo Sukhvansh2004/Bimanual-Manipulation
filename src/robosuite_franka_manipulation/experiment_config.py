@@ -66,6 +66,7 @@ class CollisionFilterConfig:
 @dataclass
 class VisualizationConfig:
     """Meshcat / mesh visualization settings (used by both planning & execution)."""
+    enable_meshcat: bool = True
     visualize_mesh: bool = False
     mesh_step_interval: int = constants.VIS_MESH_STEP_INTERVAL
     mesh_opacity: float = constants.VIS_MESH_OPACITY
@@ -234,6 +235,7 @@ def load_experiment(path: str) -> ExperimentConfig:
     # --- visualization ---
     vis_raw = raw.get("visualization", {})
     visualization = VisualizationConfig(
+        enable_meshcat=vis_raw.get("enable_meshcat", True),
         visualize_mesh=vis_raw.get("visualize_mesh", False),
         mesh_step_interval=vis_raw.get("mesh_step_interval", constants.VIS_MESH_STEP_INTERVAL),
         mesh_opacity=vis_raw.get("mesh_opacity", constants.VIS_MESH_OPACITY),

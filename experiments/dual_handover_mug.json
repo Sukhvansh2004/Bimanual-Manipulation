@@ -67,7 +67,8 @@
         "mesh_step_interval": 10,
         "mesh_opacity": 0.4,
         "mesh_sample_ratio": 0.5,
-        "zmq_url": "tcp://127.0.0.1:6000"
+        "zmq_url": "tcp://127.0.0.1:6000",
+        "enable_meshcat": true
     },
 
     "output": {

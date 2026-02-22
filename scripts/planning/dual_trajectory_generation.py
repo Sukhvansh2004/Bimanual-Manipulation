@@ -180,6 +180,8 @@ def main() -> None:
     # Minimal CLI overrides – everything else lives in the experiment JSON
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     parser.add_argument("--save-traj", action="store_true", help="Force-save trajectories (overrides JSON)")
+    parser.add_argument("--no-meshcat", action="store_true",
+                        help="Disable all Meshcat visualization (useful for batch / headless runs)")
     
     args = parser.parse_args()
 
@@ -196,6 +198,7 @@ def main() -> None:
     plan_cfg = exp_cfg.planning
 
     debug = args.debug or rt_cfg.debug
+    enable_meshcat = vis_cfg.enable_meshcat and not args.no_meshcat
     num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
 
     # Setup logging
@@ -238,18 +241,24 @@ def main() -> None:
     
     # 2. Setup Visualization
     # ----------------------
-    logger.info("Setting up global visualization stream...")
-    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
     stop_event = threading.Event()
-    vis_thread = threading.Thread(
-        target=stream_transforms_to_meshcat,
-        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
-        daemon=True
-    )
-    vis_thread.start()
+    vis_thread = None
+    vis = None
+    if enable_meshcat:
+        logger.info("Setting up global visualization stream...")
+        vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
+        vis_thread = threading.Thread(
+            target=stream_transforms_to_meshcat,
+            kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
+            daemon=True
+        )
+        vis_thread.start()
+    else:
+        logger.info("Meshcat visualization disabled.")
     
-    vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
-    logger.info("Visualization stream started.")
+    if enable_meshcat:
+        vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
+        logger.info("Visualization stream started.")
     
     # 3. Define Planning Problem
     # --------------------------
@@ -292,14 +301,16 @@ def main() -> None:
         object_name=object_name,
         env_lock=env_lock,
     )
-    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
+    if enable_meshcat:
+        visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     # Visualize Target
-    vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
-    T_target = np.eye(4)
-    T_target[:3, 3] = target_pose_stamped.position
-    T_target[:3, :3] = tf.quaternion_matrix(T.convert_quat(target_pose_stamped.quaternion, to="wxyz"))[:3, :3]
-    vis["target_pose"].set_transform(T_target)
+    if enable_meshcat:
+        vis["target_pose"].set_object(g.Sphere(0.05), g.MeshBasicMaterial(color=0xff0000, opacity=0.5))
+        T_target = np.eye(4)
+        T_target[:3, 3] = target_pose_stamped.position
+        T_target[:3, :3] = tf.quaternion_matrix(T.convert_quat(target_pose_stamped.quaternion, to="wxyz"))[:3, :3]
+        vis["target_pose"].set_transform(T_target)
     
     logger.info("Object trajectory generated.")
 
@@ -362,27 +373,30 @@ def main() -> None:
 
     # 7. Visualization of Results
     # ---------------------------
-    logger.info("Streaming evaluated trajectories to Meshcat...")
-    for res in all_results:
-        pair_id = f"pair_{res['id0']}_{res['id1']}"
-        status = "FEASIBLE" if res['all_feasible'] else "INFEASIBLE"
-        logger.debug(f"Visualizing {pair_id} ({status})")
-        
-        # Visualize Robot 0 Path
-        visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x888888)
-        # Visualize Robot 1 Path
-        visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0x888888)
-        
-        if vis_cfg.visualize_mesh:
-            logger.info(f"Rendering robot meshes for feasible pair {pair_id}")
-            mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path=f"dual_configs/{pair_id}")
-            mesh_vis.visualize_dual_arm_trajectory(
-                trajectory_id="feasible",
-                waypoint_results_robot0=res['results0'],
-                waypoint_results_robot1=res['results1'],
-                step_interval=vis_cfg.mesh_step_interval,
-                opacity=vis_cfg.mesh_opacity
-            )
+    if enable_meshcat:
+        logger.info("Streaming evaluated trajectories to Meshcat...")
+        for res in all_results:
+            pair_id = f"pair_{res['id0']}_{res['id1']}"
+            status = "FEASIBLE" if res['all_feasible'] else "INFEASIBLE"
+            logger.debug(f"Visualizing {pair_id} ({status})")
+            
+            # Visualize Robot 0 Path
+            visualize_trajectory(vis, res['traj0_eef'], waypoint_results=res['results0'], name=f"robot0_{pair_id}", color=0x888888)
+            # Visualize Robot 1 Path
+            visualize_trajectory(vis, res['traj1_eef'], waypoint_results=res['results1'], name=f"robot1_{pair_id}", color=0x888888)
+            
+            if vis_cfg.visualize_mesh:
+                logger.info(f"Rendering robot meshes for feasible pair {pair_id}")
+                mesh_vis = RobotMeshVisualizer(vis=vis, tf_manager=tf_manager, base_path=f"dual_configs/{pair_id}")
+                mesh_vis.visualize_dual_arm_trajectory(
+                    trajectory_id="feasible",
+                    waypoint_results_robot0=res['results0'],
+                    waypoint_results_robot1=res['results1'],
+                    step_interval=vis_cfg.mesh_step_interval,
+                    opacity=vis_cfg.mesh_opacity
+                )
+    else:
+        logger.info("Skipping trajectory visualization (meshcat disabled).")
 
     # 8. Save Trajectories
     # --------------------
@@ -414,7 +428,8 @@ def main() -> None:
     # Cleanup
     logger.info("Shutting down...")
     stop_event.set()
-    vis_thread.join(timeout=2.0)
+    if vis_thread is not None:
+        vis_thread.join(timeout=2.0)
     grasp_service.stop()
     service_manager.stop()
     env.close()

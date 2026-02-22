@@ -87,14 +87,16 @@ def main():
     # 1. Environment Setup
     ycb_objects = exp_cfg.ycb_objects
     custom_objects = exp_cfg.custom_objects
+    enable_meshcat = vis_cfg.enable_meshcat
 
-    if exec_cfg.visualize:
+    vis = None
+    if exec_cfg.visualize and enable_meshcat:
         vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
         vis.delete()  # Clear MeshCat
 
     system = DualArmManipulationSystem(
         visualize=exec_cfg.visualize, 
-        meshcat_tf=exec_cfg.meshcat_tf,
+        meshcat_tf=exec_cfg.meshcat_tf and enable_meshcat,
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
         use_fastsam=False, 
@@ -126,7 +128,7 @@ def main():
             return
 
         # 3. Visualization of Trajectories
-        if exec_cfg.visualize:
+        if exec_cfg.visualize and vis is not None:
             logger.info("Visualizing trajectories in MeshCat...")
             visualize_trajectory(vis, eef_traj0, res0, name="robot0_traj", tf_manager=system.tf_manager)
             visualize_trajectory(vis, eef_traj1, res1, name="robot1_traj", tf_manager=system.tf_manager)
@@ -217,7 +219,7 @@ def main():
                 h_traj = h_planner.generate_trajectory()
                 
                 # Visualize handover plan in MeshCat
-                if exec_cfg.visualize:
+                if exec_cfg.visualize and vis is not None:
                     visualize_handover_plan(
                         vis, h_traj,
                         name=f"handover_{current_idx}",

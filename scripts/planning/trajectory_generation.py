@@ -78,7 +78,7 @@ worker_env = None
 worker_tf_manager = None
 worker_vis = None
 
-def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None, table_full_size=None):
+def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None, table_full_size=None, enable_meshcat=True):
     """Initialize worker process by creating a persistent environment and visualizer.
     
     Args:
@@ -89,6 +89,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
             any of these patterns (or are robot geoms) keep their collisions.
             All other geoms get contype=0 for faster collision checking.
         table_full_size: Optional tuple (x, y, z) to override the default table dimensions.
+        enable_meshcat: Whether to create a Meshcat visualizer in the worker.
     """
     setup_logging(log_level)
     global worker_env, worker_tf_manager, worker_vis
@@ -120,7 +121,10 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
                 model.geom_contype[i] = 0
 
         worker_tf_manager = TransformManager(worker_env)
-        worker_vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+        if enable_meshcat:
+            worker_vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+        else:
+            worker_vis = None
         logging.info("Worker initialized: Environment and Visualizer created.")
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
@@ -203,6 +207,8 @@ def main() -> None:
     # Minimal CLI overrides – everything else lives in the experiment JSON
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     parser.add_argument("--save-traj", action="store_true", help="Force-save trajectories (overrides JSON)")
+    parser.add_argument("--no-meshcat", action="store_true",
+                        help="Disable all Meshcat visualization (useful for batch / headless runs)")
     
     args = parser.parse_args()
 
@@ -218,6 +224,7 @@ def main() -> None:
     out_cfg = exp_cfg.output
     
     debug = args.debug or rt_cfg.debug
+    enable_meshcat = vis_cfg.enable_meshcat and not args.no_meshcat
     num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
 
     # Setup logging
@@ -264,18 +271,22 @@ def main() -> None:
     
     # 2. Setup Visualization (Scene Streaming)
     # ----------------------------------------
-    logger.info("Setting up global visualization stream...")
-    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
     stop_event = threading.Event()
-    vis_thread = threading.Thread(
-        target=stream_transforms_to_meshcat,
-        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
-        daemon=True
-    )
-    vis_thread.start()
-    
-    # Connect to the same meshcat server for worker coordination
-    vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
+    vis_thread = None
+    vis = None
+    if enable_meshcat:
+        logger.info("Setting up global visualization stream...")
+        vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
+        vis_thread = threading.Thread(
+            target=stream_transforms_to_meshcat,
+            kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
+            daemon=True
+        )
+        vis_thread.start()
+        # Connect to the same meshcat server for worker coordination
+        vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
+    else:
+        logger.info("Meshcat visualization disabled.")
     
     # 3. Define Planning Problem
     # --------------------------
@@ -323,10 +334,11 @@ def main() -> None:
         object_name=object_name,
         env_lock=env_lock,
     )
-    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
+    if vis is not None:
+        visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     # Visualize object meshes along trajectory (once, shared across all grasps)
-    if vis_cfg.visualize_mesh:
+    if vis is not None and vis_cfg.visualize_mesh:
         logger.info("Visualizing object meshes along trajectory...")
         obj_mesh_visualizer = ObjectMeshVisualizer(
             vis=vis, tf_manager=tf_manager,
@@ -388,16 +400,17 @@ def main() -> None:
     start_time = time.time()
 
     vis_args = {
-        'visualize_mesh': vis_cfg.visualize_mesh,
+        'visualize_mesh': vis_cfg.visualize_mesh if enable_meshcat else False,
         'mesh_step_interval': vis_cfg.mesh_step_interval,
         'mesh_opacity': vis_cfg.mesh_opacity,
-        'mesh_sample_ratio': vis_cfg.mesh_sample_ratio
+        'mesh_sample_ratio': vis_cfg.mesh_sample_ratio,
+        'enable_meshcat': enable_meshcat,
     }
 
     with multiprocessing.Pool(
         processes=num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns, table_full_size)
+        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns, table_full_size, enable_meshcat)
     ) as pool:
         
         # Evaluate Robot 0 Grasps
@@ -513,7 +526,8 @@ def main() -> None:
         
     logger.info("Closing simulation...")
     stop_event.set()
-    vis_thread.join(timeout=2.0)
+    if vis_thread is not None:
+        vis_thread.join(timeout=2.0)
     
     # Stop Services
     if grasp_service:

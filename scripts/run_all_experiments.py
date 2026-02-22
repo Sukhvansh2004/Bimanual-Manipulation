@@ -37,9 +37,10 @@ def patch_config(cfg: dict, worker_override: int | None = None) -> dict:
     """Return a modified copy of the experiment config with viz off and save on."""
     cfg = json.loads(json.dumps(cfg))  # deep copy
 
-    # Disable all visualizations
+    # Disable all visualizations (including meshcat)
     vis = cfg.setdefault("visualization", {})
     vis["visualize_mesh"] = False
+    vis["enable_meshcat"] = False
 
     # Force-enable trajectory saving
     out = cfg.setdefault("output", {})
@@ -90,6 +91,7 @@ def run_experiment(json_path: str, worker_override: int | None = None) -> bool:
             TRAJ_GEN_SCRIPT,
             "--experiment", tmp_path,
             "--save-traj",
+            "--no-meshcat",
         ]
 
         logger.info("Running: %s", " ".join(cmd))
