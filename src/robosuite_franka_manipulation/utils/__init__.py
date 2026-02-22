@@ -4,7 +4,11 @@ Utilities module for robosuite_franka_manipulation.
 This module contains reusable utility functions organized by domain:
 - se3: SE(3) Lie algebra utilities for trajectory planning
 - pointcloud: Point cloud processing utilities
-- serialization: JSON/numpy serialization utilities
+- env_utils: Environment helpers (stepping, YCB objects, primitives)
+- mesh_utils: Mesh loading and surface sampling
+- primitives: High-level manipulation primitives (handover, grasp, release)
+- suction_weld: Suction gripper weld constraints
+- meshcat_mj_utils: Meshcat ↔ MuJoCo bridge (not re-exported)
 """
 
 from robosuite_franka_manipulation.utils.se3 import (

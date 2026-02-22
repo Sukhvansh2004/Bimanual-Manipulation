@@ -19,6 +19,8 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from robosuite.utils import transform_utils as rs_T
+from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +170,8 @@ class ObjectMeshVisualizer:
                     # Convert to 4x4
                     T_rel = np.eye(4)
                     # MuJoCo uses w-first quat
-                    from robosuite.utils import transform_utils as rs_T
+                    
                     quat_xyzw = rs_T.convert_quat(quat, to="xyzw")
-                    from scipy.spatial.transform import Rotation as R
                     T_rel[:3, :3] = R.from_quat(quat_xyzw).as_matrix()
                     T_rel[:3, 3] = pos
                     
@@ -240,7 +241,7 @@ class ObjectMeshVisualizer:
         color: int = 0x0000ff
     ) -> None:
         """Visualize object along a trajectory."""
-        base_traj_path = f"{self.base_path}/object_meshes/{object_name}"
+        base_traj_path = f"{self.base_path}/{object_name}"
         
         for i, pose in enumerate(object_trajectory):
             if i % step_interval != 0 and i != len(object_trajectory) - 1:

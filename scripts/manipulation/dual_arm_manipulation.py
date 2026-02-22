@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Start Services and Interactive Teleoperation
+Start Services and Interactive Teleoperation.
+
+Usage:
+    python dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json
+    python dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --visualize
 """
 
 import argparse
@@ -21,6 +25,7 @@ from robosuite_franka_manipulation.system_manager import (
     cancel_move, get_arm_status, follow_eef_trajectory
 )
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env, env_step
+from robosuite_franka_manipulation.experiment_config import load_experiment
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +39,12 @@ def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Start dual-arm manipulation system with services and interactive shell"
+    )
+    parser.add_argument(
+        "--experiment",
+        type=str,
+        required=True,
+        help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)"
     )
     parser.add_argument(
         "--prompt",
@@ -73,17 +84,16 @@ def main() -> int:
     
     args = parser.parse_args()
     
-    shelf_pos = [-0.7, 0.0, 0.0]
-    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-    plate_pos = [0.0, 0.0, 0.85]
-    plate_quat = [0, 0, 0, 1]
+    # ---------------------------------------------------------------
+    # Load experiment configuration
+    # ---------------------------------------------------------------
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
 
-    ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-    ]
-    custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat)
-    ]
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
+    table_full_size = exp_cfg.table_full_size
+    enable_meshcat = exp_cfg.visualization.enable_meshcat
 
     # Create and start system
     global system
@@ -91,11 +101,12 @@ def main() -> int:
         visualize=args.visualize,
         debug=args.debug,
         detection_prompt=args.prompt,
-        meshcat_tf=args.meshcat_tf,
+        meshcat_tf=args.meshcat_tf or enable_meshcat,
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
         use_fastsam=args.use_fastsam,
         use_grasp_service=args.use_graspgen,
+        table_full_size=table_full_size,
     )
 
     atexit.register(lambda: system.stop())

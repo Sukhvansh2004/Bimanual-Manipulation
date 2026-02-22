@@ -209,6 +209,7 @@ def create_ycb_object(
     instance_name: Optional[str] = None,
     position: Optional[List[float]] = None,
     quaternion: Optional[List[float]] = None,
+    is_static: bool = False,
 ) -> Dict[str, Any]:
     """
     Create a YCB object specification for the environment.
@@ -232,6 +233,7 @@ def create_ycb_object(
         'name': instance_name,
         'pos': position if position else constants.DEFAULT_OBJECT_POSITION.copy(),
         'quat': quaternion if quaternion else constants.DEFAULT_OBJECT_QUATERNION.copy(),
+        'is_static': is_static,
     }
 
 

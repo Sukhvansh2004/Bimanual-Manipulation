@@ -28,6 +28,9 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     process_waypoint,
     process_dual_waypoint,
 )
+from robosuite_franka_manipulation.planning.object_trajectory_planner import (
+    plan_object_trajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +38,26 @@ def generate_object_trajectory(
     start_pose: StampedPose, 
     target_pose: StampedPose, 
     tf_manager: TransformManager,
-    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS, 
-    lift_height: float = constants.OBJECT_TRAJ_LIFT_HEIGHT,
-    approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
+    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS,
+    env: Optional[DualArmEnvironment] = None,
+    object_name: Optional[str] = None,
+    env_lock=None,
 ) -> List[StampedPose]:
-    """Generate a trajectory using SE(3) interpolation through waypoints for object insertion.
+    """Generate a collision-free trajectory for the object from start to target pose.
+    
+    When *env* and *object_name* are provided, an RRT-Connect planner is used
+    to find a collision-free path (ignoring contacts with robot arms/grippers).
+    If the planner fails, or if *env* is not provided, falls back to simple
+    SE(3) interpolation.
     
     Args:
         start_pose: Start pose as StampedPose
         target_pose: Target pose as StampedPose
         tf_manager: TransformManager for frame conversion
-        num_steps: Number of steps for the trajectory
-        lift_height: Height to lift object during trajectory
-        approach_offset: Offset distance for approach phase
+        num_steps: Number of interpolation steps
+        env: (Optional) DualArmEnvironment for collision-aware planning
+        object_name: (Optional) Name of the object in MuJoCo (required when env is given)
+        env_lock: (Optional) Threading lock for environment access
         
     Returns:
         List of StampedPose objects representing the trajectory
@@ -61,47 +71,35 @@ def generate_object_trajectory(
     # If still mismatch (should not happen if tf_manager works), warn
     if start_pose.frame_id != target_pose.frame_id:
         logger.warning(f"Frame mismatch in generate_object_trajectory: {start_pose.frame_id} vs {target_pose.frame_id}")
-        
-    frame_id = start_pose.frame_id # Use common frame
+
+    # ---- Collision-aware planning (when env is available) ----
+    if env is not None and object_name is not None:
+        logger.info("Using RRT-Connect planner for collision-aware object trajectory.")
+        trajectory, success = plan_object_trajectory(
+            env=env,
+            object_name=object_name,
+            start_pose=start_pose,
+            target_pose=target_pose,
+            tf_manager=tf_manager,
+            num_steps=num_steps,
+            env_lock=env_lock,
+        )
+        if success:
+            return trajectory
+        else:
+            logger.warning("RRT planner failed — returned trajectory is a direct interpolation fallback.")
+            return trajectory
+
+    # ---- Fallback: simple SE(3) interpolation ----
+    logger.info("No environment provided — using direct SE(3) interpolation for object trajectory.")
+    frame_id = start_pose.frame_id
     
     trajectory_points = []
-    
-    start_pos = start_pose.position
-    start_quat = start_pose.quaternion
-    
-    end_pos = target_pose.position
-    end_quat = target_pose.quaternion
-    
-    # Define waypoints in SE(3)
-    # 1. Lift up (same orientation as start)
-    lift_pos = start_pos.copy()
-    lift_pos[2] += lift_height
-    lift_quat = start_quat.copy()
-    
-    # 2. Approach object (pre-align orientation with target)
-    # Move to approach position, and start rotating towards target orientation
-    approach_pos = end_pos.copy()
-    approach_pos[0] += approach_offset  # Stand back from object
-    approach_quat = end_quat.copy() 
-    
-    # Define segments as (start_p, start_q, end_p, end_q, steps)
-    # Use configurable ratios from constants
-    segments = [
-        (start_pos, start_quat, lift_pos, lift_quat, int(num_steps * constants.OBJECT_TRAJ_LIFT_RATIO)),
-        (lift_pos, lift_quat, approach_pos, approach_quat, int(num_steps * constants.OBJECT_TRAJ_APPROACH_RATIO)),
-        (approach_pos, approach_quat, end_pos, end_quat, int(num_steps * constants.OBJECT_TRAJ_INSERT_RATIO))
-    ]
-    
-    for p_start, q_start, p_end, q_end, steps in segments:
-        for i in range(steps):
-            t = i / float(steps) if steps > 0 else 0
-            # Use SE(3) interpolation utility
-            pos, quat = interpolate_pose(p_start, q_start, p_end, q_end, t)
-            trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
-            
-    # Ensure final point is included
-    trajectory_points.append(StampedPose(position=end_pos, quaternion=end_quat, frame_id=frame_id))
-            
+    for i in range(num_steps + 1):
+        t = i / float(num_steps)
+        pos, quat = interpolate_pose(start_pose.position, start_pose.quaternion, target_pose.position, target_pose.quaternion, t)
+        trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
+
     return trajectory_points
 
 

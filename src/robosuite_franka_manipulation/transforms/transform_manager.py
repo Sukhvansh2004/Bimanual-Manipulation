@@ -335,6 +335,27 @@ class TransformManager:
         
         logger.debug(f"Added static transform: {transform.parent_frame} -> {transform.child_frame}")
 
+    def add_dynamic_transform(self, frame_id: str, parent_frame: str,
+                              provider: Callable[[], Transform]) -> None:
+        """
+        Register a dynamic transform provider for *frame_id*.
+
+        The *provider* callable is invoked every time the frame's transform is
+        queried (subject to the cache duration).  This is appropriate for frames
+        whose pose changes continuously (e.g. moving objects in MuJoCo).
+
+        Args:
+            frame_id: The child frame to register.
+            parent_frame: The parent frame.
+            provider: A zero-argument callable that returns a ``Transform``
+                      (parent_frame -> frame_id).
+        """
+        self._dynamic_frame_providers[frame_id] = provider
+        self._frame_parents[frame_id] = parent_frame
+        self._known_frames.add(parent_frame)
+        self._known_frames.add(frame_id)
+        logger.debug(f"Added dynamic transform provider: {parent_frame} -> {frame_id}")
+
     def remove_frame(self, frame_id: str) -> None:
         """
         Remove a frame and its associated static transform.

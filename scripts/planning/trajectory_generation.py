@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Planning script for shelf manipulation task.
+Planning script for manipulation tasks driven by experiment JSON configs.
 
 This script:
-1. Initializes the DualArmEnvironment with a shelf and a plate.
-2. Plans a simple trajectory for the plate from the table to a rack slot in the shelf.
-3. Visualizes the planning context and the generated trajectory using Meshcat.
-4. Generates grasps for the object and computes/filters feasible EEF trajectories.
-5. Saves the object and feasible robot trajectories to disk.
+1. Loads an experiment configuration from a JSON file (or falls back to CLI defaults).
+2. Initializes the DualArmEnvironment with the specified objects.
+3. Plans an object trajectory from start to target pose.
+4. Generates grasps and evaluates/filters feasible EEF trajectories.
+5. Visualizes everything in Meshcat and optionally saves trajectories to disk.
+
+Usage:
+    python trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
+    python trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj
 """
 
 import numpy as np
+import os
 import time
 import threading
 import logging
@@ -52,6 +57,9 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_t
 from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
 from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
 from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import ObjectMeshVisualizer
+from robosuite_franka_manipulation.experiment_config import (
+    load_experiment, detect_start_pose, get_collision_filter_fn, ExperimentConfig
+)
 
 def setup_logging(level: int = logging.INFO):
     """Configure logging."""
@@ -70,17 +78,31 @@ worker_env = None
 worker_tf_manager = None
 worker_vis = None
 
-def init_worker(ycb_objects, custom_objects, log_level):
-    """Initialize worker process by creating a persistent environment and visualizer."""
+def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None, table_full_size=None, enable_meshcat=True):
+    """Initialize worker process by creating a persistent environment and visualizer.
+    
+    Args:
+        ycb_objects: YCB object specs for the environment.
+        custom_objects: Custom object specs for the environment.
+        log_level: Logging level.
+        collision_exclude_patterns: List of substrings; geoms whose names contain
+            any of these patterns (or are robot geoms) keep their collisions.
+            All other geoms get contype=0 for faster collision checking.
+        table_full_size: Optional tuple (x, y, z) to override the default table dimensions.
+        enable_meshcat: Whether to create a Meshcat visualizer in the worker.
+    """
     setup_logging(log_level)
     global worker_env, worker_tf_manager, worker_vis
+    if collision_exclude_patterns is None:
+        collision_exclude_patterns = []
     try:
         worker_env = make_dual_arm_env(
             ycb_objects=ycb_objects,
             custom_objects=custom_objects,
             has_renderer=False, 
             has_offscreen_renderer=False,
-            use_camera_obs=False
+            use_camera_obs=False,
+            table_full_size=table_full_size,
         )
         worker_env.reset()
         # Allow environment to settle
@@ -89,16 +111,20 @@ def init_worker(ycb_objects, custom_objects, log_level):
         
         # Optimization: Disable collisions between environment geoms
         # Anything that isn't a robot or a target object should have contype=0
+        _is_relevant = get_collision_filter_fn(
+            type('CF', (), {'exclude_patterns': collision_exclude_patterns})()
+        )
         model = worker_env.sim.model
         for i in range(model.ngeom):
             name = model.geom_id2name(i) or ""
-            is_robot = any(name.startswith(p) for p in ["robot0", "gripper0", "robot1", "gripper1"])
-            is_moving_obj = "flatPlate" in name or "plate" in name
-            if not (is_robot or is_moving_obj):
+            if not _is_relevant(name):
                 model.geom_contype[i] = 0
 
         worker_tf_manager = TransformManager(worker_env)
-        worker_vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+        if enable_meshcat:
+            worker_vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+        else:
+            worker_vis = None
         logging.info("Worker initialized: Environment and Visualizer created.")
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
@@ -149,7 +175,6 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
                 # Robot mesh visualization
                 mesh_visualizer = RobotMeshVisualizer(
                     vis=worker_vis, tf_manager=worker_tf_manager,
-                    base_path=f"robot{robot_id}_configs",
                     mesh_sample_ratio=sample_ratio
                 )
                 mesh_visualizer.visualize_trajectory_configs(
@@ -173,59 +198,53 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
         return None
 
 def main() -> None:
-    # Default values
-    default_target_pos = [-0.55, 0.05, 1.35]
-    default_target_quat = [-0.70710678, 0.0, 0.0, 0.70710678]
+    parser = argparse.ArgumentParser(description="Generate and visualize manipulation trajectory")
     
-    parser = argparse.ArgumentParser(description="Generate and visualize shelf manipulation trajectory")
-    parser.add_argument("--save-traj", action="store_true", help="Automatically save trajectory")
-    parser.add_argument("--output-dir", type=str, default=constants.DATA_DIR, help="Output directory for data")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--num-workers", type=int, default=multiprocessing.cpu_count() // 2, help="Number of parallel workers")
+    # Experiment configuration (required)
+    parser.add_argument("--experiment", type=str, required=True,
+                        help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
     
-    # Pose arguments
-    parser.add_argument("--start-pos", type=float, nargs=3, help="Start position [x, y, z]")
-    parser.add_argument("--start-quat", type=float, nargs=4, help="Start quaternion [x, y, z, w]")
-    parser.add_argument("--target-pos", type=float, nargs=3, default=default_target_pos, help="Target position [x, y, z]")
-    parser.add_argument("--target-quat", type=float, nargs=4, default=default_target_quat, help="Target quaternion [x, y, z, w]")
-    
-    # Visualization arguments
-    parser.add_argument("--visualize-mesh", action="store_true", default=False,
-                        help="Visualize robot and object meshes along trajectories")
-    parser.add_argument("--mesh-step-interval", type=int, default=constants.VIS_MESH_STEP_INTERVAL,
-                        help=f"Visualize mesh every N waypoints (default: {constants.VIS_MESH_STEP_INTERVAL})")
-    parser.add_argument("--mesh-opacity", type=float, default=constants.VIS_MESH_OPACITY,
-                        help=f"Opacity for mesh visualization (0-1, default: {constants.VIS_MESH_OPACITY})")
-    parser.add_argument("--mesh-sample-ratio", type=float, default=0.5,
-                        help="Fraction of mesh faces to keep for faster rendering (0-1, default: 0.5)")
+    # Minimal CLI overrides – everything else lives in the experiment JSON
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
+    parser.add_argument("--save-traj", action="store_true", help="Force-save trajectories (overrides JSON)")
+    parser.add_argument("--no-meshcat", action="store_true",
+                        help="Disable all Meshcat visualization (useful for batch / headless runs)")
     
     args = parser.parse_args()
 
+    # ---------------------------------------------------------------
+    # Load experiment configuration
+    # ---------------------------------------------------------------
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+    
+    # Resolve runtime settings: CLI overrides > JSON
+    rt_cfg = exp_cfg.runtime
+    vis_cfg = exp_cfg.visualization
+    out_cfg = exp_cfg.output
+    
+    debug = args.debug or rt_cfg.debug
+    enable_meshcat = vis_cfg.enable_meshcat and not args.no_meshcat
+    num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
+
     # Setup logging
-    log_level = logging.DEBUG if args.debug else logging.INFO
+    log_level = logging.DEBUG if debug else logging.INFO
     setup_logging(log_level)
 
     logger.debug(f"Parsed arguments: {args}")
+    
     logger.info("Initializing Trajectory Generation...")
     
     # 1. Setup Environment
     # --------------------
-    # Shelf configuration
-    shelf_pos = [-0.7, 0.0, 0.0]
-    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678] # 90 deg Z
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
+    object_name = exp_cfg.task.manipulated_object
+    collision_exclude_patterns = exp_cfg.collision_filter.exclude_patterns
+    table_full_size = exp_cfg.table_full_size
     
-    # Plate configuration (on table)
-    # Default plate pos if not overridden
-    plate_pos = [0.0, 0.0, 0.85]
-    plate_quat = [0, 0, 0, 1]
-    
-    logger.info("Creating planning environment and objects...")
-    ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-    ]
-    custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100)
-    ]
+    logger.info("Creating planning environment with %d YCB + %d custom objects...",
+                len(ycb_objects), len(custom_objects))
     
     # Create env (headless for planning script, visualization handled by Meshcat)
     env = make_dual_arm_env(
@@ -233,7 +252,8 @@ def main() -> None:
         custom_objects=custom_objects,
         has_renderer=False, 
         has_offscreen_renderer=False,
-        use_camera_obs=False
+        use_camera_obs=False,
+        table_full_size=table_full_size,
     )
     env.reset()
     # Allow environment to settle
@@ -251,82 +271,84 @@ def main() -> None:
     
     # 2. Setup Visualization (Scene Streaming)
     # ----------------------------------------
-    logger.info("Setting up global visualization stream...")
-    vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
     stop_event = threading.Event()
-    vis_thread = threading.Thread(
-        target=stream_transforms_to_meshcat,
-        kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
-        daemon=True
-    )
-    vis_thread.start()
-    
-    # Connect to the same meshcat server for worker coordination
-    vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+    vis_thread = None
+    vis = None
+    if enable_meshcat:
+        logger.info("Setting up global visualization stream...")
+        vis_config = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
+        vis_thread = threading.Thread(
+            target=stream_transforms_to_meshcat,
+            kwargs={'env': env, 'env_lock': env_lock, 'config': vis_config, 'stop_event': stop_event, 'tf_manager': tf_manager},
+            daemon=True
+        )
+        vis_thread.start()
+        # Connect to the same meshcat server for worker coordination
+        vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
+    else:
+        logger.info("Meshcat visualization disabled.")
     
     # 3. Define Planning Problem
     # --------------------------
     
-    # Determine Start Pose
+    # Determine Start Pose  (experiment JSON > auto-detect from sim)
     start_pos = None
     start_quat = None
     
-    if args.start_pos and args.start_quat:
-        start_pos = np.array(args.start_pos)
-        start_quat = np.array(args.start_quat)
-        logger.info(f"Using provided start pose: pos={start_pos}")
+    if exp_cfg.task.start_pose is not None:
+        start_pos = exp_cfg.task.start_pose.position
+        start_quat = exp_cfg.task.start_pose.quaternion
+        logger.info(f"Using experiment start pose: pos={start_pos}")
     else:
-        logger.info("No start pose provided. Waiting for environment to settle...")
-        time.sleep(1.0) # Wait for simulation/TF to stabilize
-        
-        # Query pose of flatPlate
-        try:
-            plate_pose_mat = env.get_object_pose("flatPlate")
-            if plate_pose_mat is not None:
-                start_pos = plate_pose_mat[:3, 3]
-                # Convert matrix to quat [x, y, z, w]
-                start_quat = R.from_matrix(plate_pose_mat[:3, :3]).as_quat()
-                logger.info(f"Detected plate pose: pos={start_pos}")
-            else:
-                logger.warning("Could not find 'flatPlate' in environment. Using default.")
-        except Exception as e:
-            logger.warning(f"Error querying object pose: {e}")
-            
-        if start_pos is None:
-            start_pos = np.array(plate_pos)
-            start_quat = np.array(plate_quat)
+        logger.info("No start pose specified. Auto-detecting from simulation...")
+        time.sleep(1.0)
+        detected = detect_start_pose(env, object_name)
+        if detected is not None:
+            start_pos = detected.position
+            start_quat = detected.quaternion
+            logger.info(f"Detected object pose: pos={start_pos}")
+        else:
+            logger.error("Auto-detection failed and no start_pose in experiment JSON.")
+            sys.exit(1)
     
     start_pose_stamped = StampedPose(position=start_pos, quaternion=start_quat, frame_id=constants.WORLD_FRAME)
     
-    # Determine Target Pose
-    target_pos = np.array(args.target_pos)
-    target_quat = np.array(args.target_quat)
+    # Target Pose (from experiment JSON)
+    target_pos = exp_cfg.task.target_pose.position
+    target_quat = exp_cfg.task.target_pose.quaternion
     target_pose_stamped = StampedPose(position=target_pos, quaternion=target_quat, frame_id=constants.WORLD_FRAME)
     
     logger.info(f"Planning from {start_pose_stamped.position} to {target_pose_stamped.position}")
     
     # 4. Generate Object Trajectory
     # ----------------------
+    plan_cfg = exp_cfg.planning
+    traj_num_steps = plan_cfg.num_steps
+    
     object_trajectory = generate_object_trajectory(
         start_pose_stamped, 
         target_pose_stamped, 
-        num_steps=constants.OBJECT_TRAJ_NUM_STEPS,
-        tf_manager=tf_manager
+        num_steps=traj_num_steps,
+        tf_manager=tf_manager,
+        env=env,
+        object_name=object_name,
+        env_lock=env_lock,
     )
-    visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
+    if vis is not None:
+        visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
     # Visualize object meshes along trajectory (once, shared across all grasps)
-    if args.visualize_mesh:
+    if vis is not None and vis_cfg.visualize_mesh:
         logger.info("Visualizing object meshes along trajectory...")
         obj_mesh_visualizer = ObjectMeshVisualizer(
             vis=vis, tf_manager=tf_manager,
-            mesh_sample_ratio=args.mesh_sample_ratio
+            mesh_sample_ratio=vis_cfg.mesh_sample_ratio
         )
         obj_mesh_visualizer.visualize_trajectory(
-            object_name="flatPlate",
+            object_name=object_name,
             object_trajectory=object_trajectory,
-            step_interval=args.mesh_step_interval,
-            opacity=args.mesh_opacity
+            step_interval=vis_cfg.mesh_step_interval,
+            opacity=vis_cfg.mesh_opacity
         )
     
     logger.info("Object trajectory generated.")
@@ -350,39 +372,45 @@ def main() -> None:
     grasp_generator = GraspGenerator(env=env)
     
     # Step 6a: Get grasps for both robots together
-    logger.info("Generating grasps for Robot 0 (Finger) and Robot 1 (Suction)...")
+    grasp_gripper_types = plan_cfg.gripper_types
+    grasp_num = plan_cfg.num_grasps
+    grasp_entropy_n = plan_cfg.num_entropy_grasps
+    grasp_collision_mode = plan_cfg.collision_check
+    
+    logger.info("Generating grasps for %s (types: %s)...", object_name, grasp_gripper_types)
     all_grasps = grasp_generator.generate_grasps(
-        object_name="flatPlate", 
-        gripper_types=["finger", "suction"], 
-        collision_check="Inter",
-        num_grasps=200,
+        object_name=object_name, 
+        gripper_types=grasp_gripper_types, 
+        collision_check=grasp_collision_mode,
+        num_grasps=grasp_num,
         env_lock=env_lock
     )
     
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
-    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=20)
-    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=20)
+    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=grasp_entropy_n)
+    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=grasp_entropy_n)
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 
     # 6. Evaluate Robot Trajectories in Parallel
     # ------------------------------------------
-    logger.info(f"Evaluating grasps using {args.num_workers} processes...")
+    logger.info(f"Evaluating grasps using {num_workers} processes...")
     start_time = time.time()
 
     vis_args = {
-        'visualize_mesh': args.visualize_mesh,
-        'mesh_step_interval': args.mesh_step_interval,
-        'mesh_opacity': args.mesh_opacity,
-        'mesh_sample_ratio': args.mesh_sample_ratio
+        'visualize_mesh': vis_cfg.visualize_mesh if enable_meshcat else False,
+        'mesh_step_interval': vis_cfg.mesh_step_interval,
+        'mesh_opacity': vis_cfg.mesh_opacity,
+        'mesh_sample_ratio': vis_cfg.mesh_sample_ratio,
+        'enable_meshcat': enable_meshcat,
     }
 
     with multiprocessing.Pool(
-        processes=args.num_workers,
+        processes=num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects, log_level)
+        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns, table_full_size, enable_meshcat)
     ) as pool:
         
         # Evaluate Robot 0 Grasps
@@ -392,7 +420,7 @@ def main() -> None:
             evaluate_robot_trajectory, 
             robot_id=0, 
             object_trajectory=object_trajectory, 
-            object_name="flatPlate", 
+            object_name=object_name, 
             ignore_names=["robot1", "gripper1"],
             vis_args=vis_args
         )
@@ -406,7 +434,7 @@ def main() -> None:
             evaluate_robot_trajectory, 
             robot_id=1, 
             object_trajectory=object_trajectory, 
-            object_name="flatPlate", 
+            object_name=object_name, 
             ignore_names=["robot0", "gripper0"],
             vis_args=vis_args
         )
@@ -444,7 +472,13 @@ def main() -> None:
 
     # 9. Save Trajectories
     # ---------------------------------------------
-    should_save = args.save_traj
+    # Determine output directory: JSON output_dir > data/<experiment_name>
+    if out_cfg.output_dir is not None:
+        output_dir = out_cfg.output_dir
+    else:
+        output_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
+    
+    should_save = args.save_traj or out_cfg.save_trajectories
     
     if not should_save:
         try:
@@ -453,12 +487,13 @@ def main() -> None:
                 if user_input in ('y', 'yes'):
                     should_save = True
         except EOFError:
-            pass
+            logger.error("No input available to confirm saving trajectories. Skipping save.")
             
     if should_save and (robot0_trajectory_results or robot1_trajectory_results):
+        os.makedirs(output_dir, exist_ok=True)
         # Save object trajectory
         save_trajectory(
-            output_dir=args.output_dir,
+            output_dir=output_dir,
             filename="object_trajectory.npz",
             object_trajectory=object_trajectory
         )
@@ -467,7 +502,7 @@ def main() -> None:
         for traj_data in robot0_trajectory_results:
             i = traj_data['id']
             save_trajectory(
-                output_dir=args.output_dir,
+                output_dir=output_dir,
                 filename=f"robot0_trajectory_{i}.npz",
                 eef_trajectory=traj_data['traj_eef'],
                 object_trajectory=object_trajectory,
@@ -478,20 +513,21 @@ def main() -> None:
         for traj_data in robot1_trajectory_results:
             i = traj_data['id']
             save_trajectory(
-                output_dir=args.output_dir,
+                output_dir=output_dir,
                 filename=f"robot1_trajectory_{i}.npz",
                 eef_trajectory=traj_data['traj_eef'],
                 object_trajectory=object_trajectory,
                 waypoint_results=traj_data['results']
             )
         
-        logger.info(f"Saved {len(robot0_trajectory_results)} Robot 0 and {len(robot1_trajectory_results)} Robot 1 trajectories to {args.output_dir}")
+        logger.info(f"Saved {len(robot0_trajectory_results)} Robot 0 and {len(robot1_trajectory_results)} Robot 1 trajectories to {output_dir}")
     else:
         logger.info("No trajectories saved.")
         
     logger.info("Closing simulation...")
     stop_event.set()
-    vis_thread.join(timeout=2.0)
+    if vis_thread is not None:
+        vis_thread.join(timeout=2.0)
     
     # Stop Services
     if grasp_service:

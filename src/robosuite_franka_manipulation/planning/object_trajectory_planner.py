@@ -1,0 +1,1558 @@
+"""
+Collision-aware object trajectory planner using RRT-Connect in SE(3).
+
+Plans a collision-free path for the object through the workspace,
+ignoring contacts with robot arms and grippers (since the robots
+will be carrying the object).
+
+Uses MuJoCo for collision checking against static environment geometry
+(tables, shelves, walls, etc.).
+"""
+
+import numpy as np
+import mujoco
+import logging
+import time
+from typing import List, Optional, Tuple
+from contextlib import nullcontext
+from scipy.spatial.transform import Rotation as R, Slerp
+from dataclasses import dataclass, field
+import meshcat.geometry as mg
+
+from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from robosuite_franka_manipulation.utils.se3 import (
+    interpolate_pose,
+    pose_to_SE3,
+    SE3_log,
+    compute_se3_distance,
+)
+from robosuite_franka_manipulation.planning.utils.mujoco_utils import get_native_mj_object
+from robosuite_franka_manipulation.planning.utils.collision_utils import (
+    get_geom_ids_by_prefix,
+    get_robot_geom_mask,
+)
+from robosuite.utils import transform_utils as T
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Meshcat RRT Visualization Helper
+# ============================================================================
+
+class RRTVisualizer:
+    """Draws RRT tree growth, collision samples, and paths in Meshcat.
+
+    All drawing is done under ``vis["rrt_debug/"]`` so it can be cleared
+    easily between runs.
+
+    Colours:
+    - **cyan** / **orange** – tree_a / tree_b edges
+    - **red** – collision-rejected samples
+    - **green** – final path
+    - **white sphere** – start, **magenta sphere** – goal
+    """
+
+    def __init__(self, vis, delay: float = 0.0):
+        """
+        Args:
+            vis: A ``meshcat.Visualizer`` instance.
+            delay: Seconds to sleep after each draw call (useful for
+                   watching the search in real-time).  0 = no delay.
+        """
+        self._vis = vis
+        self._delay = delay
+        self._root = vis["rrt_debug"]
+        self._edge_counter = 0
+        self._collision_counter = 0
+        self._root.delete()  # clear previous run
+
+    # -- helpers --
+    def _sleep(self):
+        if self._delay > 0:
+            time.sleep(self._delay)
+
+    @staticmethod
+    def _color_int(r: int, g: int, b: int) -> int:
+        return (r << 16) | (g << 8) | b
+
+    def _draw_sphere(self, name: str, pos: np.ndarray, radius: float, color: int):
+        self._root[name].set_object(
+            mg.Sphere(radius),
+            mg.MeshPhongMaterial(color=color, opacity=0.9),
+        )
+        tf = np.eye(4)
+        tf[:3, 3] = pos
+        self._root[name].set_transform(tf)
+
+    def _draw_line(self, name: str, p1: np.ndarray, p2: np.ndarray, color: int):
+        pts = np.column_stack([p1, p2]).astype(np.float32)
+        self._root[name].set_object(
+            mg.LineSegments(
+                mg.PointsGeometry(pts),
+                mg.LineBasicMaterial(color=color, linewidth=1),
+            )
+        )
+
+    # -- public API --
+    def draw_start_goal(self, start_pos: np.ndarray, goal_pos: np.ndarray):
+        """Draw start (white) and goal (magenta) spheres."""
+        self._draw_sphere("start", start_pos, 0.015, 0xffffff)
+        self._draw_sphere("goal", goal_pos, 0.015, 0xff00ff)
+        self._sleep()
+
+    def draw_tree_edge(self, parent_pos: np.ndarray, child_pos: np.ndarray,
+                       is_tree_a: bool):
+        """Draw a tree edge (cyan for tree_a, orange for tree_b)."""
+        color = self._color_int(0, 200, 255) if is_tree_a else self._color_int(255, 165, 0)
+        name = f"edges/e{self._edge_counter}"
+        self._edge_counter += 1
+        self._draw_line(name, parent_pos, child_pos, color)
+        self._sleep()
+
+    def draw_collision_sample(self, pos: np.ndarray):
+        """Draw a small red dot for a rejected (collision) sample."""
+        name = f"collisions/c{self._collision_counter}"
+        self._collision_counter += 1
+        self._draw_sphere(name, pos, 0.005, 0xff0000)
+
+    def draw_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
+        """Draw the final path as thick green line segments."""
+        if len(path) < 2:
+            return
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"path/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0x00ff00, linewidth=4),
+                )
+            )
+        self._sleep()
+
+    def draw_smoothed_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
+        """Draw the smoothed path as thick yellow line segments."""
+        if len(path) < 2:
+            return
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"smoothed_path/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0xffff00, linewidth=4),
+                )
+            )
+        self._sleep()
+
+    def draw_shortcut_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
+        """Draw the shortcut (Phase 1) path as thin dashed orange line segments."""
+        if len(path) < 2:
+            return
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"shortcut_path/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=self._color_int(255, 165, 0), linewidth=2),
+                )
+            )
+        # Draw waypoint spheres
+        for i, (pos, _) in enumerate(path):
+            self._draw_sphere(f"shortcut_path/wp{i}", pos, 0.008,
+                              self._color_int(255, 165, 0))
+        self._sleep()
+
+    def draw_bezier_control_polygon(
+        self,
+        segments: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    ):
+        """Draw Bézier control polygons: thin grey lines C0→C1→C2→C3 and
+        small spheres at C1 (blue) and C2 (red) handles."""
+        for seg_idx, (C0, C1, C2, C3) in enumerate(segments):
+            prefix = f"bezier_ctrl/seg{seg_idx}"
+            # Control polygon lines
+            for j, (pa, pb) in enumerate([(C0, C1), (C1, C2), (C2, C3)]):
+                pts = np.column_stack([pa, pb]).astype(np.float32)
+                self._root[f"{prefix}/line{j}"].set_object(
+                    mg.LineSegments(
+                        mg.PointsGeometry(pts),
+                        mg.LineBasicMaterial(color=0x888888, linewidth=1),
+                    )
+                )
+            # Handle spheres
+            self._draw_sphere(f"{prefix}/c1", C1, 0.006, self._color_int(80, 180, 255))
+            self._draw_sphere(f"{prefix}/c2", C2, 0.006, self._color_int(255, 100, 100))
+        self._sleep()
+
+    def draw_bezier_curve(self, path: List[Tuple[np.ndarray, np.ndarray]],
+                          collision_free: bool = True):
+        """Draw the Bézier-smoothed curve as a thick line.
+
+        Colour: **cyan** if collision-free, **red** if collisions detected.
+        """
+        if len(path) < 2:
+            return
+        color = self._color_int(0, 255, 220) if collision_free else 0xff0000
+        for i in range(len(path) - 1):
+            p1 = path[i][0]
+            p2 = path[i + 1][0]
+            pts = np.column_stack([p1, p2]).astype(np.float32)
+            self._root[f"bezier_curve/seg{i}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=color, linewidth=3),
+                )
+            )
+        self._sleep()
+
+    def draw_bounds(self, pos_bounds: np.ndarray):
+        """Draw the workspace bounding box as wireframe."""
+        import meshcat.geometry as mg
+        lo, hi = pos_bounds[0], pos_bounds[1]
+        # 12 edges of a box
+        corners = np.array([
+            [lo[0], lo[1], lo[2]],
+            [hi[0], lo[1], lo[2]],
+            [hi[0], hi[1], lo[2]],
+            [lo[0], hi[1], lo[2]],
+            [lo[0], lo[1], hi[2]],
+            [hi[0], lo[1], hi[2]],
+            [hi[0], hi[1], hi[2]],
+            [lo[0], hi[1], hi[2]],
+        ])
+        edges = [
+            (0, 1), (1, 2), (2, 3), (3, 0),
+            (4, 5), (5, 6), (6, 7), (7, 4),
+            (0, 4), (1, 5), (2, 6), (3, 7),
+        ]
+        for idx, (a, b) in enumerate(edges):
+            pts = np.column_stack([corners[a], corners[b]]).astype(np.float32)
+            self._root[f"bounds/e{idx}"].set_object(
+                mg.LineSegments(
+                    mg.PointsGeometry(pts),
+                    mg.LineBasicMaterial(color=0x888888, linewidth=1),
+                )
+            )
+
+    def log_iteration(self, iteration: int, tree_a_size: int, tree_b_size: int):
+        """Periodically log progress (every 100 iterations)."""
+        if iteration % 100 == 0 and iteration > 0:
+            logger.info(f"  RRT iteration {iteration}: tree_a={tree_a_size}, tree_b={tree_b_size}")
+
+
+# ============================================================================
+# Object Collision Checking
+# ============================================================================
+
+def object_in_collision(
+    model,
+    data,
+    object_geom_ids: np.ndarray,
+    robot_mask: np.ndarray,
+    contact_threshold: float = 1e-6,
+) -> bool:
+    """
+    Check if the object is in collision with any non-robot geometry.
+    
+    Looks for contacts that involve at least one object geom AND
+    at least one non-robot geom (i.e., environment obstacles).
+    Contacts between the object and robot arms/grippers are ignored.
+    
+    Args:
+        model: MuJoCo model (native or wrapped).
+        data: MuJoCo data (native or wrapped).
+        object_geom_ids: Array of geom IDs belonging to the object.
+        robot_mask: Boolean mask ``(ngeom,)`` — True for robot/gripper geoms
+            (obtain via ``collision_utils.get_robot_geom_mask``).
+        contact_threshold: Contact distance threshold.
+        
+    Returns:
+        True if the object collides with any environment geometry.
+    """
+    ncon = int(data.ncon)
+    if ncon <= 0:
+        return False
+
+    g1 = np.asarray(data.contact.geom1[:ncon])
+    g2 = np.asarray(data.contact.geom2[:ncon])
+    dist = np.asarray(data.contact.dist[:ncon])
+
+    # Build object membership mask
+    obj_mask = np.zeros(model.ngeom, dtype=bool)
+    obj_mask[object_geom_ids] = True
+
+    # Contacts below distance threshold
+    active = dist <= contact_threshold
+
+    # Contact involves the object on at least one side
+    involves_obj = obj_mask[g1] | obj_mask[g2]
+    active &= involves_obj
+
+    # Exclude contacts where the *other* geom is a robot geom
+    other_is_robot = np.where(obj_mask[g1], robot_mask[g2], robot_mask[g1])
+    active &= ~other_is_robot
+
+    # Also exclude self-collisions within the object
+    both_obj = obj_mask[g1] & obj_mask[g2]
+    active &= ~both_obj
+
+    return bool(np.any(active))
+
+
+def check_object_pose_collision(
+    env: DualArmEnvironment,
+    object_name: str,
+    position: np.ndarray,
+    quaternion: np.ndarray,
+    object_geom_ids: np.ndarray,
+    robot_mask: np.ndarray,
+    obj_joint_addr: int,
+    env_lock=None,
+) -> bool:
+    """
+    Set the object to a given pose and check for collisions with the environment.
+    
+    Args:
+        env: The simulation environment.
+        object_name: Name of the object.
+        position: 3D position.
+        quaternion: Quaternion [x, y, z, w] (scipy convention).
+        object_geom_ids: Pre-computed object geom IDs.
+        robot_mask: Boolean mask ``(ngeom,)`` for robot/gripper geoms.
+        obj_joint_addr: qpos address for the object's free joint.
+        env_lock: Optional threading lock.
+        
+    Returns:
+        True if the object is in collision at this pose.
+    """
+    model = env.sim.model
+    data = env.sim.data
+
+    native_model = get_native_mj_object(model)
+    native_data = get_native_mj_object(data)
+
+    # Set object pose
+    quat_wxyz = T.convert_quat(quaternion, to="wxyz")
+    data.qpos[obj_joint_addr:obj_joint_addr + 3] = position
+    data.qpos[obj_joint_addr + 3:obj_joint_addr + 7] = quat_wxyz
+
+    # Forward kinematics to compute contacts
+    mujoco.mj_fwdPosition(native_model, native_data)
+
+    return object_in_collision(
+        model, data, object_geom_ids, robot_mask,
+        contact_threshold=constants.COLLISION_CONTACT_THRESHOLD,
+    )
+
+
+# ============================================================================
+# SE(3) Distance & Sampling Utilities
+# ============================================================================
+
+def se3_pose_distance(
+    pos1: np.ndarray, quat1: np.ndarray,
+    pos2: np.ndarray, quat2: np.ndarray,
+    rotation_weight: float = None,
+) -> float:
+    """
+    Compute weighted distance between two SE(3) poses.
+    
+    Thin wrapper around :func:`utils.se3.compute_se3_distance` that accepts
+    two poses instead of a pre-computed twist.
+    
+    Args:
+        pos1, quat1: First pose (quaternion in [x,y,z,w]).
+        pos2, quat2: Second pose.
+        rotation_weight: Weight for rotation distance in radians
+                         (default from constants).
+    
+    Returns:
+        Scalar distance.
+    """
+    if rotation_weight is None:
+        rotation_weight = constants.RRT_ROTATION_WEIGHT
+    
+    T1 = pose_to_SE3(pos1, quat1)
+    T2 = pose_to_SE3(pos2, quat2)
+    T_rel = np.linalg.inv(T1) @ T2
+    twist = SE3_log(T_rel)
+    return compute_se3_distance(twist, translation_weight=1.0, rotation_weight=rotation_weight)
+
+
+def sample_random_pose(
+    pos_bounds: np.ndarray,
+    start_quat: np.ndarray,
+    goal_quat: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Sample a random SE(3) pose within workspace bounds.
+    
+    Position is sampled uniformly in the bounding box.
+    Orientation is sampled by interpolating between start/goal orientation
+    at a random fraction, then perturbing with a small random rotation.
+    This biases the orientation search toward the reachable range.
+    
+    Args:
+        pos_bounds: (2, 3) array of [[x_min, y_min, z_min], [x_max, y_max, z_max]].
+        start_quat: Start orientation [x,y,z,w].
+        goal_quat: Goal orientation [x,y,z,w].
+        
+    Returns:
+        (position, quaternion) tuple.
+    """
+    pos = np.random.uniform(pos_bounds[0], pos_bounds[1])
+    
+    # Interpolate between start and goal orientation, then add noise
+    t = np.random.uniform(0.0, 1.0)
+    # Reuse the existing interpolate_pose for slerp (position output is ignored)
+    _, base_quat = interpolate_pose(np.zeros(3), start_quat, np.zeros(3), goal_quat, t)
+    r_base = R.from_quat(base_quat)
+    
+    # Add small random perturbation
+    noise_angle = np.random.uniform(0, constants.RRT_ORIENTATION_NOISE)
+    noise_axis = np.random.randn(3)
+    noise_axis /= np.linalg.norm(noise_axis) + 1e-10
+    r_noise = R.from_rotvec(noise_angle * noise_axis)
+    
+    r_sample = r_base * r_noise
+    return pos, r_sample.as_quat()
+
+
+def steer(
+    from_pos: np.ndarray, from_quat: np.ndarray,
+    to_pos: np.ndarray, to_quat: np.ndarray,
+    step_size: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Steer from one pose toward another, limited by step_size.
+    
+    If the distance is less than step_size, returns the target pose.
+    Otherwise returns an intermediate pose at distance step_size.
+    
+    Args:
+        from_pos, from_quat: Current pose.
+        to_pos, to_quat: Target pose.
+        step_size: Maximum step distance.
+        
+    Returns:
+        (position, quaternion) of the steered pose.
+    """
+    dist = se3_pose_distance(from_pos, from_quat, to_pos, to_quat)
+    if dist <= step_size:
+        return to_pos.copy(), to_quat.copy()
+    
+    t = step_size / dist
+    pos, quat = interpolate_pose(from_pos, from_quat, to_pos, to_quat, t)
+    return pos, quat
+
+
+# ============================================================================
+# RRT-Connect Planner
+# ============================================================================
+
+@dataclass
+class RRTNode:
+    """A node in the RRT tree."""
+    pos: np.ndarray
+    quat: np.ndarray
+    parent: int = -1  # Index of parent node in the tree
+
+
+@dataclass 
+class RRTResult:
+    """Result of the RRT-Connect planner."""
+    success: bool
+    path: List[Tuple[np.ndarray, np.ndarray]] = field(default_factory=list)
+    iterations: int = 0
+    tree_a_size: int = 0
+    tree_b_size: int = 0
+
+
+def _nearest_node(
+    tree: List[RRTNode],
+    pos: np.ndarray,
+    quat: np.ndarray,
+    rotation_weight: float,
+) -> int:
+    """Find the index of the nearest node in the tree."""
+    best_idx = 0
+    best_dist = float("inf")
+    for i, node in enumerate(tree):
+        d = se3_pose_distance(node.pos, node.quat, pos, quat, rotation_weight)
+        if d < best_dist:
+            best_dist = d
+            best_idx = i
+    return best_idx
+
+
+def _extract_path(tree_a: List[RRTNode], idx_a: int,
+                  tree_b: List[RRTNode], idx_b: int,
+                  a_is_start: bool) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """Extract the path from start to goal through the two trees."""
+    # Trace back in tree_a
+    path_a = []
+    idx = idx_a
+    while idx >= 0:
+        node = tree_a[idx]
+        path_a.append((node.pos.copy(), node.quat.copy()))
+        idx = node.parent
+    path_a.reverse()
+    
+    # Trace back in tree_b
+    path_b = []
+    idx = idx_b
+    while idx >= 0:
+        node = tree_b[idx]
+        path_b.append((node.pos.copy(), node.quat.copy()))
+        idx = node.parent
+    # path_b goes from the connection point to the root of tree_b
+    
+    if a_is_start:
+        # tree_a starts at start, tree_b starts at goal
+        # path_a: start -> connection, path_b: connection -> goal (already correct after reverse)
+        # But path_b is currently goal -> connection, so don't reverse
+        return path_a + path_b
+    else:
+        # tree_a starts at goal, tree_b starts at start
+        # path_b: start -> connection, path_a: connection -> goal
+        path_b.reverse()
+        return path_b + path_a[::-1]
+
+
+def _collision_free_segment(
+    env: DualArmEnvironment,
+    object_name: str,
+    pos1: np.ndarray, quat1: np.ndarray,
+    pos2: np.ndarray, quat2: np.ndarray,
+    object_geom_ids: np.ndarray,
+    robot_mask: np.ndarray,
+    obj_joint_addr: int,
+    resolution: float = None,
+    env_lock=None,
+    skip_endpoints: bool = False,
+) -> bool:
+    """
+    Check if a straight-line SE(3) segment is collision free.
+    
+    Discretizes the segment and checks each intermediate pose.
+    
+    Args:
+        env: Environment.
+        object_name: Object name.
+        pos1, quat1: Start of segment.
+        pos2, quat2: End of segment.
+        object_geom_ids: Pre-computed geom IDs. 
+        robot_mask: Boolean mask ``(ngeom,)`` for robot/gripper geoms.
+        obj_joint_addr: qpos address for the object's free joint.
+        resolution: Check resolution (distance between checks).
+        env_lock: Optional threading lock.
+        skip_endpoints: If True, skip collision checks at the exact
+            start (t=0) and end (t=1) of the segment.  Useful when the
+            endpoints are known to be valid (e.g. the object resting on
+            a surface that would register as a contact).
+        
+    Returns:
+        True if the segment is collision-free.
+    """
+    if resolution is None:
+        resolution = constants.RRT_COLLISION_RESOLUTION
+    
+    dist = se3_pose_distance(pos1, quat1, pos2, quat2)
+    n_checks = max(2, int(np.ceil(dist / resolution)))
+    
+    start_idx = 1 if skip_endpoints else 0
+    end_idx = n_checks - 1 if skip_endpoints else n_checks
+    
+    for i in range(start_idx, end_idx + 1):
+        t = i / float(n_checks)
+        pos, quat = interpolate_pose(pos1, quat1, pos2, quat2, t)
+        if check_object_pose_collision(
+            env, object_name, pos, quat,
+            object_geom_ids, robot_mask, obj_joint_addr,
+            env_lock=env_lock,
+        ):
+            return False
+    return True
+
+
+def rrt_connect_se3(
+    env: DualArmEnvironment,
+    object_name: str,
+    start_pos: np.ndarray,
+    start_quat: np.ndarray,
+    goal_pos: np.ndarray,
+    goal_quat: np.ndarray,
+    env_lock=None,
+    max_iterations: int = None,
+    step_size: float = None,
+    goal_bias: float = None,
+    pos_bounds: np.ndarray = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
+) -> RRTResult:
+    """
+    Plan a collision-free path for an object using RRT-Connect in SE(3).
+    
+    Ignores collisions with robot arms and grippers (the robots carry the object).
+    Only detects collisions with static environment geometry.
+    
+    Args:
+        env: The simulation environment.
+        object_name: Name of the object to plan for.
+        start_pos: Start position [x, y, z].
+        start_quat: Start quaternion [x, y, z, w].
+        goal_pos: Goal position [x, y, z].
+        goal_quat: Goal quaternion [x, y, z, w].
+        env_lock: Optional threading lock.
+        max_iterations: Maximum RRT iterations.
+        step_size: Step size for tree extension.
+        goal_bias: Probability of sampling the goal.
+        pos_bounds: Workspace bounds (2, 3) array.
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
+        
+    Returns:
+        RRTResult with success flag and path.
+    """
+    # Defaults from constants
+    if max_iterations is None:
+        max_iterations = constants.RRT_MAX_ITERATIONS
+    if step_size is None:
+        step_size = constants.RRT_STEP_SIZE
+    if goal_bias is None:
+        goal_bias = constants.RRT_GOAL_BIAS
+    if pos_bounds is None:
+        pos_bounds = np.array(constants.RRT_WORKSPACE_BOUNDS)
+    
+    rotation_weight = constants.RRT_ROTATION_WEIGHT
+    
+    ctx = env_lock if env_lock is not None else nullcontext()
+    
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        
+        # Pre-compute geom IDs
+        object_geom_ids = get_geom_ids_by_prefix(model, object_name)
+        robot_mask = get_robot_geom_mask(model)
+        
+        if len(object_geom_ids) == 0:
+            logger.error(f"No geoms found for object '{object_name}'")
+            return RRTResult(success=False)
+        
+        # Get object joint address
+        try:
+            obj_joint_id = model.joint(f"{object_name}_joint0").id
+            obj_joint_addr = int(model.jnt_qposadr[obj_joint_id])
+        except Exception:
+            logger.error(f"Could not find joint for object '{object_name}'")
+            return RRTResult(success=False)
+        
+        # Backup sim state
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+        
+        try:
+            # Skip collision checking at start/goal — the object is
+            # physically at these poses (e.g. resting on a table/shelf)
+            # so surface contacts are expected, not true collisions.
+            
+            # First try direct connection (fast path)
+            if _collision_free_segment(
+                env, object_name,
+                start_pos, start_quat, goal_pos, goal_quat,
+                object_geom_ids, robot_mask, obj_joint_addr,
+                skip_endpoints=True,
+            ):
+                logger.info("Direct path is collision-free, no RRT needed.")
+                return RRTResult(
+                    success=True,
+                    path=[(start_pos.copy(), start_quat.copy()),
+                          (goal_pos.copy(), goal_quat.copy())],
+                    iterations=0,
+                    tree_a_size=1,
+                    tree_b_size=1,
+                )
+            
+            logger.info(f"Direct path has collisions. Running RRT-Connect (max_iter={max_iterations})...")
+            
+            # Visualization: draw start/goal and bounds
+            if rrt_vis is not None:
+                rrt_vis.draw_start_goal(start_pos, goal_pos)
+                rrt_vis.draw_bounds(pos_bounds)
+            
+            # Initialize trees
+            tree_a = [RRTNode(pos=start_pos.copy(), quat=start_quat.copy())]
+            tree_b = [RRTNode(pos=goal_pos.copy(), quat=goal_quat.copy())]
+            a_is_start = True  # Track which tree is which
+            
+            for iteration in range(max_iterations):
+                # Visualization: periodic logging
+                if rrt_vis is not None:
+                    rrt_vis.log_iteration(iteration, len(tree_a), len(tree_b))
+                # Sample random pose (with goal bias)
+                if np.random.random() < goal_bias:
+                    if a_is_start:
+                        sample_pos, sample_quat = goal_pos.copy(), goal_quat.copy()
+                    else:
+                        sample_pos, sample_quat = start_pos.copy(), start_quat.copy()
+                else:
+                    sample_pos, sample_quat = sample_random_pose(
+                        pos_bounds, start_quat, goal_quat,
+                    )
+                
+                # EXTEND tree_a toward sample
+                nearest_idx = _nearest_node(tree_a, sample_pos, sample_quat, rotation_weight)
+                nearest = tree_a[nearest_idx]
+                new_pos, new_quat = steer(
+                    nearest.pos, nearest.quat,
+                    sample_pos, sample_quat,
+                    step_size,
+                )
+                
+                # Check collision for the extension
+                if check_object_pose_collision(
+                    env, object_name, new_pos, new_quat,
+                    object_geom_ids, robot_mask, obj_joint_addr,
+                ):
+                    if rrt_vis is not None:
+                        rrt_vis.draw_collision_sample(new_pos)
+                    # Swap trees and continue
+                    tree_a, tree_b = tree_b, tree_a
+                    a_is_start = not a_is_start
+                    continue
+                
+                # Check the edge is collision-free.
+                # skip_endpoints=True because both ends are already validated:
+                #   nearest — already in the tree (or root, assumed valid)
+                #   new_pos — just checked by check_object_pose_collision above
+                if not _collision_free_segment(
+                    env, object_name,
+                    nearest.pos, nearest.quat, new_pos, new_quat,
+                    object_geom_ids, robot_mask, obj_joint_addr,
+                    skip_endpoints=True,
+                ):
+                    if rrt_vis is not None:
+                        rrt_vis.draw_collision_sample(new_pos)
+                    tree_a, tree_b = tree_b, tree_a
+                    a_is_start = not a_is_start
+                    continue
+                
+                # Add node to tree_a
+                new_idx_a = len(tree_a)
+                tree_a.append(RRTNode(pos=new_pos, quat=new_quat, parent=nearest_idx))
+                if rrt_vis is not None:
+                    rrt_vis.draw_tree_edge(nearest.pos, new_pos, is_tree_a=a_is_start)
+                
+                # CONNECT tree_b toward the new node in tree_a
+                connected = False
+                connect_idx_b = -1
+                
+                nearest_b_idx = _nearest_node(tree_b, new_pos, new_quat, rotation_weight)
+                current_pos = tree_b[nearest_b_idx].pos
+                current_quat = tree_b[nearest_b_idx].quat
+                parent_b_idx = nearest_b_idx
+                
+                for _ in range(constants.RRT_CONNECT_MAX_STEPS):
+                    steered_pos, steered_quat = steer(
+                        current_pos, current_quat,
+                        new_pos, new_quat,
+                        step_size,
+                    )
+                    
+                    if check_object_pose_collision(
+                        env, object_name, steered_pos, steered_quat,
+                        object_geom_ids, robot_mask, obj_joint_addr,
+                    ):
+                        break
+                    
+                    # skip_endpoints=True: current_pos is in the tree,
+                    # steered_pos was just validated above.
+                    if not _collision_free_segment(
+                        env, object_name,
+                        current_pos, current_quat, steered_pos, steered_quat,
+                        object_geom_ids, robot_mask, obj_joint_addr,
+                        skip_endpoints=True,
+                    ):
+                        break
+                    
+                    connect_idx_b = len(tree_b)
+                    tree_b.append(RRTNode(pos=steered_pos, quat=steered_quat, parent=parent_b_idx))
+                    if rrt_vis is not None:
+                        rrt_vis.draw_tree_edge(current_pos, steered_pos, is_tree_a=(not a_is_start))
+                    parent_b_idx = connect_idx_b
+                    
+                    # Check if we've reached the target node
+                    if se3_pose_distance(steered_pos, steered_quat, new_pos, new_quat, rotation_weight) < step_size * 0.5:
+                        connected = True
+                        break
+                    
+                    current_pos = steered_pos
+                    current_quat = steered_quat
+                
+                if connected:
+                    logger.info(f"RRT-Connect found path in {iteration + 1} iterations "
+                               f"(tree sizes: {len(tree_a)}, {len(tree_b)})")
+                    
+                    path = _extract_path(tree_a, new_idx_a, tree_b, connect_idx_b, a_is_start)
+                    if rrt_vis is not None:
+                        rrt_vis.draw_path(path)
+                    
+                    return RRTResult(
+                        success=True,
+                        path=path,
+                        iterations=iteration + 1,
+                        tree_a_size=len(tree_a),
+                        tree_b_size=len(tree_b),
+                    )
+                
+                # Swap trees for balanced growth
+                tree_a, tree_b = tree_b, tree_a
+                a_is_start = not a_is_start
+            
+            logger.warning(f"RRT-Connect failed after {max_iterations} iterations.")
+            return RRTResult(
+                success=False,
+                iterations=max_iterations,
+                tree_a_size=len(tree_a),
+                tree_b_size=len(tree_b),
+            )
+        
+        finally:
+            # Restore sim state
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+
+
+# ============================================================================
+# Path Post-Processing
+# ============================================================================
+
+def _shortcut_path(
+    env: DualArmEnvironment,
+    object_name: str,
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    object_geom_ids: np.ndarray,
+    robot_mask: np.ndarray,
+    obj_joint_addr: int,
+    max_iterations: int,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Phase 1: iterative shortcutting to remove redundant waypoints.
+
+    Randomly selects two waypoints and tries to connect them directly.
+    If the direct connection is collision-free, removes the intermediate
+    waypoints.  This is a *topological* simplification that preserves
+    collision-freeness but does **not** produce geometric smoothness.
+    """
+    smoothed = list(path)
+    for _ in range(max_iterations):
+        if len(smoothed) <= 2:
+            break
+        i = np.random.randint(0, len(smoothed) - 1)
+        j = np.random.randint(i + 1, len(smoothed))
+        if j - i <= 1:
+            continue
+        pos_i, quat_i = smoothed[i]
+        pos_j, quat_j = smoothed[j]
+        skip = (i == 0) or (j == len(smoothed) - 1)
+        if _collision_free_segment(
+            env, object_name,
+            pos_i, quat_i, pos_j, quat_j,
+            object_geom_ids, robot_mask, obj_joint_addr,
+            skip_endpoints=skip,
+        ):
+            smoothed = smoothed[:i + 1] + smoothed[j:]
+    return smoothed
+
+
+# ---------------------------------------------------------------------------
+# Bézier-curve smoothing helpers
+# ---------------------------------------------------------------------------
+
+def _compute_bezier_control_points(
+    waypoints: List[np.ndarray],
+    tension: float = 0.33,
+) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    Compute cubic Bézier control points for a polyline through *waypoints*.
+
+    For each segment ``[P_i, P_{i+1}]`` the four control points are::
+
+        C0 = P_i
+        C1 = P_i + tension * tangent_i
+        C2 = P_{i+1} - tension * tangent_{i+1}
+        C3 = P_{i+1}
+
+    where ``tangent_i`` is the Catmull-Rom tangent at waypoint *i*
+    (the vector ``P_{i+1} - P_{i-1}`` normalised to half the chord length,
+    clamped at the endpoints).
+
+    Args:
+        waypoints: List of R^n vectors (positions or any vector space).
+        tension: Controls how far out the handles extend (0 = linear, 0.5 = strong curvature).
+
+    Returns:
+        List of ``(C0, C1, C2, C3)`` tuples, one per segment.
+    """
+    n = len(waypoints)
+    if n < 2:
+        return []
+
+    # Compute Catmull-Rom tangents
+    tangents = []
+    for i in range(n):
+        if i == 0:
+            tangents.append(waypoints[1] - waypoints[0])
+        elif i == n - 1:
+            tangents.append(waypoints[-1] - waypoints[-2])
+        else:
+            tangents.append(waypoints[i + 1] - waypoints[i - 1])
+
+    segments = []
+    for i in range(n - 1):
+        C0 = waypoints[i]
+        C3 = waypoints[i + 1]
+
+        # Scale handles proportionally to segment chord length
+        chord = np.linalg.norm(C3 - C0)
+        t_i_norm = np.linalg.norm(tangents[i])
+        t_i1_norm = np.linalg.norm(tangents[i + 1])
+
+        if t_i_norm > 1e-12:
+            C1 = C0 + tension * (chord / t_i_norm) * tangents[i]
+        else:
+            C1 = C0.copy()
+
+        if t_i1_norm > 1e-12:
+            C2 = C3 - tension * (chord / t_i1_norm) * tangents[i + 1]
+        else:
+            C2 = C3.copy()
+
+        segments.append((C0, C1, C2, C3))
+    return segments
+
+
+def _eval_cubic_bezier(C0, C1, C2, C3, t: float):
+    """De Casteljau evaluation of a cubic Bézier at parameter *t* in [0, 1]."""
+    s = 1.0 - t
+    return s**3 * C0 + 3 * s**2 * t * C1 + 3 * s * t**2 * C2 + t**3 * C3
+
+
+def _bezier_smooth_positions(
+    positions: List[np.ndarray],
+    samples_per_segment: int = 10,
+    tension: float = 0.33,
+) -> List[np.ndarray]:
+    """
+    Fit a composite cubic Bézier spline through *positions* and resample.
+
+    Returns a list of ``(N-1) * samples_per_segment + 1`` evenly-parameterised
+    points (the endpoints of consecutive segments are shared).
+
+    Args:
+        positions: List of R^3 waypoint positions.
+        samples_per_segment: How many sub-samples per Bézier segment.
+        tension: Bézier tension (see :func:`_compute_bezier_control_points`).
+
+    Returns:
+        Densely sampled smooth positions.
+    """
+    segs = _compute_bezier_control_points(positions, tension=tension)
+    if not segs:
+        return list(positions)
+
+    result = []
+    for seg_idx, (C0, C1, C2, C3) in enumerate(segs):
+        n_pts = samples_per_segment if seg_idx < len(segs) - 1 else samples_per_segment + 1
+        for k in range(n_pts):
+            t = k / float(samples_per_segment)
+            result.append(_eval_cubic_bezier(C0, C1, C2, C3, t))
+    return result
+
+
+def _slerp_quaternion(q0: np.ndarray, q1: np.ndarray, t: float) -> np.ndarray:
+    """Spherical linear interpolation between two quaternions [x,y,z,w]."""
+    r0 = R.from_quat(q0)
+    r1 = R.from_quat(q1)
+    slerp = Slerp([0.0, 1.0], R.concatenate([r0, r1]))
+    return slerp([t]).as_quat()[0]
+
+
+def _decasteljau_slerp(quats: List[np.ndarray], t: float) -> np.ndarray:
+    """
+    De Casteljau algorithm on the quaternion sphere.
+
+    Generalises the cubic Bézier to SO(3) using successive SLERP
+    operations instead of linear combinations.
+
+    Args:
+        quats: 4 quaternions [x,y,z,w] — the control 'points' on SO(3).
+        t: Parameter in [0, 1].
+
+    Returns:
+        Interpolated quaternion.
+    """
+    if len(quats) == 1:
+        return quats[0]
+    reduced = []
+    for i in range(len(quats) - 1):
+        reduced.append(_slerp_quaternion(quats[i], quats[i + 1], t))
+    return _decasteljau_slerp(reduced, t)
+
+
+def _bezier_smooth_rotations(
+    quaternions: List[np.ndarray],
+    samples_per_segment: int = 10,
+    tension: float = 0.33,
+) -> List[np.ndarray]:
+    """
+    Fit a composite cubic Bézier spline on SO(3) and resample.
+
+    Uses the same Catmull-Rom-style tangent construction as positions,
+    but projected onto the tangent space of SO(3) via the exponential map.
+    Intermediate points are computed using the De Casteljau SLERP cascade.
+
+    Args:
+        quaternions: List of [x,y,z,w] quaternions.
+        samples_per_segment: Sub-samples per segment.
+        tension: Handle length factor.
+
+    Returns:
+        Densely sampled smooth quaternions.
+    """
+    n = len(quaternions)
+    if n < 2:
+        return list(quaternions)
+
+    # For the rotation Bézier we construct tangent-like control quaternions
+    # using small rotational offsets derived from the Catmull-Rom tangent vector
+    # in the Lie algebra so(3).
+
+    # 1. Compute Catmull-Rom tangent vectors in so(3) (axis-angle)
+    def _log_rel(qa, qb):
+        """Rotation vector from qa to qb: log(qa^{-1} qb)."""
+        r_rel = R.from_quat(qa).inv() * R.from_quat(qb)
+        return r_rel.as_rotvec()
+
+    tangent_rotvecs = []
+    for i in range(n):
+        if i == 0:
+            tangent_rotvecs.append(_log_rel(quaternions[0], quaternions[1]))
+        elif i == n - 1:
+            tangent_rotvecs.append(_log_rel(quaternions[-2], quaternions[-1]))
+        else:
+            # Central difference in so(3)
+            fwd = _log_rel(quaternions[i], quaternions[i + 1])
+            bwd = _log_rel(quaternions[i - 1], quaternions[i])
+            tangent_rotvecs.append(0.5 * (fwd + bwd))
+
+    # 2. Build per-segment quaternion control points
+    def _apply_rotvec(q, rv):
+        """Apply a rotation vector offset: q * exp(rv)."""
+        return (R.from_quat(q) * R.from_rotvec(rv)).as_quat()
+
+    result: List[np.ndarray] = []
+    for seg_idx in range(n - 1):
+        q0 = quaternions[seg_idx]
+        q3 = quaternions[seg_idx + 1]
+
+        # Build intermediate control quaternions
+        angle_chord = np.linalg.norm(_log_rel(q0, q3))
+        t_i_norm = np.linalg.norm(tangent_rotvecs[seg_idx])
+        t_i1_norm = np.linalg.norm(tangent_rotvecs[seg_idx + 1])
+
+        if t_i_norm > 1e-12:
+            scale_i = tension * (angle_chord / t_i_norm)
+        else:
+            scale_i = 0.0
+        if t_i1_norm > 1e-12:
+            scale_i1 = tension * (angle_chord / t_i1_norm)
+        else:
+            scale_i1 = 0.0
+
+        q1 = _apply_rotvec(q0, scale_i * tangent_rotvecs[seg_idx])
+        q2 = _apply_rotvec(q3, -scale_i1 * tangent_rotvecs[seg_idx + 1])
+
+        ctrl = [q0, q1, q2, q3]
+
+        n_pts = samples_per_segment if seg_idx < n - 2 else samples_per_segment + 1
+        for k in range(n_pts):
+            t = k / float(samples_per_segment)
+            result.append(_decasteljau_slerp(ctrl, t))
+
+    return result
+
+
+def _bezier_smooth_path(
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    samples_per_segment: int = 10,
+    tension: float = 0.33,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Produce a geometrically smooth path by fitting composite cubic Bézier
+    splines to both positions (R^3) and rotations (SO(3)).
+
+    Args:
+        path: List of (position, quaternion) waypoints.
+        samples_per_segment: Dense samples between consecutive waypoints.
+        tension: Bézier tension factor (0 = linear, ~0.33 = natural).
+
+    Returns:
+        Densely sampled smooth path.
+    """
+    positions = [p for p, _ in path]
+    quaternions = [q for _, q in path]
+
+    smooth_pos = _bezier_smooth_positions(positions, samples_per_segment, tension)
+    smooth_quat = _bezier_smooth_rotations(quaternions, samples_per_segment, tension)
+
+    # Lengths should match; defensive trim
+    n = min(len(smooth_pos), len(smooth_quat))
+    return [(smooth_pos[i], smooth_quat[i]) for i in range(n)]
+
+
+def _bezier_smooth_one_segment(
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    seg_idx: int,
+    samples_per_segment: int,
+    tension: float = 0.33,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Evaluate the Bézier curve for a **single** segment of the shortcut path.
+
+    The full path is needed so that Catmull-Rom tangents at the segment
+    endpoints use the neighbouring waypoints for continuity.
+
+    Args:
+        path: The full shortcut waypoint list.
+        seg_idx: Index of the segment (``path[seg_idx]`` → ``path[seg_idx+1]``).
+        samples_per_segment: Dense samples to emit for this segment.
+        tension: Bézier tension.
+
+    Returns:
+        List of ``samples_per_segment + 1`` (pos, quat) samples
+        (inclusive of both endpoints).
+    """
+    positions = [p for p, _ in path]
+    quaternions = [q for _, q in path]
+    n = len(positions)
+
+    # --- Position control points (Catmull-Rom) ---
+    def _tangent(idx):
+        if idx == 0:
+            return positions[1] - positions[0]
+        elif idx == n - 1:
+            return positions[-1] - positions[-2]
+        else:
+            return positions[idx + 1] - positions[idx - 1]
+
+    P0 = positions[seg_idx]
+    P3 = positions[seg_idx + 1]
+    chord = np.linalg.norm(P3 - P0)
+    t0 = _tangent(seg_idx)
+    t1 = _tangent(seg_idx + 1)
+    t0n = np.linalg.norm(t0)
+    t1n = np.linalg.norm(t1)
+    P1 = P0 + (tension * (chord / t0n) * t0 if t0n > 1e-12 else 0.0)
+    P2 = P3 - (tension * (chord / t1n) * t1 if t1n > 1e-12 else 0.0)
+
+    # --- Rotation control quaternions (so(3) tangent) ---
+    def _log_rel(qa, qb):
+        return (R.from_quat(qa).inv() * R.from_quat(qb)).as_rotvec()
+
+    def _apply_rv(q, rv):
+        return (R.from_quat(q) * R.from_rotvec(rv)).as_quat()
+
+    def _rot_tangent(idx):
+        if idx == 0:
+            return _log_rel(quaternions[0], quaternions[1])
+        elif idx == n - 1:
+            return _log_rel(quaternions[-2], quaternions[-1])
+        else:
+            fwd = _log_rel(quaternions[idx], quaternions[idx + 1])
+            bwd = _log_rel(quaternions[idx - 1], quaternions[idx])
+            return 0.5 * (fwd + bwd)
+
+    q0 = quaternions[seg_idx]
+    q3 = quaternions[seg_idx + 1]
+    angle_chord = np.linalg.norm(_log_rel(q0, q3))
+    rv0 = _rot_tangent(seg_idx)
+    rv1 = _rot_tangent(seg_idx + 1)
+    rv0n = np.linalg.norm(rv0)
+    rv1n = np.linalg.norm(rv1)
+    s0 = tension * (angle_chord / rv0n) if rv0n > 1e-12 else 0.0
+    s1 = tension * (angle_chord / rv1n) if rv1n > 1e-12 else 0.0
+    q1 = _apply_rv(q0, s0 * rv0)
+    q2 = _apply_rv(q3, -s1 * rv1)
+    qctrl = [q0, q1, q2, q3]
+
+    # --- Sample ---
+    pts: List[Tuple[np.ndarray, np.ndarray]] = []
+    for k in range(samples_per_segment + 1):
+        t = k / float(samples_per_segment)
+        pos = _eval_cubic_bezier(P0, P1, P2, P3, t)
+        quat = _decasteljau_slerp(qctrl, t)
+        pts.append((pos, quat))
+    return pts
+
+
+def _linear_interpolate_segment(
+    p_start: Tuple[np.ndarray, np.ndarray],
+    p_end: Tuple[np.ndarray, np.ndarray],
+    num_samples: int,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Linearly interpolate (position lerp + quaternion slerp) between two poses.
+
+    Returns ``num_samples + 1`` points (inclusive of both endpoints).
+    """
+    pts: List[Tuple[np.ndarray, np.ndarray]] = []
+    for k in range(num_samples + 1):
+        t = k / float(num_samples)
+        pos, quat = interpolate_pose(
+            p_start[0], p_start[1], p_end[0], p_end[1], t
+        )
+        pts.append((pos, quat))
+    return pts
+
+
+def smooth_path(
+    env: DualArmEnvironment,
+    object_name: str,
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    env_lock=None,
+    max_smoothing_iterations: int = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Smooth an RRT path using shortcutting followed by **per-segment** cubic
+    Bézier fitting (hybrid approach).
+
+    **Phase 1 – Shortcutting**: Randomly select two waypoints and try to
+    connect them directly.  If the direct connection is collision-free,
+    remove the intermediate waypoints.  This gives a topologically simpler
+    path.
+
+    **Phase 2 – Hybrid Bézier smoothing**: For each segment of the
+    shortcut path, fit a cubic Bézier curve and collision-check it.
+    Segments where the Bézier is collision-free get the smooth curve;
+    segments where any sample point collides fall back to simple linear
+    interpolation between the two endpoints.  This guarantees the final
+    path is always collision-free while being as smooth as possible.
+
+    Args:
+        env: Environment.
+        object_name: Object name.
+        path: List of (position, quaternion) waypoints.
+        env_lock: Optional threading lock.
+        max_smoothing_iterations: Number of shortcut attempts (Phase 1).
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
+
+    Returns:
+        Smoothed path.
+    """
+    if max_smoothing_iterations is None:
+        max_smoothing_iterations = constants.RRT_SMOOTHING_ITERATIONS
+
+    if len(path) <= 2:
+        return path
+
+    ctx = env_lock if env_lock is not None else nullcontext()
+
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+
+        object_geom_ids = get_geom_ids_by_prefix(model, object_name)
+        robot_mask = get_robot_geom_mask(model)
+
+        try:
+            obj_joint_id = model.joint(f"{object_name}_joint0").id
+            obj_joint_addr = int(model.jnt_qposadr[obj_joint_id])
+        except Exception:
+            return path
+
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+
+        try:
+            # Phase 1: shortcutting
+            shortcut = _shortcut_path(
+                env, object_name, path,
+                object_geom_ids, robot_mask, obj_joint_addr,
+                max_iterations=max_smoothing_iterations,
+            )
+            logger.info(
+                "Phase 1 shortcutting: %d -> %d waypoints",
+                len(path), len(shortcut),
+            )
+
+            if rrt_vis is not None:
+                rrt_vis.draw_shortcut_path(shortcut)
+
+            # Phase 2: per-segment hybrid Bézier smoothing
+            samples_per_seg = max(8, 40 // max(1, len(shortcut) - 1))
+
+            # Compute and visualise control polygon
+            positions = [p for p, _ in shortcut]
+            ctrl_segments = _compute_bezier_control_points(positions, tension=0.33)
+            if rrt_vis is not None and ctrl_segments:
+                rrt_vis.draw_bezier_control_polygon(ctrl_segments)
+
+            num_segs = len(shortcut) - 1
+            bezier_seg_ok = [False] * num_segs  # track per-segment success
+            result: List[Tuple[np.ndarray, np.ndarray]] = []
+
+            for seg_idx in range(num_segs):
+                # Evaluate Bézier for this segment
+                bez_pts = _bezier_smooth_one_segment(
+                    shortcut, seg_idx,
+                    samples_per_segment=samples_per_seg,
+                    tension=0.33,
+                )
+
+                # Collision-check the Bézier samples
+                seg_collides = False
+                for pos, quat in bez_pts:
+                    if check_object_pose_collision(
+                        env, object_name, pos, quat,
+                        object_geom_ids, robot_mask, obj_joint_addr,
+                    ):
+                        seg_collides = True
+                        break
+
+                if not seg_collides:
+                    # Use smooth Bézier points
+                    bezier_seg_ok[seg_idx] = True
+                    # Skip the first point of non-first segments (already
+                    # included as the last point of the previous segment)
+                    start = 1 if seg_idx > 0 else 0
+                    result.extend(bez_pts[start:])
+                else:
+                    # Fallback: linear interpolation for this segment
+                    lin_pts = _linear_interpolate_segment(
+                        shortcut[seg_idx], shortcut[seg_idx + 1],
+                        num_samples=samples_per_seg,
+                    )
+                    start = 1 if seg_idx > 0 else 0
+                    result.extend(lin_pts[start:])
+
+            n_ok = sum(bezier_seg_ok)
+            logger.info(
+                "Phase 2 hybrid Bézier: %d/%d segments smoothed, "
+                "%d fell back to linear (%d total dense waypoints)",
+                n_ok, num_segs, num_segs - n_ok, len(result),
+            )
+
+            # Visualise: Bézier curve coloured per segment
+            if rrt_vis is not None:
+                rrt_vis.draw_bezier_curve(result, collision_free=(n_ok == num_segs))
+
+            if rrt_vis is not None:
+                rrt_vis.draw_smoothed_path(result)
+
+        finally:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_forward(get_native_mj_object(model), get_native_mj_object(data))
+
+    return result
+
+
+def densify_path(
+    path: List[Tuple[np.ndarray, np.ndarray]],
+    num_points: int,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Resample a sparse path to have a fixed number of evenly-spaced waypoints.
+    
+    Uses SE(3) interpolation to produce smooth intermediate poses.
+    
+    Args:
+        path: Sparse path from the planner.
+        num_points: Desired number of output waypoints (including start and goal).
+        
+    Returns:
+        Dense path with num_points waypoints.
+    """
+    if len(path) <= 1 or num_points <= 1:
+        return path
+    
+    # Compute cumulative arc length (SE(3) distance)
+    seg_lengths = []
+    for i in range(len(path) - 1):
+        d = se3_pose_distance(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1])
+        seg_lengths.append(d)
+    
+    total_length = sum(seg_lengths)
+    if total_length < 1e-10:
+        # Degenerate case: all waypoints are the same
+        return [path[0]] * num_points
+    
+    # Cumulative parameter along the path [0, 1]
+    cum_lengths = np.zeros(len(path))
+    for i in range(1, len(path)):
+        cum_lengths[i] = cum_lengths[i - 1] + seg_lengths[i - 1]
+    cum_lengths /= total_length  # Normalize to [0, 1]
+    
+    # Generate evenly spaced parameter values
+    dense = []
+    for k in range(num_points):
+        s = k / float(num_points - 1)
+        
+        # Find which segment this parameter falls in
+        seg_idx = np.searchsorted(cum_lengths, s, side="right") - 1
+        seg_idx = np.clip(seg_idx, 0, len(path) - 2)
+        
+        # Local interpolation parameter within this segment
+        seg_start = cum_lengths[seg_idx]
+        seg_end = cum_lengths[seg_idx + 1]
+        if seg_end - seg_start < 1e-10:
+            t_local = 0.0
+        else:
+            t_local = (s - seg_start) / (seg_end - seg_start)
+        
+        pos, quat = interpolate_pose(
+            path[seg_idx][0], path[seg_idx][1],
+            path[seg_idx + 1][0], path[seg_idx + 1][1],
+            t_local,
+        )
+        dense.append((pos, quat))
+    
+    return dense
+
+
+# ============================================================================
+# High-Level API
+# ============================================================================
+
+def plan_object_trajectory(
+    env: DualArmEnvironment,
+    object_name: str,
+    start_pose: StampedPose,
+    target_pose: StampedPose,
+    tf_manager=None,
+    num_steps: int = None,
+    env_lock=None,
+    max_iterations: int = None,
+    step_size: float = None,
+    goal_bias: float = None,
+    pos_bounds: np.ndarray = None,
+    smoothing_iterations: int = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
+) -> Tuple[List[StampedPose], bool]:
+    """
+    Plan a collision-free object trajectory from start to target pose.
+    
+    Uses RRT-Connect in SE(3) with MuJoCo collision checking.
+    Ignores collisions with robot arms/grippers.
+    
+    If the direct path is collision-free, returns the simple interpolated
+    trajectory (fast path).
+    
+    Args:
+        env: The simulation environment.
+        object_name: Name of the object to plan for.
+        start_pose: Start pose (StampedPose, will be converted to world frame).
+        target_pose: Target pose (StampedPose).
+        tf_manager: TransformManager for frame conversion.
+        num_steps: Number of output trajectory waypoints.
+        env_lock: Optional threading lock.
+        max_iterations: Max RRT iterations (default from constants).
+        step_size: RRT step size (default from constants).
+        goal_bias: RRT goal bias (default from constants).
+        pos_bounds: Workspace bounds (2, 3) array (default from constants).
+        smoothing_iterations: Path smoothing iterations (default from constants).
+        rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
+        
+    Returns:
+        Tuple of (trajectory as list of StampedPose, planning_success bool).
+        If planning fails, returns the simple interpolated trajectory as fallback
+        with success=False.
+    """
+    if num_steps is None:
+        num_steps = constants.OBJECT_TRAJ_NUM_STEPS
+    
+    # Normalize to world frame
+    if tf_manager is not None:
+        if start_pose.frame_id != constants.WORLD_FRAME:
+            start_pose = tf_manager.transform_pose(start_pose, constants.WORLD_FRAME)
+        if target_pose.frame_id != constants.WORLD_FRAME:
+            target_pose = tf_manager.transform_pose(target_pose, constants.WORLD_FRAME)
+    
+    frame_id = start_pose.frame_id
+    
+    start_pos = np.asarray(start_pose.position, dtype=np.float64)
+    start_quat = np.asarray(start_pose.quaternion, dtype=np.float64)
+    goal_pos = np.asarray(target_pose.position, dtype=np.float64)
+    goal_quat = np.asarray(target_pose.quaternion, dtype=np.float64)
+    
+    # Auto-compute position bounds from start/goal with margin
+    if pos_bounds is None:
+        all_pos = np.stack([start_pos, goal_pos])
+        margin = np.array(constants.RRT_BOUNDS_MARGIN)
+        auto_lo = all_pos.min(axis=0) - margin
+        auto_hi = all_pos.max(axis=0) + margin
+        # Enforce minimum z (don't plan below the table)
+        auto_lo[2] = max(auto_lo[2], constants.RRT_MIN_Z)
+        pos_bounds = np.array([auto_lo, auto_hi])
+    
+    logger.info(f"Planning object trajectory: {start_pos} -> {goal_pos}")
+    logger.info(f"  Workspace bounds: {pos_bounds[0]} to {pos_bounds[1]}")
+    
+    # Run RRT-Connect
+    result = rrt_connect_se3(
+        env=env,
+        object_name=object_name,
+        start_pos=start_pos,
+        start_quat=start_quat,
+        goal_pos=goal_pos,
+        goal_quat=goal_quat,
+        env_lock=env_lock,
+        max_iterations=max_iterations,
+        step_size=step_size,
+        goal_bias=goal_bias,
+        pos_bounds=pos_bounds,
+        rrt_vis=rrt_vis,
+    )
+    
+    if result.success:
+        logger.info(f"RRT planning succeeded ({result.iterations} iterations, "
+                    f"raw path length: {len(result.path)} waypoints)")
+        
+        # Smooth the path
+        smoothed = smooth_path(
+            env, object_name, result.path,
+            env_lock=env_lock,
+            max_smoothing_iterations=smoothing_iterations,
+            rrt_vis=rrt_vis,
+        )
+        
+        # Densify to the desired number of waypoints
+        dense = densify_path(smoothed, num_steps + 1)
+        
+        # Convert to StampedPose
+        trajectory = [
+            StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
+            for pos, quat in dense
+        ]
+        
+        return trajectory, True
+    else:
+        logger.warning("RRT planning failed — falling back to direct interpolation.")
+        # Fallback: simple SE(3) interpolation
+        trajectory = []
+        for i in range(num_steps + 1):
+            t = i / float(num_steps)
+            pos, quat = interpolate_pose(start_pos, start_quat, goal_pos, goal_quat, t)
+            trajectory.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
+        
+        return trajectory, False

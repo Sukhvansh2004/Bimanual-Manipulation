@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Dual-Arm Handover Demo using Trajectory Files
+Dual-Arm Handover Demo using Trajectory Files and Experiment JSON Configs.
+
+Usage:
+    python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_8.npz --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_2.npz
+    python dual_arm_handover_traj.py --experiment experiments/flatPlate_shelf_to_box.json --traj0 ... --traj1 ...
 """
 
 import os
@@ -16,6 +20,7 @@ from robosuite_franka_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
 from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
+from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
@@ -58,53 +63,58 @@ def stabilise(env, env_lock: threading.RLock, steps: int = 10):
 
 def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
-    parser.add_argument("--visualize", action="store_true", help="Enable visualization in robosuite")
-    parser.add_argument("--meshcat-tf", action="store_true", help="Stream TF and Scene to MeshCat")
-    parser.add_argument("--smoothen", action="store_true", help="Whether to smoothen trajectories during execution")
-    parser.add_argument("--traj0", type=str, default="data/robot0_trajectory_8.npz", help="Path to robot0 trajectory NPZ file")
-    parser.add_argument("--traj1", type=str, default="data/robot1_trajectory_2.npz", help="Path to robot1 trajectory NPZ file")
-    parser.add_argument("--zmq-url", type=str, default=str(constants.MESHCAT_ZMQ_URL), help="MeshCat ZMQ URL")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--experiment", type=str, required=True,
+                        help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     args = parser.parse_args()
 
-    if args.debug:
+    # ---------------------------------------------------------------
+    # Load experiment configuration
+    # ---------------------------------------------------------------
+    exp_cfg = load_experiment(args.experiment)
+    logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+
+    exec_cfg = exp_cfg.execution
+    vis_cfg = exp_cfg.visualization
+    rt_cfg = exp_cfg.runtime
+
+    debug = args.debug or rt_cfg.debug
+    if debug:
         setup_logging(logging.DEBUG)
     else:
         setup_logging(logging.INFO)
 
-    # 1. Environment Setup (Shelf and Plate)
-    shelf_pos = [-0.7, 0.0, 0.0]
-    shelf_quat = [0.0, 0.0, 0.70710678, 0.70710678]
-    plate_pos = [0.0, 0.0, 0.85]
-    plate_quat = [0, 0, 0, 1]
+    # 1. Environment Setup
+    ycb_objects = exp_cfg.ycb_objects
+    custom_objects = exp_cfg.custom_objects
+    enable_meshcat = vis_cfg.enable_meshcat
 
-    ycb_objects = [
-        create_ycb_object(ycb_name="shelf", position=shelf_pos, quaternion=shelf_quat)
-    ]
-    custom_objects = [
-        create_primitive_object(obj_type='box', name='flatPlate', size=[0.3, 0.3, 0.02], position=plate_pos, quat=plate_quat, density=100, friction=[1.0, 0.005, 0.0001])
-    ]
-
-    if args.visualize:
-        vis = meshcat.Visualizer(zmq_url=args.zmq_url)
+    vis = None
+    if exec_cfg.visualize and enable_meshcat:
+        vis = meshcat.Visualizer(zmq_url=vis_cfg.zmq_url)
         vis.delete()  # Clear MeshCat
 
     system = DualArmManipulationSystem(
-        visualize=args.visualize, 
-        meshcat_tf=args.meshcat_tf,
+        visualize=exec_cfg.visualize, 
+        meshcat_tf=exec_cfg.meshcat_tf and enable_meshcat,
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
         use_fastsam=False, 
         use_grasp_service=False,
-        has_renderer=True
+        has_renderer=True,
+        table_full_size=exp_cfg.table_full_size,
     )
     system.start(start_teleop_thread=False)
     register_mesh_extraction_env(system.env)
 
     try:
         # 2. Load Trajectories
-        traj_path0 = args.traj0
-        traj_path1 = args.traj1
+        # Resolve trajectory paths from experiment config
+        if not exec_cfg.traj0 or not exec_cfg.traj1:
+            logger.error("Trajectory paths (traj0, traj1) must be set in the experiment JSON execution section.")
+            return
+        traj_path0 = exec_cfg.traj0
+        traj_path1 = exec_cfg.traj1
         
         logger.info(f"Loading trajectories: {traj_path0}, {traj_path1}")
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)
@@ -118,10 +128,15 @@ def main():
             return
 
         # 3. Visualization of Trajectories
-        if args.visualize:
+        if exec_cfg.visualize and vis is not None:
             logger.info("Visualizing trajectories in MeshCat...")
             visualize_trajectory(vis, eef_traj0, res0, name="robot0_traj", tf_manager=system.tf_manager)
             visualize_trajectory(vis, eef_traj1, res1, name="robot1_traj", tf_manager=system.tf_manager)
+            # Object trajectories (no feasibility results, use distinct colors)
+            if obj_traj0:
+                visualize_trajectory(vis, obj_traj0, name="object_traj0", color=0xff00ff, tf_manager=system.tf_manager)
+            if obj_traj1:
+                visualize_trajectory(vis, obj_traj1, name="object_traj1", color=0xffff00, tf_manager=system.tf_manager)
 
         # 4. Extract grasps from first points of trajectories
         # G = inv(T_ee) @ T_obj — object pose in EE frame
@@ -191,7 +206,7 @@ def main():
             if next_handover_idx != -1 and next_handover_idx > current_idx:
                 logger.info(f"Robot {current_robot} following segment to handover at {next_handover_idx}...")
                 joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : next_handover_idx+1])
-                current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, num_steps=200, smoothen=args.smoothen)
+                current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, num_steps=200, smoothen=exec_cfg.smoothen)
                 current_idx = next_handover_idx
                 
                 logger.info(f"Executing handover at {current_idx}...")
@@ -204,7 +219,7 @@ def main():
                 h_traj = h_planner.generate_trajectory()
                 
                 # Visualize handover plan in MeshCat
-                if args.visualize:
+                if exec_cfg.visualize and vis is not None:
                     visualize_handover_plan(
                         vis, h_traj,
                         name=f"handover_{current_idx}",
@@ -242,7 +257,7 @@ def main():
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
                     joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : last_idx+1])
-                    current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, smoothen=args.smoothen, num_steps=200)
+                    current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, smoothen=exec_cfg.smoothen, num_steps=200)
                     current_idx = last_idx
                 break
 

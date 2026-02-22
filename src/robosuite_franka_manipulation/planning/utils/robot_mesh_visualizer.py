@@ -292,7 +292,7 @@ class RobotMeshVisualizer:
             opacity: Mesh opacity
         """
         # Create base path for this trajectory
-        traj_path = f"{self.base_path}/{trajectory_id}/robot{robot_id}"
+        traj_path = f"{self.base_path}/{robot_id}/{trajectory_id}"
         
         def visualize_waypoint(result: WaypointFeasibilityResult):
             waypoint_path = f"{traj_path}/waypoint_{result.waypoint_index:04d}"

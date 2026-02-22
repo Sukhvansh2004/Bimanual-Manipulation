@@ -50,6 +50,8 @@ detections = detector.detect_objects(
 4. **Pose Estimation**: PCA-based 6-DOF pose from point cloud
 5. **Visualization**: Optional OpenCV windows showing results
 
+The detection prompt can be changed at runtime via `detector.set_prompt("new prompt")`.
+
 #### Output Format
 
 The detector returns a list of `DetectionSchema` objects (Pydantic models). Each detection contains:
@@ -81,17 +83,29 @@ The `GraspPredictor` class wraps GraspGen for 6-DOF grasp prediction.
 from robosuite_franka_manipulation.perception import GraspPredictor
 
 predictor = GraspPredictor(
-    gripper_type='franka_panda',  # or 'single_suction_cup_30mm'
+    gripper_type='finger',        # or 'suction' — mapped internally via GRIPPER_TYPE_MAPPING
+    model_path='',                # auto-resolved from GraspGenModels
     debug=True,
     visualize=True
 )
 
-# Predict grasps
+# Predict grasps from a point cloud
 grasps = predictor.predict_grasps(
-    object_pcd=pcd,            # Nx3 array
-    object_pose=pose_stamped,  # StampedPose object
-    num_grasps=5
+    object_pose=pose_stamped,  # StampedPose object (required, first positional arg)
+    num_grasps=5,              # Number of grasps to generate
+    object_pcd=pcd,            # Nx3 array (optional if mesh_file given)
 )
+
+# Or predict grasps from a mesh file
+grasps = predictor.predict_grasps(
+    object_pose=pose_stamped,
+    num_grasps=5,
+    mesh_file='path/to/object.obj',
+    mesh_scale=1.0,
+)
+
+# Get the gripper collision mesh (for downstream collision checking)
+collision_mesh = predictor.get_gripper_collision_mesh()  # returns trimesh.Trimesh
 ```
 
 #### Grasp Output Format
@@ -143,7 +157,7 @@ fx = 800.0, fy = 800.0  # Focal lengths
 cx = 320.0, cy = 240.0  # Principal point (image center)
 ```
 
-These values are configured in `constants/__init__.py` and can be customized for your specific camera setup.
+These values are configured in `constants.py` and can be customized for your specific camera setup.
 
 ## GPU Acceleration
 
@@ -159,7 +173,7 @@ FastSAM and GraspGen both run on the detected device.
 
 ## Detection Parameters
 
-Key parameters in `constants/__init__.py`:
+Key parameters in `constants.py`:
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -192,37 +206,62 @@ pcd = deproject_depth_to_point_cloud(
     mask,            # Optional binary mask
     fx, fy, cx, cy,  # Camera intrinsics
     max_depth=10.0,
-    mujoco_convention=False,  # standard pinhole / optical frame (x right, y down, z forward)
+    mujoco_convention=True,   # (default) negate Y & Z for MuJoCo camera convention
     image_flipped=False       # Set True if depth was flipped from OpenGL to standard image coords
 )
 ```
 
-The deprojection uses standard pinhole camera model:
+The deprojection uses the standard pinhole camera model:
 ```
 Z = depth[y, x]
 X = (x - cx) * Z / fx
 Y = (y - cy) * Z / fy
 ```
 
+When `mujoco_convention=True` (the default), Y and Z are negated to match MuJoCo's
+camera coordinate system.
+
 When `image_flipped=True`, the function internally converts v coordinates back to the original
 OpenGL space before applying the pinhole formula, ensuring correct 3D reconstruction when working
-with robosuite's camera extrinsic matrices. Note that `ObjectDetector` internally handles image flipping
-during preprocessing, so it typically calls this with `image_flipped=False`.
+with robosuite's camera extrinsic matrices.
 
-### Frame Transformations
+### Additional Point Cloud Utilities
 
 ```python
-from robosuite_franka_manipulation.utils import transform_point_cloud
+from robosuite_franka_manipulation.utils import (
+    transform_point_cloud,         # Apply 4×4 transform to Nx3 point cloud
+    parse_camera_intrinsics,       # Extract (fx, fy, cx, cy) from 1D or 3×3 intrinsics
+    ensure_depth_2d,               # Reshape depth to (H, W)
+    downsample_point_cloud,        # Farthest-point or random downsampling
+    estimate_pose_from_point_cloud,# PCA-based 6-DOF pose from points
+    compute_point_cloud_bounds,    # Axis-aligned bounding box
+    filter_point_cloud_by_range,   # Remove points outside a distance range
+    validate_point_cloud,          # Shape / NaN / size checks
+)
 
 # Camera frame to world frame
 pcd_world = transform_point_cloud(pcd, camera_to_world_matrix)
 ```
 
-## Integration with Services
+## Grasp Selection
 
-The perception components are wrapped by services for distributed operation:
+The perception module also exports `maximize_entropy_grasps`, which selects a
+diverse subset of grasps by maximising spatial entropy:
 
 ```python
+from robosuite_franka_manipulation.perception import maximize_entropy_grasps
+
+selected = maximize_entropy_grasps(grasps, num_grasps=3, break_at_neg=False)
+```
+
+## Integration with Services
+
+The perception components are wrapped by services for distributed operation
+(see the [Services docs](services.md) for full details):
+
+```python
+from robosuite_franka_manipulation.services import FastSAMService, ServiceClient
+
 # FastSAM Service continuously runs detection
 fastsam_service = FastSAMService(env=env, visualize=True)
 fastsam_service.start()
