@@ -1,18 +1,19 @@
 {
-    "name": "ycb_mug_table_to_shelf",
-    "description": "Move a YCB mug from the table onto a shelf slot.",
+    "name": "ycb_mug_rack_to_table",
+    "description": "Move a YCB mug from a tabletop rack compartment back to the table surface.",
 
     "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
-                "ycb_name": "shelf",
-                "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "ycb_name": "table_rack",
+                "position": [-0.25, 0.0, 0.80],
+                "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "mug",
-                "position": [0.0, 0.0, 0.90],
+                "position": [-0.348, 0.0, 0.88],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
@@ -23,8 +24,8 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.444, 0.023, 1.35],
-            "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
+            "position": [0.15, 0.0, 0.85],
+            "quaternion": [0, 0, 0, 1]
         }
     },
 
@@ -39,7 +40,7 @@
     },
 
     "collision_filter": {
-        "exclude_patterns": ["mug"]
+        "exclude_patterns": ["mug", "track", "table_rack"]
     },
 
     "visualization": {

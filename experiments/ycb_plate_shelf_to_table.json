@@ -1,30 +1,31 @@
 {
-    "name": "ycb_bowl_table_to_shelf",
-    "description": "Move a YCB bowl from the table onto a shelf slot.",
+    "name": "ycb_plate_shelf_to_table",
+    "description": "Move a YCB plate from a tabletop shelf slot back to the table surface.",
 
     "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
-                "ycb_name": "shelf",
-                "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "ycb_name": "table_shelf",
+                "position": [-0.25, 0.0, 0.80],
+                "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
-                "ycb_name": "bowl",
-                "position": [0.0, 0.0, 0.90],
-                "quaternion": [0, 0, 0, 1]
+                "ycb_name": "plate",
+                "position": [-0.30, 0.0, 0.94],
+                "quaternion": [0, 0.70710678, 0, 0.70710678]
             }
         ],
         "custom_objects": []
     },
 
     "task": {
-        "manipulated_object": "bowl_0",
+        "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.444, 0.023, 1.35],
-            "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
+            "position": [0.15, 0.0, 0.85],
+            "quaternion": [0, 0, 0, 1]
         }
     },
 
@@ -39,7 +40,7 @@
     },
 
     "collision_filter": {
-        "exclude_patterns": ["bowl"]
+        "exclude_patterns": ["plate", "tshelf", "table_shelf"]
     },
 
     "visualization": {

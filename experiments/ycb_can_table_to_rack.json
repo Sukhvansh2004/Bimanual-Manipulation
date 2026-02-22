@@ -1,36 +1,31 @@
 {
-    "name": "table_to_shelf",
-    "description": "Move a flat plate from the table surface into a shelf slot (default setup).",
+    "name": "ycb_can_table_to_rack",
+    "description": "Move a YCB tomato-soup can from the table into a tabletop rack compartment.",
 
     "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
-                "ycb_name": "shelf",
-                "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "ycb_name": "table_rack",
+                "position": [-0.25, 0.0, 0.80],
+                "quaternion": [0, 0, 0, 1],
                 "is_static": true
+            },
+            {
+                "ycb_name": "tomato_soup_can",
+                "position": [0.15, 0.0, 0.90],
+                "quaternion": [0, 0, 0, 1]
             }
         ],
-        "custom_objects": [
-            {
-                "type": "box",
-                "name": "flatPlate",
-                "size": [0.26, 0.26, 0.02],
-                "position": [0.0, 0.0, 0.85],
-                "quaternion": [0, 0, 0, 1],
-                "density": 100,
-                "friction": [1.0, 1.0, 1.0],
-                "rgba": null
-            }
-        ]
+        "custom_objects": []
     },
 
     "task": {
-        "manipulated_object": "flatPlate",
+        "manipulated_object": "tomato_soup_can_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.444, 0.023, 1.35],
-            "quaternion": [-0.70710678, 0.0, 0.0, 0.70710678]
+            "position": [-0.348, 0.0, 0.86],
+            "quaternion": [0, 0, 0, 1]
         }
     },
 
@@ -40,12 +35,12 @@
         "gripper_types": ["finger", "suction"],
         "collision_check": null,
         "num_steps": 50,
-        "lift_height": 0.2,
-        "approach_offset": 0.3
+        "lift_height": 0.15,
+        "approach_offset": 0.25
     },
 
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate"]
+        "exclude_patterns": ["tomato_soup_can", "track", "table_rack"]
     },
 
     "visualization": {

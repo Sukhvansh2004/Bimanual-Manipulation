@@ -1,0 +1,117 @@
+{
+    "name": "dual_handover_plate",
+    "description": "Dual-handover: move a flat plate from a shelf on Robot-0's side to a box on Robot-0's side. A wall obstacle between them forces the trajectory through Robot-1's workspace, requiring two handovers (Robot-0 → Robot-1 → Robot-0).",
+
+    "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
+        "ycb_objects": [
+            {
+                "ycb_name": "table_shelf",
+                "position": [-0.30, -0.15, 0.80],
+                "quaternion": [0, 0, 0, 1],
+                "is_static": true
+            }
+        ],
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "flatPlate",
+                "size": [0.26, 0.26, 0.02],
+                "position": [-0.35, -0.15, 0.94],
+                "quaternion": [0, 0.70710678, 0, 0.70710678],
+                "density": 100,
+                "friction": [1.0, 1.0, 1.0],
+                "rgba": null
+            },
+            {
+                "type": "box", "name": "wallObstacle",
+                "size": [0.30, 0.12, 0.50],
+                "position": [0.0, -0.10, 1.05],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.40, 0.40, 0.40, 0.80],
+                "is_static": true,
+                "_comment": "Central wall forcing detour through Robot-1 workspace (y > 0)"
+            },
+            {
+                "type": "box", "name": "boundaryBoxBottom",
+                "size": [0.34, 0.34, 0.005],
+                "position": [0.25, -0.15, 0.83], "quaternion": [0,0,0,1],
+                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+            },
+            {
+                "type": "box", "name": "boundaryBoxWallFront",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.25, -0.313, 0.855], "quaternion": [0,0,0,1],
+                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+            },
+            {
+                "type": "box", "name": "boundaryBoxWallBack",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.25, 0.013, 0.855], "quaternion": [0,0,0,1],
+                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+            },
+            {
+                "type": "box", "name": "boundaryBoxWallLeft",
+                "size": [0.015, 0.34, 0.04],
+                "position": [0.087, -0.15, 0.855], "quaternion": [0,0,0,1],
+                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+            },
+            {
+                "type": "box", "name": "boundaryBoxWallRight",
+                "size": [0.015, 0.34, 0.04],
+                "position": [0.413, -0.15, 0.855], "quaternion": [0,0,0,1],
+                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+            }
+        ]
+    },
+
+    "task": {
+        "manipulated_object": "flatPlate",
+        "start_pose": null,
+        "target_pose": {
+            "position": [0.25, -0.15, 0.843],
+            "quaternion": [0, 0, 0, 1]
+        }
+    },
+
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": null,
+        "num_steps": 80,
+        "lift_height": 0.2,
+        "approach_offset": 0.3
+    },
+
+    "collision_filter": {
+        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "wall", "boundary"]
+    },
+
+    "visualization": {
+        "visualize_mesh": true,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000"
+    },
+
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": false,
+        "traj0": null,
+        "traj1": null
+    },
+
+    "runtime": {
+        "debug": false,
+        "num_workers": 4
+    }
+}

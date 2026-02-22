@@ -56,10 +56,12 @@ class DualArmManipulationSystem:
             use_fastsam: bool = True,
             use_grasp_service: bool = True,
             has_renderer: bool = True,
+            table_full_size: Optional[Any] = None,
             ):
         
         self.custom_objects = custom_objects
         self.ycb_objects = ycb_objects
+        self.table_full_size = table_full_size
         self.visualize = visualize
         self.debug = debug
         self.detection_prompt = detection_prompt
@@ -147,7 +149,8 @@ class DualArmManipulationSystem:
         self.env = make_dual_arm_env(
             custom_objects=self.custom_objects, 
             ycb_objects=self.ycb_objects, 
-            has_renderer=self.has_renderer
+            has_renderer=self.has_renderer,
+            table_full_size=self.table_full_size,
         )
         if self.has_renderer:
             logger.debug("Adding VisualizationWrapper to environment...")

@@ -1,13 +1,14 @@
 {
-    "name": "shelf_to_table",
-    "description": "Move a flat plate from a shelf slot back down to the table surface.",
+    "name": "flatPlate_table_to_shelf",
+    "description": "Move a flat plate from the table surface into a tabletop plate-shelf slot.",
 
     "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
-                "ycb_name": "shelf",
-                "position": [-0.6, 0.0, 0.0],
-                "quaternion": [0.0, 0.0, 0.64279, 0.76604],
+                "ycb_name": "table_shelf",
+                "position": [-0.25, 0.0, 0.80],
+                "quaternion": [0, 0, 0, 1],
                 "is_static": true
             }
         ],
@@ -16,8 +17,8 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.444, 0.023, 1.35],
-                "quaternion": [-0.704416, 0.061625, -0.061625, 0.704416],
+                "position": [0.15, 0.0, 0.85],
+                "quaternion": [0, 0, 0, 1],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
                 "rgba": null
@@ -29,8 +30,8 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.0, 0.0, 0.85],
-            "quaternion": [0, 0, 0, 1]
+            "position": [-0.30, 0.0, 0.94],
+            "quaternion": [0, 0.70710678, 0, 0.70710678]
         }
     },
 
@@ -45,7 +46,7 @@
     },
 
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate"]
+        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf"]
     },
 
     "visualization": {

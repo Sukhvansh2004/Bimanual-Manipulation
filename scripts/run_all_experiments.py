@@ -8,7 +8,7 @@ Runs every experiment JSON in experiments/ sequentially with:
 
 Usage:
     python scratch/run_all_experiments.py                  # run all experiments
-    python scratch/run_all_experiments.py --only shelf_to_box table_to_shelf
+    python scratch/run_all_experiments.py --only flatPlate_shelf_to_box flatPlate_table_to_shelf
     python scratch/run_all_experiments.py --workers 4      # override worker count
 """
 
@@ -117,7 +117,7 @@ def main():
     parser.add_argument(
         "--only", nargs="*", default=None,
         help="Run only these experiment names (without .json extension). "
-             "E.g. --only shelf_to_box table_to_shelf",
+             "E.g. --only flatPlate_shelf_to_box flatPlate_table_to_shelf",
     )
     parser.add_argument(
         "--workers", type=int, default=None,

@@ -1,0 +1,71 @@
+{
+    "name": "ycb_plate_table_to_shelf",
+    "description": "Move a YCB plate from the table into a tabletop shelf slot (stored on edge).",
+
+    "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
+        "ycb_objects": [
+            {
+                "ycb_name": "table_shelf",
+                "position": [-0.25, 0.0, 0.80],
+                "quaternion": [0, 0, 0, 1],
+                "is_static": true
+            },
+            {
+                "ycb_name": "plate",
+                "position": [0.15, 0.0, 0.85],
+                "quaternion": [0, 0, 0, 1]
+            }
+        ],
+        "custom_objects": []
+    },
+
+    "task": {
+        "manipulated_object": "plate_0",
+        "start_pose": null,
+        "target_pose": {
+            "position": [-0.30, 0.0, 0.94],
+            "quaternion": [0, 0.70710678, 0, 0.70710678]
+        }
+    },
+
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": null,
+        "num_steps": 50,
+        "lift_height": 0.2,
+        "approach_offset": 0.3
+    },
+
+    "collision_filter": {
+        "exclude_patterns": ["plate", "tshelf", "table_shelf"]
+    },
+
+    "visualization": {
+        "visualize_mesh": true,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000"
+    },
+
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": false,
+        "traj0": null,
+        "traj1": null
+    },
+
+    "runtime": {
+        "debug": false,
+        "num_workers": 4
+    }
+}

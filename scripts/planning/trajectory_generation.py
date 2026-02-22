@@ -10,8 +10,8 @@ This script:
 5. Visualizes everything in Meshcat and optionally saves trajectories to disk.
 
 Usage:
-    python trajectory_generation.py --experiment experiments/table_to_shelf.json
-    python trajectory_generation.py --experiment experiments/shelf_to_box.json --save-traj
+    python trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
+    python trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj
 """
 
 import numpy as np
@@ -78,7 +78,7 @@ worker_env = None
 worker_tf_manager = None
 worker_vis = None
 
-def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None):
+def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None, table_full_size=None):
     """Initialize worker process by creating a persistent environment and visualizer.
     
     Args:
@@ -88,6 +88,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
         collision_exclude_patterns: List of substrings; geoms whose names contain
             any of these patterns (or are robot geoms) keep their collisions.
             All other geoms get contype=0 for faster collision checking.
+        table_full_size: Optional tuple (x, y, z) to override the default table dimensions.
     """
     setup_logging(log_level)
     global worker_env, worker_tf_manager, worker_vis
@@ -99,7 +100,8 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
             custom_objects=custom_objects,
             has_renderer=False, 
             has_offscreen_renderer=False,
-            use_camera_obs=False
+            use_camera_obs=False,
+            table_full_size=table_full_size,
         )
         worker_env.reset()
         # Allow environment to settle
@@ -196,7 +198,7 @@ def main() -> None:
     
     # Experiment configuration (required)
     parser.add_argument("--experiment", type=str, required=True,
-                        help="Path to experiment JSON config (e.g. experiments/table_to_shelf.json)")
+                        help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
     
     # Minimal CLI overrides – everything else lives in the experiment JSON
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
@@ -232,6 +234,7 @@ def main() -> None:
     custom_objects = exp_cfg.custom_objects
     object_name = exp_cfg.task.manipulated_object
     collision_exclude_patterns = exp_cfg.collision_filter.exclude_patterns
+    table_full_size = exp_cfg.table_full_size
     
     logger.info("Creating planning environment with %d YCB + %d custom objects...",
                 len(ycb_objects), len(custom_objects))
@@ -242,7 +245,8 @@ def main() -> None:
         custom_objects=custom_objects,
         has_renderer=False, 
         has_offscreen_renderer=False,
-        use_camera_obs=False
+        use_camera_obs=False,
+        table_full_size=table_full_size,
     )
     env.reset()
     # Allow environment to settle
@@ -393,7 +397,7 @@ def main() -> None:
     with multiprocessing.Pool(
         processes=num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns)
+        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns, table_full_size)
     ) as pool:
         
         # Evaluate Robot 0 Grasps

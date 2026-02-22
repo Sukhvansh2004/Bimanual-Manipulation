@@ -112,6 +112,7 @@ class ExperimentConfig:
     execution: ExecutionConfig
     runtime: RuntimeConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
+    table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +200,10 @@ def load_experiment(path: str) -> ExperimentConfig:
     env_cfg = raw.get("environment", {})
     ycb_objects = _build_ycb_objects(env_cfg.get("ycb_objects", []))
     custom_objects = _build_custom_objects(env_cfg.get("custom_objects", []))
+    table_full_size = None
+    if "table_full_size" in env_cfg:
+        tfs = env_cfg["table_full_size"]
+        table_full_size = (float(tfs[0]), float(tfs[1]), float(tfs[2]))
 
     # --- task ---
     task_raw = raw["task"]
@@ -273,6 +278,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         execution=execution,
         runtime=runtime,
         raw=raw,
+        table_full_size=table_full_size,
     )
 
 

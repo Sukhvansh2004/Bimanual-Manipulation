@@ -37,7 +37,7 @@ def main():
     parser = argparse.ArgumentParser(description="Visualize robot trajectory in MeshCat")
     parser.add_argument("path", type=str, help="Path to trajectory .npz file or directory")
     parser.add_argument("--experiment", type=str, required=True,
-                        help="Path to experiment JSON config (e.g. experiments/table_to_shelf.json)")
+                        help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
     parser.add_argument("--robot-id", type=int, default=0, help="Robot ID (0 or 1)")
     parser.add_argument("--name", type=str, default=None, help="Name/Tag for the trajectory in MeshCat (defaults to file name)")
     parser.add_argument("--step", type=int, default=10, help="Step interval for robot mesh visualization")
