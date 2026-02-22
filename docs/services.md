@@ -2,6 +2,12 @@
 
 The system uses a distributed microservices architecture for robotic perception and grasp planning. All services communicate via ZeroMQ (ZMQ) with JSON message serialization.
 
+All service implementations live in `src/robosuite_franka_manipulation/services/`:
+- `services_core.py` — `ServiceManager` and `ServiceClient` base classes
+- `fastsam_service.py` — FastSAM detection service
+- `grasp_service.py` — GraspGen prediction service
+- `move_to_pose_service.py` — MoveToPose / trajectory following service
+
 ## Service Overview
 
 | Service | Port | Purpose |
@@ -43,7 +49,9 @@ This starts all services automatically and provides an interactive shell.
 ### Manual Service Startup
 
 ```python
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
+from robosuite_franka_manipulation.services import (
+    ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
+)
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 
 # Create environment
@@ -67,6 +75,11 @@ move = MoveToPoseService()
 # Note: You must register controllers with the service
 move.register_controller(0, "right", arm_controller_0)
 move.start()
+
+# Or use the all-in-one system manager:
+from robosuite_franka_manipulation.system_manager import DualArmManipulationSystem
+system = DualArmManipulationSystem(visualize=True, meshcat_tf=True)
+system.start()
 ```
 
 ## Service Client API
@@ -254,7 +267,7 @@ response = client.call('move_to_pose_service', {
 
 ## Configuration Constants
 
-All service ports and timeouts are defined in `constants.py`:
+All service ports and timeouts are defined in `src/robosuite_franka_manipulation/constants.py`:
 
 ```python
 # Network Configuration
