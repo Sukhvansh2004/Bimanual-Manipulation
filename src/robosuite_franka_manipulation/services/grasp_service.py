@@ -500,7 +500,7 @@ class GraspService:
             visualize_gripper_mesh=req.visualize_gripper_mesh
         )
         
-        # 6. Visualize
+        # 6. Visualize frames
         if self.visualize:
             self._visualize_grasps(all_grasps)
         
