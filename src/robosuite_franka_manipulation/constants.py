@@ -230,21 +230,21 @@ FRANKA_ARM_DOF = 7
 ROBOT_CONFIGURATIONS = {
     'opposed': [
         {
-            'position': np.array([0.0, -0.05, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
         },
         {
-            'position': np.array([0.0, 0.05, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
         }
     ],
     'parallel': [
         {
-            'position': np.array([0.0, -0.05, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
         },
         {
-            'position': np.array([0.0, 0.05, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
         }
     ],

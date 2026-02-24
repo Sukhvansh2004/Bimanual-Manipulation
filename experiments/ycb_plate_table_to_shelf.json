@@ -22,7 +22,7 @@
         "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.25, -0.05, 1.34],
+            "position": [-0.2, -0.05, 1.34],
             "quaternion": [0, 0.70710678, 0, 0.70710678]
         }
     },
@@ -46,7 +46,7 @@
         ]
     },
     "visualization": {
-        "visualize_mesh": true,
+        "visualize_mesh": false,
         "mesh_step_interval": 10,
         "mesh_opacity": 0.4,
         "mesh_sample_ratio": 0.5,
