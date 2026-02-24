@@ -24,7 +24,7 @@
         "manipulated_object": "tomato_soup_can_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.348, 0.0, 0.86],
+            "position": [-0.152, 0.0, 0.86],
             "quaternion": [0, 0, 0, 1]
         }
     },

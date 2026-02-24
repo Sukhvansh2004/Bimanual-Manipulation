@@ -364,7 +364,7 @@ def main() -> None:
     # Initialize Grasp Service (it registers itself)
     grasp_service = GraspService(
         tf_manager=tf_manager,
-        visualize=True 
+        visualize=False 
     )
     grasp_service.start()
     

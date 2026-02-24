@@ -24,7 +24,7 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.348, 0.0, 0.87],
+            "position": [-0.152, 0.0, 0.87],
             "quaternion": [0, 0, 0, 1]
         }
     },
