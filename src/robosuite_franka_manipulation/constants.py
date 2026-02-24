@@ -132,7 +132,8 @@ IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
-
+IK_MANIPULABILITY_WEIGHT = 1e-3  # Regularization weight for manipulability in IK objective
+IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold IK_JOINT_LIMIT_WEIGHT = 1e-2  # Regularization weight for joint-limit avoidance penalty
 # Trajectory Feasibility Check Parameters
 TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
 TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
@@ -230,11 +231,11 @@ FRANKA_ARM_DOF = 7
 ROBOT_CONFIGURATIONS = {
     'opposed': [
         {
-            'position': np.array([0.0, 0.0, 0.0]),
+            'position': np.array([0.0, 0.1, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
         },
         {
-            'position': np.array([0.0, 0.0, 0.0]),
+            'position': np.array([0.0, -0.1, 0.0]),
             'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
         }
     ],

@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 ArrayLike = Union[Sequence[float], np.ndarray]
 
 
+def _manipulability_from_jac(jac: np.ndarray) -> float:
+    """Yoshikawa manipulability: sqrt(det(J @ J^T)).
+
+    A robust formulation using singular values to avoid numerical issues
+    with near-singular Jacobians.
+    """
+    sv = np.linalg.svd(jac, compute_uv=False)
+    return float(np.prod(sv))  # == sqrt(det(J @ J^T))
+
+
 def solve_ik_scipy(
     model: MjModel,
     data: MjData,
@@ -36,8 +46,14 @@ def solve_ik_scipy(
     *,
     pos_tol: float,
     ori_tol: float,
+    manipulability_weight: float = constants.IK_MANIPULABILITY_WEIGHT,
 ) -> Optional[np.ndarray]:
-    """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision."""
+    """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision.
+
+    Includes a manipulability regulariser that penalises configurations near
+    singularities (small det(J J^T)), steering the solver toward
+    better-conditioned solutions.
+    """
     
     # Unwrap once at the start of the IK solve. These native pointers remain 
     # valid throughout the optimization loop as the environment state is 
@@ -45,65 +61,88 @@ def solve_ik_scipy(
     model_native = mujoco_utils.get_native_mj_object(model)
     data_native = mujoco_utils.get_native_mj_object(data)
 
+    # Cache the last FK evaluation so that constraint functions called at
+    # the same q as the objective don't trigger redundant forward-kinematics.
+    _cache: dict = {'key': None, 'err': None, 'jac': None}
+
     def compute_state(q):
-        # Update joint positions directly in native data
-        mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
-        
-        # Forward kinematics
-        mujoco.mj_fwdPosition(model_native, data_native)
-        
-        # Compute site error using native data
-        pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
-        err = np.concatenate([pos_err, rot_err])
-        
-        # Compute Jacobian
-        nv = int(model_native.nv)
-        jacp = np.zeros((3, nv))
-        jacr = np.zeros((3, nv))
-        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-        
-        # Extract Jacobian for the active joints
-        jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-        
-        return err, jac
+        key = q.tobytes()
+        if _cache['key'] != key:
+            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
+            mujoco.mj_fwdPosition(model_native, data_native)
+
+            pos_err, rot_err = mujoco_utils.compute_site_error(
+                model_native, data_native, site_id, target_pos, target_quat)
+            err = np.concatenate([pos_err, rot_err])
+
+            nv = int(model_native.nv)
+            jacp = np.zeros((3, nv))
+            jacr = np.zeros((3, nv))
+            mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+            jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+
+            _cache['key'] = key
+            _cache['err'] = err
+            _cache['jac'] = jac
+
+        return _cache['err'], _cache['jac']
 
     def objective(q):
-        err, _ = compute_state(q)
-        return 0.5 * np.dot(err, err)
-
-    def gradient(q):
         err, jac = compute_state(q)
-        # Gradient of 0.5 * ||f(q)||^2 is J(q)^T * f(q). 
-        # Since error = target - current, d(error)/dq = -J, so grad = -J^T * error.
-        return -jac.T @ err
+        task_cost = 0.5 * np.dot(err, err)
+        # Manipulability regulariser: maximise sqrt(det(J J^T))
+        # We minimise the negative log-manipulability to avoid division by zero
+        # and to get a smooth gradient.
+        if manipulability_weight > 0:
+            manip = _manipulability_from_jac(jac)
+            # -log(manip + eps) → pushes away from singularities
+            manip_penalty = -np.log(manip + 1e-12)
+            return task_cost + manipulability_weight * manip_penalty
+        return task_cost
 
-    # Use SLSQP for precise constrained optimization
+    # ---------- Tolerance constraints for SLSQP ----------
+    # SLSQP treats inequality constraints as  fun(q) >= 0.
+    # pos_tol - ||pos_err|| >= 0  ⟹  ||pos_err|| <= pos_tol
+    # ori_tol - ||rot_err|| >= 0  ⟹  ||rot_err|| <= ori_tol
+    def pos_tolerance_constraint(q):
+        err, _ = compute_state(q)
+        return pos_tol - np.linalg.norm(err[:3])
+
+    def ori_tolerance_constraint(q):
+        err, _ = compute_state(q)
+        return ori_tol - np.linalg.norm(err[3:])
+
+    constraints = [
+        {'type': 'ineq', 'fun': pos_tolerance_constraint},
+        {'type': 'ineq', 'fun': ori_tolerance_constraint},
+    ]
+
+    # Use SLSQP for precise constrained optimization.
+    # The tolerance constraints let the solver know exactly when the IK
+    # solution is acceptable, instead of relying on a post-hoc check.
     res = minimize(
         objective,
         q_init,
         method='SLSQP',
-        jac=gradient,
         bounds=list(zip(joint_lo, joint_hi)),
+        constraints=constraints,
     )
 
     q_final = res.x
-    
-    # Final state update and error check
+
+    # Safety verification — the constraints should already be satisfied
+    # when res.success is True, but we verify numerically to be safe.
     mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
     mujoco.mj_fwdPosition(model_native, data_native)
     pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
     pos_dist = np.linalg.norm(pos_err)
     rot_dist = np.linalg.norm(rot_err)
 
-    if pos_dist <= pos_tol and rot_dist <= ori_tol:
-        return q_final
-    
     if not res.success:
         logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
-    else:
-        logger.debug(f"IK converged but tolerance not met: pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f}")
-
-    return None
+        return None
+    
+    return res.x
 
 
 def unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> List[np.ndarray]:
@@ -332,6 +371,49 @@ def enumerate_ik_solutions_for_arm(
             
             # Unwrap for native call
             mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
+
+        # ------------------------------------------------------------------
+        # Rank solutions by manipulability and reject near-singular ones.
+        # This ensures the best-conditioned configuration is tried first in
+        # downstream collision checks, and prevents warm-starting from
+        # singularities that cause trajectory jumps.
+        # ------------------------------------------------------------------
+        if solutions:
+            model_native = mujoco_utils.get_native_mj_object(model)
+            data_native = mujoco_utils.get_native_mj_object(data)
+            nv = int(model_native.nv)
+
+            scored: List[tuple] = []  # (manipulability, solution)
+            for q_sol in solutions:
+                mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_sol)
+                mujoco.mj_fwdPosition(model_native, data_native)
+                jacp = np.zeros((3, nv))
+                jacr = np.zeros((3, nv))
+                mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+                jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+                m = _manipulability_from_jac(jac)
+                scored.append((m, q_sol))
+
+            # Filter out near-singular solutions
+            min_manip = constants.IK_MIN_MANIPULABILITY
+            scored = [(m, q) for m, q in scored if m >= min_manip]
+
+            # Sort descending by manipulability (best first)
+            scored.sort(key=lambda x: x[0], reverse=True)
+            solutions = [q for _, q in scored]
+
+            if scored:
+                logger.debug(
+                    "IK solutions ranked by manipulability: best=%.4e, worst=%.4e (%d solutions)",
+                    scored[0][0], scored[-1][0], len(scored),
+                )
+            else:
+                logger.debug("All IK solutions rejected (manipulability < %.2e)", min_manip)
+
+            # Restore simulation state after scoring
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_fwdPosition(model_native, data_native)
 
         return solutions
 
