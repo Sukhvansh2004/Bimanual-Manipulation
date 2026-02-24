@@ -61,8 +61,8 @@
         "visualize": true,
         "meshcat_tf": true,
         "smoothen": false,
-        "traj0": null,
-        "traj1": null
+        "traj0": "data/ycb_plate_table_to_shelf/robot0_trajectory_2.npz",
+        "traj1": "data/ycb_plate_table_to_shelf/robot1_trajectory_12.npz"
     },
     "runtime": {
         "debug": false,
