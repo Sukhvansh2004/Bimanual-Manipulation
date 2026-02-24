@@ -295,20 +295,7 @@ CONTROLLER_ACTION_DIMS = {
 }
 
 # Default home joint configuration for Franka Panda (radians)
-# This is a neutral pose with arm slightly bent
 FRANKA_HOME_JOINT_POSITION = np.array([
-    0.0,    # joint1
-    -0.785, # joint2 (-45 deg)
-    0.0,    # joint3
-    -2.356, # joint4 (-135 deg)
-    0.0,    # joint5
-    1.571,  # joint6 (90 deg)
-    0.785,  # joint7 (45 deg)
-])
-
-# Initial joint configuration for higher EEF pose (avoids table collision)
-# Used to override the default Panda init_qpos which places grippers too low.
-FRANKA_HIGH_INIT_QPOS = np.array([
     0.0,     # joint1
     -0.5,    # joint2  (more upright than default 0.196)
     0.0,     # joint3

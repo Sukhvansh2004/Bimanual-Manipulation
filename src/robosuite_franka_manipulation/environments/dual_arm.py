@@ -126,7 +126,7 @@ class DualArmEnvironment(TwoArmEnv):
 
         # Override robot init_qpos to keep EEF well above the table surface
         for robot in self.robots:
-            robot.init_qpos = constants.FRANKA_HIGH_INIT_QPOS.copy()
+            robot.init_qpos = constants.FRANKA_HOME_JOINT_POSITION.copy()
 
         # 2. Adjust robot base positions
         if self.env_configuration in constants.ROBOT_CONFIGURATIONS:
