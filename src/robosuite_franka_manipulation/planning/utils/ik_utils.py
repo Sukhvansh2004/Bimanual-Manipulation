@@ -47,13 +47,17 @@ def solve_ik_scipy(
     pos_tol: float,
     ori_tol: float,
     manipulability_weight: float = constants.IK_MANIPULABILITY_WEIGHT,
+    joint_limit_weight: float = constants.IK_JOINT_LIMIT_WEIGHT,
 ) -> Optional[np.ndarray]:
     """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision.
 
     Includes a manipulability regulariser that penalises configurations near
-    singularities (small det(J J^T)), steering the solver toward
-    better-conditioned solutions.
+    singularities (small det(J J^T)), and a log-barrier joint-limit
+    penalty that pushes the solution away from the edges of the joint
+    range, steering the solver toward better-conditioned solutions.
     """
+    # Pre-compute joint-range midpoints and half-widths for the barrier.
+    joint_range = joint_hi - joint_lo  # full range per joint
     
     # Unwrap once at the start of the IK solve. These native pointers remain 
     # valid throughout the optimization loop as the environment state is 
@@ -87,6 +91,20 @@ def solve_ik_scipy(
 
         return _cache['err'], _cache['jac']
 
+    def _joint_limit_barrier(q):
+        """Soft log-barrier: -sum[ log(q-lo) + log(hi-q) ].
+
+        Grows to +inf as any joint approaches its limit, gently
+        pushing the optimiser toward the centre of the joint range.
+        A small epsilon avoids log(0) if the solver probes the boundary.
+        """
+        eps = 1e-8
+        d_lo = np.maximum(q - joint_lo, eps)
+        d_hi = np.maximum(joint_hi - q, eps)
+        # Normalise by joint range so wide and narrow joints contribute
+        # equally, then sum the per-joint penalties.
+        return -np.sum(np.log(d_lo / joint_range) + np.log(d_hi / joint_range))
+
     def objective(q):
         err, jac = compute_state(q)
         task_cost = 0.5 * np.dot(err, err)
@@ -97,7 +115,10 @@ def solve_ik_scipy(
             manip = _manipulability_from_jac(jac)
             # -log(manip + eps) → pushes away from singularities
             manip_penalty = -np.log(manip + 1e-12)
-            return task_cost + manipulability_weight * manip_penalty
+            task_cost += manipulability_weight * manip_penalty
+        # Soft log-barrier pushing joints away from their limits.
+        if joint_limit_weight > 0:
+            task_cost += joint_limit_weight * _joint_limit_barrier(q)
         return task_cost
 
     # ---------- Tolerance constraints for SLSQP ----------

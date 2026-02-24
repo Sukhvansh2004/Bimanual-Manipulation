@@ -126,14 +126,15 @@ DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 IK_NUM_SEED_CONFIGS = 48  # Number of random seed configurations for IK
 IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 1e-3  # Position tolerance (meters)
+IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
 IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
 IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MANIPULABILITY_WEIGHT = 1e-3  # Regularization weight for manipulability in IK objective
-IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold IK_JOINT_LIMIT_WEIGHT = 1e-2  # Regularization weight for joint-limit avoidance penalty
+IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
+IK_JOINT_LIMIT_WEIGHT = 0  # Regularization weight for joint-limit avoidance penalty
 # Trajectory Feasibility Check Parameters
 TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
 TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
