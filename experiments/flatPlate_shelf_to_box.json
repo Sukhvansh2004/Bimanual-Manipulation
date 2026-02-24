@@ -1,13 +1,12 @@
 {
     "name": "flatPlate_shelf_to_box",
     "description": "Move a flat plate from a tabletop shelf slot into a boundary box on the table.",
-
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.25, 0.0, 0.80],
+                "position": [-0.25, 0.0, 1.0],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             }
@@ -17,68 +16,93 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.30, -0.05, 0.94],
+                "position": [-0.25, -0.05, 1.14],
                 "quaternion": [0, 0.70710678, 0, 0.70710678],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
                 "rgba": null
             },
             {
-                "type": "box", "name": "boundaryBoxBottom",
+                "type": "box",
+                "name": "boundaryBoxBottom",
                 "size": [0.34, 0.34, 0.005],
-                "position": [0.20, 0.0, 0.83], "quaternion": [0,0,0,1],
-                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+                "position": [0.2, 0.0, 1.03],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
             },
             {
-                "type": "box", "name": "boundaryBoxWallFront",
+                "type": "box",
+                "name": "boundaryBoxWallFront",
                 "size": [0.34, 0.015, 0.04],
-                "position": [0.20, -0.163, 0.855], "quaternion": [0,0,0,1],
-                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+                "position": [0.2, -0.163, 1.055],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
             },
             {
-                "type": "box", "name": "boundaryBoxWallBack",
+                "type": "box",
+                "name": "boundaryBoxWallBack",
                 "size": [0.34, 0.015, 0.04],
-                "position": [0.20, 0.163, 0.855], "quaternion": [0,0,0,1],
-                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+                "position": [0.2, 0.163, 1.055],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
             },
             {
-                "type": "box", "name": "boundaryBoxWallLeft",
+                "type": "box",
+                "name": "boundaryBoxWallLeft",
                 "size": [0.015, 0.34, 0.04],
-                "position": [0.037, 0.0, 0.855], "quaternion": [0,0,0,1],
-                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+                "position": [0.037, 0.0, 1.055],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
             },
             {
-                "type": "box", "name": "boundaryBoxWallRight",
+                "type": "box",
+                "name": "boundaryBoxWallRight",
                 "size": [0.015, 0.34, 0.04],
-                "position": [0.363, 0.0, 0.855], "quaternion": [0,0,0,1],
-                "density": 5000, "rgba": [0.35, 0.25, 0.15, 1.0], "is_static": true
+                "position": [0.363, 0.0, 1.055],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
             }
         ]
     },
-
     "task": {
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.20, 0.0, 0.843],
+            "position": [0.15, 0.0, 1.043],
             "quaternion": [0, 0, 0, 1]
         }
     },
-
     "planning": {
         "num_grasps": 200,
         "num_entropy_grasps": 20,
-        "gripper_types": ["finger", "suction"],
+        "gripper_types": [
+            "finger",
+            "suction"
+        ],
         "collision_check": null,
         "num_steps": 50,
         "lift_height": 0.2,
         "approach_offset": 0.3
     },
-
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "boundary"]
+        "exclude_patterns": [
+            "flatPlate",
+            "plate",
+            "tshelf",
+            "table_shelf",
+            "boundary"
+        ]
     },
-
     "visualization": {
         "visualize_mesh": true,
         "mesh_step_interval": 10,
@@ -87,12 +111,10 @@
         "zmq_url": "tcp://127.0.0.1:6000",
         "enable_meshcat": true
     },
-
     "output": {
         "save_trajectories": false,
         "output_dir": null
     },
-
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
@@ -100,7 +122,6 @@
         "traj0": "data/flatPlate_shelf_to_box/robot0_trajectory_5.npz",
         "traj1": "data/flatPlate_shelf_to_box/robot1_trajectory_10.npz"
     },
-
     "runtime": {
         "debug": false,
         "num_workers": 4

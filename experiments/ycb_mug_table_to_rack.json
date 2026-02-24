@@ -1,48 +1,50 @@
 {
     "name": "ycb_mug_table_to_rack",
     "description": "Move a YCB mug from the table into a tabletop rack compartment.",
-
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_rack",
-                "position": [-0.25, 0.0, 0.80],
+                "position": [-0.25, 0.0, 1.0],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "mug",
-                "position": [0.15, 0.0, 0.90],
+                "position": [0.1, 0.0, 1.1],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
         "custom_objects": []
     },
-
     "task": {
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.152, 0.0, 0.87],
+            "position": [-0.102, 0.0, 1.07],
             "quaternion": [0, 0, 0, 1]
         }
     },
-
     "planning": {
         "num_grasps": 200,
         "num_entropy_grasps": 20,
-        "gripper_types": ["finger", "suction"],
+        "gripper_types": [
+            "finger",
+            "suction"
+        ],
         "collision_check": null,
         "num_steps": 50,
         "lift_height": 0.15,
         "approach_offset": 0.25
     },
-
     "collision_filter": {
-        "exclude_patterns": ["mug", "track", "table_rack"]
+        "exclude_patterns": [
+            "mug",
+            "track",
+            "table_rack"
+        ]
     },
-
     "visualization": {
         "visualize_mesh": false,
         "mesh_step_interval": 10,
@@ -51,12 +53,10 @@
         "zmq_url": "tcp://127.0.0.1:6000",
         "enable_meshcat": true
     },
-
     "output": {
         "save_trajectories": false,
         "output_dir": null
     },
-
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
@@ -64,7 +64,6 @@
         "traj0": null,
         "traj1": null
     },
-
     "runtime": {
         "debug": false,
         "num_workers": 1

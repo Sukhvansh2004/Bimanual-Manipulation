@@ -109,7 +109,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Settings
         self.table_full_size = table_full_size
         self.table_friction = table_friction
-        self.table_offset = [0, 0, 0.8] # Default offset
+        self.table_offset = [0, 0, 1.0] # Default offset
         self.use_object_obs = use_object_obs
         
         super().__init__(
@@ -123,6 +123,10 @@ class DualArmEnvironment(TwoArmEnv):
         """
         # 1. Initialize robots via super class
         super()._load_model()
+
+        # Override robot init_qpos to keep EEF well above the table surface
+        for robot in self.robots:
+            robot.init_qpos = constants.FRANKA_HIGH_INIT_QPOS.copy()
 
         # 2. Adjust robot base positions
         if self.env_configuration in constants.ROBOT_CONFIGURATIONS:
@@ -505,7 +509,7 @@ def make_dual_arm_env(
                 ycb_name = ycb_spec
                 instance_name = f"{ycb_name}_{i}"
                 # Use safer default position closer to table center (Y=0.0)
-                pos = [-0.1 + 0.1 * i, 0.0, 0.90]
+                pos = [-0.1 + 0.1 * i, 0.0, 1.10]
                 ycb_spec = {'ycb_name': ycb_name, 'instance_name': instance_name, 'pos': pos}
             
             ycb_name = ycb_spec.get('ycb_name', ycb_spec.get('name', 'unknown'))

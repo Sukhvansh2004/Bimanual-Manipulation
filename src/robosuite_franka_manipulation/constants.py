@@ -156,9 +156,9 @@ RRT_CONNECT_MAX_STEPS = 50      # Max connect steps toward a target node
 RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoothing
 RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
-RRT_MIN_Z = 0.78                # Minimum z height for planning (slightly below table surface)
+RRT_MIN_Z = 0.98                # Minimum z height for planning (slightly below table surface)
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
-RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.78], [0.8, 0.8, 1.6]]
+RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.98], [0.8, 0.8, 1.80]]
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -230,21 +230,21 @@ FRANKA_ARM_DOF = 7
 ROBOT_CONFIGURATIONS = {
     'opposed': [
         {
-            'position': np.array([0.0, -0.20, 0.0]),
+            'position': np.array([0.0, -0.05, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
         },
         {
-            'position': np.array([0.0, 0.20, 0.0]),
+            'position': np.array([0.0, 0.05, 0.0]),
             'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
         }
     ],
     'parallel': [
         {
-            'position': np.array([0.0, -0.20, 0.0]),
+            'position': np.array([0.0, -0.05, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
         },
         {
-            'position': np.array([0.0, 0.20, 0.0]),
+            'position': np.array([0.0, 0.05, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 0 deg
         }
     ],
@@ -306,6 +306,18 @@ FRANKA_HOME_JOINT_POSITION = np.array([
     0.785,  # joint7 (45 deg)
 ])
 
+# Initial joint configuration for higher EEF pose (avoids table collision)
+# Used to override the default Panda init_qpos which places grippers too low.
+FRANKA_HIGH_INIT_QPOS = np.array([
+    0.0,     # joint1
+    -0.5,    # joint2  (more upright than default 0.196)
+    0.0,     # joint3
+    -2.0,    # joint4  (less bent than default -2.618)
+    0.0,     # joint5
+    2.0,     # joint6  (adjusted for higher EEF)
+    0.785,   # joint7  (45 deg)
+])
+
 # =============================================================================
 # Coordinate Frame Names
 # =============================================================================
@@ -351,7 +363,7 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
-DEFAULT_OBJECT_POSITION = [0.0, 0.0, 0.90]
+DEFAULT_OBJECT_POSITION = [0.0, 0.0, 1.10]
 DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # =============================================================================

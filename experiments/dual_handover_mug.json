@@ -1,67 +1,73 @@
 {
     "name": "dual_handover_mug",
-    "description": "Dual-handover: move a YCB mug from Rack-A on Robot-0's side to Rack-B on Robot-0's side. A wall between the racks forces the trajectory through Robot-1's workspace, requiring two handovers (Robot-0 → Robot-1 → Robot-0).",
-
+    "description": "Dual-handover: move a YCB mug from Rack-A on Robot-0's side to Rack-B on Robot-0's side. A wall between the racks forces the trajectory through Robot-1's workspace, requiring two handovers (Robot-0 \u2192 Robot-1 \u2192 Robot-0).",
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_rack",
                 "instance_name": "rack_a",
-                "position": [-0.30, -0.15, 0.80],
+                "position": [-0.3, -0.15, 1.0],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "table_rack",
                 "instance_name": "rack_b",
-                "position": [0.25, -0.15, 0.80],
+                "position": [0.25, -0.15, 1.0],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "mug",
-                "position": [-0.398, -0.15, 0.88],
+                "position": [-0.348, -0.15, 1.08],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
         "custom_objects": [
             {
-                "type": "box", "name": "wallObstacle",
+                "type": "box",
+                "name": "wallObstacle",
                 "size": [0.06, 0.15, 0.35],
-                "position": [-0.025, -0.15, 1.05],
+                "position": [-0.025, -0.15, 1.25],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
-                "rgba": [0.40, 0.40, 0.40, 0.80],
+                "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
                 "_comment": "Central wall forcing detour through Robot-1 workspace (y > 0)"
             }
         ]
     },
-
     "task": {
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [0.152, -0.15, 0.87],
+            "position": [0.102, -0.15, 1.07],
             "quaternion": [0, 0, 0, 1]
         }
     },
-
     "planning": {
         "num_grasps": 200,
         "num_entropy_grasps": 20,
-        "gripper_types": ["finger", "suction"],
+        "gripper_types": [
+            "finger",
+            "suction"
+        ],
         "collision_check": null,
         "num_steps": 80,
         "lift_height": 0.15,
         "approach_offset": 0.25
     },
-
     "collision_filter": {
-        "exclude_patterns": ["mug", "track", "table_rack", "rack_a", "rack_b", "wall"]
+        "exclude_patterns": [
+            "mug",
+            "track",
+            "table_rack",
+            "rack_a",
+            "rack_b",
+            "wall"
+        ]
     },
-
     "visualization": {
         "visualize_mesh": true,
         "mesh_step_interval": 10,
@@ -70,12 +76,10 @@
         "zmq_url": "tcp://127.0.0.1:6000",
         "enable_meshcat": true
     },
-
     "output": {
         "save_trajectories": false,
         "output_dir": null
     },
-
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
@@ -83,7 +87,6 @@
         "traj0": null,
         "traj1": null
     },
-
     "runtime": {
         "debug": false,
         "num_workers": 4
