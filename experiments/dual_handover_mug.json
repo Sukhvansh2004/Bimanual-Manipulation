@@ -7,20 +7,20 @@
             {
                 "ycb_name": "table_rack",
                 "instance_name": "rack_a",
-                "position": [-0.3, -0.15, 1.0],
+                "position": [-0.3, -0.15, 1.2],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "table_rack",
                 "instance_name": "rack_b",
-                "position": [0.25, -0.15, 1.0],
+                "position": [0.25, -0.15, 1.2],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "mug",
-                "position": [-0.348, -0.15, 1.08],
+                "position": [-0.348, -0.15, 1.28],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
@@ -29,7 +29,7 @@
                 "type": "box",
                 "name": "wallObstacle",
                 "size": [0.06, 0.15, 0.35],
-                "position": [-0.025, -0.15, 1.25],
+                "position": [-0.025, -0.15, 1.45],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
@@ -42,7 +42,7 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [0.102, -0.15, 1.07],
+            "position": [0.102, -0.15, 1.27],
             "quaternion": [0, 0, 0, 1]
         }
     },

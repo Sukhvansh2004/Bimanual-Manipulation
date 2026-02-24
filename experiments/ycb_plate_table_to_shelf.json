@@ -6,13 +6,13 @@
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.25, 0.0, 1.0],
+                "position": [-0.25, 0.0, 1.2],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             },
             {
                 "ycb_name": "plate",
-                "position": [0.1, 0.0, 1.05],
+                "position": [0.1, 0.0, 1.25],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
@@ -22,7 +22,7 @@
         "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.25, -0.05, 1.14],
+            "position": [-0.25, -0.05, 1.34],
             "quaternion": [0, 0.70710678, 0, 0.70710678]
         }
     },

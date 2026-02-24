@@ -156,9 +156,9 @@ RRT_CONNECT_MAX_STEPS = 50      # Max connect steps toward a target node
 RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoothing
 RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
-RRT_MIN_Z = 0.98                # Minimum z height for planning (slightly below table surface)
+RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below table surface)
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
-RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.98], [0.8, 0.8, 1.80]]
+RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 1.18], [0.8, 0.8, 2.0]]
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -363,7 +363,7 @@ def get_graspgen_config_path(gripper_type: str) -> Path:
 
 # Path to YCB dataset relative to project root
 YCB_DATASET_PATH = Path(get_project_root()) / "deps" / "YCB_Dataset" / "ycb"
-DEFAULT_OBJECT_POSITION = [0.0, 0.0, 1.10]
+DEFAULT_OBJECT_POSITION = [0.0, 0.0, 1.30]
 DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # =============================================================================
