@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence, Union, Iterable
 import numpy as np
 import mujoco
 import logging
-from scipy.optimize import minimize
+from scipy.optimize import minimize, NonlinearConstraint, Bounds
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
@@ -174,44 +174,62 @@ def solve_ik_scipy(
             grad += joint_limit_weight * (-1.0 / d_lo + 1.0 / d_hi)
 
         return cost, grad
-
-    # ---------- Tolerance constraints for SLSQP ----------
-    # SLSQP treats inequality constraints as  fun(q) >= 0.
-    # pos_tol - ||pos_err|| >= 0  ⟹  ||pos_err|| <= pos_tol
-    # ori_tol - ||rot_err|| >= 0  ⟹  ||rot_err|| <= ori_tol
-    def pos_tolerance_constraint(q):
+    
+    # 1. Position Constraint Functions
+    def pos_err_norm(q):
         err, _ = compute_state(q)
-        return pos_tol - np.linalg.norm(err[:3])
+        return np.linalg.norm(err[:3])
 
-    def ori_tolerance_constraint(q):
+    def pos_err_jac(q):
+        """Analytical Jacobian of the position error norm to prevent finite-difference cache misses."""
+        err, jac = compute_state(q)
+        norm = np.linalg.norm(err[:3])
+        if norm < 1e-10:  # Prevent division by zero if perfectly on target
+            return np.zeros_like(q)
+        return -(err[:3] @ jac[:3, :]) / norm
+
+    # 2. Orientation Constraint Functions
+    def ori_err_norm(q):
         err, _ = compute_state(q)
-        return ori_tol - np.linalg.norm(err[3:])
+        return np.linalg.norm(err[3:])
 
+    def ori_err_jac(q):
+        """Analytical Jacobian of the orientation error norm."""
+        err, jac = compute_state(q)
+        norm = np.linalg.norm(err[3:])
+        if norm < 1e-10:
+            return np.zeros_like(q)
+        return -(err[3:] @ jac[3:, :]) / norm
+
+    # Define NonlinearConstraints: -infinity <= error_norm <= tolerance
     constraints = [
-        {'type': 'ineq', 'fun': pos_tolerance_constraint},
-        {'type': 'ineq', 'fun': ori_tolerance_constraint},
+        NonlinearConstraint(
+            fun=pos_err_norm, 
+            lb=-np.inf, 
+            ub=pos_tol, 
+            jac=pos_err_jac if use_analytical_grad else '2-point'
+        ),
+        NonlinearConstraint(
+            fun=ori_err_norm, 
+            lb=-np.inf, 
+            ub=ori_tol, 
+            jac=ori_err_jac if use_analytical_grad else '2-point'
+        ),
     ]
 
-    # Use SLSQP for precise constrained optimization.
-    # The tolerance constraints let the solver know exactly when the IK
-    # solution is acceptable, instead of relying on a post-hoc check.
-    # When use_analytical_grad is True, we supply our own gradient
-    # (analytical for task cost & barrier, finite-difference for
-    # manipulability) via jac=True, which is faster and more accurate
-    # than letting scipy finite-difference the entire objective.
+    # Use SLSQP for precise, fast constrained optimization.
     res = minimize(
         lambda q: _objective_impl(q, with_grad=use_analytical_grad),
         q_init,
         method='SLSQP',
         jac=use_analytical_grad,
-        bounds=list(zip(joint_lo, joint_hi)),
+        bounds=Bounds(joint_lo, joint_hi),
         constraints=constraints,
+        options={'ftol': 1e-6, 'disp': False}
     )
 
     q_final = res.x
 
-    # Safety verification — the constraints should already be satisfied
-    # when res.success is True, but we verify numerically to be safe.
     mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
     mujoco.mj_fwdPosition(model_native, data_native)
     pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
