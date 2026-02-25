@@ -145,7 +145,7 @@ def solve_ik_scipy(
 
         # ---- Gradient ----
         # 1) Task cost: d/dq [0.5 ||e||^2] = J^T @ e
-        grad = jac.T @ err
+        grad = - jac.T @ err
 
         # 2) Manipulability: d/dq [-w * log(mu + eps)]
         #    = -w / (mu + eps) * d_mu/dq

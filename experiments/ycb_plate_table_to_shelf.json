@@ -28,7 +28,7 @@
     },
     "planning": {
         "num_grasps": 200,
-        "num_entropy_grasps": 2,
+        "num_entropy_grasps": 20,
         "gripper_types": [
             "finger",
             "suction"
