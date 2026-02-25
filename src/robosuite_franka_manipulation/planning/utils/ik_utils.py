@@ -48,6 +48,7 @@ def solve_ik_scipy(
     ori_tol: float,
     manipulability_weight: float = constants.IK_MANIPULABILITY_WEIGHT,
     joint_limit_weight: float = constants.IK_JOINT_LIMIT_WEIGHT,
+    use_analytical_grad: bool = constants.USE_GRAD_SCIPY_IK,
 ) -> Optional[np.ndarray]:
     """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision.
 
@@ -105,21 +106,74 @@ def solve_ik_scipy(
         # equally, then sum the per-joint penalties.
         return -np.sum(np.log(d_lo / joint_range) + np.log(d_hi / joint_range))
 
-    def objective(q):
+    def _compute_jac_for_q(q_eval):
+        """Lightweight FK + Jacobian (no cache) for finite-difference probes."""
+        mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_eval)
+        mujoco.mj_fwdPosition(model_native, data_native)
+        nv = int(model_native.nv)
+        jacp = np.zeros((3, nv))
+        jacr = np.zeros((3, nv))
+        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+        return np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
+
+    def _objective_impl(q, with_grad=False):
+        """Unified objective (and optional gradient) computation.
+
+        When *with_grad* is False, returns the scalar cost.
+        When *with_grad* is True, returns ``(cost, grad)`` for use
+        with ``scipy.optimize.minimize(..., jac=True)``.
+
+        Gradient components (all analytical except manipulability):
+          - Task cost:      J^T @ err
+          - Joint-limit barrier: -1/(q-lo) + 1/(hi-q)
+          - Manipulability: forward finite-difference on the scalar mu
+            (7 extra FK calls) since MuJoCo does not expose dJ/dq.
+        """
         err, jac = compute_state(q)
-        task_cost = 0.5 * np.dot(err, err)
-        # Manipulability regulariser: maximise sqrt(det(J J^T))
-        # We minimise the negative log-manipulability to avoid division by zero
-        # and to get a smooth gradient.
+
+        # ---- Cost ----
+        cost = 0.5 * np.dot(err, err)
+        manip = 0.0
         if manipulability_weight > 0:
             manip = _manipulability_from_jac(jac)
-            # -log(manip + eps) → pushes away from singularities
-            manip_penalty = -np.log(manip + 1e-12)
-            task_cost += manipulability_weight * manip_penalty
-        # Soft log-barrier pushing joints away from their limits.
+            cost += manipulability_weight * (-np.log(manip + 1e-12))
         if joint_limit_weight > 0:
-            task_cost += joint_limit_weight * _joint_limit_barrier(q)
-        return task_cost
+            cost += joint_limit_weight * _joint_limit_barrier(q)
+
+        if not with_grad:
+            return cost
+
+        # ---- Gradient ----
+        # 1) Task cost: d/dq [0.5 ||e||^2] = J^T @ e
+        grad = jac.T @ err
+
+        # 2) Manipulability: d/dq [-w * log(mu + eps)]
+        #    = -w / (mu + eps) * d_mu/dq
+        #    d_mu/dq is approximated via forward finite-difference.
+        if manipulability_weight > 0:
+            h = 1e-7
+            manip_grad = np.zeros(len(q))
+            for i in range(len(q)):
+                q_p = q.copy()
+                q_p[i] += h
+                jac_p = _compute_jac_for_q(q_p)
+                manip_p = _manipulability_from_jac(jac_p)
+                manip_grad[i] = (manip_p - manip) / h
+            grad += manipulability_weight * (-1.0 / (manip + 1e-12)) * manip_grad
+            # Restore FK state & invalidate cache after FD probes
+            _cache['key'] = None
+            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
+            mujoco.mj_fwdPosition(model_native, data_native)
+
+        # 3) Joint-limit barrier (fully analytical):
+        #    d/dq_j B = -1/(q_j - lo_j) + 1/(hi_j - q_j)
+        if joint_limit_weight > 0:
+            eps_b = 1e-8
+            d_lo = np.maximum(q - joint_lo, eps_b)
+            d_hi = np.maximum(joint_hi - q, eps_b)
+            grad += joint_limit_weight * (-1.0 / d_lo + 1.0 / d_hi)
+
+        return cost, grad
 
     # ---------- Tolerance constraints for SLSQP ----------
     # SLSQP treats inequality constraints as  fun(q) >= 0.
@@ -141,10 +195,15 @@ def solve_ik_scipy(
     # Use SLSQP for precise constrained optimization.
     # The tolerance constraints let the solver know exactly when the IK
     # solution is acceptable, instead of relying on a post-hoc check.
+    # When use_analytical_grad is True, we supply our own gradient
+    # (analytical for task cost & barrier, finite-difference for
+    # manipulability) via jac=True, which is faster and more accurate
+    # than letting scipy finite-difference the entire objective.
     res = minimize(
-        objective,
+        lambda q: _objective_impl(q, with_grad=use_analytical_grad),
         q_init,
         method='SLSQP',
+        jac=use_analytical_grad,
         bounds=list(zip(joint_lo, joint_hi)),
         constraints=constraints,
     )
@@ -163,7 +222,7 @@ def solve_ik_scipy(
         logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
         return None
     
-    return res.x
+    return q_final
 
 
 def unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> List[np.ndarray]:
