@@ -46,28 +46,25 @@ def solve_ik_scipy(
     *,
     pos_tol: float,
     ori_tol: float,
+    task_weight: float = constants.IK_TASK_WEIGHT,  # Combined task weight
     manipulability_weight: float = constants.IK_MANIPULABILITY_WEIGHT,
     joint_limit_weight: float = constants.IK_JOINT_LIMIT_WEIGHT,
     use_analytical_grad: bool = constants.USE_GRAD_SCIPY_IK,
 ) -> Optional[np.ndarray]:
-    """Residual-based IK using scipy.optimize.minimize with SLSQP for higher precision.
+    """Residual-based IK using scipy.optimize.minimize with box bounds.
 
-    Includes a manipulability regulariser that penalises configurations near
-    singularities (small det(J J^T)), and a log-barrier joint-limit
-    penalty that pushes the solution away from the edges of the joint
-    range, steering the solver toward better-conditioned solutions.
+    Uses a combined task weight instead of hard constraints. The solver finds the
+    equilibrium between task completion and manipulability/joint limits,
+    and a post-hoc check ensures the final pose meets the required tolerances.
     """
     # Pre-compute joint-range midpoints and half-widths for the barrier.
-    joint_range = joint_hi - joint_lo  # full range per joint
+    joint_range = joint_hi - joint_lo  
     
-    # Unwrap once at the start of the IK solve. These native pointers remain 
-    # valid throughout the optimization loop as the environment state is 
-    # only modified, not re-allocated.
+    # Unwrap once at the start of the IK solve.
     model_native = mujoco_utils.get_native_mj_object(model)
     data_native = mujoco_utils.get_native_mj_object(data)
 
-    # Cache the last FK evaluation so that constraint functions called at
-    # the same q as the objective don't trigger redundant forward-kinematics.
+    # Cache the last FK evaluation
     _cache: dict = {'key': None, 'err': None, 'jac': None}
 
     def compute_state(q):
@@ -93,17 +90,9 @@ def solve_ik_scipy(
         return _cache['err'], _cache['jac']
 
     def _joint_limit_barrier(q):
-        """Soft log-barrier: -sum[ log(q-lo) + log(hi-q) ].
-
-        Grows to +inf as any joint approaches its limit, gently
-        pushing the optimiser toward the centre of the joint range.
-        A small epsilon avoids log(0) if the solver probes the boundary.
-        """
         eps = 1e-8
         d_lo = np.maximum(q - joint_lo, eps)
         d_hi = np.maximum(joint_hi - q, eps)
-        # Normalise by joint range so wide and narrow joints contribute
-        # equally, then sum the per-joint penalties.
         return -np.sum(np.log(d_lo / joint_range) + np.log(d_hi / joint_range))
 
     def _compute_jac_for_q(q_eval):
@@ -117,22 +106,12 @@ def solve_ik_scipy(
         return np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
 
     def _objective_impl(q, with_grad=False):
-        """Unified objective (and optional gradient) computation.
-
-        When *with_grad* is False, returns the scalar cost.
-        When *with_grad* is True, returns ``(cost, grad)`` for use
-        with ``scipy.optimize.minimize(..., jac=True)``.
-
-        Gradient components (all analytical except manipulability):
-          - Task cost:      J^T @ err
-          - Joint-limit barrier: -1/(q-lo) + 1/(hi-q)
-          - Manipulability: forward finite-difference on the scalar mu
-            (7 extra FK calls) since MuJoCo does not expose dJ/dq.
-        """
         err, jac = compute_state(q)
 
         # ---- Cost ----
-        cost = 0.5 * np.dot(err, err)
+        # 1) Task Cost (Using the full 6D vector)
+        cost = 0.5 * task_weight * np.dot(err, err)
+        
         manip = 0.0
         if manipulability_weight > 0:
             manip = _manipulability_from_jac(jac)
@@ -144,12 +123,10 @@ def solve_ik_scipy(
             return cost
 
         # ---- Gradient ----
-        # 1) Task cost: d/dq [0.5 ||e||^2] = J^T @ e
-        grad = - jac.T @ err
+        # 1) Task gradient: w_task * (-J^T @ e)
+        grad = task_weight * (-jac.T @ err)
 
-        # 2) Manipulability: d/dq [-w * log(mu + eps)]
-        #    = -w / (mu + eps) * d_mu/dq
-        #    d_mu/dq is approximated via forward finite-difference.
+        # 2) Manipulability gradient via finite-difference
         if manipulability_weight > 0:
             h = 1e-7
             manip_grad = np.zeros(len(q))
@@ -160,13 +137,13 @@ def solve_ik_scipy(
                 manip_p = _manipulability_from_jac(jac_p)
                 manip_grad[i] = (manip_p - manip) / h
             grad += manipulability_weight * (-1.0 / (manip + 1e-12)) * manip_grad
+            
             # Restore FK state & invalidate cache after FD probes
             _cache['key'] = None
             mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
             mujoco.mj_fwdPosition(model_native, data_native)
 
-        # 3) Joint-limit barrier (fully analytical):
-        #    d/dq_j B = -1/(q_j - lo_j) + 1/(hi_j - q_j)
+        # 3) Joint-limit barrier gradient (fully analytical)
         if joint_limit_weight > 0:
             eps_b = 1e-8
             d_lo = np.maximum(q - joint_lo, eps_b)
@@ -174,70 +151,37 @@ def solve_ik_scipy(
             grad += joint_limit_weight * (-1.0 / d_lo + 1.0 / d_hi)
 
         return cost, grad
-    
-    # 1. Position Constraint Functions
-    def pos_err_norm(q):
-        err, _ = compute_state(q)
-        return np.linalg.norm(err[:3])
 
-    def pos_err_jac(q):
-        """Analytical Jacobian of the position error norm to prevent finite-difference cache misses."""
-        err, jac = compute_state(q)
-        norm = np.linalg.norm(err[:3])
-        if norm < 1e-10:  # Prevent division by zero if perfectly on target
-            return np.zeros_like(q)
-        return -(err[:3] @ jac[:3, :]) / norm
-
-    # 2. Orientation Constraint Functions
-    def ori_err_norm(q):
-        err, _ = compute_state(q)
-        return np.linalg.norm(err[3:])
-
-    def ori_err_jac(q):
-        """Analytical Jacobian of the orientation error norm."""
-        err, jac = compute_state(q)
-        norm = np.linalg.norm(err[3:])
-        if norm < 1e-10:
-            return np.zeros_like(q)
-        return -(err[3:] @ jac[3:, :]) / norm
-
-    # Define NonlinearConstraints: -infinity <= error_norm <= tolerance
-    constraints = [
-        NonlinearConstraint(
-            fun=pos_err_norm, 
-            lb=-np.inf, 
-            ub=pos_tol, 
-            jac=pos_err_jac if use_analytical_grad else '2-point'
-        ),
-        NonlinearConstraint(
-            fun=ori_err_norm, 
-            lb=-np.inf, 
-            ub=ori_tol, 
-            jac=ori_err_jac if use_analytical_grad else '2-point'
-        ),
-    ]
-
-    # Use SLSQP for precise, fast constrained optimization.
+    # L-BFGS-B is usually the fastest SciPy method for box-constrained optimization
     res = minimize(
         lambda q: _objective_impl(q, with_grad=use_analytical_grad),
         q_init,
-        method='SLSQP',
+        method='L-BFGS-B', 
         jac=use_analytical_grad,
         bounds=Bounds(joint_lo, joint_hi),
-        constraints=constraints,
         options={'ftol': 1e-6, 'disp': False}
     )
 
     q_final = res.x
 
+    # --- Post-hoc Tolerance Verification ---
     mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
     mujoco.mj_fwdPosition(model_native, data_native)
     pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
-    pos_dist = np.linalg.norm(pos_err)
-    rot_dist = np.linalg.norm(rot_err)
+    
+    pos_dist = float(np.linalg.norm(pos_err))
+    rot_dist = float(np.linalg.norm(rot_err))
 
     if not res.success:
         logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
+        return None
+
+    # Check if the optimizer's equilibrium state satisfies the tolerances
+    if pos_dist > pos_tol or rot_dist > ori_tol:
+        logger.debug(
+            f"IK converged, but outside tolerances: "
+            f"(pos_err={pos_dist:.6f} > {pos_tol}, rot_err={rot_dist:.6f} > {ori_tol})"
+        )
         return None
     
     return q_final

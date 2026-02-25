@@ -132,6 +132,7 @@ IK_DAMPING = 1e-2  # Damping factor for DLS IK
 IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
+IK_TASK_WEIGHT = 10.0  # Weight for task-space error in IK objective
 IK_MANIPULABILITY_WEIGHT = 1e-3  # Regularization weight for manipulability in IK objective
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
 IK_JOINT_LIMIT_WEIGHT = 0  # Regularization weight for joint-limit avoidance penalty
