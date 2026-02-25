@@ -6,7 +6,7 @@
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.25, 0.0, 1.2],
+                "position": [-0.25, 0.0, 0.9],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             }
@@ -16,7 +16,7 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.25, -0.05, 1.34],
+                "position": [-0.25, -0.05, 1.04],
                 "quaternion": [0, 0.70710678, 0, 0.70710678],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
@@ -28,7 +28,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.1, 0.0, 1.25],
+            "position": [0.1, 0.0, 0.95],
             "quaternion": [0, 0, 0, 1]
         }
     },

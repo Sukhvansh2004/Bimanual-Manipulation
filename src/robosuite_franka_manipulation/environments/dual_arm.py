@@ -109,7 +109,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Settings
         self.table_full_size = table_full_size
         self.table_friction = table_friction
-        self.table_offset = [0, 0, 1.2] # Default offset
+        self.table_offset = [0, 0, 0.9] # Default offset
         self.use_object_obs = use_object_obs
         
         super().__init__(

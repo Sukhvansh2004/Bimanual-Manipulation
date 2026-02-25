@@ -162,7 +162,7 @@ RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for or
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
 RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below table surface)
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
-RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 1.18], [0.8, 0.8, 2.0]]
+RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -234,11 +234,11 @@ FRANKA_ARM_DOF = 7
 ROBOT_CONFIGURATIONS = {
     'opposed': [
         {
-            'position': np.array([0.0, 0.1, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg z
         },
         {
-            'position': np.array([0.0, -0.1, 0.0]),
+            'position': np.array([0.0, 0.0, 0.0]),
             'quaternion': np.array([0.0, 0.0, -0.70710678, 0.70710678]),  # -90 deg z
         }
     ],
