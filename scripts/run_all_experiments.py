@@ -54,17 +54,23 @@ def patch_config(cfg: dict, worker_override: int | None = None) -> dict:
     return cfg
 
 
-def discover_experiments(only: list[str] | None = None) -> list[str]:
+def discover_experiments(
+    only: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[str]:
     """Return sorted list of experiment JSON paths."""
     all_jsons = sorted(glob.glob(os.path.join(EXPERIMENTS_DIR, "*.json")))
-    if not only:
-        return all_jsons
-    filtered = []
-    for path in all_jsons:
-        name = os.path.splitext(os.path.basename(path))[0]
-        if name in only:
-            filtered.append(path)
-    return filtered
+    if only:
+        all_jsons = [
+            p for p in all_jsons
+            if os.path.splitext(os.path.basename(p))[0] in only
+        ]
+    if exclude:
+        all_jsons = [
+            p for p in all_jsons
+            if os.path.splitext(os.path.basename(p))[0] not in exclude
+        ]
+    return all_jsons
 
 
 def run_experiment(json_path: str, worker_override: int | None = None) -> bool:
@@ -122,12 +128,17 @@ def main():
              "E.g. --only flatPlate_shelf_to_box flatPlate_table_to_shelf",
     )
     parser.add_argument(
+        "--exclude", nargs="*", default=None,
+        help="Exclude these experiment names (without .json extension). "
+             "E.g. --exclude dual_handover_mug dual_handover_plate",
+    )
+    parser.add_argument(
         "--workers", type=int, default=None,
         help="Override num_workers for all experiments",
     )
     args = parser.parse_args()
 
-    experiments = discover_experiments(args.only)
+    experiments = discover_experiments(only=args.only, exclude=args.exclude)
     if not experiments:
         logger.error("No experiment configs found in %s", EXPERIMENTS_DIR)
         sys.exit(1)
