@@ -55,6 +55,7 @@ class PlanningConfig:
     num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS
     lift_height: float = constants.OBJECT_TRAJ_LIFT_HEIGHT
     approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
+    rrt_bounds: Optional[np.ndarray] = None  # (2, 3) array [[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]
 
 
 @dataclass
@@ -216,6 +217,14 @@ def load_experiment(path: str) -> ExperimentConfig:
 
     # --- planning ---
     plan_raw = raw.get("planning", {})
+    rrt_bounds = None
+    rrt_bounds_raw = plan_raw.get("rrt_bounds")
+    if rrt_bounds_raw is not None:
+        rrt_bounds = np.array(rrt_bounds_raw, dtype=float)
+        if rrt_bounds.shape != (2, 3):
+            logger.warning("rrt_bounds must be shape (2,3) [[lo_x,lo_y,lo_z],[hi_x,hi_y,hi_z]], got %s — ignoring", rrt_bounds.shape)
+            rrt_bounds = None
+
     planning = PlanningConfig(
         num_grasps=plan_raw.get("num_grasps", 200),
         num_entropy_grasps=plan_raw.get("num_entropy_grasps", 20),
@@ -224,6 +233,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         num_steps=plan_raw.get("num_steps", constants.OBJECT_TRAJ_NUM_STEPS),
         lift_height=plan_raw.get("lift_height", constants.OBJECT_TRAJ_LIFT_HEIGHT),
         approach_offset=plan_raw.get("approach_offset", constants.OBJECT_TRAJ_APPROACH_OFFSET),
+        rrt_bounds=rrt_bounds,
     )
 
     # --- collision filter ---

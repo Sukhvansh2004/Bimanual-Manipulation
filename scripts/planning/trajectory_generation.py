@@ -325,6 +325,11 @@ def main() -> None:
     plan_cfg = exp_cfg.planning
     traj_num_steps = plan_cfg.num_steps
     
+    # RRT workspace bounds from experiment config (None → auto-compute in planner)
+    rrt_bounds = plan_cfg.rrt_bounds
+    if rrt_bounds is not None:
+        logger.info(f"Using experiment RRT bounds: {rrt_bounds[0]} to {rrt_bounds[1]}")
+
     object_trajectory = generate_object_trajectory(
         start_pose_stamped, 
         target_pose_stamped, 
@@ -333,6 +338,7 @@ def main() -> None:
         env=env,
         object_name=object_name,
         env_lock=env_lock,
+        pos_bounds=rrt_bounds,
     )
     if vis is not None:
         visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)

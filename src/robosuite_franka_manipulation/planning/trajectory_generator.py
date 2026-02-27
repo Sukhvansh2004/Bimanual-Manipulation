@@ -42,6 +42,7 @@ def generate_object_trajectory(
     env: Optional[DualArmEnvironment] = None,
     object_name: Optional[str] = None,
     env_lock=None,
+    pos_bounds: Optional[np.ndarray] = None,
 ) -> List[StampedPose]:
     """Generate a collision-free trajectory for the object from start to target pose.
     
@@ -58,6 +59,9 @@ def generate_object_trajectory(
         env: (Optional) DualArmEnvironment for collision-aware planning
         object_name: (Optional) Name of the object in MuJoCo (required when env is given)
         env_lock: (Optional) Threading lock for environment access
+        pos_bounds: (Optional) Workspace bounds as (2, 3) numpy array
+            ``[[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]``.
+            Overrides auto-computed bounds when provided.
         
     Returns:
         List of StampedPose objects representing the trajectory
@@ -83,6 +87,7 @@ def generate_object_trajectory(
             tf_manager=tf_manager,
             num_steps=num_steps,
             env_lock=env_lock,
+            pos_bounds=pos_bounds,
         )
         if success:
             return trajectory

@@ -56,7 +56,8 @@
         "collision_check": null,
         "num_steps": 80,
         "lift_height": 0.15,
-        "approach_offset": 0.25
+        "approach_offset": 0.25,
+        "rrt_bounds": [[-0.65, -0.4, 0.92], [0.55, 0.4, 1.4]]
     },
     "collision_filter": {
         "exclude_patterns": [
