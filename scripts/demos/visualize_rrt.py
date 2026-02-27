@@ -210,6 +210,8 @@ def main():
     logger.info("Running RRT-Connect planner with Meshcat visualization...")
     t0 = time.time()
 
+    rrt_bounds = exp_cfg.planning.rrt_bounds
+
     trajectory, success = plan_object_trajectory(
         env=env,
         object_name=object_name,
@@ -223,6 +225,7 @@ def main():
         goal_bias=args.goal_bias,
         smoothing_iterations=0 if args.no_smooth else None,
         rrt_vis=rrt_vis,
+        pos_bounds=rrt_bounds,
     )
 
     elapsed = time.time() - t0
