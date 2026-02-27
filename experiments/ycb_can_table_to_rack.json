@@ -12,7 +12,7 @@
             },
             {
                 "ycb_name": "tomato_soup_can",
-                "position": [0.1, 0.0, 1.0],
+                "position": [0.1, 0.0, 0.950],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
@@ -22,7 +22,7 @@
         "manipulated_object": "tomato_soup_can_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.102, 0.0, 0.96],
+            "position": [-0.152, 0.0, 0.960],
             "quaternion": [0, 0, 0, 1]
         }
     },

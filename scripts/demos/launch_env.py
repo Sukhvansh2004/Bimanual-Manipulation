@@ -6,6 +6,23 @@ This script creates a dual-arm robosuite environment with two Panda robots
 in an opposed configuration. It demonstrates how to add custom primitive
 objects (Box, Cylinder, etc.) and YCB dataset objects using the
 refactored DualArmEnvironment.
+
+Supports loading environment configurations from experiment JSON files
+(the same format used by the planning and manipulation scripts).
+
+Usage:
+    # Launch with an experiment config
+    python launch_env.py --experiment experiments/ycb_mug_table_to_rack.json
+
+    # List available experiments
+    python launch_env.py --list-experiments
+
+    # Launch with ad-hoc objects
+    python launch_env.py --with-objects
+    python launch_env.py --ycb mug bowl plate
+
+    # Combine experiment with random actions
+    python launch_env.py --experiment experiments/flatPlate_shelf_to_box.json --random-actions
 """
 
 import argparse
@@ -20,6 +37,11 @@ from robosuite_franka_manipulation.utils.env_utils import (
     list_ycb_objects,
     create_primitive_object,
     create_ycb_object,
+)
+from robosuite_franka_manipulation.experiment_config import (
+    load_experiment,
+    list_experiments,
+    ExperimentConfig,
 )
 import robosuite_franka_manipulation.constants as constants
 
@@ -78,6 +100,28 @@ def print_env_info(env):
                 else:
                     logger.info(f"  {name}: (pose not available)")
     
+    logger.info("=" * 60)
+
+
+def print_experiment_info(exp_cfg: ExperimentConfig):
+    """Print experiment configuration summary."""
+    logger.info("\n" + "=" * 60)
+    logger.info("EXPERIMENT CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info(f"  Name: {exp_cfg.name}")
+    logger.info(f"  Description: {exp_cfg.description}")
+    if exp_cfg.table_full_size:
+        logger.info(f"  Table size: {exp_cfg.table_full_size}")
+    logger.info(f"  YCB objects: {len(exp_cfg.ycb_objects)}")
+    logger.info(f"  Custom objects: {len(exp_cfg.custom_objects)}")
+    logger.info(f"  Task: move '{exp_cfg.task.manipulated_object}'")
+    if exp_cfg.task.start_pose:
+        pos = exp_cfg.task.start_pose.position
+        logger.info(f"    Start: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
+    else:
+        logger.info(f"    Start: (detected from simulation)")
+    pos = exp_cfg.task.target_pose.position
+    logger.info(f"    Target: [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}]")
     logger.info("=" * 60)
 
 
@@ -194,10 +238,21 @@ def run_random_actions(env, num_steps=200, render=True):
 
 def main():
     parser = argparse.ArgumentParser(description="Launch dual-arm Franka environment")
+    
+    # Experiment-based setup (mirrors manipulation/planning scripts)
+    parser.add_argument('--experiment', type=str, metavar='JSON',
+                        help='Load environment from an experiment JSON config '
+                             '(e.g. experiments/ycb_mug_table_to_rack.json)')
+    parser.add_argument('--list-experiments', action='store_true',
+                        help='List available experiment configs and exit')
+    
+    # Ad-hoc object setup
     parser.add_argument('--with-objects', action='store_true', help='Add sample primitive objects')
     parser.add_argument('--ycb', nargs='+', metavar='OBJECT', help='Add YCB objects by name')
     parser.add_argument('--ycb-all', type=int, default=0, help='Add N YCB objects')
     parser.add_argument('--list-ycb', action='store_true', help='List available YCB objects')
+    
+    # Runtime options
     parser.add_argument('--random-actions', action='store_true', help='Run random actions')
     parser.add_argument('--steps', type=int, default=200, help='Number of steps')
     parser.add_argument('--no-render', action='store_true', help='Disable rendering')
@@ -205,26 +260,48 @@ def main():
     
     args = parser.parse_args()
     
+    if args.list_experiments:
+        exps = list_experiments()
+        if exps:
+            logger.info("Available experiments:")
+            for exp_path in exps:
+                logger.info(f"  {exp_path}")
+        else:
+            logger.info("No experiment configs found in experiments/ directory.")
+        return
+    
     if args.list_ycb:
         list_ycb_objects()
         return
     
-    # Collect all object specifications (as lists of dicts)
+    # -------------------------------------------------------------------
+    # Build object lists and environment kwargs
+    # -------------------------------------------------------------------
     custom_objects = []
     ycb_objects = []
+    table_full_size = None
+    exp_cfg = None
     
+    # 1. Experiment-based setup (takes priority)
+    if args.experiment:
+        exp_cfg = load_experiment(args.experiment)
+        logger.info(f"Loaded experiment: {exp_cfg.name} – {exp_cfg.description}")
+        ycb_objects = exp_cfg.ycb_objects
+        custom_objects = exp_cfg.custom_objects
+        table_full_size = exp_cfg.table_full_size
+    
+    # 2. Ad-hoc objects (appended to experiment objects if both given)
     if args.with_objects:
-        custom_objects = get_sample_custom_objects()
-        logger.info(f"Adding {len(custom_objects)} custom primitive objects.")
+        custom_objects.extend(get_sample_custom_objects())
+        logger.info(f"Adding {len(get_sample_custom_objects())} sample primitive objects.")
     
     if args.ycb:
-        ycb_objects.extend(get_sample_ycb_objects(args.ycb))
-        logger.info(f"Adding {len(args.ycb)} specific YCB objects.")
+        extra_ycb = get_sample_ycb_objects(args.ycb)
+        ycb_objects.extend(extra_ycb)
+        logger.info(f"Adding {len(extra_ycb)} specific YCB objects.")
     
     if args.ycb_all > 0:
         available = get_available_ycb_objects()
-        # Filter out ones we already added to avoid duplicates if desired, 
-        # or just add more instances. Here we just add more.
         additional_count = min(args.ycb_all, len(available))
         additional_objs = get_sample_ycb_objects(available[:additional_count])
         ycb_objects.extend(additional_objs)
@@ -234,11 +311,11 @@ def main():
     try:
         logger.info("Creating dual-arm Franka environment...")
         
-        # We explicitly pass the lists of dictionaries here
         env = make_dual_arm_env(
             custom_objects=custom_objects,
-            ycb_objects=ycb_objects,  # List of dicts
+            ycb_objects=ycb_objects,
             has_renderer=not args.headless and not args.no_render,
+            table_full_size=table_full_size,
         )
         
         logger.info("Resetting environment...")
@@ -247,6 +324,8 @@ def main():
         if not args.no_render and not args.headless:
             env.render()
         
+        if exp_cfg is not None:
+            print_experiment_info(exp_cfg)
         print_env_info(env)
         
         if args.random_actions:

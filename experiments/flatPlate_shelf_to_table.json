@@ -16,7 +16,7 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.25, -0.05, 1.04],
+                "position": [-0.20, -0.05, 1.04],
                 "quaternion": [0, 0.70710678, 0, 0.70710678],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
@@ -28,7 +28,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.1, 0.0, 0.95],
+            "position": [0.1, 0.0, 0.91],
             "quaternion": [0, 0, 0, 1]
         }
     },

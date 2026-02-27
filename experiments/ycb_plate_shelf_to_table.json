@@ -22,7 +22,7 @@
         "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [0.1, 0.0, 0.95],
+            "position": [0.1, 0.0, 0.912],
             "quaternion": [0, 0, 0, 1]
         }
     },

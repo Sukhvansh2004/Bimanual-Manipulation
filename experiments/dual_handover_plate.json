@@ -6,7 +6,7 @@
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.25, -0.15, 0.9],
+                "position": [-0.25, 0.0, 0.9],
                 "quaternion": [0, 0, 0, 1],
                 "is_static": true
             }
@@ -16,7 +16,7 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.2, -0.2, 1.04],
+                "position": [-0.2, -0.05, 1.04],
                 "quaternion": [0, 0.70710678, 0, 0.70710678],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
@@ -26,7 +26,7 @@
                 "type": "box",
                 "name": "wallObstacle",
                 "size": [0.07, 0.15, 0.35],
-                "position": [0.0, -0.15, 1.15],
+                "position": [0.0, 0.0, 1.075],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
@@ -37,7 +37,7 @@
                 "type": "box",
                 "name": "boundaryBoxBottom",
                 "size": [0.34, 0.34, 0.005],
-                "position": [0.25, -0.15, 0.93],
+                "position": [0.25, 0.0, 0.93],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.35, 0.25, 0.15, 1.0],
@@ -47,7 +47,7 @@
                 "type": "box",
                 "name": "boundaryBoxWallFront",
                 "size": [0.34, 0.015, 0.04],
-                "position": [0.25, -0.313, 0.955],
+                "position": [0.25, -0.163, 0.955],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.35, 0.25, 0.15, 1.0],
@@ -57,7 +57,7 @@
                 "type": "box",
                 "name": "boundaryBoxWallBack",
                 "size": [0.34, 0.015, 0.04],
-                "position": [0.25, 0.013, 0.955],
+                "position": [0.25, 0.163, 0.955],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.35, 0.25, 0.15, 1.0],
@@ -67,7 +67,7 @@
                 "type": "box",
                 "name": "boundaryBoxWallLeft",
                 "size": [0.015, 0.34, 0.04],
-                "position": [0.087, -0.15, 0.955],
+                "position": [0.087, 0.0, 0.955],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.35, 0.25, 0.15, 1.0],
@@ -77,7 +77,7 @@
                 "type": "box",
                 "name": "boundaryBoxWallRight",
                 "size": [0.015, 0.34, 0.04],
-                "position": [0.413, -0.15, 0.955],
+                "position": [0.413, 0.0, 0.955],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.35, 0.25, 0.15, 1.0],
@@ -89,7 +89,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.2, -0.15, 0.943],
+            "position": [0.2, 0.0, 0.943],
             "quaternion": [0, 0, 0, 1]
         }
     },
