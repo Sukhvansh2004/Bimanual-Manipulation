@@ -89,7 +89,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.2, 0.0, 0.943],
+            "position": [0.25, 0.0, 0.943],
             "quaternion": [0, 0, 0, 1]
         }
     },
