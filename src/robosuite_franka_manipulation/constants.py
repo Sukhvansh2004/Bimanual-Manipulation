@@ -145,8 +145,8 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # Mink QP-based IK / Reactive Tracking Configuration
 # =============================================================================
 
-# QP solver backend (``daqp`` installed with mink)
-MINK_QP_SOLVER = "daqp"
+# QP solver backend
+MINK_QP_SOLVER = "proxqp"
 
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight
