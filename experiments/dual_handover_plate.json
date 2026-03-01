@@ -132,8 +132,8 @@
         "visualize": true,
         "meshcat_tf": true,
         "smoothen": false,
-        "traj0": null,
-        "traj1": null
+        "traj0": "data/dual_handover_plate/robot0_trajectory_1.npz",
+        "traj1": "data/dual_handover_plate/robot1_trajectory_2.npz"
     },
     "runtime": {
         "debug": false,

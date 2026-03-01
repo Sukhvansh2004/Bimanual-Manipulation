@@ -237,7 +237,7 @@ def main():
                 other_arm.move_to_pose(h_traj["receiver_pre"][0])
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
-                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0)
+                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)
 
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
                 other_gripper.release()
