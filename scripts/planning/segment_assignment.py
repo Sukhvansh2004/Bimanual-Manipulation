@@ -81,8 +81,16 @@ def _parse_transfer_feasibility(raw):
     """Convert the JSON-friendly transfer_feasibility dict to tuple-keyed dict.
 
     JSON keys are strings like ``"0,3,1,5"`` mapping to bool values.
+    Non-dict values (e.g. ``true`` / ``false``) are treated as *no constraint*
+    and return ``None`` with a warning.
     """
     if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        logger.warning(
+            "transfer_feasibility should be a dict or null, got %s — ignoring.",
+            type(raw).__name__,
+        )
         return None
     out = {}
     for key_str, val in raw.items():

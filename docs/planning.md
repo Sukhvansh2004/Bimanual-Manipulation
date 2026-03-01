@@ -284,6 +284,165 @@ else:
 | `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
 | `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
 
+### 7. Segment Assignment Planner (`assignment_planner.py`)
+
+Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
+
+#### Problem Formulation
+
+An object trajectory with $N$ waypoints defines $N - 1$ **segments** $[p_i, p_{i+1}]$. Each segment can be executed by either Robot 0 or Robot 1 using one of several pre-computed grasp trajectories. The optimisation selects a sequence of *(robot, trajectory)* pairs that minimises total cost subject to:
+
+1. **Intra-arm trajectory continuity** — an arm cannot switch to a different grasp trajectory mid-task; only a handover (arm switch) may change the active trajectory.
+2. **Transfer feasibility constraints** — certain *(from_robot, from_traj, to_robot, to_traj)* transitions can be explicitly blocked.
+3. **Initial robot constraint** — optionally force the first segment to a specific arm.
+
+#### Cost Model
+
+Each segment assignment $A_{i,j}$ (segment $i$, state $j$) incurs a **task cost**:
+
+$$C(A_{i,j}) = \alpha \cdot C_1(A_{i,j}) + \beta \cdot C_2(A_{i,j})$$
+
+| Component | Formula | Meaning |
+|-----------|---------|---------|
+| $C_1$ — **Smoothness** | $\|q_{i+1} - q_i\|^2$ | Squared joint displacement over the segment |
+| $C_2$ — **Manipulability** | $\sum_k \frac{1}{w(q_k) + \varepsilon}$ | Reciprocal Yoshikawa manipulability (low → penalised) |
+
+When a Jacobian function is available, $w(q)$ is the Yoshikawa index $\sqrt{\det(J J^\top)}$; otherwise a simple joint-distance-from-centre proxy is used.
+
+Infeasible segments (IK failures or collisions) receive $\infty$ cost.
+
+**Switching cost**: When the assignment switches arms between consecutive segments, a **handover primitive** is generated and its smoothness + manipulability cost is evaluated via IK. If no IK solver is provided (e.g. `--no-env`), a fallback constant `ASSIGNMENT_FALLBACK_SWITCH_COST` is used.
+
+#### Viterbi Dynamic Programming Solver
+
+The solver uses a **Viterbi-style forward pass** over the $N-1$ segments:
+
+```
+Initialisation:
+    J*(0, s) = cost_matrix[0, s]   for each state s (filtered by initial_robot)
+
+Forward pass (i = 1 … N-2):
+    For each current state cs:
+        For each previous state ps:
+            - Skip if same arm but different trajectory (continuity constraint)
+            - Compute switching_cost(ps → cs)
+            - total = J*(i-1, ps) + switching_cost
+            - Track best predecessor
+
+        J*(i, cs) = best_total + cost_matrix[i, cs]
+
+Termination:
+    best_final = argmin_s J*(N-2, s)
+
+Backtrack:
+    Recover optimal sequence from predecessor pointers
+```
+
+The result is an `AssignmentResult` containing:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sequence` | `List[int]` | Robot ID (0 or 1) for each segment |
+| `trajectory_indices` | `List[int]` | Grasp trajectory index for each segment |
+| `total_cost` | `float` | Globally optimal total cost |
+| `task_costs` | `np.ndarray` | Per-segment task cost |
+| `switching_costs` | `np.ndarray` | Per-segment switching cost |
+| `handover_points` | `List[int]` | Segment indices where arm switches occur |
+| `cost_matrix` | `np.ndarray` | `(N-1, 2)` — best cost per robot per segment |
+| `trajectory_matrix` | `np.ndarray` | `(N-1, 2)` — best trajectory index per robot per segment |
+
+#### Factory Functions
+
+Two factory functions create closures around the simulation environment for IK and Jacobian evaluation:
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `make_ik_solver_fn(env, tf_manager, env_lock)` | `(StampedPose, int) → Optional[np.ndarray]` | Creates an IK solver that applies orientation correction and delegates to `enumerate_ik_solutions_for_arm` |
+| `make_jacobian_fns(env, env_lock)` | `Dict[int, (np.ndarray) → np.ndarray]` | Creates per-robot Jacobian closures mapping joint configs to 6×7 Jacobians via `compute_arm_jacobian` |
+
+When `--no-env` is used, these are `None` and the planner falls back to simpler heuristics (joint-distance manipulability proxy and a constant switching cost).
+
+#### Transfer Feasibility Constraints
+
+The `transfer_feasibility` field in the experiment JSON allows explicit blocking of specific handover transitions. It should be either `null` (no constraints) or a dict with string keys of the form `"from_robot,from_traj,to_robot,to_traj"` mapping to boolean values:
+
+```json
+"transfer_feasibility": {
+    "0,3,1,5": false,
+    "1,2,0,0": false
+}
+```
+
+Keys mapping to `false` block that specific handover. The parser decodes string keys to `(int, int, int, int)` tuples and checks both directions during switching-cost evaluation.
+
+#### Configuration
+
+Experiment JSON `assignment` block:
+
+```json
+"assignment": {
+    "alpha": 10.0,
+    "beta": 1.0,
+    "epsilon": 1e-06,
+    "initial_robot": null,
+    "transfer_feasibility": null
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `alpha` | `10.0` | Smoothness weight ($\|Δq\|^2$) |
+| `beta` | `1.0` | Manipulability weight ($Σ 1/(w + ε)$) |
+| `epsilon` | `1e-6` | Numerical floor for manipulability reciprocal |
+| `initial_robot` | `null` | Force first segment to this robot (0 or 1); `null` = auto |
+| `transfer_feasibility` | `null` | Per-transition feasibility dict or `null` |
+
+Constants in `constants.py`:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `ASSIGNMENT_ALPHA` | `10.0` | Default smoothness weight |
+| `ASSIGNMENT_BETA` | `1.0` | Default manipulability weight |
+| `ASSIGNMENT_EPSILON` | `1e-6` | Default manipulability floor |
+| `ASSIGNMENT_FALLBACK_SWITCH_COST` | `1e6` | Switching cost when no IK solver available |
+
+#### I/O
+
+Results are persisted as `.npz` files:
+
+- **`save_assignment_result(result, filepath)`** — serialize all fields to NumPy arrays.
+- **`load_assignment_result(filepath)`** — deserialize back to `AssignmentResult`.
+- **`load_all_trajectories(data_dir)`** — load `object_trajectory.npz` and all `robot{0,1}_trajectory_*.npz` files into the dict format expected by `compute_optimal_robot_assignment`.
+
+#### CLI Usage
+
+```bash
+# Full run with environment (accurate IK + Jacobian costs):
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json
+
+# Quick dry-run without environment:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json --no-env
+
+# Override cost weights:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json \
+    --alpha 15.0 --beta 2.0
+
+# Skip matplotlib plots:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json --no-plot
+```
+
+#### Workflow Position
+
+```
+trajectory_generation.py  →  data/<experiment>/robot{0,1}_trajectory_*.npz
+    └── segment_assignment.py  →  data/<experiment>/assignment_results.npz
+        └── dual_arm_handover_traj.py  (reads assignment to execute handovers)
+```
+
 ---
 
 ## Usage Example
