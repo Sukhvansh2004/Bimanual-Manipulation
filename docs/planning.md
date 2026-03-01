@@ -140,7 +140,7 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
 | `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
 
-### 6. Dual-Arm Parallel Planner (`dual_arm_planner.py`)
+### 6. Dual-Arm Parallel Planner (`dual_arm/`)
 
 Enables **simultaneous** execution of two arm motions with **reactive, online collision avoidance** powered by mink's QP-based differential IK. This replaces the earlier "plan-then-stagger" approach where arms moved sequentially to avoid collisions.
 
@@ -244,7 +244,7 @@ Converts an EEF (Cartesian) trajectory for Arm A into joint space via sequential
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.dual_arm_planner import (
+from robosuite_franka_manipulation.planning.dual_arm import (
     DualArmParallelPlanner,
 )
 
@@ -353,7 +353,7 @@ The collision checker (`_check_arm_config_collision`) is designed for speed insi
 
 The RRT checks collisions against Arm A at `traj_a[-1]` — the pose Arm A will occupy when both arms are at the handover point.  This is the most restrictive configuration (arms are closest together) and the most relevant for ensuring Arm B can safely arrive at its target without colliding with Arm A.  Transient collisions during the motion are still handled by the reactive mink QP at execution time.
 
-### 7. Segment Assignment Planner (`assignment_planner.py`)
+### 7. Segment Assignment Planner (`assignment/`)
 
 Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
 

@@ -38,8 +38,8 @@ from robosuite_franka_manipulation.planning.visualization.trajectory import (
 from robosuite_franka_manipulation.utils.primitives import (
     ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
 )
-from robosuite_franka_manipulation.planning.dual_arm_planner import DualArmParallelPlanner
-from robosuite_franka_manipulation.planning.assignment_planner import (
+from robosuite_franka_manipulation.planning.dual_arm import DualArmParallelPlanner
+from robosuite_franka_manipulation.planning.assignment import (
     load_assignment_result,
     load_all_trajectories,
     AssignmentResult,

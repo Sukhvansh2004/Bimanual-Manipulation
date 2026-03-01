@@ -133,7 +133,7 @@ class TestCollisionAvoidanceLimitIntegration:
         (arm_B vs arm_A, arm_B vs object, arm_B vs env) when an object is present
         and the scene has environment geoms."""
         from unittest.mock import MagicMock
-        from robosuite_franka_manipulation.planning.dual_arm_planner import (
+        from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
 
@@ -166,7 +166,8 @@ class TestCollisionAvoidanceLimitIntegration:
         planner._ensure_mink_init()
 
         # The collision limit should exist
-        assert planner._collision_limit is not None, (
+        assert planner._mink is not None, "mink was not initialized"
+        assert planner._mink.collision_limit is not None, (
             "CollisionAvoidanceLimit was not created"
         )
 
@@ -178,7 +179,7 @@ class TestCollisionAvoidanceLimitIntegration:
         # geom_id_pairs is the expanded set of individual geom-to-geom pairs.
         # With env geoms wired in, the total must be strictly > 0 and
         # larger than arm_B alone (which has 0 self-pairs).
-        actual_pairs = len(planner._collision_limit.geom_id_pairs)
+        actual_pairs = len(planner._mink.collision_limit.geom_id_pairs)
         assert actual_pairs > 0, "CollisionAvoidanceLimit has no pairs"
         # Sanity: at minimum we should have at least len(geoms_b) pairs
         # (each arm_B geom paired with at least one env or arm_A geom)

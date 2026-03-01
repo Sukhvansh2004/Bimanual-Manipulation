@@ -478,7 +478,7 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_calls_rrt(self):
         """When target_b is StampedPose and traj_a is given, RRT is attempted."""
-        from robosuite_franka_manipulation.planning.dual_arm_planner import (
+        from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
         from robosuite_franka_manipulation.transforms import StampedPose
@@ -513,7 +513,7 @@ class TestDualArmPlannerRRTIntegration:
 
         # Mock the plan_arm_trajectory to verify it's called
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm_planner.plan_arm_trajectory"
+            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.return_value = (np.random.randn(50, 7), True)
 
@@ -527,7 +527,7 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_falls_back_without_traj_a(self):
         """Without traj_a, should use quintic interpolation (no RRT)."""
-        from robosuite_franka_manipulation.planning.dual_arm_planner import (
+        from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
         from robosuite_franka_manipulation.transforms import StampedPose
@@ -560,7 +560,7 @@ class TestDualArmPlannerRRTIntegration:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm_planner.plan_arm_trajectory"
+            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             result = planner._resolve_trajectory_b(
                 target_pose, 50, None, None
@@ -574,7 +574,7 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_rrt_failure_uses_quintic(self):
         """When RRT fails, should return the quintic fallback trajectory."""
-        from robosuite_franka_manipulation.planning.dual_arm_planner import (
+        from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
         from robosuite_franka_manipulation.transforms import StampedPose
@@ -608,7 +608,7 @@ class TestDualArmPlannerRRTIntegration:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm_planner.plan_arm_trajectory"
+            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.return_value = (np.zeros((50, 7)), False)  # RRT failed
 

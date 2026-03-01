@@ -13,7 +13,7 @@ utils
 Note
 ----
 ``DualArmParallelPlanner`` and ``ParallelExecutionResult`` are imported
-lazily (via ``__getattr__``) because ``dual_arm_planner`` depends on
+lazily (via ``__getattr__``) because ``dual_arm`` depends on
 ``controllers.arm``, which in turn imports ``planning.utils``.  Eager
 importing would create a circular dependency.
 """
@@ -58,7 +58,7 @@ from robosuite_franka_manipulation.planning.rrt import (
 # Accessed via __getattr__ at end of file.
 
 # ── Segment assignment ────────────────────────────────────────────────────
-from robosuite_franka_manipulation.planning.assignment_planner import (
+from robosuite_franka_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     AssignmentResult,
     save_assignment_result,
@@ -135,8 +135,8 @@ __all__ = [
 # ── Lazy loader for dual-arm planner (breaks circular import) ─────────────
 def __getattr__(name: str):
     _LAZY = {
-        "DualArmParallelPlanner": "dual_arm_planner",
-        "ParallelExecutionResult": "dual_arm_planner",
+        "DualArmParallelPlanner": "dual_arm",
+        "ParallelExecutionResult": "dual_arm",
     }
     if name in _LAZY:
         mod = _importlib.import_module(f".{_LAZY[name]}", __name__)

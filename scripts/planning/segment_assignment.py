@@ -51,7 +51,7 @@ from robosuite_franka_manipulation.experiment_config import (
     load_experiment,
     get_collision_filter_fn,
 )
-from robosuite_franka_manipulation.planning.assignment_planner import (
+from robosuite_franka_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
     make_collision_check_fn,

@@ -25,9 +25,8 @@ import numpy as np
 import pytest
 
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.planning.assignment_planner import (
+from robosuite_franka_manipulation.planning.assignment import (
     AssignmentResult,
-    _compute_handover_primitive_cost,
     compute_cost_matrix,
     compute_optimal_robot_assignment,
     compute_segment_cost,
@@ -38,6 +37,9 @@ from robosuite_franka_manipulation.planning.assignment_planner import (
     make_ik_solver_fn,
     make_jacobian_fns,
     save_assignment_result,
+)
+from robosuite_franka_manipulation.planning.assignment.cost import (
+    _compute_handover_primitive_cost,
 )
 from robosuite_franka_manipulation.transforms import StampedPose
 
@@ -791,7 +793,7 @@ class TestFactoryFunctions:
 class TestMakeCollisionCheckFn:
     """Test the make_collision_check_fn factory (mocked environment)."""
 
-    @patch("robosuite_franka_manipulation.planning.assignment_planner.nullcontext")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_check_fn_calls_mujoco(self, _mock_ctx):
         """Verify the factory produces a callable that accesses MuJoCo."""
         import threading
@@ -826,7 +828,7 @@ class TestMakeCollisionCheckFn:
             assert result is True  # no collision
             mock_collision.assert_called_once()
 
-    @patch("robosuite_franka_manipulation.planning.assignment_planner.nullcontext")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_detected_returns_false(self, _mock_ctx):
         """When inter-arm collision is detected, the fn should return False."""
         env = MagicMock()
