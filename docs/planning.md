@@ -140,6 +140,152 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
 | `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
 
+### 6. Dual-Arm Parallel Planner (`dual_arm_planner.py`)
+
+Enables **simultaneous** execution of two arm motions with **reactive, online collision avoidance** powered by mink's QP-based differential IK. This replaces the earlier "plan-then-stagger" approach where arms moved sequentially to avoid collisions.
+
+#### Architecture — Asymmetric Leader–Follower
+
+| Role | Arm | Strategy |
+|------|-----|----------|
+| **Leader (Arm A)** | Pre-planned | Follows a pre-computed joint trajectory open-loop (e.g. carrying an object to a handover point). |
+| **Follower (Arm B)** | Reactive | Driven by a mink QP solve at every simulation tick, tracking a reference trajectory while satisfying collision-avoidance constraints against Arm A and any manipulated object. |
+
+Arm A's motion is deterministic; Arm B continuously adapts its joint velocities to the latest Arm A configuration, guaranteeing collision avoidance at every step.
+
+#### Lazy Initialisation (`_ensure_mink_init`)
+
+On first use, the planner builds the following mink objects from the MuJoCo model:
+
+| Component | Class | Purpose |
+|-----------|-------|---------|
+| **EEF tracker** | `mink.FrameTask` | Drives Arm B's end-effector (`robot1_right_hand`) toward a target SE3 pose. Cost = `MINK_POSITION_COST` / `MINK_ORIENTATION_COST`. |
+| **Posture bias** | `mink.PostureTask` | Regularises Arm B toward the reference configuration. Cost = `MINK_POSTURE_COST`. |
+| **Damping** | `mink.DampingTask` | Penalises large joint velocities for smooth motion. Cost = `MINK_DAMPING_COST`. |
+| **DOF freezing** | `mink.DofFreezingTask` | Freezes every DOF except Arm B's 7 arm joints (pins Arm A joints, both grippers, and all other model DOFs). |
+| **Velocity limits** | `mink.VelocityLimit` | Per-joint velocity bounds from the MuJoCo model. |
+| **Configuration limits** | `mink.ConfigurationLimit` | Per-joint position bounds with `MINK_CONFIG_LIMIT_GAIN`. |
+| **Collision avoidance** | `mink.CollisionAvoidanceLimit` | Inequality constraints preventing inter-arm and arm-object collisions (see below). |
+
+Index maps (`_qpos_idx_a`, `_qpos_idx_b`) are pre-computed so the planner can inject/extract each arm's 7 joint values from the full 17-DOF configuration vector.
+
+#### Collision Avoidance via `CollisionAvoidanceLimit`
+
+The collision avoidance limit constructs two sets of **geom-pair groups**:
+
+1. **Arm B ↔ Arm A**: Every collision geom on Arm B is paired against every collision geom on Arm A (arm links + gripper). The QP forbids joint velocities that would bring any pair closer than `MINK_COLLISION_MIN_DIST`.
+2. **Arm B ↔ Object**: Same pairing against the manipulated object's geoms (e.g. the mug or plate being handed over). This prevents the receiving arm from colliding with the object while approaching.
+
+Arm A ↔ Object collisions are **not** constrained because they represent expected grasp contact (the object is held by Arm A).
+
+The `DofFreezingTask` ensures only Arm B's 7 joints appear as decision variables in the QP — Arm A's joints and both grippers are fixed parameters, so the solver cannot move them.
+
+**Key constants** (in `constants.py`):
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `MINK_COLLISION_MIN_DIST` | 0.005 | Minimum allowed distance between geom pairs (m) |
+| `MINK_COLLISION_GAIN` | 0.85 | Avoidance gain — higher = more aggressive avoidance |
+| `MINK_COLLISION_DETECT_DIST` | 0.1 | Distance at which collision constraints activate (m) |
+
+#### Per-Tick Execution Loop (`_execute_mink_loop`)
+
+The core loop runs for up to `2 × num_steps` ticks:
+
+```
+for each tick:
+    1. Advance waypoint index along both trajectories
+
+    2. Sync mink Configuration with the simulation state
+       — read full qpos from MuJoCo
+       — overwrite Arm A's slots with the *planned* waypoint
+         (so the QP sees where Arm A *will* be, not where it
+          currently is if the controller lags slightly)
+
+    3. Set FrameTask target for Arm B
+       — FK the reference joints → read SE3 → set_target
+       — restore the mink config so the QP sees *current* state
+
+    4. Set PostureTask target = reference config
+       (biases the QP solution toward the collision-free reference)
+
+    5. Solve the QP (_solve_mink_step)
+       — tasks:       [FrameTask, DampingTask, PostureTask]
+       — limits:      [VelocityLimit, ConfigLimit, CollisionAvoidanceLimit]
+       — constraints: [DofFreezingTask]
+       — call mink.solve_ik → get joint velocities
+       — integrate velocities → new q for Arm B
+       — if QP fails → fall back to reference waypoint
+
+    6. Build composite action
+       — Arm A: direct joint-position target from traj_a[wp_idx]
+       — Arm B: QP-solved joints (or fallback)
+       — env.step([armA_joints, gripA, armB_joints, gripB])
+
+    7. Drift-correcting sleep: sleep(max(0, target_time − elapsed))
+
+    8. Convergence check (at last waypoint):
+       — if max|q_actual − q_target| < threshold for BOTH arms → success
+```
+
+#### Public API
+
+**`execute_parallel(traj_a, target_b, gripper_a, gripper_b, ...)`**
+
+1. Normalises `traj_a` into a `(N, 7)` array.
+2. Resolves `target_b` — if a `StampedPose`, solves IK + quintic interpolation to produce a `(M, 7)` reference trajectory; if already a joint array, normalises it.
+3. Resamples the shorter trajectory (cubic interpolation) so both have equal length.
+4. Calls `_execute_mink_loop`.
+
+**`execute_parallel_eef(eef_traj_a, target_b, ...)`**
+
+Converts an EEF (Cartesian) trajectory for Arm A into joint space via sequential IK, then delegates to `execute_parallel`.
+
+#### Usage
+
+```python
+from robosuite_franka_manipulation.planning.dual_arm_planner import (
+    DualArmParallelPlanner,
+)
+
+planner = DualArmParallelPlanner(
+    env=system.env,
+    env_lock=system.env_lock,
+    arm_a=system.left_arm,
+    arm_b=system.right_arm,
+    tf_manager=system.tf_manager,
+    collision_check=True,
+    manipulated_object="mug_0",       # object held by arm A
+)
+
+result = planner.execute_parallel(
+    traj_a=joint_segment,             # (N, 7) pre-planned joints for arm A
+    target_b=handover_pre_pose,       # StampedPose for arm B
+    gripper_a=1.0,                    # keep gripper A closed
+    gripper_b=-1.0,                   # open gripper B
+)
+
+if result.success:
+    print(f"Both arms converged in {result.steps_taken} steps")
+    print(f"Collision-free: {result.collision_free}")
+else:
+    print(f"Errors: arm_a={result.final_pos_error_a:.4f}, "
+          f"arm_b={result.final_pos_error_b:.4f}")
+```
+
+#### Key Helper Methods
+
+| Method | Purpose |
+|--------|---------|
+| `_set_arm_b_target_from_joints(ref_q_b)` | FK reference joints → SE3 → set `FrameTask` target, then restore config so the QP sees the *current* state. |
+| `_solve_mink_step()` | Assembles tasks/limits/constraints, calls `mink.solve_ik` (daqp solver), integrates velocity → returns Arm B's new 7-DOF config. Returns `None` on QP failure. |
+| `_resolve_trajectory_b(target_b, ...)` | Converts a `StampedPose` into a quintic joint trajectory, or normalises an existing array. |
+| `_eef_to_joint_trajectory(arm, eef_traj)` | Converts an EEF trajectory to joint space via sequential IK (warm-started). |
+| `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
+| `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
+
+---
+
 ## Usage Example
 
 ### Generating and Validating a Pick-and-Place Trajectory
