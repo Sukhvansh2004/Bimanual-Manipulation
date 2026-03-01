@@ -34,6 +34,7 @@ from robosuite_franka_manipulation.planning.assignment_planner import (
     compute_switching_cost,
     load_all_trajectories,
     load_assignment_result,
+    make_collision_check_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
     save_assignment_result,
@@ -430,6 +431,75 @@ class TestHandoverPrimitiveCost:
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
 
+    def test_collision_check_rejects_colliding_handover(self):
+        """A collision_check_fn returning False should cause inf cost."""
+        def _ik(pose, robot_id):
+            return np.ones(7) * 0.5
+
+        def _always_colliding(q0, q1):
+            return False  # collision detected
+
+        poses = [
+            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+            for i in range(3)
+        ]
+        h_traj = {
+            "transfer_hold": poses[:1],
+            "receiver_approach": poses,
+        }
+        cost, ok = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _ik,
+            collision_check_fn=_always_colliding,
+        )
+        assert np.isinf(cost)
+        assert ok is False
+
+    def test_collision_check_passes_when_free(self):
+        """A collision_check_fn returning True should not affect cost."""
+        def _ik(pose, robot_id):
+            return np.ones(7) * 0.5
+
+        def _always_free(q0, q1):
+            return True  # no collision
+
+        poses = [
+            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+            for i in range(3)
+        ]
+        h_traj = {
+            "transfer_hold": poses[:1],
+            "receiver_approach": poses,
+        }
+        cost, ok = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _ik,
+            collision_check_fn=_always_free,
+        )
+        assert ok is True
+        assert np.isfinite(cost)
+
+    def test_robot_id_passed_correctly(self):
+        """Verify transfer_robot_id and receiver_robot_id are forwarded to IK."""
+        ik_calls: List[int] = []
+
+        def _ik(pose, robot_id):
+            ik_calls.append(robot_id)
+            return np.ones(7) * robot_id
+
+        poses = [
+            StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+        ]
+        h_traj = {
+            "transfer_hold": poses,
+            "receiver_pre": poses,
+        }
+        _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _ik,
+            transfer_robot_id=1,
+            receiver_robot_id=0,
+        )
+        assert 1 in ik_calls, "transfer_robot_id=1 not passed to IK"
+        assert 0 in ik_calls, "receiver_robot_id=0 not passed to IK"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests — compute_optimal_robot_assignment  (end-to-end unit tests)
@@ -718,6 +788,74 @@ class TestFactoryFunctions:
         assert kwargs["env_lock"] is lock
 
 
+class TestMakeCollisionCheckFn:
+    """Test the make_collision_check_fn factory (mocked environment)."""
+
+    @patch("robosuite_franka_manipulation.planning.assignment_planner.nullcontext")
+    def test_collision_check_fn_calls_mujoco(self, _mock_ctx):
+        """Verify the factory produces a callable that accesses MuJoCo."""
+        import threading
+
+        # Mock environment
+        env = MagicMock()
+        model = MagicMock()
+        data = MagicMock()
+        env.sim.model = model
+        env.sim.data = data
+        data.qpos = np.zeros(20)
+        data.qvel = np.zeros(20)
+        lock = threading.RLock()
+
+        # Mock the lazy imports inside the factory
+        with patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            side_effect=lambda m, jids: np.array(jids),
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            return_value=False,
+        ) as mock_collision, patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            side_effect=lambda x: x,
+        ), patch("mujoco.mj_forward"):
+            fn = make_collision_check_fn(env, env_lock=lock)
+            result = fn(np.ones(7), np.ones(7) * 2)
+
+            assert result is True  # no collision
+            mock_collision.assert_called_once()
+
+    @patch("robosuite_franka_manipulation.planning.assignment_planner.nullcontext")
+    def test_collision_detected_returns_false(self, _mock_ctx):
+        """When inter-arm collision is detected, the fn should return False."""
+        env = MagicMock()
+        model = MagicMock()
+        data = MagicMock()
+        env.sim.model = model
+        env.sim.data = data
+        data.qpos = np.zeros(20)
+        data.qvel = np.zeros(20)
+
+        with patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            side_effect=lambda m, jids: np.array(jids),
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            return_value=True,  # collision!
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            side_effect=lambda x: x,
+        ), patch("mujoco.mj_forward"):
+            fn = make_collision_check_fn(env)
+            result = fn(np.ones(7), np.ones(7) * 2)
+
+            assert result is False  # collision detected
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests — Experiment config assignment field
 # ═══════════════════════════════════════════════════════════════════════════
@@ -772,6 +910,7 @@ class TestPlanningExports:
             "save_assignment_result",
             "load_assignment_result",
             "load_all_trajectories",
+            "make_collision_check_fn",
             "make_ik_solver_fn",
             "make_jacobian_fns",
         ):

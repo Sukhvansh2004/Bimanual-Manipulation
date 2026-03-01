@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import mujoco
 import numpy as np
@@ -36,14 +36,117 @@ from robosuite_franka_manipulation.planning.utils.collision_utils import (
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import get_native_mj_object
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
-if TYPE_CHECKING:
-    from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Phase 1 — Iterative Shortcutting
+# Generic (domain-agnostic) post-processing
+# ============================================================================
+
+def shortcut_generic(
+    path: list,
+    *,
+    segment_free_fn: Callable[[Any, Any], bool],
+    max_iterations: int,
+) -> list:
+    """Domain-agnostic random shortcutting.
+
+    Randomly selects two non-adjacent waypoints and removes the
+    intermediaries when the direct connection is collision-free.
+    This function contains the *loop only*; all domain-specific
+    collision checking is delegated to *segment_free_fn*.
+
+    Args:
+        path: Ordered list of states from start to goal.
+        segment_free_fn: ``(s1, s2) -> bool`` — ``True`` when the
+            segment between *s1* and *s2* is collision-free.
+        max_iterations: Number of random shortcut attempts.
+
+    Returns:
+        A (possibly shorter) list of states.
+    """
+    smoothed = list(path)
+    for _ in range(max_iterations):
+        if len(smoothed) <= 2:
+            break
+        i = np.random.randint(0, len(smoothed) - 1)
+        j = np.random.randint(i + 1, len(smoothed))
+        if j - i <= 1:
+            continue
+        if segment_free_fn(smoothed[i], smoothed[j]):
+            smoothed = smoothed[: i + 1] + smoothed[j:]
+    return smoothed
+
+
+def densify_generic(
+    path: list,
+    num_steps: int,
+    *,
+    distance_fn: Callable[[Any, Any], float],
+    interpolate_fn: Callable[[Any, Any, float], Any],
+) -> list:
+    """Domain-agnostic arc-length densification.
+
+    Resamples a sparse path to *num_steps* evenly-spaced waypoints
+    using cumulative arc-length parameterisation.  The metric and
+    interpolation method are supplied by the caller.
+
+    Args:
+        path: Sparse list of states.
+        num_steps: Desired number of output waypoints.
+        distance_fn: ``(s1, s2) -> float`` — distance between states.
+        interpolate_fn: ``(s1, s2, t) -> state`` — interpolate between
+            two states at parameter *t* ∈ [0, 1].
+
+    Returns:
+        List of *num_steps* states.
+
+    Raises:
+        ValueError: If *num_steps* ≤ 0 or *path* is empty.
+    """
+    if num_steps <= 0:
+        raise ValueError("num_steps must be positive")
+    if len(path) == 0:
+        raise ValueError("path is empty")
+    if len(path) == 1:
+        return [path[0]] * num_steps
+
+    # Compute cumulative arc-length
+    seg_lengths = [
+        distance_fn(path[i], path[i + 1]) for i in range(len(path) - 1)
+    ]
+    total = sum(seg_lengths)
+    if total < 1e-12:
+        return [path[0]] * num_steps
+
+    cum = np.zeros(len(path))
+    for i in range(1, len(path)):
+        cum[i] = cum[i - 1] + seg_lengths[i - 1]
+    cum /= total
+
+    dense: list = []
+    for k in range(num_steps):
+        s = k / float(num_steps - 1) if num_steps > 1 else 0.0
+        seg_idx = int(
+            np.clip(np.searchsorted(cum, s, side="right") - 1, 0, len(path) - 2)
+        )
+        seg_start = cum[seg_idx]
+        seg_end = cum[seg_idx + 1]
+        t_local = (
+            0.0
+            if seg_end - seg_start < 1e-10
+            else (s - seg_start) / (seg_end - seg_start)
+        )
+        dense.append(
+            interpolate_fn(path[seg_idx], path[seg_idx + 1], t_local)
+        )
+    return dense
+
+
+# ============================================================================
+# Phase 1 — Iterative Shortcutting (SE(3) specialisation)
 # ============================================================================
 
 def _shortcut_path(
@@ -60,26 +163,23 @@ def _shortcut_path(
     Randomly selects two waypoints and tries to connect them directly.
     If the direct connection is collision-free, the intermediate
     waypoints are removed.
+
+    Delegates to :func:`shortcut_generic` with an SE(3) collision
+    callback.
     """
-    smoothed = list(path)
-    for _ in range(max_iterations):
-        if len(smoothed) <= 2:
-            break
-        i = np.random.randint(0, len(smoothed) - 1)
-        j = np.random.randint(i + 1, len(smoothed))
-        if j - i <= 1:
-            continue
-        pos_i, quat_i = smoothed[i]
-        pos_j, quat_j = smoothed[j]
-        skip = (i == 0) or (j == len(smoothed) - 1)
-        if _collision_free_segment(
+    def _seg_free(p1, p2):
+        return _collision_free_segment(
             env, object_name,
-            pos_i, quat_i, pos_j, quat_j,
+            p1[0], p1[1], p2[0], p2[1],
             object_geom_ids, robot_mask, obj_joint_addr,
-            skip_endpoints=skip,
-        ):
-            smoothed = smoothed[:i + 1] + smoothed[j:]
-    return smoothed
+            skip_endpoints=True,
+        )
+
+    return shortcut_generic(
+        path,
+        segment_free_fn=_seg_free,
+        max_iterations=max_iterations,
+    )
 
 
 # ============================================================================
@@ -187,81 +287,6 @@ def _decasteljau_slerp(quats: List[np.ndarray], t: float) -> np.ndarray:
     return _decasteljau_slerp(reduced, t)
 
 
-def _bezier_smooth_rotations(
-    quaternions: List[np.ndarray],
-    samples_per_segment: int = 10,
-    tension: float = 0.33,
-) -> List[np.ndarray]:
-    """Fit a composite cubic Bézier spline on SO(3) and resample.
-
-    Uses Catmull-Rom-style tangent construction projected onto the
-    tangent space of SO(3) via the exponential map.
-    """
-    n = len(quaternions)
-    if n < 2:
-        return list(quaternions)
-
-    def _log_rel(qa, qb):
-        r_rel = R.from_quat(qa).inv() * R.from_quat(qb)
-        return r_rel.as_rotvec()
-
-    tangent_rotvecs = []
-    for i in range(n):
-        if i == 0:
-            tangent_rotvecs.append(_log_rel(quaternions[0], quaternions[1]))
-        elif i == n - 1:
-            tangent_rotvecs.append(_log_rel(quaternions[-2], quaternions[-1]))
-        else:
-            fwd = _log_rel(quaternions[i], quaternions[i + 1])
-            bwd = _log_rel(quaternions[i - 1], quaternions[i])
-            tangent_rotvecs.append(0.5 * (fwd + bwd))
-
-    def _apply_rotvec(q, rv):
-        return (R.from_quat(q) * R.from_rotvec(rv)).as_quat()
-
-    result: List[np.ndarray] = []
-    for seg_idx in range(n - 1):
-        q0 = quaternions[seg_idx]
-        q3 = quaternions[seg_idx + 1]
-
-        angle_chord = np.linalg.norm(_log_rel(q0, q3))
-        t_i_norm = np.linalg.norm(tangent_rotvecs[seg_idx])
-        t_i1_norm = np.linalg.norm(tangent_rotvecs[seg_idx + 1])
-
-        scale_i = tension * (angle_chord / t_i_norm) if t_i_norm > 1e-12 else 0.0
-        scale_i1 = tension * (angle_chord / t_i1_norm) if t_i1_norm > 1e-12 else 0.0
-
-        q1 = _apply_rotvec(q0, scale_i * tangent_rotvecs[seg_idx])
-        q2 = _apply_rotvec(q3, -scale_i1 * tangent_rotvecs[seg_idx + 1])
-
-        ctrl = [q0, q1, q2, q3]
-
-        n_pts = samples_per_segment if seg_idx < n - 2 else samples_per_segment + 1
-        for k in range(n_pts):
-            t = k / float(samples_per_segment)
-            result.append(_decasteljau_slerp(ctrl, t))
-
-    return result
-
-
-def _bezier_smooth_path(
-    path: List[Tuple[np.ndarray, np.ndarray]],
-    samples_per_segment: int = 10,
-    tension: float = 0.33,
-) -> List[Tuple[np.ndarray, np.ndarray]]:
-    """Produce a smooth path by fitting cubic Bézier splines to both
-    positions (R³) and rotations (SO(3)).
-    """
-    positions = [p for p, _ in path]
-    quaternions = [q for _, q in path]
-
-    smooth_pos = _bezier_smooth_positions(positions, samples_per_segment, tension)
-    smooth_quat = _bezier_smooth_rotations(quaternions, samples_per_segment, tension)
-
-    n = min(len(smooth_pos), len(smooth_quat))
-    return [(smooth_pos[i], smooth_quat[i]) for i in range(n)]
-
-
 def _bezier_smooth_one_segment(
     path: List[Tuple[np.ndarray, np.ndarray]],
     seg_idx: int,
@@ -363,7 +388,7 @@ def smooth_path(
     path: List[Tuple[np.ndarray, np.ndarray]],
     env_lock=None,
     max_smoothing_iterations: int = None,
-    rrt_vis: Optional["RRTVisualizer"] = None,
+    rrt_vis: Optional[RRTVisualizer] = None,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """Smooth an RRT path using shortcutting followed by hybrid Bézier fitting.
 
@@ -489,9 +514,11 @@ def densify_path(
     path: List[Tuple[np.ndarray, np.ndarray]],
     num_points: int,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
-    """Resample a sparse path to *num_points* evenly-spaced waypoints.
+    """Resample a sparse SE(3) path to *num_points* evenly-spaced waypoints.
 
     Uses SE(3) interpolation to produce smooth intermediate poses.
+    Delegates to :func:`densify_generic` with SE(3) distance and
+    interpolation callbacks.
 
     Args:
         path: Sparse path from the planner.
@@ -503,34 +530,15 @@ def densify_path(
     if len(path) <= 1 or num_points <= 1:
         return path
 
-    seg_lengths = [
-        se3_pose_distance(path[i][0], path[i][1], path[i + 1][0], path[i + 1][1])
-        for i in range(len(path) - 1)
-    ]
+    def _dist(s1, s2):
+        return se3_pose_distance(s1[0], s1[1], s2[0], s2[1])
 
-    total_length = sum(seg_lengths)
-    if total_length < 1e-10:
-        return [path[0]] * num_points
+    def _interp(s1, s2, t):
+        pos, quat = interpolate_pose(s1[0], s1[1], s2[0], s2[1], t)
+        return (pos, quat)
 
-    cum_lengths = np.zeros(len(path))
-    for i in range(1, len(path)):
-        cum_lengths[i] = cum_lengths[i - 1] + seg_lengths[i - 1]
-    cum_lengths /= total_length
-
-    dense = []
-    for k in range(num_points):
-        s = k / float(num_points - 1)
-        seg_idx = int(np.clip(np.searchsorted(cum_lengths, s, side="right") - 1, 0, len(path) - 2))
-
-        seg_start = cum_lengths[seg_idx]
-        seg_end = cum_lengths[seg_idx + 1]
-        t_local = 0.0 if seg_end - seg_start < 1e-10 else (s - seg_start) / (seg_end - seg_start)
-
-        pos, quat = interpolate_pose(
-            path[seg_idx][0], path[seg_idx][1],
-            path[seg_idx + 1][0], path[seg_idx + 1][1],
-            t_local,
-        )
-        dense.append((pos, quat))
-
-    return dense
+    return densify_generic(
+        path, num_points,
+        distance_fn=_dist,
+        interpolate_fn=_interp,
+    )

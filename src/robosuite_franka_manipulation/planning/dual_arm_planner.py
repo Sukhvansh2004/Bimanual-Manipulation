@@ -83,6 +83,9 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     quintic_scalar,
     plan_quintic_joint_trajectory,
 )
+from robosuite_franka_manipulation.planning.rrt_joint_planner import (
+    plan_arm_trajectory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +121,16 @@ def _plan_pose_to_joint_trajectory(
     target_pose: StampedPose,
     num_steps: int,
     q_warm_start: Optional[np.ndarray] = None,
-) -> Optional[np.ndarray]:
-    """Plan a quintic joint trajectory from the arm's current config to *target_pose*.
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Solve IK for *target_pose* and return a quintic reference trajectory.
 
-    Uses the arm's IK solver for the goal configuration.
+    Uses the arm's IK solver for the goal configuration.  Returns both
+    the trajectory and the solved target joints (needed by the RRT-based
+    planner as the goal configuration).
+
+    Returns:
+        ``(trajectory, target_joints)`` — either may be ``None`` on
+        IK failure.
     """
     if target_pose.frame_id != arm.base_frame:
         target_pose = arm.tf_manager.transform_pose(target_pose, arm.base_frame)
@@ -136,11 +145,12 @@ def _plan_pose_to_joint_trajectory(
             "IK failed for robot%d_%s target pose",
             arm.robot_id, arm.arm_id,
         )
-        return None
+        return None, None
 
-    return plan_quintic_joint_trajectory(
+    traj = plan_quintic_joint_trajectory(
         arm.get_joint_positions(), target_joints, num_steps,
     )
+    return traj, target_joints
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +392,8 @@ class DualArmParallelPlanner:
         # ── Plan / normalise arm B's reference trajectory ─────────────
         with ThreadPoolExecutor(max_workers=1) as pool:
             future_b: Future = pool.submit(
-                self._resolve_trajectory_b, target_b, n_a, q_warm_start_b,
+                self._resolve_trajectory_b, target_b, n_a,
+                q_warm_start_b, traj_a,
             )
             ref_traj_b = future_b.result()
 
@@ -719,14 +730,85 @@ class DualArmParallelPlanner:
         target_b: Union[StampedPose, List[np.ndarray], np.ndarray],
         desired_length: int,
         q_warm_start: Optional[np.ndarray],
+        traj_a: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
-        """Convert *target_b* into a (N, 7) reference joint trajectory."""
+        """Convert *target_b* into a (N, 7) reference joint trajectory.
+
+        When *target_b* is a ``StampedPose`` and *traj_a* is available,
+        attempts a joint-space RRT-Connect to find a collision-free
+        reference trajectory for arm B.  Falls back to quintic
+        interpolation if:  (a) no environment is available, (b) the RRT
+        planner fails, or (c) *target_b* is already a trajectory.
+        """
         if isinstance(target_b, StampedPose):
-            return _plan_pose_to_joint_trajectory(
-                self.arm_b, target_b, desired_length,
-                q_warm_start=q_warm_start,
+            return self._plan_collision_free_trajectory_b(
+                target_b, desired_length, q_warm_start, traj_a,
             )
         return self._normalise_trajectory(target_b)
+
+    def _plan_collision_free_trajectory_b(
+        self,
+        target_pose: StampedPose,
+        desired_length: int,
+        q_warm_start: Optional[np.ndarray],
+        traj_a: Optional[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        """Plan arm B's reference trajectory using RRT when possible.
+
+        Pipeline:
+
+        1. Solve IK for *target_pose* → ``goal_q``.
+        2. If *traj_a* is provided, run joint-space RRT-Connect from
+           arm B's current config to ``goal_q`` while arm A is held at
+           ``traj_a[-1]`` (the configuration arm A will reach at the
+           handover point).
+        3. If RRT finds a collision-free path, smooth and densify it.
+        4. Fall back to quintic interpolation otherwise.
+
+        Returns:
+            ``(N, 7)`` joint trajectory or ``None`` on IK failure.
+        """
+        quintic_traj, goal_q = _plan_pose_to_joint_trajectory(
+            self.arm_b, target_pose, desired_length,
+            q_warm_start=q_warm_start,
+        )
+        if quintic_traj is None or goal_q is None:
+            return None
+
+        # Attempt joint-space RRT only when arm A's trajectory is known
+        if traj_a is not None and len(traj_a) > 0:
+            q_arm_a_ref = traj_a[-1]  # arm A's final config
+            start_q = self.arm_b.get_joint_positions()
+
+            try:
+                rrt_traj, rrt_success = plan_arm_trajectory(
+                    env=self.env,
+                    robot_id_b=self.arm_b.robot_id,
+                    start_q=start_q,
+                    goal_q=goal_q,
+                    q_other_arm=q_arm_a_ref,
+                    robot_id_a=self.arm_a.robot_id,
+                    num_steps=desired_length,
+                    env_lock=self.env_lock,
+                    manipulated_object=self.manipulated_object,
+                )
+                if rrt_success:
+                    logger.info(
+                        "Arm B reference trajectory planned via "
+                        "collision-free joint RRT."
+                    )
+                    return rrt_traj
+                logger.warning(
+                    "Joint RRT failed — using quintic fallback for "
+                    "arm B reference."
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Joint RRT planning error — using quintic fallback: %s",
+                    exc,
+                )
+
+        return quintic_traj
 
     @staticmethod
     def _eef_to_joint_trajectory(

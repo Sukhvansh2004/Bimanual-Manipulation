@@ -192,6 +192,18 @@ RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below 
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
 # =============================================================================
+# Joint-Space RRT-Connect (Arm Trajectory Planner)
+# =============================================================================
+
+ARM_RRT_MAX_ITERATIONS = 3000   # Maximum RRT-Connect iterations in joint space
+ARM_RRT_STEP_SIZE = 0.25        # Step size for tree extension (radians in joint space)
+ARM_RRT_GOAL_BIAS = 0.20        # Probability of sampling the goal configuration
+ARM_RRT_COLLISION_RESOLUTION = 0.05  # Resolution for edge collision checking (radians)
+ARM_RRT_CONNECT_MAX_STEPS = 50  # Max connect steps toward a target node
+ARM_RRT_SMOOTHING_ITERATIONS = 150   # Number of shortcutting attempts for path smoothing
+ARM_RRT_JOINT_MARGIN = 0.05     # Margin (rad) inside joint limits for sampling
+
+# =============================================================================
 # Segment Assignment Planner
 # =============================================================================
 

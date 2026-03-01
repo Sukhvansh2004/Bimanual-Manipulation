@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import List, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import meshcat.geometry as mg
 
 logger = logging.getLogger(__name__)
+
+# Default position extractor: SE(3) tuple -> position component.
+_DEFAULT_POS_FN: Callable[[Any], np.ndarray] = lambda elem: elem[0]
 
 
 class RRTVisualizer:
@@ -94,12 +97,27 @@ class RRTVisualizer:
         self._collision_counter += 1
         self._draw_sphere(name, pos, 0.005, 0xff0000)
 
-    def draw_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
-        """Draw the final raw path as thick green line segments."""
+    def draw_path(
+        self,
+        path,
+        pos_fn: Optional[Callable[[Any], np.ndarray]] = None,
+    ):
+        """Draw the final raw path as thick green line segments.
+
+        Args:
+            path: List of states (any type supported by *pos_fn*).
+            pos_fn: Callable that extracts a 3-D position from a path
+                element.  Defaults to ``lambda elem: elem[0]`` (works
+                for SE(3) ``(pos, quat)`` tuples).
+        """
         if len(path) < 2:
             return
+        if pos_fn is None:
+            pos_fn = _DEFAULT_POS_FN
         for i in range(len(path) - 1):
-            pts = np.column_stack([path[i][0], path[i + 1][0]]).astype(np.float32)
+            pts = np.column_stack(
+                [pos_fn(path[i]), pos_fn(path[i + 1])]
+            ).astype(np.float32)
             self._root[f"path/seg{i}"].set_object(
                 mg.LineSegments(
                     mg.PointsGeometry(pts),
@@ -108,12 +126,25 @@ class RRTVisualizer:
             )
         self._sleep()
 
-    def draw_smoothed_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
-        """Draw the smoothed path as thick yellow line segments."""
+    def draw_smoothed_path(
+        self,
+        path,
+        pos_fn: Optional[Callable[[Any], np.ndarray]] = None,
+    ):
+        """Draw the smoothed path as thick yellow line segments.
+
+        Args:
+            path: List of states.
+            pos_fn: Position extractor (see :meth:`draw_path`).
+        """
         if len(path) < 2:
             return
+        if pos_fn is None:
+            pos_fn = _DEFAULT_POS_FN
         for i in range(len(path) - 1):
-            pts = np.column_stack([path[i][0], path[i + 1][0]]).astype(np.float32)
+            pts = np.column_stack(
+                [pos_fn(path[i]), pos_fn(path[i + 1])]
+            ).astype(np.float32)
             self._root[f"smoothed_path/seg{i}"].set_object(
                 mg.LineSegments(
                     mg.PointsGeometry(pts),
@@ -122,21 +153,35 @@ class RRTVisualizer:
             )
         self._sleep()
 
-    def draw_shortcut_path(self, path: List[Tuple[np.ndarray, np.ndarray]]):
-        """Draw the shortcut (Phase 1) path as thin orange line segments."""
+    def draw_shortcut_path(
+        self,
+        path,
+        pos_fn: Optional[Callable[[Any], np.ndarray]] = None,
+    ):
+        """Draw the shortcut (Phase 1) path as thin orange line segments.
+
+        Args:
+            path: List of states.
+            pos_fn: Position extractor (see :meth:`draw_path`).
+        """
         if len(path) < 2:
             return
+        if pos_fn is None:
+            pos_fn = _DEFAULT_POS_FN
         for i in range(len(path) - 1):
-            pts = np.column_stack([path[i][0], path[i + 1][0]]).astype(np.float32)
+            pts = np.column_stack(
+                [pos_fn(path[i]), pos_fn(path[i + 1])]
+            ).astype(np.float32)
             self._root[f"shortcut_path/seg{i}"].set_object(
                 mg.LineSegments(
                     mg.PointsGeometry(pts),
                     mg.LineBasicMaterial(color=self._color_int(255, 165, 0), linewidth=2),
                 )
             )
-        for i, (pos, _) in enumerate(path):
+        for i, elem in enumerate(path):
             self._draw_sphere(
-                f"shortcut_path/wp{i}", pos, 0.008, self._color_int(255, 165, 0),
+                f"shortcut_path/wp{i}", pos_fn(elem), 0.008,
+                self._color_int(255, 165, 0),
             )
         self._sleep()
 

@@ -54,6 +54,7 @@ from robosuite_franka_manipulation.experiment_config import (
 from robosuite_franka_manipulation.planning.assignment_planner import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
+    make_collision_check_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
     save_assignment_result,
@@ -161,9 +162,10 @@ def main() -> None:
 
     logger.info("Assignment parameters: α=%.2f, β=%.2f, ε=%.1e", alpha, beta, epsilon)
 
-    # --- Build IK / Jacobian closures from the simulation environment ---
+    # --- Build IK / Jacobian / collision closures from the simulation environment ---
     ik_solver_fn = None
     jacobian_fns = None
+    collision_check_fn = None
 
     if not args.no_env:
         logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
@@ -192,11 +194,13 @@ def main() -> None:
 
         ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock)
         jacobian_fns = make_jacobian_fns(env, env_lock)
-        logger.info("IK solver and Jacobian functions ready.")
+        collision_check_fn = make_collision_check_fn(env, env_lock)
+        logger.info("IK solver, Jacobian functions, and collision checker ready.")
     else:
         logger.warning(
             "Environment creation skipped (--no-env).  Handover costs will use "
-            "fallback heuristic; manipulability will use simple joint-distance proxy."
+            "fallback heuristic; manipulability will use simple joint-distance proxy. "
+            "Inter-arm collision checks are disabled."
         )
 
     # --- Run assignment planner ---
@@ -209,6 +213,7 @@ def main() -> None:
         epsilon=epsilon,
         ik_solver_fn=ik_solver_fn,
         jacobian_fns=jacobian_fns,
+        collision_check_fn=collision_check_fn,
     )
 
     # --- Print summary ---

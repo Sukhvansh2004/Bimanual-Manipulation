@@ -26,11 +26,15 @@ trajectory switching).
 from __future__ import annotations
 
 import logging
+import os
 import threading
+from contextlib import nullcontext
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.manipulability import (
@@ -106,10 +110,11 @@ def compute_segment_cost(
     if segment_joints.ndim == 1:
         segment_joints = segment_joints.reshape(1, -1)
 
-    # C1: smoothness
+    # C1: smoothness — squared joint displacement (avoid sqrt in norm)
     smoothness = 0.0
     if segment_joints.shape[0] >= 2:
-        smoothness = float(np.linalg.norm(segment_joints[-1] - segment_joints[0]) ** 2)
+        diff = segment_joints[-1] - segment_joints[0]
+        smoothness = float(diff @ diff)
 
     # C2: manipulability
     manip_vals = compute_trajectory_manipulability(
@@ -185,12 +190,19 @@ def _compute_handover_primitive_cost(
     epsilon: float,
     ik_solver_fn: Callable,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
+    transfer_robot_id: int = 0,
+    receiver_robot_id: int = 1,
 ) -> Tuple[float, bool]:
     """Evaluate cost of a handover primitive using the same C1 + C2 model.
 
     Args:
         jacobian_fns: Optional ``{robot_id: (q) -> J}`` for per-arm
             Yoshikawa manipulability.
+        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
+            to verify inter-arm clearance at critical handover configurations.
+        transfer_robot_id: Robot ID of the arm performing the transfer (holding).
+        receiver_robot_id: Robot ID of the arm receiving the object.
     """
     transfer_poses: List[StampedPose] = []
     receiver_poses: List[StampedPose] = []
@@ -216,23 +228,44 @@ def _compute_handover_primitive_cost(
                 return None
         return configs
 
-    transfer_configs = _solve_all(transfer_poses, 0) if transfer_poses else []
-    receiver_configs = _solve_all(receiver_poses, 1) if receiver_poses else []
+    transfer_configs = _solve_all(transfer_poses, transfer_robot_id) if transfer_poses else []
+    receiver_configs = _solve_all(receiver_poses, receiver_robot_id) if receiver_poses else []
 
     if transfer_configs is None or receiver_configs is None:
         return np.inf, False
 
-    # Smoothness per arm
+    # --- Inter-arm collision check at the critical handover meeting point ---
+    if collision_check_fn is not None and transfer_configs and receiver_configs:
+        q_transfer_hold = transfer_configs[0]     # transfer arm at hold pose
+        q_receiver_final = receiver_configs[-1]    # receiver at grasp approach
+        # collision_check_fn expects (q_robot0, q_robot1) ordering
+        if transfer_robot_id == 0:
+            collision_free = collision_check_fn(q_transfer_hold, q_receiver_final)
+        else:
+            collision_free = collision_check_fn(q_receiver_final, q_transfer_hold)
+        if not collision_free:
+            logger.debug(
+                "Handover rejected: inter-arm collision at grasp meeting point "
+                "(transfer=robot%d, receiver=robot%d)",
+                transfer_robot_id, receiver_robot_id,
+            )
+            return np.inf, False
+
+    # Smoothness per arm — use squared diff directly (avoid sqrt)
     smoothness = 0.0
     for cfgs in (transfer_configs, receiver_configs):
         if cfgs and len(cfgs) >= 2:
             arr = np.array(cfgs)
             for i in range(arr.shape[0] - 1):
-                smoothness += float(np.linalg.norm(arr[i + 1] - arr[i]) ** 2)
+                diff = arr[i + 1] - arr[i]
+                smoothness += float(diff @ diff)
 
     # Manipulability — compute per-arm with the correct Jacobian function
     manip_cost = 0.0
-    for robot_id, cfgs in ((0, transfer_configs), (1, receiver_configs)):
+    for robot_id, cfgs in (
+        (transfer_robot_id, transfer_configs),
+        (receiver_robot_id, receiver_configs),
+    ):
         if not cfgs:
             continue
         arr = np.array(cfgs)
@@ -267,11 +300,13 @@ def compute_switching_cost(
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
-    Returns 0 when `prev_robot == curr_robot`, ``inf`` when the transfer is
-    blocked by *transfer_feasibility*, or the handover primitive cost otherwise.
+    Returns 0 when ``prev_robot == curr_robot``, ``inf`` when the transfer is
+    blocked by *transfer_feasibility* or an inter-arm collision is detected,
+    or the handover primitive cost otherwise.
     """
     if prev_robot == curr_robot:
         return 0.0
@@ -331,6 +366,9 @@ def compute_switching_cost(
 
     cost, ok = _compute_handover_primitive_cost(
         h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
+        collision_check_fn=collision_check_fn,
+        transfer_robot_id=prev_robot_id,
+        receiver_robot_id=curr_robot_id,
     )
     return cost if ok else np.inf
 
@@ -349,17 +387,20 @@ def _solve_optimal_assignment(
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
     initial_robot: Optional[int] = None,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
 
     Enforces that within the same arm the trajectory index must stay constant
-    (only arm-switches may change trajectory).
+    (only arm-switches may change trajectory).  Switching costs are cached
+    during the forward pass to avoid recomputation during backtracking.
     """
     n_segments, n_states = cost_matrix.shape
 
     J_star = np.full((n_segments, n_states), np.inf)
     prev_state = np.full((n_segments, n_states), -1, dtype=int)
+    switch_cost_cache = np.zeros((n_segments, n_states))
 
     # Initialise first segment
     for si in range(n_states):
@@ -374,6 +415,7 @@ def _solve_optimal_assignment(
             cr, ct = trajectory_info[cs]
             best_cost = np.inf
             best_prev = -1
+            best_sw = 0.0
 
             for ps in range(n_states):
                 if np.isinf(J_star[i - 1, ps]):
@@ -389,6 +431,7 @@ def _solve_optimal_assignment(
                     transfer_feasibility=transfer_feasibility,
                     alpha=alpha, beta=beta, epsilon=epsilon,
                     ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
+                    collision_check_fn=collision_check_fn,
                 )
                 if np.isinf(sw):
                     continue
@@ -397,10 +440,12 @@ def _solve_optimal_assignment(
                 if total < best_cost:
                     best_cost = total
                     best_prev = ps
+                    best_sw = sw
 
             if best_prev != -1:
                 J_star[i, cs] = best_cost + cost_matrix[i, cs]
                 prev_state[i, cs] = best_prev
+                switch_cost_cache[i, cs] = best_sw
 
     # Find best terminal state
     best_final_cost = np.inf
@@ -413,7 +458,7 @@ def _solve_optimal_assignment(
     if best_final_state == -1:
         raise ValueError("No feasible assignment found — check trajectory feasibility.")
 
-    # Backtrack
+    # Backtrack using cached switching costs (append + reverse for O(n))
     sequence: List[int] = []
     traj_indices: List[int] = []
     task_costs_list: List[float] = []
@@ -422,23 +467,20 @@ def _solve_optimal_assignment(
     cs = best_final_state
     for i in range(n_segments - 1, -1, -1):
         robot_id, traj_idx = trajectory_info[cs]
-        sequence.insert(0, robot_id)
-        traj_indices.insert(0, traj_idx)
-        task_costs_list.insert(0, float(cost_matrix[i, cs]))
+        sequence.append(robot_id)
+        traj_indices.append(traj_idx)
+        task_costs_list.append(float(cost_matrix[i, cs]))
 
         if i > 0:
-            ps = prev_state[i, cs]
-            pr, _ = trajectory_info[ps]
-            sw = compute_switching_cost(
-                pr, robot_id, i, trajectories, ps, cs, trajectory_info,
-                transfer_feasibility=transfer_feasibility,
-                alpha=alpha, beta=beta, epsilon=epsilon,
-                ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
-            )
-            switch_costs_list.insert(0, sw)
-            cs = ps
+            switch_costs_list.append(float(switch_cost_cache[i, cs]))
+            cs = prev_state[i, cs]
         else:
-            switch_costs_list.insert(0, 0.0)
+            switch_costs_list.append(0.0)
+
+    sequence.reverse()
+    traj_indices.reverse()
+    task_costs_list.reverse()
+    switch_costs_list.reverse()
 
     # Handover points
     handover_points = [i for i in range(1, len(sequence)) if sequence[i] != sequence[i - 1]]
@@ -477,6 +519,7 @@ def compute_optimal_robot_assignment(
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
 ) -> AssignmentResult:
     """Compute the globally optimal robot-to-segment assignment.
 
@@ -492,6 +535,8 @@ def compute_optimal_robot_assignment(
         ik_solver_fn: ``(pose, robot_id) -> q`` for handover cost evaluation.
         jacobian_fns: ``{robot_id: (q) -> J}`` per-robot Jacobian functions
             for Yoshikawa manipulability.
+        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
+            for verifying inter-arm clearance at handover meeting points.
 
     Returns:
         :class:`AssignmentResult` with the optimal sequence and cost breakdown.
@@ -521,6 +566,7 @@ def compute_optimal_robot_assignment(
         transfer_feasibility=transfer_feasibility,
         alpha=alpha, beta=beta, epsilon=epsilon,
         ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
+        collision_check_fn=collision_check_fn,
         initial_robot=initial_robot,
     )
 
@@ -597,6 +643,61 @@ def make_jacobian_fns(
     return {0: _make_for_robot(0), 1: _make_for_robot(1)}
 
 
+def make_collision_check_fn(
+    env: DualArmEnvironment,
+    env_lock: Optional[threading.RLock] = None,
+) -> Callable[[np.ndarray, np.ndarray], bool]:
+    """Create an inter-arm collision-check closure for handover evaluation.
+
+    The returned function has signature ``(q_arm0, q_arm1) -> collision_free``.
+    It temporarily sets both arms' joint configurations in MuJoCo, runs a
+    forward pass, checks for inter-arm contacts, and restores the original
+    simulation state.
+
+    Args:
+        env: The dual-arm simulation environment.
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    import mujoco
+    from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+        get_arm_joint_ids,
+        get_joint_qpos_indices,
+        get_native_mj_object,
+    )
+    from robosuite_franka_manipulation.planning.utils.collision_utils import (
+        check_inter_arm_collision,
+    )
+
+    model = env.sim.model
+    data = env.sim.data
+    qpos_idx_0 = get_joint_qpos_indices(model, get_arm_joint_ids(model, 0))
+    qpos_idx_1 = get_joint_qpos_indices(model, get_arm_joint_ids(model, 1))
+
+    def _check(q_arm0: np.ndarray, q_arm1: np.ndarray) -> bool:
+        """Return True if the dual-arm configuration is collision-free."""
+        ctx = env_lock if env_lock is not None else nullcontext()
+        with ctx:
+            qpos_backup = np.array(data.qpos, copy=True)
+            qvel_backup = np.array(data.qvel, copy=True)
+            try:
+                data.qpos[qpos_idx_0] = q_arm0
+                data.qpos[qpos_idx_1] = q_arm1
+                mujoco.mj_forward(
+                    get_native_mj_object(model),
+                    get_native_mj_object(data),
+                )
+                return not check_inter_arm_collision(env)
+            finally:
+                data.qpos[:] = qpos_backup
+                data.qvel[:] = qvel_backup
+                mujoco.mj_forward(
+                    get_native_mj_object(model),
+                    get_native_mj_object(data),
+                )
+
+    return _check
+
+
 # ---------------------------------------------------------------------------
 # I/O helpers
 # ---------------------------------------------------------------------------
@@ -646,9 +747,6 @@ def load_all_trajectories(data_dir: str) -> Dict[str, Any]:
 
     Returns a dict compatible with :func:`compute_optimal_robot_assignment`.
     """
-    import os
-    from pathlib import Path
-
     data_path = Path(data_dir)
 
     # Object trajectory
@@ -713,8 +811,6 @@ def _get_trajectory(
 
 def _eef_matrix(traj: Dict[str, Any], idx: int) -> np.ndarray:
     """Build a 4×4 homogeneous matrix from the EEF pose at *idx*."""
-    from scipy.spatial.transform import Rotation as R
-
     mat = np.eye(4)
     mat[:3, 3] = traj["eef_positions"][idx]
     mat[:3, :3] = R.from_quat(traj["eef_quaternions"][idx]).as_matrix()

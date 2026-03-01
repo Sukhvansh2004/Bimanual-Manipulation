@@ -1,17 +1,19 @@
 """
-RRT-Connect planner in SE(3) for collision-aware object path planning.
+RRT-Connect planner — generic core and SE(3) specialisation.
 
-Plans a collision-free path through the workspace using bi-directional
-RRT-Connect with MuJoCo collision checking.  Robot arm/gripper contacts
-are ignored (the robots carry the object).
+Provides a **domain-agnostic** bi-directional RRT-Connect implementation
+(``rrt_connect_generic``) parameterised by callback functions, plus a
+ready-to-use SE(3) specialisation (``rrt_connect_se3``) for collision-aware
+object path planning in MuJoCo.
 
 This module contains:
 
+* **Generic RRT-Connect** — ``rrt_connect_generic``
 * **Object collision checking** — ``object_in_collision``,
   ``check_object_pose_collision``, ``_collision_free_segment``
 * **SE(3) sampling utilities** — ``se3_pose_distance``,
   ``sample_random_pose``, ``steer``
-* **RRT-Connect core** — ``RRTNode``, ``RRTResult``, ``rrt_connect_se3``
+* **SE(3) RRT-Connect** — ``RRTNode``, ``RRTResult``, ``rrt_connect_se3``
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from __future__ import annotations
 import logging
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import mujoco
 import numpy as np
@@ -285,7 +287,200 @@ def _collision_free_segment(
 
 
 # ============================================================================
-# RRT-Connect Core
+# Generic RRT-Connect Core
+# ============================================================================
+
+@dataclass
+class _TreeNode:
+    """Internal tree node used by :func:`rrt_connect_generic`."""
+
+    state: Any
+    parent: int = -1
+
+
+def _generic_nearest(
+    tree: List[_TreeNode],
+    state: Any,
+    distance_fn: Callable[[Any, Any], float],
+) -> int:
+    """Return index of the nearest node in *tree* to *state*."""
+    best_idx = 0
+    best_dist = float("inf")
+    for i, node in enumerate(tree):
+        d = distance_fn(node.state, state)
+        if d < best_dist:
+            best_dist = d
+            best_idx = i
+    return best_idx
+
+
+def _generic_extract_path(
+    tree_a: List[_TreeNode],
+    idx_a: int,
+    tree_b: List[_TreeNode],
+    idx_b: int,
+    a_is_start: bool,
+    copy_fn: Callable[[Any], Any],
+) -> list:
+    """Extract the path from start to goal through two connected trees."""
+    path_a: list = []
+    idx = idx_a
+    while idx >= 0:
+        path_a.append(copy_fn(tree_a[idx].state))
+        idx = tree_a[idx].parent
+    path_a.reverse()
+
+    path_b: list = []
+    idx = idx_b
+    while idx >= 0:
+        path_b.append(copy_fn(tree_b[idx].state))
+        idx = tree_b[idx].parent
+
+    if a_is_start:
+        return path_a + path_b
+    else:
+        path_b.reverse()
+        return path_b + path_a[::-1]
+
+
+def rrt_connect_generic(
+    start_state: Any,
+    goal_state: Any,
+    *,
+    distance_fn: Callable[[Any, Any], float],
+    steer_fn: Callable[[Any, Any, float], Any],
+    sample_fn: Callable[[], Any],
+    collision_fn: Callable[[Any], bool],
+    segment_free_fn: Callable[[Any, Any], bool],
+    copy_fn: Callable[[Any], Any],
+    step_size: float,
+    goal_bias: float,
+    max_iterations: int,
+    connect_max_steps: int,
+    on_extend: Optional[Callable] = None,
+    on_collision: Optional[Callable] = None,
+    on_iteration: Optional[Callable] = None,
+) -> Tuple[bool, list, int, int, int]:
+    """Domain-agnostic bi-directional RRT-Connect.
+
+    The algorithm is parameterised entirely through callback functions so
+    it can operate on any state representation (SE(3) poses, joint
+    configurations, etc.).
+
+    **The caller is responsible for the fast-path direct-connection check.**
+    Call ``segment_free_fn(start, goal)`` before invoking this function and
+    return early if the segment is clear.
+
+    Args:
+        start_state: Start state.
+        goal_state: Goal state.
+        distance_fn: ``(s1, s2) -> float`` — metric between two states.
+        steer_fn: ``(from_s, to_s, step) -> new_s`` — move from one state
+            toward another by at most *step*.
+        sample_fn: ``() -> state`` — generate a random state.
+        collision_fn: ``(state) -> bool`` — ``True`` if *state* is in
+            collision.
+        segment_free_fn: ``(s1, s2) -> bool`` — ``True`` if the segment
+            between *s1* and *s2* is collision-free.
+        copy_fn: ``(state) -> state`` — return a deep copy of *state*.
+        step_size: Maximum step size for tree extension.
+        goal_bias: Probability of sampling the goal instead of a random
+            state each iteration.
+        max_iterations: Maximum number of RRT iterations.
+        connect_max_steps: Maximum greedy-connect steps per iteration.
+        on_extend: Optional ``(parent_state, new_state, a_is_start)``
+            callback invoked when a new node is added to a tree.
+        on_collision: Optional ``(state,)`` callback invoked when a sample
+            is rejected due to collision.
+        on_iteration: Optional ``(iteration, tree_a_size, tree_b_size)``
+            callback invoked at the start of each iteration.
+
+    Returns:
+        ``(success, path, iterations, tree_a_size, tree_b_size)`` where
+        *path* is a list of states from *start_state* to *goal_state*.
+    """
+    tree_a: List[_TreeNode] = [_TreeNode(state=copy_fn(start_state))]
+    tree_b: List[_TreeNode] = [_TreeNode(state=copy_fn(goal_state))]
+    a_is_start = True
+
+    for iteration in range(max_iterations):
+        if on_iteration is not None:
+            on_iteration(iteration, len(tree_a), len(tree_b))
+
+        # ── Sample ────────────────────────────────────────────────────
+        if np.random.random() < goal_bias:
+            sample = copy_fn(goal_state if a_is_start else start_state)
+        else:
+            sample = sample_fn()
+
+        # ── EXTEND tree_a toward sample ───────────────────────────────
+        nearest_idx = _generic_nearest(tree_a, sample, distance_fn)
+        nearest = tree_a[nearest_idx]
+        new_state = steer_fn(nearest.state, sample, step_size)
+
+        if collision_fn(new_state):
+            if on_collision is not None:
+                on_collision(new_state)
+            tree_a, tree_b = tree_b, tree_a
+            a_is_start = not a_is_start
+            continue
+
+        if not segment_free_fn(nearest.state, new_state):
+            if on_collision is not None:
+                on_collision(new_state)
+            tree_a, tree_b = tree_b, tree_a
+            a_is_start = not a_is_start
+            continue
+
+        new_idx_a = len(tree_a)
+        tree_a.append(_TreeNode(state=new_state, parent=nearest_idx))
+        if on_extend is not None:
+            on_extend(nearest.state, new_state, a_is_start)
+
+        # ── CONNECT tree_b toward new node ────────────────────────────
+        connected = False
+        connect_idx_b = -1
+
+        nearest_b_idx = _generic_nearest(tree_b, new_state, distance_fn)
+        current_state = tree_b[nearest_b_idx].state
+        parent_b_idx = nearest_b_idx
+
+        for _ in range(connect_max_steps):
+            steered = steer_fn(current_state, new_state, step_size)
+
+            if collision_fn(steered):
+                break
+
+            if not segment_free_fn(current_state, steered):
+                break
+
+            connect_idx_b = len(tree_b)
+            tree_b.append(_TreeNode(state=steered, parent=parent_b_idx))
+            if on_extend is not None:
+                on_extend(current_state, steered, not a_is_start)
+            parent_b_idx = connect_idx_b
+
+            if distance_fn(steered, new_state) < step_size * 0.5:
+                connected = True
+                break
+
+            current_state = steered
+
+        if connected:
+            path = _generic_extract_path(
+                tree_a, new_idx_a, tree_b, connect_idx_b,
+                a_is_start, copy_fn,
+            )
+            return (True, path, iteration + 1, len(tree_a), len(tree_b))
+
+        tree_a, tree_b = tree_b, tree_a
+        a_is_start = not a_is_start
+
+    return (False, [], max_iterations, len(tree_a), len(tree_b))
+
+
+# ============================================================================
+# SE(3) RRT-Connect
 # ============================================================================
 
 @dataclass
@@ -306,51 +501,6 @@ class RRTResult:
     iterations: int = 0
     tree_a_size: int = 0
     tree_b_size: int = 0
-
-
-def _nearest_node(
-    tree: List[RRTNode],
-    pos: np.ndarray,
-    quat: np.ndarray,
-    rotation_weight: float,
-) -> int:
-    """Find the index of the nearest node in *tree*."""
-    best_idx = 0
-    best_dist = float("inf")
-    for i, node in enumerate(tree):
-        d = se3_pose_distance(node.pos, node.quat, pos, quat, rotation_weight)
-        if d < best_dist:
-            best_dist = d
-            best_idx = i
-    return best_idx
-
-
-def _extract_path(
-    tree_a: List[RRTNode], idx_a: int,
-    tree_b: List[RRTNode], idx_b: int,
-    a_is_start: bool,
-) -> List[Tuple[np.ndarray, np.ndarray]]:
-    """Extract the path from start to goal through the two trees."""
-    path_a: List[Tuple[np.ndarray, np.ndarray]] = []
-    idx = idx_a
-    while idx >= 0:
-        node = tree_a[idx]
-        path_a.append((node.pos.copy(), node.quat.copy()))
-        idx = node.parent
-    path_a.reverse()
-
-    path_b: List[Tuple[np.ndarray, np.ndarray]] = []
-    idx = idx_b
-    while idx >= 0:
-        node = tree_b[idx]
-        path_b.append((node.pos.copy(), node.quat.copy()))
-        idx = node.parent
-
-    if a_is_start:
-        return path_a + path_b
-    else:
-        path_b.reverse()
-        return path_b + path_a[::-1]
 
 
 def rrt_connect_se3(
@@ -443,143 +593,94 @@ def rrt_connect_se3(
                 "(max_iter=%d)...", max_iterations,
             )
 
+            # ── Build domain callbacks ────────────────────────────────
+            def _distance(s1, s2):
+                return se3_pose_distance(
+                    s1[0], s1[1], s2[0], s2[1], rotation_weight,
+                )
+
+            def _steer_cb(from_s, to_s, step):
+                return steer(from_s[0], from_s[1], to_s[0], to_s[1], step)
+
+            def _sample():
+                return sample_random_pose(
+                    pos_bounds, start_quat, goal_quat,
+                )
+
+            def _collision(s):
+                return check_object_pose_collision(
+                    env, object_name, s[0], s[1],
+                    object_geom_ids, robot_mask, obj_joint_addr,
+                )
+
+            def _seg_free(s1, s2):
+                return _collision_free_segment(
+                    env, object_name,
+                    s1[0], s1[1], s2[0], s2[1],
+                    object_geom_ids, robot_mask, obj_joint_addr,
+                    skip_endpoints=True,
+                )
+
+            def _copy(s):
+                return (s[0].copy(), s[1].copy())
+
+            # ── Visualisation hooks ───────────────────────────────────
+            _on_extend = None
+            _on_collision = None
+            _on_iteration = None
+
             if rrt_vis is not None:
                 rrt_vis.draw_start_goal(start_pos, goal_pos)
                 rrt_vis.draw_bounds(pos_bounds)
 
-            tree_a = [RRTNode(pos=start_pos.copy(), quat=start_quat.copy())]
-            tree_b = [RRTNode(pos=goal_pos.copy(), quat=goal_quat.copy())]
-            a_is_start = True
-
-            for iteration in range(max_iterations):
-                if rrt_vis is not None:
-                    rrt_vis.log_iteration(iteration, len(tree_a), len(tree_b))
-
-                # Sample
-                if np.random.random() < goal_bias:
-                    if a_is_start:
-                        sample_pos, sample_quat = goal_pos.copy(), goal_quat.copy()
-                    else:
-                        sample_pos, sample_quat = start_pos.copy(), start_quat.copy()
-                else:
-                    sample_pos, sample_quat = sample_random_pose(
-                        pos_bounds, start_quat, goal_quat,
+                def _on_extend(parent_s, new_s, is_start):
+                    rrt_vis.draw_tree_edge(
+                        parent_s[0], new_s[0], is_tree_a=is_start,
                     )
 
-                # EXTEND tree_a toward sample
-                nearest_idx = _nearest_node(tree_a, sample_pos, sample_quat, rotation_weight)
-                nearest = tree_a[nearest_idx]
-                new_pos, new_quat = steer(
-                    nearest.pos, nearest.quat,
-                    sample_pos, sample_quat,
-                    step_size,
+                def _on_collision(s):
+                    rrt_vis.draw_collision_sample(s[0])
+
+                def _on_iteration(it, ta_size, tb_size):
+                    rrt_vis.log_iteration(it, ta_size, tb_size)
+
+            # ── Run generic RRT-Connect ───────────────────────────────
+            success, path, iters, ta, tb = rrt_connect_generic(
+                start_state=(start_pos.copy(), start_quat.copy()),
+                goal_state=(goal_pos.copy(), goal_quat.copy()),
+                distance_fn=_distance,
+                steer_fn=_steer_cb,
+                sample_fn=_sample,
+                collision_fn=_collision,
+                segment_free_fn=_seg_free,
+                copy_fn=_copy,
+                step_size=step_size,
+                goal_bias=goal_bias,
+                max_iterations=max_iterations,
+                connect_max_steps=constants.RRT_CONNECT_MAX_STEPS,
+                on_extend=_on_extend,
+                on_collision=_on_collision,
+                on_iteration=_on_iteration,
+            )
+
+            if success:
+                logger.info(
+                    "RRT-Connect found path in %d iterations "
+                    "(tree sizes: %d, %d)", iters, ta, tb,
+                )
+                if rrt_vis is not None:
+                    rrt_vis.draw_path(path)
+            else:
+                logger.warning(
+                    "RRT-Connect failed after %d iterations.", max_iterations,
                 )
 
-                if check_object_pose_collision(
-                    env, object_name, new_pos, new_quat,
-                    object_geom_ids, robot_mask, obj_joint_addr,
-                ):
-                    if rrt_vis is not None:
-                        rrt_vis.draw_collision_sample(new_pos)
-                    tree_a, tree_b = tree_b, tree_a
-                    a_is_start = not a_is_start
-                    continue
-
-                if not _collision_free_segment(
-                    env, object_name,
-                    nearest.pos, nearest.quat, new_pos, new_quat,
-                    object_geom_ids, robot_mask, obj_joint_addr,
-                    skip_endpoints=True,
-                ):
-                    if rrt_vis is not None:
-                        rrt_vis.draw_collision_sample(new_pos)
-                    tree_a, tree_b = tree_b, tree_a
-                    a_is_start = not a_is_start
-                    continue
-
-                new_idx_a = len(tree_a)
-                tree_a.append(RRTNode(pos=new_pos, quat=new_quat, parent=nearest_idx))
-                if rrt_vis is not None:
-                    rrt_vis.draw_tree_edge(nearest.pos, new_pos, is_tree_a=a_is_start)
-
-                # CONNECT tree_b toward the new node
-                connected = False
-                connect_idx_b = -1
-
-                nearest_b_idx = _nearest_node(tree_b, new_pos, new_quat, rotation_weight)
-                current_pos = tree_b[nearest_b_idx].pos
-                current_quat = tree_b[nearest_b_idx].quat
-                parent_b_idx = nearest_b_idx
-
-                for _ in range(constants.RRT_CONNECT_MAX_STEPS):
-                    steered_pos, steered_quat = steer(
-                        current_pos, current_quat,
-                        new_pos, new_quat,
-                        step_size,
-                    )
-
-                    if check_object_pose_collision(
-                        env, object_name, steered_pos, steered_quat,
-                        object_geom_ids, robot_mask, obj_joint_addr,
-                    ):
-                        break
-
-                    if not _collision_free_segment(
-                        env, object_name,
-                        current_pos, current_quat, steered_pos, steered_quat,
-                        object_geom_ids, robot_mask, obj_joint_addr,
-                        skip_endpoints=True,
-                    ):
-                        break
-
-                    connect_idx_b = len(tree_b)
-                    tree_b.append(RRTNode(
-                        pos=steered_pos, quat=steered_quat, parent=parent_b_idx,
-                    ))
-                    if rrt_vis is not None:
-                        rrt_vis.draw_tree_edge(
-                            current_pos, steered_pos, is_tree_a=(not a_is_start),
-                        )
-                    parent_b_idx = connect_idx_b
-
-                    if se3_pose_distance(
-                        steered_pos, steered_quat,
-                        new_pos, new_quat, rotation_weight,
-                    ) < step_size * 0.5:
-                        connected = True
-                        break
-
-                    current_pos = steered_pos
-                    current_quat = steered_quat
-
-                if connected:
-                    logger.info(
-                        "RRT-Connect found path in %d iterations "
-                        "(tree sizes: %d, %d)",
-                        iteration + 1, len(tree_a), len(tree_b),
-                    )
-
-                    path = _extract_path(tree_a, new_idx_a, tree_b, connect_idx_b, a_is_start)
-                    if rrt_vis is not None:
-                        rrt_vis.draw_path(path)
-
-                    return RRTResult(
-                        success=True,
-                        path=path,
-                        iterations=iteration + 1,
-                        tree_a_size=len(tree_a),
-                        tree_b_size=len(tree_b),
-                    )
-
-                tree_a, tree_b = tree_b, tree_a
-                a_is_start = not a_is_start
-
-            logger.warning("RRT-Connect failed after %d iterations.", max_iterations)
             return RRTResult(
-                success=False,
-                iterations=max_iterations,
-                tree_a_size=len(tree_a),
-                tree_b_size=len(tree_b),
+                success=success,
+                path=path,
+                iterations=iters,
+                tree_a_size=ta,
+                tree_b_size=tb,
             )
 
         finally:

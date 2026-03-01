@@ -18,12 +18,22 @@ from robosuite_franka_manipulation.planning.utils.rrt_visualizer import (
 )
 from robosuite_franka_manipulation.planning.rrt_planner import (
     rrt_connect_se3,
+    rrt_connect_generic,
     RRTNode,
     RRTResult,
+)
+from robosuite_franka_manipulation.planning.rrt_joint_planner import (
+    rrt_connect_joint_space,
+    JointRRTResult,
+    plan_arm_trajectory,
+    shortcut_joint_path,
+    densify_joint_path,
 )
 from robosuite_franka_manipulation.planning.utils.path_smoothing import (
     smooth_path,
     densify_path,
+    shortcut_generic,
+    densify_generic,
 )
 from robosuite_franka_manipulation.planning.dual_arm_planner import (
     DualArmParallelPlanner,
@@ -35,6 +45,7 @@ from robosuite_franka_manipulation.planning.assignment_planner import (
     save_assignment_result,
     load_assignment_result,
     load_all_trajectories,
+    make_collision_check_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
 )
@@ -63,11 +74,20 @@ __all__ = [
     'generate_end_effector_trajectory',
     'plan_object_trajectory',
     # RRT planner
+    'rrt_connect_generic',
     'rrt_connect_se3',
     'RRTNode',
     'RRTResult',
     'RRTVisualizer',
+    # Joint-space RRT planner
+    'rrt_connect_joint_space',
+    'JointRRTResult',
+    'plan_arm_trajectory',
+    'shortcut_joint_path',
+    'densify_joint_path',
     # Path smoothing
+    'shortcut_generic',
+    'densify_generic',
     'smooth_path',
     'densify_path',
     # Dual-arm parallel planner
@@ -79,6 +99,7 @@ __all__ = [
     'save_assignment_result',
     'load_assignment_result',
     'load_all_trajectories',
+    'make_collision_check_fn',
     'make_ik_solver_fn',
     'make_jacobian_fns',
     # Trajectory utilities
