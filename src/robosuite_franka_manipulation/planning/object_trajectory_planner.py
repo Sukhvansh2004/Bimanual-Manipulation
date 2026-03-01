@@ -1440,7 +1440,7 @@ def plan_object_trajectory(
     start_pose: StampedPose,
     target_pose: StampedPose,
     tf_manager=None,
-    num_steps: int = None,
+    num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS,
     env_lock=None,
     max_iterations: int = None,
     step_size: float = None,
@@ -1478,9 +1478,7 @@ def plan_object_trajectory(
         If planning fails, returns the simple interpolated trajectory as fallback
         with success=False.
     """
-    if num_steps is None:
-        num_steps = constants.OBJECT_TRAJ_NUM_STEPS
-    
+    logger.debug(f"Planning trajectory for object '{object_name}' from {start_pose} to {target_pose} in {num_steps} steps.")
     # Normalize to world frame
     if tf_manager is not None:
         if start_pose.frame_id != constants.WORLD_FRAME:
@@ -1544,7 +1542,8 @@ def plan_object_trajectory(
             StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
             for pos, quat in dense
         ]
-        
+        logger.debug(f"Final trajectory has {len(trajectory)} waypoints after smoothing/densification.")
+
         return trajectory, True
     else:
         logger.warning("RRT planning failed — falling back to direct interpolation.")
@@ -1554,5 +1553,5 @@ def plan_object_trajectory(
             t = i / float(num_steps)
             pos, quat = interpolate_pose(start_pos, start_quat, goal_pos, goal_quat, t)
             trajectory.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
-        
+        logger.debug(f"Final trajectory has {len(trajectory)} waypoints after fallback interpolation.")
         return trajectory, False

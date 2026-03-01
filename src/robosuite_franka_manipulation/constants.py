@@ -122,18 +122,18 @@ DEFAULT_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility
 DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
 DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
 
-# IK Solver Parameters
-IK_NUM_SEED_CONFIGS = 48  # Number of random seed configurations for IK
-IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
-IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
+# IK Solver Parameters (grasp feasibility — needs diversity)
+IK_NUM_SEED_CONFIGS = 16  # Number of random seed configurations for IK
+IK_ELBOW_DISCRETIZATION = 4  # Number of elbow angle discretization steps
+IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
 IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
 IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
-# Trajectory Feasibility Check Parameters
-TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
-TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
+# Trajectory Feasibility Check Parameters (warm-start driven — needs speed)
+TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
+TRAJ_IK_MAX_SOLUTIONS = 2  # Just need 1 collision-free + 1 backup
 
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
@@ -165,8 +165,8 @@ MINK_DT = 0.01                 # seconds per QP solve (reactive tracking)
 MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
 
 # ── Iterative IK convergence ──
-MINK_IK_MAX_ITERS = 300        # maximum QP iterations per IK seed
-MINK_IK_STALL_WINDOW = 20      # iterations to detect stalling
+MINK_IK_MAX_ITERS = 150        # maximum QP iterations per IK seed (converges within ~100 typically)
+MINK_IK_STALL_WINDOW = 10      # iterations to detect stalling (faster bail-out on bad seeds)
 MINK_IK_STALL_TOL = 1e-7       # minimum error improvement to avoid stall
 
 # ── CollisionAvoidanceLimit ──

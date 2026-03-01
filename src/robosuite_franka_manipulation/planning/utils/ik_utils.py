@@ -440,12 +440,12 @@ def enumerate_ik_solutions_for_arm(
             # Try priority seeds first (warm-start + perturbations)
             run_ik_on_seeds(priority_seeds)
 
+            logger.debug(f"Found {len(scored)} solutions on priority seeds")
             # Try fallback seeds if we haven't filled max_solutions yet
             if len(scored) < max_solutions:
                 run_ik_on_seeds(fallback_seeds)
 
-            if not scored:
-                logger.debug(f"No IK solutions found for robot {robot_id} at {target_pos}")
+            logger.debug(f"Found {len(scored)} IK solutions found for robot {robot_id} at {target_pos} (priority + fallback seeds)")
 
         finally:
             data.qpos[:] = qpos_backup
