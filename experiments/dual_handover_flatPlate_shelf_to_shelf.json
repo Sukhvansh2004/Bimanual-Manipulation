@@ -1,6 +1,6 @@
 {
     "name": "dual_handover_flatPlate_shelf_to_shelf",
-    "description": "Dual-handover shelf-to-shelf: Robot-0 (finger gripper) extracts a flat plate from Shelf-A, hands it to Robot-1 (suction gripper) to traverse past a central wall obstacle, Robot-1 hands it back to Robot-0, and Robot-0 inserts the plate into Shelf-B. Two handovers are needed because the finger gripper's workspace cannot reach across the wall.",
+    "description": "Dual-handover shelf-to-shelf: Robot-0 (finger gripper) extracts a flat plate from Shelf-A, hands it to Robot-1 (suction gripper) which carries it around the central wall via the +y side, then Robot-1 hands the plate back to Robot-0 (finger gripper) who inserts it into Shelf-B. The wall is tall enough and the RRT z-bound is low enough that the trajectory CANNOT go over the wall — it must route around through the suction gripper's workspace.",
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
@@ -34,13 +34,13 @@
             {
                 "type": "box",
                 "name": "wallObstacle",
-                "size": [0.07, 0.15, 0.35],
-                "position": [0.0, 0.0, 1.075],
+                "size": [0.10, 0.45, 0.50],
+                "position": [0.0, -0.10, 1.10],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall forcing detour through Robot-1 workspace (y > 0)"
+                "_comment": "Central wall: x=±0.10, y=−0.55 to +0.35, z=0.60–1.60. Shifted toward −y and extended to completely block the front passage. Only the back corridor (y>+0.35) remains open, forcing the plate to detour through the suction gripper's workspace."
             }
         ]
     },
@@ -62,9 +62,10 @@
         ],
         "collision_check": null,
         "num_steps": 80,
-        "lift_height": 0.2,
-        "approach_offset": 0.3,
-        "rrt_bounds": [[-0.5, -0.4, 0.90], [0.5, 0.4, 1.5]]
+        "lift_height": 0.15,
+        "approach_offset": 0.25,
+        "rrt_bounds": [[-0.50, -0.50, 0.90], [0.50, 0.50, 1.45]],
+        "_rrt_bounds_comment": "z-max=1.45 gives enough lift space above the shelves (~1.15) for handover positions, while still 0.15m below wall top (1.60). y=±0.50 allows detour around wall (y=+0.35)."
     },
     "collision_filter": {
         "exclude_patterns": [
