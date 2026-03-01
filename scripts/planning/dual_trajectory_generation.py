@@ -52,7 +52,9 @@ from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerato
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory, 
     generate_object_trajectory,
-    check_dual_trajectory_feasibility
+)
+from robosuite_franka_manipulation.planning.collision_checker import (
+    check_dual_trajectory_feasibility,
 )
 from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory

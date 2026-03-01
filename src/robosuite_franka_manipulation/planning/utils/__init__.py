@@ -19,12 +19,19 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_qpos,
     set_qpos,
     get_native_mj_object,
-    compute_site_error
+    compute_site_error,
+    get_robot_collision_geoms,
+    get_all_dof_indices_except,
+    get_object_collision_geoms,
+    get_environment_collision_geoms,
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     save_trajectory,
     load_trajectory,
-    WaypointFeasibilityResult
+    WaypointFeasibilityResult,
+    resample_joint_trajectory,
+    quintic_scalar,
+    plan_quintic_joint_trajectory,
 )
 from robosuite_franka_manipulation.planning.utils.manipulability import (
     compute_manipulability_simple,
@@ -40,6 +47,9 @@ from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
 )
 from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import (
     ObjectMeshVisualizer
+)
+from robosuite_franka_manipulation.planning.utils.rrt_visualizer import (
+    RRTVisualizer
 )
 
 __all__ = [
@@ -61,14 +71,22 @@ __all__ = [
     'set_qpos',
     'get_native_mj_object',
     'compute_site_error',
+    'get_robot_collision_geoms',
+    'get_all_dof_indices_except',
+    'get_object_collision_geoms',
+    'get_environment_collision_geoms',
     # Trajectory utilities
     'save_trajectory',
     'load_trajectory',
     'WaypointFeasibilityResult',
+    'resample_joint_trajectory',
+    'quintic_scalar',
+    'plan_quintic_joint_trajectory',
     # Visualization utilities
     'visualize_trajectory',
     'RobotMeshVisualizer',
     'ObjectMeshVisualizer',
+    'RRTVisualizer',
     # Manipulability utilities
     'compute_manipulability_simple',
     'compute_manipulability_from_jacobian',

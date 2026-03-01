@@ -1,5 +1,5 @@
 """
-Trajectory verification utilities.
+Trajectory verification and manipulation utilities.
 """
 
 import numpy as np
@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple
 from dataclasses import dataclass
 import mujoco
 from scipy.spatial.transform import Rotation as R
+from scipy.interpolate import interp1d
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
@@ -420,3 +421,70 @@ def load_trajectory(
             waypoint_results.append(res)
     
     return eef_trajectory, object_trajectory, joint_configs, waypoint_results
+
+
+# ---------------------------------------------------------------------------
+# Joint trajectory manipulation helpers
+# ---------------------------------------------------------------------------
+
+def resample_joint_trajectory(
+    waypoints: np.ndarray,
+    target_length: int,
+) -> np.ndarray:
+    """Resample a ``(N, D)`` joint trajectory to *target_length* waypoints.
+
+    Uses cubic interpolation via :func:`scipy.interpolate.interp1d`.
+
+    Args:
+        waypoints: Joint trajectory array of shape ``(N, D)``.
+        target_length: Desired number of output waypoints.
+
+    Returns:
+        Resampled array of shape ``(target_length, D)``.
+    """
+    n, d = waypoints.shape
+    if n == target_length:
+        return waypoints
+    if n < 2:
+        return np.tile(waypoints[0], (target_length, 1))
+
+    old_t = np.linspace(0.0, 1.0, n)
+    new_t = np.linspace(0.0, 1.0, target_length)
+    return interp1d(old_t, waypoints, axis=0, kind="cubic")(new_t)
+
+
+def quintic_scalar(n: int) -> np.ndarray:
+    """Quintic (jerk-limited) profile from 0 → 1 over *n* steps.
+
+    .. math::
+        s(t) = 6t^5 - 15t^4 + 10t^3
+
+    Args:
+        n: Number of steps.
+
+    Returns:
+        1-D array of shape ``(n,)`` with values in ``[0, 1]``.
+    """
+    if n <= 1:
+        return np.array([1.0])
+    t = np.linspace(0.0, 1.0, n)
+    return 6 * t**5 - 15 * t**4 + 10 * t**3
+
+
+def plan_quintic_joint_trajectory(
+    start: np.ndarray,
+    target: np.ndarray,
+    num_steps: int,
+) -> np.ndarray:
+    """Plan a quintic joint-space trajectory from *start* to *target*.
+
+    Args:
+        start: Start joint configuration ``(D,)``.
+        target: Target joint configuration ``(D,)``.
+        num_steps: Number of trajectory waypoints.
+
+    Returns:
+        Array of shape ``(num_steps, D)``.
+    """
+    s = quintic_scalar(num_steps)
+    return start[np.newaxis, :] + np.outer(s, target - start)

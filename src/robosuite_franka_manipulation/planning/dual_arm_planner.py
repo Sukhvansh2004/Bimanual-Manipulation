@@ -63,7 +63,6 @@ from typing import List, Optional, Sequence, Tuple, Union
 import mink
 import mujoco
 import numpy as np
-from scipy.interpolate import interp1d
 
 from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation import constants
@@ -74,6 +73,15 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
     get_native_mj_object,
+    get_robot_collision_geoms,
+    get_all_dof_indices_except,
+    get_object_collision_geoms,
+    get_environment_collision_geoms,
+)
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+    resample_joint_trajectory,
+    quintic_scalar,
+    plan_quintic_joint_trajectory,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,42 +112,6 @@ class ParallelExecutionResult:
 # Trajectory helpers
 # ---------------------------------------------------------------------------
 
-def _resample_joint_trajectory(
-    waypoints: np.ndarray,
-    target_length: int,
-) -> np.ndarray:
-    """Resample a (N, D) joint trajectory to *target_length* waypoints.
-
-    Uses cubic interpolation via ``scipy.interpolate.interp1d``.
-    """
-    n, d = waypoints.shape
-    if n == target_length:
-        return waypoints
-    if n < 2:
-        return np.tile(waypoints[0], (target_length, 1))
-
-    old_t = np.linspace(0.0, 1.0, n)
-    new_t = np.linspace(0.0, 1.0, target_length)
-    return interp1d(old_t, waypoints, axis=0, kind="cubic")(new_t)
-
-
-def _quintic_scalar(n: int) -> np.ndarray:
-    """Quintic (jerk-limited) profile from 0 -> 1 over *n* steps."""
-    if n <= 1:
-        return np.array([1.0])
-    t = np.linspace(0.0, 1.0, n)
-    return 6 * t**5 - 15 * t**4 + 10 * t**3
-
-
-def _plan_quintic_joint_trajectory(
-    start: np.ndarray,
-    target: np.ndarray,
-    num_steps: int,
-) -> np.ndarray:
-    """Plan a quintic joint-space trajectory from *start* to *target*."""
-    s = _quintic_scalar(num_steps)
-    return start[np.newaxis, :] + np.outer(s, target - start)
-
 
 def _plan_pose_to_joint_trajectory(
     arm: RobosuiteArmController,
@@ -166,112 +138,9 @@ def _plan_pose_to_joint_trajectory(
         )
         return None
 
-    return _plan_quintic_joint_trajectory(
+    return plan_quintic_joint_trajectory(
         arm.get_joint_positions(), target_joints, num_steps,
     )
-
-
-# ---------------------------------------------------------------------------
-# Model-introspection helpers (thin wrappers around mujoco_utils)
-# ---------------------------------------------------------------------------
-
-def _get_robot_collision_geoms(
-    model: mujoco.MjModel,
-    robot_id: int,
-) -> List[str]:
-    """Return collision geom names for a robot (arm + gripper)."""
-    prefixes = (f"robot{robot_id}_", f"gripper{robot_id}_")
-    return [
-        model.geom(i).name
-        for i in range(model.ngeom)
-        if model.geom(i).name.startswith(prefixes)
-        and "vis" not in model.geom(i).name
-    ]
-
-
-def _get_all_dof_indices_except(
-    model: mujoco.MjModel,
-    active_robot_id: int,
-) -> List[int]:
-    """Return DOF indices of everything *except* the given robot's arm joints.
-
-    These DOFs will be frozen in the mink QP so that only the active
-    robot's arm moves.
-    """
-    active_jids = set(get_arm_joint_ids(model, active_robot_id))
-    frozen: List[int] = []
-    for jid in range(model.njnt):
-        if jid not in active_jids:
-            dof_adr = model.jnt_dofadr[jid]
-            n_dof = {
-                mujoco.mjtJoint.mjJNT_FREE: 6,
-                mujoco.mjtJoint.mjJNT_BALL: 3,
-                mujoco.mjtJoint.mjJNT_SLIDE: 1,
-                mujoco.mjtJoint.mjJNT_HINGE: 1,
-            }.get(model.jnt_type[jid], 1)
-            frozen.extend(range(dof_adr, dof_adr + n_dof))
-    return frozen
-
-
-def _get_object_collision_geoms(
-    model: mujoco.MjModel,
-    object_name: Optional[str],
-) -> List[str]:
-    """Return collision geom names whose name contains *object_name*.
-
-    Handles the robosuite naming convention where object geoms are
-    prefixed with the object's instance name (e.g. ``mug_0_g0``).
-    """
-    if not object_name:
-        return []
-    return [
-        model.geom(i).name
-        for i in range(model.ngeom)
-        if object_name in model.geom(i).name
-        and "vis" not in model.geom(i).name
-    ]
-
-
-def _get_environment_collision_geoms(
-    model: mujoco.MjModel,
-    robot_ids: Sequence[int],
-    object_name: Optional[str] = None,
-) -> List[str]:
-    """Return collision geom names for static environment obstacles.
-
-    These are geoms that belong to neither robot nor the manipulated
-    object — typically tables, shelves, walls, etc.  Visual-only geoms
-    (containing ``"vis"``) and the floor plane are excluded.
-
-    Parameters
-    ----------
-    model : mujoco.MjModel
-        Native MuJoCo model.
-    robot_ids : Sequence[int]
-        Robot indices whose geoms should be excluded (e.g. ``[0, 1]``).
-    object_name : str, optional
-        Name of the manipulated object whose geoms should be excluded.
-    """
-    robot_prefixes = tuple(
-        p
-        for rid in robot_ids
-        for p in (f"robot{rid}_", f"gripper{rid}_")
-    )
-    env_geoms: List[str] = []
-    for i in range(model.ngeom):
-        name = model.geom(i).name
-        if not name:  # unnamed geom — skip
-            continue
-        if "vis" in name:  # visual-only
-            continue
-        if name == "floor":  # floor plane — not useful for arm avoidance
-            continue
-        if name.startswith(robot_prefixes):
-            continue
-        if object_name and object_name in name:
-            continue
-        env_geoms.append(name)
-    return env_geoms
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +270,7 @@ class DualArmParallelPlanner:
         self._damping_task = mink.DampingTask(model=nm, cost=constants.MINK_DAMPING_COST)
 
         # ── DofFreezingTask — freeze everything except arm B ──────────
-        frozen_dofs = _get_all_dof_indices_except(nm, self.arm_b.robot_id)
+        frozen_dofs = get_all_dof_indices_except(nm, self.arm_b.robot_id)
         if frozen_dofs:
             self._freeze_task = mink.DofFreezingTask(
                 model=nm, dof_indices=frozen_dofs,
@@ -413,10 +282,10 @@ class DualArmParallelPlanner:
 
         # ── Collision avoidance limit ─────────────────────────────────
         if self.collision_check:
-            geoms_a = _get_robot_collision_geoms(nm, self.arm_a.robot_id)
-            geoms_b = _get_robot_collision_geoms(nm, self.arm_b.robot_id)
-            obj_geoms = _get_object_collision_geoms(nm, self.manipulated_object)
-            env_geoms = _get_environment_collision_geoms(
+            geoms_a = get_robot_collision_geoms(nm, self.arm_a.robot_id)
+            geoms_b = get_robot_collision_geoms(nm, self.arm_b.robot_id)
+            obj_geoms = get_object_collision_geoms(nm, self.manipulated_object)
+            env_geoms = get_environment_collision_geoms(
                 nm,
                 robot_ids=[self.arm_a.robot_id, self.arm_b.robot_id],
                 object_name=self.manipulated_object,
@@ -530,9 +399,9 @@ class DualArmParallelPlanner:
         target_len = max(target_len, 2)
 
         if len(traj_a) != target_len:
-            traj_a = _resample_joint_trajectory(traj_a, target_len)
+            traj_a = resample_joint_trajectory(traj_a, target_len)
         if len(ref_traj_b) != target_len:
-            ref_traj_b = _resample_joint_trajectory(ref_traj_b, target_len)
+            ref_traj_b = resample_joint_trajectory(ref_traj_b, target_len)
 
         logger.info(
             "DualArmParallelPlanner: executing %d steps "

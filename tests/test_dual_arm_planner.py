@@ -10,11 +10,11 @@ import numpy as np
 import mujoco
 
 from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.planning.utils.mujoco_utils import get_native_mj_object
-from robosuite_franka_manipulation.planning.dual_arm_planner import (
-    _get_robot_collision_geoms,
-    _get_object_collision_geoms,
-    _get_environment_collision_geoms,
+from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+    get_native_mj_object,
+    get_robot_collision_geoms,
+    get_object_collision_geoms,
+    get_environment_collision_geoms,
 )
 
 
@@ -39,41 +39,41 @@ class TestCollisionGeomHelpers:
         """Each robot must expose at least one non-visual collision geom."""
         _, nm = env_and_model
         for rid in [0, 1]:
-            geoms = _get_robot_collision_geoms(nm, rid)
+            geoms = get_robot_collision_geoms(nm, rid)
             assert len(geoms) > 0, f"robot{rid} should have collision geoms"
 
     def test_robot_geoms_no_visual(self, env_and_model):
         """Robot geoms must not include visual-only geoms."""
         _, nm = env_and_model
         for rid in [0, 1]:
-            for name in _get_robot_collision_geoms(nm, rid):
+            for name in get_robot_collision_geoms(nm, rid):
                 assert "vis" not in name, f"Visual geom leaked: {name}"
 
     def test_robot_geoms_disjoint(self, env_and_model):
         """Geom sets for the two robots must not overlap."""
         _, nm = env_and_model
-        g0 = set(_get_robot_collision_geoms(nm, 0))
-        g1 = set(_get_robot_collision_geoms(nm, 1))
+        g0 = set(get_robot_collision_geoms(nm, 0))
+        g1 = set(get_robot_collision_geoms(nm, 1))
         assert g0.isdisjoint(g1), f"Overlap: {g0 & g1}"
 
     def test_env_geoms_nonempty(self, env_and_model):
         """The environment (tables at minimum) must expose collision geoms."""
         _, nm = env_and_model
-        env_geoms = _get_environment_collision_geoms(nm, robot_ids=[0, 1])
+        env_geoms = get_environment_collision_geoms(nm, robot_ids=[0, 1])
         assert len(env_geoms) > 0, "Environment should have collision geoms (tables, etc.)"
 
     def test_env_geoms_exclude_visual(self, env_and_model):
         """Environment geoms must not include visual-only geoms."""
         _, nm = env_and_model
-        for name in _get_environment_collision_geoms(nm, robot_ids=[0, 1]):
+        for name in get_environment_collision_geoms(nm, robot_ids=[0, 1]):
             assert "vis" not in name, f"Visual geom leaked in env: {name}"
 
     def test_env_geoms_exclude_robots(self, env_and_model):
         """Environment geoms must not overlap with any robot's geoms."""
         _, nm = env_and_model
-        g0 = set(_get_robot_collision_geoms(nm, 0))
-        g1 = set(_get_robot_collision_geoms(nm, 1))
-        env_geoms = set(_get_environment_collision_geoms(nm, robot_ids=[0, 1]))
+        g0 = set(get_robot_collision_geoms(nm, 0))
+        g1 = set(get_robot_collision_geoms(nm, 1))
+        env_geoms = set(get_environment_collision_geoms(nm, robot_ids=[0, 1]))
         assert env_geoms.isdisjoint(g0), f"Env geoms overlap robot0: {env_geoms & g0}"
         assert env_geoms.isdisjoint(g1), f"Env geoms overlap robot1: {env_geoms & g1}"
 
@@ -87,7 +87,7 @@ class TestCollisionGeomHelpers:
             matching = [n for n in all_names if candidate in n and "vis" not in n]
             if matching:
                 env_geoms = set(
-                    _get_environment_collision_geoms(nm, robot_ids=[0, 1], object_name=candidate)
+                    get_environment_collision_geoms(nm, robot_ids=[0, 1], object_name=candidate)
                 )
                 for m in matching:
                     assert m not in env_geoms, (
@@ -99,16 +99,16 @@ class TestCollisionGeomHelpers:
     def test_env_geoms_exclude_floor(self, env_and_model):
         """Floor geom should be excluded from environment collision set."""
         _, nm = env_and_model
-        env_geoms = _get_environment_collision_geoms(nm, robot_ids=[0, 1])
+        env_geoms = get_environment_collision_geoms(nm, robot_ids=[0, 1])
         assert "floor" not in env_geoms, "Floor should be excluded"
 
     def test_all_geom_categories_cover_model(self, env_and_model):
         """Robot + object + env + excluded (vis/floor/unnamed) should cover all geoms."""
         _, nm = env_and_model
-        robot_geoms = set(_get_robot_collision_geoms(nm, 0)) | set(
-            _get_robot_collision_geoms(nm, 1)
+        robot_geoms = set(get_robot_collision_geoms(nm, 0)) | set(
+            get_robot_collision_geoms(nm, 1)
         )
-        env_geoms = set(_get_environment_collision_geoms(nm, robot_ids=[0, 1]))
+        env_geoms = set(get_environment_collision_geoms(nm, robot_ids=[0, 1]))
         categorised = robot_geoms | env_geoms
 
         all_names = set()
@@ -171,8 +171,8 @@ class TestCollisionAvoidanceLimitIntegration:
         )
 
         # Verify that env geoms were found and included
-        env_geoms = _get_environment_collision_geoms(nm, robot_ids=[0, 1])
-        geoms_b = _get_robot_collision_geoms(nm, 1)
+        env_geoms = get_environment_collision_geoms(nm, robot_ids=[0, 1])
+        geoms_b = get_robot_collision_geoms(nm, 1)
         assert len(env_geoms) > 0, "No env geoms found — test setup issue"
 
         # geom_id_pairs is the expanded set of individual geom-to-geom pairs.

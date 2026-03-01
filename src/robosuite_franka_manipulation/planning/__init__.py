@@ -3,15 +3,27 @@
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 from robosuite_franka_manipulation.planning.collision_checker import (
     find_feasible_grasp_pairs,
-    check_single_grasp_feasibility
+    check_single_grasp_feasibility,
+    check_trajectory_feasibility,
+    check_dual_trajectory_feasibility,
 )
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory,
-    check_trajectory_feasibility,
-    check_dual_trajectory_feasibility
 )
 from robosuite_franka_manipulation.planning.object_trajectory_planner import (
     plan_object_trajectory,
+)
+from robosuite_franka_manipulation.planning.utils.rrt_visualizer import (
+    RRTVisualizer,
+)
+from robosuite_franka_manipulation.planning.rrt_planner import (
+    rrt_connect_se3,
+    RRTNode,
+    RRTResult,
+)
+from robosuite_franka_manipulation.planning.path_smoothing import (
+    smooth_path,
+    densify_path,
 )
 from robosuite_franka_manipulation.planning.dual_arm_planner import (
     DualArmParallelPlanner,
@@ -48,6 +60,14 @@ __all__ = [
     'check_single_grasp_feasibility',
     'generate_end_effector_trajectory',
     'plan_object_trajectory',
+    # RRT planner
+    'rrt_connect_se3',
+    'RRTNode',
+    'RRTResult',
+    'RRTVisualizer',
+    # Path smoothing
+    'smooth_path',
+    'densify_path',
     # Dual-arm parallel planner
     'DualArmParallelPlanner',
     'ParallelExecutionResult',

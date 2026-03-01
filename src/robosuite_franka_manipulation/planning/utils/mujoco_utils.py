@@ -107,3 +107,122 @@ def geom_belongs_to_robot(geom_name: str) -> Optional[int]:
     if geom_name.startswith("robot1_") or geom_name.startswith("gripper1_"):
         return 1
     return None
+
+
+# ---------------------------------------------------------------------------
+# Collision-geom introspection helpers
+# ---------------------------------------------------------------------------
+
+def get_robot_collision_geoms(model, robot_id: int) -> List[str]:
+    """Return collision geom names for a robot (arm + gripper).
+
+    Excludes visual-only geoms (names containing ``"vis"``).
+
+    Args:
+        model: Native MuJoCo model.
+        robot_id: Robot index (0 or 1).
+
+    Returns:
+        List of geom name strings.
+    """
+    prefixes = (f"robot{robot_id}_", f"gripper{robot_id}_")
+    return [
+        model.geom(i).name
+        for i in range(model.ngeom)
+        if model.geom(i).name.startswith(prefixes)
+        and "vis" not in model.geom(i).name
+    ]
+
+
+def get_all_dof_indices_except(model, active_robot_id: int) -> List[int]:
+    """Return DOF indices of everything *except* the given robot's arm joints.
+
+    These DOFs are typically frozen in a QP so that only the active
+    robot's arm moves.
+
+    Args:
+        model: Native MuJoCo model.
+        active_robot_id: Robot whose joints should be *excluded* from the result.
+
+    Returns:
+        List of DOF indices to freeze.
+    """
+    import mujoco as _mj  # local import to avoid top-level dependency
+
+    active_jids = set(get_arm_joint_ids(model, active_robot_id))
+    frozen: List[int] = []
+    for jid in range(model.njnt):
+        if jid not in active_jids:
+            dof_adr = model.jnt_dofadr[jid]
+            n_dof = {
+                _mj.mjtJoint.mjJNT_FREE: 6,
+                _mj.mjtJoint.mjJNT_BALL: 3,
+                _mj.mjtJoint.mjJNT_SLIDE: 1,
+                _mj.mjtJoint.mjJNT_HINGE: 1,
+            }.get(model.jnt_type[jid], 1)
+            frozen.extend(range(dof_adr, dof_adr + n_dof))
+    return frozen
+
+
+def get_object_collision_geoms(model, object_name: Optional[str]) -> List[str]:
+    """Return collision geom names whose name contains *object_name*.
+
+    Handles the robosuite naming convention where object geoms are
+    prefixed with the object's instance name (e.g. ``mug_0_g0``).
+
+    Args:
+        model: Native MuJoCo model.
+        object_name: Name substring to search for, or ``None``.
+
+    Returns:
+        List of matching geom name strings.
+    """
+    if not object_name:
+        return []
+    return [
+        model.geom(i).name
+        for i in range(model.ngeom)
+        if object_name in model.geom(i).name
+        and "vis" not in model.geom(i).name
+    ]
+
+
+def get_environment_collision_geoms(
+    model,
+    robot_ids: Sequence[int],
+    object_name: Optional[str] = None,
+) -> List[str]:
+    """Return collision geom names for static environment obstacles.
+
+    These are geoms that belong to neither robot nor the manipulated
+    object — typically tables, shelves, walls, etc.  Visual-only geoms
+    (containing ``"vis"``) and the floor plane are excluded.
+
+    Args:
+        model: Native MuJoCo model.
+        robot_ids: Robot indices whose geoms should be excluded.
+        object_name: Name of the manipulated object to exclude.
+
+    Returns:
+        List of environment geom name strings.
+    """
+    robot_prefixes = tuple(
+        p
+        for rid in robot_ids
+        for p in (f"robot{rid}_", f"gripper{rid}_")
+    )
+    env_geoms: List[str] = []
+    for i in range(model.ngeom):
+        name = model.geom(i).name
+        if not name:
+            continue
+        if "vis" in name:
+            continue
+        if name == "floor":
+            continue
+        if name.startswith(robot_prefixes):
+            continue
+        if object_name and object_name in name:
+            continue
+        env_geoms.append(name)
+    return env_geoms

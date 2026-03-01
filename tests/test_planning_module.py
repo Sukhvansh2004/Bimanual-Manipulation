@@ -10,7 +10,9 @@ from robosuite_franka_manipulation.transforms import StampedPose, TransformManag
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_object_trajectory,
     generate_end_effector_trajectory,
-    check_trajectory_feasibility
+)
+from robosuite_franka_manipulation.planning.collision_checker import (
+    check_trajectory_feasibility,
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 
