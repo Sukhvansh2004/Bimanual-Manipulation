@@ -6,6 +6,11 @@ Loads pre-generated trajectory data produced by ``trajectory_generation.py``,
 computes the globally optimal robot-to-segment assignment using dynamic
 programming, and saves the result for execution by the handover script.
 
+By default, creates a simulation environment so that IK and Jacobian functions
+can be used for accurate handover-switching and manipulability costs.  Use
+``--no-env`` for a quick dry-run that skips environment creation (falls back to
+simpler cost heuristics).
+
 Workflow::
 
     trajectory_generation.py  -->  data/<experiment>/
@@ -22,6 +27,10 @@ Usage::
         --experiment experiments/flatPlate_table_to_shelf.json \\
         --alpha 15.0 --beta 2.0
 
+    # Quick dry-run without environment (no IK / Jacobian):
+    python scripts/planning/segment_assignment.py \\
+        --experiment experiments/flatPlate_table_to_shelf.json --no-env
+
     # Specify a custom data directory:
     python scripts/planning/segment_assignment.py \\
         --experiment experiments/flatPlate_table_to_shelf.json \\
@@ -32,20 +41,29 @@ import argparse
 import logging
 import os
 import sys
+import threading
 
 import numpy as np
 
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.experiment_config import load_experiment
+from robosuite_franka_manipulation.environments import make_dual_arm_env
+from robosuite_franka_manipulation.experiment_config import (
+    load_experiment,
+    get_collision_filter_fn,
+)
 from robosuite_franka_manipulation.planning.assignment_planner import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
+    make_ik_solver_fn,
+    make_jacobian_fns,
     save_assignment_result,
 )
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
     visualize_trajectory_feasibility,
     visualize_assignment_result,
 )
+from robosuite_franka_manipulation.transforms import TransformManager
+from robosuite_franka_manipulation.utils.env_utils import env_step
 
 
 def setup_logging(level: int = logging.INFO):
@@ -92,6 +110,10 @@ def main() -> None:
     parser.add_argument("--beta", type=float, default=None, help="Manipulability weight (overrides JSON)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--no-plot", action="store_true", help="Skip matplotlib visualizations")
+    parser.add_argument(
+        "--no-env", action="store_true",
+        help="Skip environment creation (disables IK / Jacobian — faster but less accurate)",
+    )
 
     args = parser.parse_args()
 
@@ -131,6 +153,44 @@ def main() -> None:
 
     logger.info("Assignment parameters: α=%.2f, β=%.2f, ε=%.1e", alpha, beta, epsilon)
 
+    # --- Build IK / Jacobian closures from the simulation environment ---
+    ik_solver_fn = None
+    jacobian_fns = None
+
+    if not args.no_env:
+        logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
+        env = make_dual_arm_env(
+            ycb_objects=exp_cfg.ycb_objects,
+            custom_objects=exp_cfg.custom_objects,
+            has_renderer=False,
+            has_offscreen_renderer=False,
+            use_camera_obs=False,
+            table_full_size=exp_cfg.table_full_size,
+        )
+        env.reset()
+        for _ in range(10):
+            env_step(env)
+
+        # Disable irrelevant collisions for speed
+        _is_relevant = get_collision_filter_fn(exp_cfg.collision_filter)
+        model = env.sim.model
+        for i in range(model.ngeom):
+            name = model.geom_id2name(i) or ""
+            if not _is_relevant(name):
+                model.geom_contype[i] = 0
+
+        env_lock = threading.RLock()
+        tf_manager = TransformManager(env, env_lock=env_lock)
+
+        ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock)
+        jacobian_fns = make_jacobian_fns(env, env_lock)
+        logger.info("IK solver and Jacobian functions ready.")
+    else:
+        logger.warning(
+            "Environment creation skipped (--no-env).  Handover costs will use "
+            "fallback heuristic; manipulability will use simple joint-distance proxy."
+        )
+
     # --- Run assignment planner ---
     result = compute_optimal_robot_assignment(
         trajectories,
@@ -139,6 +199,8 @@ def main() -> None:
         alpha=alpha,
         beta=beta,
         epsilon=epsilon,
+        ik_solver_fn=ik_solver_fn,
+        jacobian_fns=jacobian_fns,
     )
 
     # --- Print summary ---

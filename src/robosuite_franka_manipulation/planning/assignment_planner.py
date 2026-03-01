@@ -26,6 +26,7 @@ trajectory switching).
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -37,6 +38,9 @@ from robosuite_franka_manipulation.planning.utils.manipulability import (
 )
 from robosuite_franka_manipulation.transforms import StampedPose
 from robosuite_franka_manipulation.utils.primitives import DualArmHandoverPlanner
+
+from robosuite_franka_manipulation.environments import DualArmEnvironment
+from robosuite_franka_manipulation.transforms import TransformManager
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +133,13 @@ def compute_cost_matrix(
     alpha: float = constants.ASSIGNMENT_ALPHA,
     beta: float = constants.ASSIGNMENT_BETA,
     epsilon: float = constants.ASSIGNMENT_EPSILON,
-    jacobian_fn: Optional[Callable] = None,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
 ) -> Tuple[np.ndarray, Dict[int, Tuple[int, int]]]:
     """Build the per-segment cost for every ``(robot, trajectory)`` state.
+
+    Args:
+        jacobian_fns: Optional mapping ``{robot_id: (q) -> J}`` providing
+            per-robot Jacobian functions for Yoshikawa manipulability.
 
     Returns:
         ``(cost_matrix, trajectory_info)``
@@ -153,11 +161,12 @@ def compute_cost_matrix(
 
     for si, (robot_id, traj_idx) in trajectory_info.items():
         traj = robot0_trajectories[traj_idx] if robot_id == 0 else robot1_trajectories[traj_idx]
+        jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
         n_wp = len(traj["is_feasible"])
         for seg in range(min(n_segments, n_wp - 1)):
             cost, ok = compute_segment_cost(
                 traj, seg, seg + 1,
-                alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fn=jacobian_fn,
+                alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fn=jac_fn,
             )
             if ok:
                 cost_matrix[seg, si] = cost
@@ -175,9 +184,14 @@ def _compute_handover_primitive_cost(
     beta: float,
     epsilon: float,
     ik_solver_fn: Callable,
-    jacobian_fn: Optional[Callable] = None,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
 ) -> Tuple[float, bool]:
-    """Evaluate cost of a handover primitive using the same C1 + C2 model."""
+    """Evaluate cost of a handover primitive using the same C1 + C2 model.
+
+    Args:
+        jacobian_fns: Optional ``{robot_id: (q) -> J}`` for per-arm
+            Yoshikawa manipulability.
+    """
     transfer_poses: List[StampedPose] = []
     receiver_poses: List[StampedPose] = []
 
@@ -208,13 +222,6 @@ def _compute_handover_primitive_cost(
     if transfer_configs is None or receiver_configs is None:
         return np.inf, False
 
-    all_configs = list(transfer_configs or []) + list(receiver_configs or [])
-    if not all_configs:
-        return np.inf, False
-    all_configs_arr = np.array(all_configs)
-    if all_configs_arr.ndim == 1:
-        all_configs_arr = all_configs_arr.reshape(1, -1)
-
     # Smoothness per arm
     smoothness = 0.0
     for cfgs in (transfer_configs, receiver_configs):
@@ -223,13 +230,21 @@ def _compute_handover_primitive_cost(
             for i in range(arr.shape[0] - 1):
                 smoothness += float(np.linalg.norm(arr[i + 1] - arr[i]) ** 2)
 
-    # Manipulability
-    manip_vals = compute_trajectory_manipulability(
-        all_configs_arr,
-        use_jacobian=(jacobian_fn is not None),
-        jacobian_fn=jacobian_fn,
-    )
-    manip_cost = float(np.sum(1.0 / (manip_vals + epsilon)))
+    # Manipulability — compute per-arm with the correct Jacobian function
+    manip_cost = 0.0
+    for robot_id, cfgs in ((0, transfer_configs), (1, receiver_configs)):
+        if not cfgs:
+            continue
+        arr = np.array(cfgs)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
+        manip_vals = compute_trajectory_manipulability(
+            arr,
+            use_jacobian=(jac_fn is not None),
+            jacobian_fn=jac_fn,
+        )
+        manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
 
     return alpha * smoothness + beta * manip_cost, True
 
@@ -251,7 +266,7 @@ def compute_switching_cost(
     beta: float = constants.ASSIGNMENT_BETA,
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
-    jacobian_fn: Optional[Callable] = None,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
@@ -315,7 +330,7 @@ def compute_switching_cost(
     h_traj = h_planner.generate_trajectory()
 
     cost, ok = _compute_handover_primitive_cost(
-        h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fn,
+        h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
     )
     return cost if ok else np.inf
 
@@ -333,7 +348,7 @@ def _solve_optimal_assignment(
     beta: float = constants.ASSIGNMENT_BETA,
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
-    jacobian_fn: Optional[Callable] = None,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
     initial_robot: Optional[int] = None,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
@@ -373,7 +388,7 @@ def _solve_optimal_assignment(
                     pr, cr, i, trajectories, ps, cs, trajectory_info,
                     transfer_feasibility=transfer_feasibility,
                     alpha=alpha, beta=beta, epsilon=epsilon,
-                    ik_solver_fn=ik_solver_fn, jacobian_fn=jacobian_fn,
+                    ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
                 )
                 if np.isinf(sw):
                     continue
@@ -418,7 +433,7 @@ def _solve_optimal_assignment(
                 pr, robot_id, i, trajectories, ps, cs, trajectory_info,
                 transfer_feasibility=transfer_feasibility,
                 alpha=alpha, beta=beta, epsilon=epsilon,
-                ik_solver_fn=ik_solver_fn, jacobian_fn=jacobian_fn,
+                ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
             )
             switch_costs_list.insert(0, sw)
             cs = ps
@@ -461,7 +476,7 @@ def compute_optimal_robot_assignment(
     beta: float = constants.ASSIGNMENT_BETA,
     epsilon: float = constants.ASSIGNMENT_EPSILON,
     ik_solver_fn: Optional[Callable] = None,
-    jacobian_fn: Optional[Callable] = None,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
 ) -> AssignmentResult:
     """Compute the globally optimal robot-to-segment assignment.
 
@@ -475,7 +490,8 @@ def compute_optimal_robot_assignment(
         beta: Manipulability weight.
         epsilon: Numerical floor for manipulability reciprocal.
         ik_solver_fn: ``(pose, robot_id) -> q`` for handover cost evaluation.
-        jacobian_fn: ``(q) -> J`` for Yoshikawa manipulability.
+        jacobian_fns: ``{robot_id: (q) -> J}`` per-robot Jacobian functions
+            for Yoshikawa manipulability.
 
     Returns:
         :class:`AssignmentResult` with the optimal sequence and cost breakdown.
@@ -496,7 +512,7 @@ def compute_optimal_robot_assignment(
 
     cost_matrix, traj_info = compute_cost_matrix(
         r0, r1, n_segments,
-        alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fn=jacobian_fn,
+        alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fns=jacobian_fns,
     )
     logger.info("Cost matrix: %d segments × %d states", *cost_matrix.shape)
 
@@ -504,7 +520,7 @@ def compute_optimal_robot_assignment(
         cost_matrix, traj_info, trajectories,
         transfer_feasibility=transfer_feasibility,
         alpha=alpha, beta=beta, epsilon=epsilon,
-        ik_solver_fn=ik_solver_fn, jacobian_fn=jacobian_fn,
+        ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
         initial_robot=initial_robot,
     )
 
@@ -513,6 +529,72 @@ def compute_optimal_robot_assignment(
         result.total_cost, len(result.handover_points),
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Factory helpers — create closures around the sim environment
+# ---------------------------------------------------------------------------
+
+def make_ik_solver_fn(
+    env: DualArmEnvironment,
+    tf_manager: TransformManager,
+    env_lock: Optional[threading.RLock] = None,
+) -> Callable[[StampedPose, int], Optional[np.ndarray]]:
+    """Create an IK-solver closure compatible with :func:`compute_optimal_robot_assignment`.
+
+    The returned function has signature ``(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]``
+    and internally delegates to :func:`~planning.utils.ik_utils.enumerate_ik_solutions_for_arm`,
+    applying the orientation correction beforehand.
+
+    Args:
+        env: The dual-arm simulation environment.
+        tf_manager: Transform manager for frame conversions.
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    from robosuite_franka_manipulation.planning.utils.ik_utils import (
+        enumerate_ik_solutions_for_arm,
+        apply_ik_orientation_correction,
+    )
+
+    def _ik_solver(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]:
+        corrected = apply_ik_orientation_correction(pose)
+        solutions = enumerate_ik_solutions_for_arm(
+            env,
+            robot_id=robot_id,
+            target_pose=corrected,
+            tf_manager=tf_manager,
+            env_lock=env_lock,
+            max_solutions=1,
+        )
+        return solutions[0] if solutions else None
+
+    return _ik_solver
+
+
+def make_jacobian_fns(
+    env: DualArmEnvironment,
+    env_lock: Optional[threading.RLock] = None,
+) -> Dict[int, Callable[[np.ndarray], np.ndarray]]:
+    """Create per-robot Jacobian closures for :func:`compute_optimal_robot_assignment`.
+
+    Returns a dict ``{0: jac_fn_robot0, 1: jac_fn_robot1}`` where each function
+    has signature ``(q: np.ndarray) -> np.ndarray`` (6×7 Jacobian) and internally
+    delegates to :func:`~planning.utils.ik_utils.compute_arm_jacobian`.
+
+    Args:
+        env: The dual-arm simulation environment.
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    from robosuite_franka_manipulation.planning.utils.ik_utils import compute_arm_jacobian
+
+    def _make_for_robot(robot_id: int) -> Callable[[np.ndarray], np.ndarray]:
+        def _jacobian_fn(q: np.ndarray) -> np.ndarray:
+            return compute_arm_jacobian(
+                env, robot_id=robot_id, q_config=q, env_lock=env_lock,
+            )
+        return _jacobian_fn
+
+    return {0: _make_for_robot(0), 1: _make_for_robot(1)}
 
 
 # ---------------------------------------------------------------------------
