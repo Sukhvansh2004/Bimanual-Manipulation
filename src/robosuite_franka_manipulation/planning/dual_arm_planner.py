@@ -65,6 +65,7 @@ import mujoco
 import numpy as np
 from scipy.interpolate import interp1d
 
+from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
@@ -312,7 +313,7 @@ class DualArmParallelPlanner:
 
     def __init__(
         self,
-        env,
+        env: DualArmEnvironment,
         arm_a: RobosuiteArmController,
         arm_b: RobosuiteArmController,
         env_lock=None,
