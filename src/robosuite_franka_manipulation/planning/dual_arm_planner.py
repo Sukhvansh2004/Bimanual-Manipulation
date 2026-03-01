@@ -231,6 +231,48 @@ def _get_object_collision_geoms(
     ]
 
 
+def _get_environment_collision_geoms(
+    model: mujoco.MjModel,
+    robot_ids: Sequence[int],
+    object_name: Optional[str] = None,
+) -> List[str]:
+    """Return collision geom names for static environment obstacles.
+
+    These are geoms that belong to neither robot nor the manipulated
+    object — typically tables, shelves, walls, etc.  Visual-only geoms
+    (containing ``"vis"``) and the floor plane are excluded.
+
+    Parameters
+    ----------
+    model : mujoco.MjModel
+        Native MuJoCo model.
+    robot_ids : Sequence[int]
+        Robot indices whose geoms should be excluded (e.g. ``[0, 1]``).
+    object_name : str, optional
+        Name of the manipulated object whose geoms should be excluded.
+    """
+    robot_prefixes = tuple(
+        p
+        for rid in robot_ids
+        for p in (f"robot{rid}_", f"gripper{rid}_")
+    )
+    env_geoms: List[str] = []
+    for i in range(model.ngeom):
+        name = model.geom(i).name
+        if not name:  # unnamed geom — skip
+            continue
+        if "vis" in name:  # visual-only
+            continue
+        if name == "floor":  # floor plane — not useful for arm avoidance
+            continue
+        if name.startswith(robot_prefixes):
+            continue
+        if object_name and object_name in name:
+            continue
+        env_geoms.append(name)
+    return env_geoms
+
+
 # ---------------------------------------------------------------------------
 # Main planner class
 # ---------------------------------------------------------------------------
@@ -373,16 +415,25 @@ class DualArmParallelPlanner:
             geoms_a = _get_robot_collision_geoms(nm, self.arm_a.robot_id)
             geoms_b = _get_robot_collision_geoms(nm, self.arm_b.robot_id)
             obj_geoms = _get_object_collision_geoms(nm, self.manipulated_object)
+            env_geoms = _get_environment_collision_geoms(
+                nm,
+                robot_ids=[self.arm_a.robot_id, self.arm_b.robot_id],
+                object_name=self.manipulated_object,
+            )
 
             # Build collision pairs:
             #   arm_B  vs  arm_A   — prevent inter-arm collision
             #   arm_B  vs  object  — prevent arm B from hitting the grasped object
+            #   arm_B  vs  env     — prevent arm B from hitting static obstacles
+            #                        (tables, shelves, walls, etc.)
             # We do NOT add arm_A vs object (they are in expected grasp contact).
             geom_pairs: List[Tuple[Sequence[str], Sequence[str]]] = []
             if geoms_a and geoms_b:
                 geom_pairs.append((geoms_b, geoms_a))
             if obj_geoms and geoms_b:
                 geom_pairs.append((geoms_b, obj_geoms))
+            if env_geoms and geoms_b:
+                geom_pairs.append((geoms_b, env_geoms))
 
             if geom_pairs:
                 self._collision_limit = mink.CollisionAvoidanceLimit(
@@ -394,9 +445,10 @@ class DualArmParallelPlanner:
                 )
                 logger.info(
                     "mink CollisionAvoidanceLimit: %d geom-pair groups "
-                    "(arm_B=%d geoms, arm_A=%d geoms, object=%d geoms)",
+                    "(arm_B=%d geoms, arm_A=%d geoms, object=%d geoms, "
+                    "env=%d geoms)",
                     len(geom_pairs), len(geoms_b), len(geoms_a),
-                    len(obj_geoms),
+                    len(obj_geoms), len(env_geoms),
                 )
             else:
                 logger.warning(
