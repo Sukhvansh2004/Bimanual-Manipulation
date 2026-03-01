@@ -3,7 +3,6 @@ import time
 
 import mink
 from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
-import mujoco
 import numpy as np
 import threading
 from scipy.spatial.transform import Rotation as R
@@ -22,8 +21,6 @@ from robosuite_franka_manipulation.utils.se3 import (
     compute_se3_distance,
     interpolate_pose,
 )
-from robosuite_franka_manipulation.planning.utils.ik_utils import _get_frozen_dof_indices
-from robosuite_franka_manipulation.planning.utils import mujoco_utils
 from robosuite_franka_manipulation.utils import env_step
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging
@@ -413,13 +410,16 @@ class RobosuiteArmController:
             world_quaternions[i] = (r_wp * r_corr).as_quat()
 
         # ── Build mink objects ────────────────────────────────────────
+        # Lazy import to avoid circular: arm → planning → services → arm
+        from robosuite_franka_manipulation.planning.utils import mujoco_utils as _mu
+
         model = self.env.sim.model
         data = self.env.sim.data
-        model_native = mujoco_utils.get_native_mj_object(model)
+        model_native = _mu.get_native_mj_object(model)
 
-        joint_ids = mujoco_utils.get_arm_joint_ids(model, self.robot_id)
-        arm_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
-        arm_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+        joint_ids = _mu.get_arm_joint_ids(model, self.robot_id)
+        arm_qpos_idx = _mu.get_joint_qpos_indices(model, joint_ids)
+        arm_dof_idx = _mu.get_joint_dof_indices(model, joint_ids)
 
         site_name = f"gripper{self.robot_id}_{self.arm_id}_ft_frame"
 
@@ -441,6 +441,7 @@ class RobosuiteArmController:
         damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
         config_limit = mink.ConfigurationLimit(model_native)
 
+        from robosuite_franka_manipulation.planning.utils.ik_utils import _get_frozen_dof_indices  # lazy to avoid circular import
         frozen_dofs = _get_frozen_dof_indices(model_native, arm_dof_idx)
         freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
 

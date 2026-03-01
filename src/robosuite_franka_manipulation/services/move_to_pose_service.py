@@ -3,14 +3,17 @@
 Move To Pose Service.
 Allows moving robot arms to specific poses via service calls.
 """
+from __future__ import annotations
 
 import zmq
 import threading
 import logging
-from typing import Dict, Any, Optional, cast, Tuple
+from typing import Dict, Any, Optional, cast, Tuple, TYPE_CHECKING
 from robosuite_franka_manipulation.services.services_core import ServiceClient
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
+
+if TYPE_CHECKING:
+    from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.schema import (
     ResponseStatus, MoveToPoseRequest, CancelMoveRequest, MoveToPoseResponse,
     ArmStatusResponse, GetArmStatusRequest, FollowTrajectoryRequest,

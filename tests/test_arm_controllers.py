@@ -21,7 +21,7 @@ class TestArmControllers:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
         env.reset()
         yield env
         env.close()
@@ -100,7 +100,7 @@ class TestArmControllerFrameHandling:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
         env.reset()
         yield env
         env.close()
@@ -156,7 +156,7 @@ class TestGripperControllers:
     @pytest.fixture(scope="class")
     def env(self):
         """Fixture to provide environment for tests."""
-        env = make_dual_arm_env()
+        env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
         env.reset()
         yield env
         env.close()
