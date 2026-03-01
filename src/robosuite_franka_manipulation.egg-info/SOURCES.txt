@@ -23,6 +23,7 @@ src/robosuite_franka_manipulation/perception/grasp_predictor.py
 src/robosuite_franka_manipulation/perception/object_detector.py
 src/robosuite_franka_manipulation/planning/__init__.py
 src/robosuite_franka_manipulation/planning/collision_checker.py
+src/robosuite_franka_manipulation/planning/dual_arm_planner.py
 src/robosuite_franka_manipulation/planning/grasp_generator.py
 src/robosuite_franka_manipulation/planning/object_trajectory_planner.py
 src/robosuite_franka_manipulation/planning/trajectory_generator.py
@@ -54,6 +55,7 @@ src/robosuite_franka_manipulation/utils/primitives.py
 src/robosuite_franka_manipulation/utils/se3.py
 src/robosuite_franka_manipulation/utils/suction_weld.py
 tests/test_arm_controllers.py
+tests/test_dual_arm_planner.py
 tests/test_environments.py
 tests/test_experiment_config.py
 tests/test_fastsam_detection.py
