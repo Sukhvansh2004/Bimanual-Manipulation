@@ -1,25 +1,29 @@
-"""Inverse Kinematics (IK) utilities."""
+"""Inverse Kinematics (IK) utilities.
+
+Provides IK solvers and Jacobian computation for single-arm manipulation.
+The solver (``solve_ik_mink``) uses `mink <https://github.com/kevinzakka/mink>`_'s
+QP-based differential IK with automatic joint-limit enforcement and
+singularity damping.
+"""
 
 from contextlib import nullcontext
 import threading
-from typing import List, Optional, Sequence, Union, Iterable
+from typing import List, Optional, Tuple, Iterable
 
+import mink
+from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
 import numpy as np
 import mujoco
 import logging
-from scipy.optimize import minimize, NonlinearConstraint, Bounds
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
-from robosuite.utils.binding_utils import MjModel, MjData
 
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
 
 logger = logging.getLogger(__name__)
-
-ArrayLike = Union[Sequence[float], np.ndarray]
 
 
 def _manipulability_from_jac(jac: np.ndarray) -> float:
@@ -32,159 +36,186 @@ def _manipulability_from_jac(jac: np.ndarray) -> float:
     return float(np.prod(sv))  # == sqrt(det(J @ J^T))
 
 
-def solve_ik_scipy(
-    model: MjModel,
-    data: MjData,
-    site_id: int,
-    joint_qpos_idx: np.ndarray,
-    joint_dof_idx: np.ndarray,
-    joint_lo: np.ndarray,
-    joint_hi: np.ndarray,
+# ---------------------------------------------------------------------------
+# Frozen-DOF helper (shared with compute_arm_jacobian / mink IK)
+# ---------------------------------------------------------------------------
+
+def _get_frozen_dof_indices(
+    model_native: mujoco.MjModel,
+    active_dof_idx: np.ndarray,
+) -> List[int]:
+    """Return DOF indices of everything *except* the given active DOFs.
+
+    Used to construct a ``DofFreezingTask`` so that only the target arm
+    moves during IK.
+    """
+    active_set = set(int(d) for d in active_dof_idx)
+    frozen: List[int] = []
+    for jid in range(model_native.njnt):
+        dof_adr = int(model_native.jnt_dofadr[jid])
+        n_dof = {
+            mujoco.mjtJoint.mjJNT_FREE: 6,
+            mujoco.mjtJoint.mjJNT_BALL: 3,
+            mujoco.mjtJoint.mjJNT_SLIDE: 1,
+            mujoco.mjtJoint.mjJNT_HINGE: 1,
+        }.get(int(model_native.jnt_type[jid]), 1)
+        for d in range(dof_adr, dof_adr + n_dof):
+            if d not in active_set:
+                frozen.append(d)
+    return frozen
+
+
+def _build_target_se3(
+    target_pos: np.ndarray,
+    target_quat: np.ndarray,
+) -> "MinkSE3":
+    """Build a ``mink.SE3`` target from position + quaternion (xyzw)."""
+    rot_matrix = R.from_quat(target_quat).as_matrix()
+    so3 = MinkSO3.from_matrix(rot_matrix)
+    return MinkSE3.from_rotation_and_translation(so3, np.asarray(target_pos, dtype=float))
+
+
+# ---------------------------------------------------------------------------
+# Primary IK solver — mink-based iterative QP
+# ---------------------------------------------------------------------------
+
+def solve_ik_mink(
+    model_native: mujoco.MjModel,
+    full_qpos: np.ndarray,
+    site_name: str,
+    arm_qpos_idx: np.ndarray,
+    arm_dof_idx: np.ndarray,
     target_pos: np.ndarray,
     target_quat: np.ndarray,
     q_init: np.ndarray,
     *,
     pos_tol: float,
     ori_tol: float,
-    task_weight: float = constants.IK_TASK_WEIGHT,  # Combined task weight
-    manipulability_weight: float = constants.IK_MANIPULABILITY_WEIGHT,
-    joint_limit_weight: float = constants.IK_JOINT_LIMIT_WEIGHT,
-    use_analytical_grad: bool = constants.USE_GRAD_SCIPY_IK,
+    max_iters: int = constants.MINK_IK_MAX_ITERS,
+    dt: float = constants.MINK_IK_DT,
 ) -> Optional[np.ndarray]:
-    """Residual-based IK using scipy.optimize.minimize with box bounds.
+    """Solve single-arm IK using mink's iterative QP differential IK.
 
-    Uses a combined task weight instead of hard constraints. The solver finds the
-    equilibrium between task completion and manipulability/joint limits,
-    and a post-hoc check ensures the final pose meets the required tolerances.
+    Creates a ``mink.Configuration`` seeded with *q_init* for the target
+    arm (all other DOFs frozen via ``DofFreezingTask``), then iterates
+    ``mink.solve_ik`` until the ``FrameTask`` error drops below the
+    requested tolerances.
+
+    Features:
+
+    * Joint limits enforced automatically via ``ConfigurationLimit``.
+    * Singularity damping via ``lm_damping`` in ``FrameTask``
+      and the ``DampingTask`` regulariser.
+    * No manual Jacobian computation.
+
+    Args:
+        model_native: **Native** ``mujoco.MjModel`` (not robosuite wrapper).
+        full_qpos: Full model qpos vector ``(nq,)`` — other joints' positions
+            provide context for the kinematic tree.
+        site_name: MuJoCo site name whose pose is driven to the target.
+        arm_qpos_idx: qpos indices for the arm being solved (7,).
+        arm_dof_idx: DOF (velocity) indices for the arm (7,).
+        target_pos: Desired site position in **world** frame ``(3,)``.
+        target_quat: Desired site orientation as quaternion ``(x, y, z, w)``.
+        q_init: Initial arm joint configuration ``(7,)``.
+        pos_tol: Convergence tolerance on position error (metres).
+        ori_tol: Convergence tolerance on orientation error (radians).
+        max_iters: Maximum QP iterations.
+        dt: Integration time-step per QP iteration (seconds).
+
+    Returns:
+        Converged arm joint configuration ``(7,)`` or *None* on failure.
     """
-    # Pre-compute joint-range midpoints and half-widths for the barrier.
-    joint_range = joint_hi - joint_lo  
-    
-    # Unwrap once at the start of the IK solve.
-    model_native = mujoco_utils.get_native_mj_object(model)
-    data_native = mujoco_utils.get_native_mj_object(data)
+    # ── Seed the full qpos with q_init for the target arm ─────────────
+    q_full = np.array(full_qpos, dtype=float)
+    q_full[arm_qpos_idx] = q_init
 
-    # Cache the last FK evaluation
-    _cache: dict = {'key': None, 'err': None, 'jac': None}
+    # ── Build mink objects (lightweight, no persistent state needed) ──
+    config = mink.Configuration(model_native, q=q_full)
 
-    def compute_state(q):
-        key = q.tobytes()
-        if _cache['key'] != key:
-            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
-            mujoco.mj_fwdPosition(model_native, data_native)
-
-            pos_err, rot_err = mujoco_utils.compute_site_error(
-                model_native, data_native, site_id, target_pos, target_quat)
-            err = np.concatenate([pos_err, rot_err])
-
-            nv = int(model_native.nv)
-            jacp = np.zeros((3, nv))
-            jacr = np.zeros((3, nv))
-            mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-            jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-
-            _cache['key'] = key
-            _cache['err'] = err
-            _cache['jac'] = jac
-
-        return _cache['err'], _cache['jac']
-
-    def _joint_limit_barrier(q):
-        eps = 1e-8
-        d_lo = np.maximum(q - joint_lo, eps)
-        d_hi = np.maximum(joint_hi - q, eps)
-        return -np.sum(np.log(d_lo / joint_range) + np.log(d_hi / joint_range))
-
-    def _compute_jac_for_q(q_eval):
-        """Lightweight FK + Jacobian (no cache) for finite-difference probes."""
-        mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_eval)
-        mujoco.mj_fwdPosition(model_native, data_native)
-        nv = int(model_native.nv)
-        jacp = np.zeros((3, nv))
-        jacr = np.zeros((3, nv))
-        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-        return np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-
-    def _objective_impl(q, with_grad=False):
-        err, jac = compute_state(q)
-
-        # ---- Cost ----
-        # 1) Task Cost (Using the full 6D vector)
-        cost = 0.5 * task_weight * np.dot(err, err)
-        
-        manip = 0.0
-        if manipulability_weight > 0:
-            manip = _manipulability_from_jac(jac)
-            cost += manipulability_weight * (-np.log(manip + 1e-12))
-        if joint_limit_weight > 0:
-            cost += joint_limit_weight * _joint_limit_barrier(q)
-
-        if not with_grad:
-            return cost
-
-        # ---- Gradient ----
-        # 1) Task gradient: w_task * (-J^T @ e)
-        grad = task_weight * (-jac.T @ err)
-
-        # 2) Manipulability gradient via finite-difference
-        if manipulability_weight > 0:
-            h = 1e-7
-            manip_grad = np.zeros(len(q))
-            for i in range(len(q)):
-                q_p = q.copy()
-                q_p[i] += h
-                jac_p = _compute_jac_for_q(q_p)
-                manip_p = _manipulability_from_jac(jac_p)
-                manip_grad[i] = (manip_p - manip) / h
-            grad += manipulability_weight * (-1.0 / (manip + 1e-12)) * manip_grad
-            
-            # Restore FK state & invalidate cache after FD probes
-            _cache['key'] = None
-            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q)
-            mujoco.mj_fwdPosition(model_native, data_native)
-
-        # 3) Joint-limit barrier gradient (fully analytical)
-        if joint_limit_weight > 0:
-            eps_b = 1e-8
-            d_lo = np.maximum(q - joint_lo, eps_b)
-            d_hi = np.maximum(joint_hi - q, eps_b)
-            grad += joint_limit_weight * (-1.0 / d_lo + 1.0 / d_hi)
-
-        return cost, grad
-
-    # L-BFGS-B is usually the fastest SciPy method for box-constrained optimization
-    res = minimize(
-        lambda q: _objective_impl(q, with_grad=use_analytical_grad),
-        q_init,
-        method='L-BFGS-B', 
-        jac=use_analytical_grad,
-        bounds=Bounds(joint_lo, joint_hi),
-        options={'ftol': 1e-6, 'disp': False}
+    frame_task = mink.FrameTask(
+        frame_name=site_name,
+        frame_type="site",
+        position_cost=constants.MINK_POSITION_COST,
+        orientation_cost=constants.MINK_ORIENTATION_COST,
+        gain=constants.MINK_FRAME_GAIN,
+        lm_damping=constants.MINK_LM_DAMPING,
     )
 
-    q_final = res.x
+    posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
+    posture_task.set_target(q_full)  # bias toward initial posture
 
-    # --- Post-hoc Tolerance Verification ---
-    mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_final)
-    mujoco.mj_fwdPosition(model_native, data_native)
-    pos_err, rot_err = mujoco_utils.compute_site_error(model_native, data_native, site_id, target_pos, target_quat)
-    
-    pos_dist = float(np.linalg.norm(pos_err))
-    rot_dist = float(np.linalg.norm(rot_err))
+    damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
+    config_limit = mink.ConfigurationLimit(model_native)
 
-    if not res.success:
-        logger.debug(f"IK solver failed to converge: {res.message} (pos_err={pos_dist:.6f}, rot_err={rot_dist:.6f})")
-        return None
+    frozen_dofs = _get_frozen_dof_indices(model_native, arm_dof_idx)
+    freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
 
-    # Check if the optimizer's equilibrium state satisfies the tolerances
-    if pos_dist > pos_tol or rot_dist > ori_tol:
-        logger.debug(
-            f"IK converged, but outside tolerances: "
-            f"(pos_err={pos_dist:.6f} > {pos_tol}, rot_err={rot_dist:.6f} > {ori_tol})"
-        )
-        return None
-    
-    return q_final
+    # ── Set target SE3 ────────────────────────────────────────────────
+    target_se3 = _build_target_se3(target_pos, target_quat)
+    frame_task.set_target(target_se3)
+
+    # ── Build task / limit lists ──────────────────────────────────────
+    tasks: list = [frame_task, posture_task, damping_task]
+    if freeze_task is not None:
+        tasks.append(freeze_task)
+    limits = [config_limit]
+
+    # ── Iterative QP solve ────────────────────────────────────────────
+    prev_err_norm = float("inf")
+    stall_count = 0
+
+    for i in range(max_iters):
+        try:
+            vel = mink.solve_ik(
+                config, tasks, dt,
+                solver=constants.MINK_QP_SOLVER,
+                limits=limits,
+            )
+        except Exception:  # noqa: BLE001 — QP infeasible at this step
+            logger.debug("mink QP infeasible at iter %d, stopping.", i)
+            break
+
+        config.integrate_inplace(vel, dt)
+
+        # ── Convergence check ─────────────────────────────────────────
+        current_se3 = config.get_transform_frame_to_world(site_name, "site")
+        pos_err = float(np.linalg.norm(current_se3.translation() - target_pos))
+
+        rel_se3 = target_se3.inverse().multiply(current_se3)
+        ori_err = float(np.linalg.norm(rel_se3.rotation().log()))
+
+        if pos_err < pos_tol and ori_err < ori_tol:
+            return np.array(config.q[arm_qpos_idx], dtype=float)
+
+        # ── Stall detection ───────────────────────────────────────────
+        err_norm = pos_err + ori_err
+        if abs(prev_err_norm - err_norm) < constants.MINK_IK_STALL_TOL:
+            stall_count += 1
+            if stall_count >= constants.MINK_IK_STALL_WINDOW:
+                logger.debug(
+                    "mink IK stalled at iter %d (pos=%.5f, ori=%.5f)",
+                    i, pos_err, ori_err,
+                )
+                break
+        else:
+            stall_count = 0
+        prev_err_norm = err_norm
+
+    # ── Final tolerance check (may have converged on last iter) ───────
+    current_se3 = config.get_transform_frame_to_world(site_name, "site")
+    pos_err = float(np.linalg.norm(current_se3.translation() - target_pos))
+    rel_se3 = target_se3.inverse().multiply(current_se3)
+    ori_err = float(np.linalg.norm(rel_se3.rotation().log()))
+
+    if pos_err < pos_tol and ori_err < ori_tol:
+        return np.array(config.q[arm_qpos_idx], dtype=float)
+
+    logger.debug(
+        "mink IK failed: pos_err=%.5f (tol %.4f), ori_err=%.5f (tol %.4f)",
+        pos_err, pos_tol, ori_err, ori_tol,
+    )
+    return None
 
 
 def unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> List[np.ndarray]:
@@ -206,9 +237,10 @@ def compute_arm_jacobian(
 ) -> np.ndarray:
     """Compute the 6×7 geometric Jacobian at the EEF flange site.
 
-    The Jacobian maps 7-DOF joint velocities to 6-D spatial velocities
-    ``[v_x, v_y, v_z, ω_x, ω_y, ω_z]`` expressed in the **world frame**,
-    evaluated at the ``ft_frame`` site (the flange where the gripper mounts).
+    Uses ``mink.Configuration.get_frame_jacobian`` and slices to the
+    arm's DOF columns.  The Jacobian maps 7-DOF joint velocities to
+    6-D spatial velocities ``[v_x, v_y, v_z, ω_x, ω_y, ω_z]``
+    expressed in the **world frame**.
 
     Args:
         env: The dual-arm simulation environment.
@@ -241,33 +273,19 @@ def compute_arm_jacobian(
 
         if site_name is None:
             site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-        site_id = int(model.site_name2id(site_name))
 
         model_native = mujoco_utils.get_native_mj_object(model)
-        data_native = mujoco_utils.get_native_mj_object(data)
 
-        # Optionally set a custom joint configuration
-        restore = False
+        # Build full qpos, optionally overriding the arm config
+        q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
         if q_config is not None:
-            qpos_backup = np.array(data.qpos, copy=True)
-            qvel_backup = np.array(data.qvel, copy=True)
-            mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_config)
-            mujoco.mj_fwdPosition(model_native, data_native)
-            restore = True
+            q_full[joint_qpos_idx] = q_config
 
-        nv = int(model_native.nv)
-        jacp = np.zeros((3, nv))
-        jacr = np.zeros((3, nv))
-        mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+        config = mink.Configuration(model_native, q=q_full)
 
-        J = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])  # (6, 7)
-
-        if restore:
-            data.qpos[:] = qpos_backup
-            data.qvel[:] = qvel_backup
-            mujoco.mj_fwdPosition(model_native, data_native)
-
-        return J
+        # get_frame_jacobian returns (6, nv); slice to arm DOFs
+        J_full = config.get_frame_jacobian(site_name, "site")  # (6, nv)
+        return J_full[:, joint_dof_idx]  # (6, 7)
 
 
 def enumerate_ik_solutions_for_arm(
@@ -292,7 +310,8 @@ def enumerate_ik_solutions_for_arm(
     Discretization strategy (simple + robust):
     - Sample the last joint ("elbow/wrist" redundancy) across its joint range.
     - Add random seeds around the current configuration.
-    - Run Scipy-based IK from each seed; keep converged solutions; de-duplicate.
+    - Run mink-based IK from each seed; keep converged solutions; de-duplicate.
+    - Rank surviving solutions by manipulability (best-conditioned first).
 
     Returns:
         List of joint angle arrays of shape (f{constants.FRANKA_ARM_DOF},).
@@ -370,19 +389,22 @@ def enumerate_ik_solutions_for_arm(
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
+        # Pre-compute mink helpers (native model, frozen DOFs, full qpos)
+        model_native = mujoco_utils.get_native_mj_object(model)
+        full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
+        frozen_dof_indices = _get_frozen_dof_indices(model_native, joint_dof_idx)
+
         solutions: List[np.ndarray] = []
         
         def run_ik_on_seeds(seeds_list):
             nonlocal solutions
             for q0 in seeds_list:
-                q_sol = solve_ik_scipy(
-                    model,
-                    data,
-                    site_id,
+                q_sol = solve_ik_mink(
+                    model_native,
+                    full_qpos,
+                    site_name,
                     joint_qpos_idx,
                     joint_dof_idx,
-                    joint_lo,
-                    joint_hi,
                     target_pos,
                     target_quat,
                     q0,
@@ -416,24 +438,17 @@ def enumerate_ik_solutions_for_arm(
 
         # ------------------------------------------------------------------
         # Rank solutions by manipulability and reject near-singular ones.
-        # This ensures the best-conditioned configuration is tried first in
-        # downstream collision checks, and prevents warm-starting from
-        # singularities that cause trajectory jumps.
+        # Uses mink Configuration for Jacobian computation.
         # ------------------------------------------------------------------
         if solutions:
-            model_native = mujoco_utils.get_native_mj_object(model)
-            data_native = mujoco_utils.get_native_mj_object(data)
-            nv = int(model_native.nv)
-
-            scored: List[tuple] = []  # (manipulability, solution)
+            scored: List[Tuple[float, np.ndarray]] = []
             for q_sol in solutions:
-                mujoco_utils.set_qpos(data_native, joint_qpos_idx, q_sol)
-                mujoco.mj_fwdPosition(model_native, data_native)
-                jacp = np.zeros((3, nv))
-                jacr = np.zeros((3, nv))
-                mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-                jac = np.vstack([jacp[:, joint_dof_idx], jacr[:, joint_dof_idx]])
-                m = _manipulability_from_jac(jac)
+                q_full = full_qpos.copy()
+                q_full[joint_qpos_idx] = q_sol
+                config = mink.Configuration(model_native, q=q_full)
+                J = config.get_frame_jacobian(site_name, "site")
+                J_arm = J[:, joint_dof_idx]  # (6, 7)
+                m = _manipulability_from_jac(J_arm)
                 scored.append((m, q_sol))
 
             # Filter out near-singular solutions
@@ -451,11 +466,6 @@ def enumerate_ik_solutions_for_arm(
                 )
             else:
                 logger.debug("All IK solutions rejected (manipulability < %.2e)", min_manip)
-
-            # Restore simulation state after scoring
-            data.qpos[:] = qpos_backup
-            data.qvel[:] = qvel_backup
-            mujoco.mj_fwdPosition(model_native, data_native)
 
         return solutions
 

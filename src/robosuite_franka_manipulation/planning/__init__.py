@@ -13,6 +13,10 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
 from robosuite_franka_manipulation.planning.object_trajectory_planner import (
     plan_object_trajectory,
 )
+from robosuite_franka_manipulation.planning.dual_arm_planner import (
+    DualArmParallelPlanner,
+    ParallelExecutionResult,
+)
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
 
@@ -37,6 +41,9 @@ __all__ = [
     'check_single_grasp_feasibility',
     'generate_end_effector_trajectory',
     'plan_object_trajectory',
+    # Dual-arm parallel planner
+    'DualArmParallelPlanner',
+    'ParallelExecutionResult',
     # Trajectory utilities
     'check_trajectory_feasibility',
     'check_dual_trajectory_feasibility',

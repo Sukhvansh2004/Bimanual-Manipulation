@@ -128,15 +128,9 @@ IK_ELBOW_DISCRETIZATION = 8  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 32  # Maximum IK solutions to enumerate
 IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
 IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_DAMPING = 1e-2  # Damping factor for DLS IK
-IK_STEP_SIZE = 0.6  # Step size for IK updates
 IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
-IK_TASK_WEIGHT = 10.0  # Weight for task-space error in IK objective
-IK_MANIPULABILITY_WEIGHT = 1e-3  # Regularization weight for manipulability in IK objective
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
-IK_JOINT_LIMIT_WEIGHT = 0  # Regularization weight for joint-limit avoidance penalty
-USE_GRAD_SCIPY_IK = True  # If True, supply analytical gradient to scipy; else let scipy finite-difference
 # Trajectory Feasibility Check Parameters
 TRAJ_IK_NUM_SEED_CONFIGS = 32  # Seeds for trajectory waypoints
 TRAJ_IK_MAX_SOLUTIONS = 5  # Check multiple solutions per waypoint
@@ -146,6 +140,39 @@ COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
+
+# =============================================================================
+# Mink QP-based IK / Reactive Tracking Configuration
+# =============================================================================
+
+# QP solver backend (``daqp`` installed with mink)
+MINK_QP_SOLVER = "daqp"
+
+# ── FrameTask ──
+MINK_POSITION_COST = 1.0       # position tracking weight
+MINK_ORIENTATION_COST = 1.0    # orientation tracking weight
+MINK_FRAME_GAIN = 0.5          # convergence gain (0, 1]; lower = smoother
+MINK_LM_DAMPING = 1.0          # Levenberg-Marquardt singularity damping
+
+# ── PostureTask ──
+MINK_POSTURE_COST = 1e-3       # bias toward a reference configuration
+
+# ── DampingTask ──
+MINK_DAMPING_COST = 1e-4       # minimum-norm regulariser
+
+# ── Integration timestep ──
+MINK_DT = 0.01                 # seconds per QP solve (reactive tracking)
+MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
+
+# ── Iterative IK convergence ──
+MINK_IK_MAX_ITERS = 300        # maximum QP iterations per IK seed
+MINK_IK_STALL_WINDOW = 20      # iterations to detect stalling
+MINK_IK_STALL_TOL = 1e-7       # minimum error improvement to avoid stall
+
+# ── CollisionAvoidanceLimit ──
+MINK_COLLISION_MIN_DIST = 0.005     # minimum distance between geoms (metres)
+MINK_COLLISION_DETECT_DIST = 0.05   # distance at which constraints activate
+MINK_COLLISION_GAIN = 0.85          # how fast geoms may approach each other
 
 # =============================================================================
 # RRT-Connect Object Trajectory Planner

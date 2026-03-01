@@ -133,7 +133,7 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | Module | Purpose |
 |--------|---------|
 | `collision_utils.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
-| `ik_utils.py` | Scipy-based IK solver with multi-seed enumeration |
+| `ik_utils.py` | Mink QP-based IK solver with multi-seed enumeration |
 | `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
 | `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
 | `visualization_utils.py` | General Meshcat visualization helpers |
@@ -195,11 +195,12 @@ else:
 
 ### Inverse Kinematics (IK)
 
-The module uses a Scipy-based IK solver (`solve_ik_scipy`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by:
+The module uses a mink QP-based differential IK solver (`solve_ik_mink`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by:
 - Trying multiple random seed configurations (`IK_NUM_SEED_CONFIGS = 48`)
 - Warm-starting from the previous waypoint's solution for trajectory continuity
 - Elbow angle discretization (`IK_ELBOW_DISCRETIZATION = 8`) to handle 7-DOF redundancy
 - Filtering duplicate solutions (`IK_UNIQUE_TOLERANCE = 1e-3`)
+- All QP solver configuration is centralized in `constants.py` (`MINK_*` constants)
 
 ### Coordinate Frames
 
