@@ -27,6 +27,9 @@ import pytest
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.assignment import (
     AssignmentResult,
+    ObjectTrajectory,
+    RobotTrajectory,
+    TrajectoryBundle,
     compute_cost_matrix,
     compute_optimal_robot_assignment,
     compute_segment_cost,
@@ -53,34 +56,34 @@ def _make_trajectory(
     n_joints: int = 7,
     feasible: bool = True,
     seed: int = 0,
-) -> Dict[str, Any]:
-    """Build a minimal trajectory dict suitable for the assignment planner."""
+) -> RobotTrajectory:
+    """Build a minimal RobotTrajectory suitable for the assignment planner."""
     rng = np.random.default_rng(seed)
     q = rng.uniform(-1, 1, (n_waypoints, n_joints))
     positions = rng.uniform(-0.5, 0.5, (n_waypoints, 3))
     quats = np.tile([0, 0, 0, 1], (n_waypoints, 1)).astype(float)
-    return {
-        "is_feasible": np.ones(n_waypoints, dtype=bool) if feasible else np.zeros(n_waypoints, dtype=bool),
-        "joint_configs": q,
-        "eef_positions": positions,
-        "eef_quaternions": quats,
-        "eef_frame_ids": np.array(["world"] * n_waypoints),
-        "object_positions": positions.copy(),
-        "object_quaternions": quats.copy(),
-        "object_frame_ids": np.array(["world"] * n_waypoints),
-        "ik_success": np.ones(n_waypoints, dtype=bool),
-        "collision_free": np.ones(n_waypoints, dtype=bool),
-    }
+    return RobotTrajectory(
+        is_feasible=np.ones(n_waypoints, dtype=bool) if feasible else np.zeros(n_waypoints, dtype=bool),
+        joint_configs=q,
+        eef_positions=positions,
+        eef_quaternions=quats,
+        eef_frame_ids=np.array(["world"] * n_waypoints),
+        object_positions=positions.copy(),
+        object_quaternions=quats.copy(),
+        object_frame_ids=np.array(["world"] * n_waypoints),
+        ik_success=np.ones(n_waypoints, dtype=bool),
+        collision_free=np.ones(n_waypoints, dtype=bool),
+    )
 
 
-def _make_object_trajectory(n_waypoints: int = 6, seed: int = 99) -> Dict[str, Any]:
+def _make_object_trajectory(n_waypoints: int = 6, seed: int = 99) -> ObjectTrajectory:
     """Build a minimal object trajectory."""
     rng = np.random.default_rng(seed)
-    return {
-        "positions": rng.uniform(-0.3, 0.3, (n_waypoints, 3)),
-        "quaternions": np.tile([0, 0, 0, 1], (n_waypoints, 1)).astype(float),
-        "frame_ids": np.array(["world"] * n_waypoints),
-    }
+    return ObjectTrajectory(
+        positions=rng.uniform(-0.3, 0.3, (n_waypoints, 3)),
+        quaternions=np.tile([0, 0, 0, 1], (n_waypoints, 1)).astype(float),
+        frame_ids=np.array(["world"] * n_waypoints),
+    )
 
 
 def _make_trajectories(
@@ -88,17 +91,17 @@ def _make_trajectories(
     n_r0: int = 2,
     n_r1: int = 2,
     seed: int = 0,
-) -> Dict[str, Any]:
-    """Build a full trajectories dict for compute_optimal_robot_assignment."""
-    return {
-        "object_trajectory": _make_object_trajectory(n_waypoints, seed=seed + 100),
-        "robot0_trajectories": [
+) -> TrajectoryBundle:
+    """Build a full TrajectoryBundle for compute_optimal_robot_assignment."""
+    return TrajectoryBundle(
+        object_trajectory=_make_object_trajectory(n_waypoints, seed=seed + 100),
+        robot0_trajectories=[
             _make_trajectory(n_waypoints, seed=seed + i) for i in range(n_r0)
         ],
-        "robot1_trajectories": [
+        robot1_trajectories=[
             _make_trajectory(n_waypoints, seed=seed + 50 + i) for i in range(n_r1)
         ],
-    }
+    )
 
 
 def _dummy_jacobian_fn(q: np.ndarray) -> np.ndarray:
@@ -180,7 +183,7 @@ class TestComputeSegmentCost:
 
     def test_partially_infeasible_segment(self):
         traj = _make_trajectory(n_waypoints=5)
-        traj["is_feasible"][1] = False  # waypoint inside segment [0,2]
+        traj.is_feasible[1] = False  # waypoint inside segment [0,2]
         cost, ok = compute_segment_cost(traj, 0, 2)
         assert ok is False
 
@@ -223,7 +226,7 @@ class TestComputeSegmentCost:
         # segment [0,1] has start_idx=0 end_idx=1, includes indices 0 and 1 → 2 waypoints
         # We need a segment with exactly 1 waypoint → impossible with current API
         # since start_idx < end_idx. Instead verify that identical configs → 0 smoothness.
-        traj["joint_configs"][0] = traj["joint_configs"][1]
+        traj.joint_configs[0] = traj.joint_configs[1]
         cost, ok = compute_segment_cost(traj, 0, 1, alpha=1.0, beta=0.0)
         assert ok is True
         assert cost == pytest.approx(0.0, abs=1e-12)
@@ -308,8 +311,8 @@ class TestComputeSwitchingCost:
     def _make_args(self):
         trajs = _make_trajectories(n_waypoints=6, n_r0=1, n_r1=1)
         _, traj_info = compute_cost_matrix(
-            trajs["robot0_trajectories"],
-            trajs["robot1_trajectories"],
+            trajs.robot0_trajectories,
+            trajs.robot1_trajectories,
             5,
         )
         return trajs, traj_info
@@ -526,8 +529,8 @@ class TestComputeOptimalRobotAssignment:
     def test_all_infeasible_raises(self):
         """If every trajectory is infeasible, a ValueError must be raised."""
         trajs = _make_trajectories(n_waypoints=4, n_r0=1, n_r1=1, seed=5)
-        for t in trajs["robot0_trajectories"] + trajs["robot1_trajectories"]:
-            t["is_feasible"][:] = False
+        for t in trajs.robot0_trajectories + trajs.robot1_trajectories:
+            t.is_feasible[:] = False
         with pytest.raises(ValueError, match="No feasible assignment"):
             compute_optimal_robot_assignment(trajs)
 
@@ -541,8 +544,8 @@ class TestComputeOptimalRobotAssignment:
     def test_single_robot_only_feasible(self):
         """If only one robot has feasible trajectories, the entire sequence should use it."""
         trajs = _make_trajectories(n_waypoints=6, n_r0=1, n_r1=1, seed=11)
-        for t in trajs["robot1_trajectories"]:
-            t["is_feasible"][:] = False
+        for t in trajs.robot1_trajectories:
+            t.is_feasible[:] = False
         result = compute_optimal_robot_assignment(trajs)
         assert all(r == 0 for r in result.sequence)
         assert result.handover_points == []
@@ -591,8 +594,8 @@ class TestComputeOptimalRobotAssignment:
     def test_switching_costs_zero_no_handover(self):
         """When no handover occurs, all switching costs should be 0."""
         trajs = _make_trajectories(n_waypoints=6, n_r0=1, n_r1=1, seed=55)
-        for t in trajs["robot1_trajectories"]:
-            t["is_feasible"][:] = False
+        for t in trajs.robot1_trajectories:
+            t.is_feasible[:] = False
         result = compute_optimal_robot_assignment(trajs)
         # Only robot0 is feasible → no handover
         assert all(sc == 0.0 for sc in result.switching_costs)
@@ -601,8 +604,8 @@ class TestComputeOptimalRobotAssignment:
         """total_cost should equal J*(last segment) which includes all task + switch costs."""
         trajs = _make_trajectories(n_waypoints=6, n_r0=1, n_r1=1, seed=66)
         # Force single robot to avoid stochastic handover costs
-        for t in trajs["robot1_trajectories"]:
-            t["is_feasible"][:] = False
+        for t in trajs.robot1_trajectories:
+            t.is_feasible[:] = False
         result = compute_optimal_robot_assignment(trajs)
         expected = float(np.sum(result.task_costs) + np.sum(result.switching_costs))
         assert result.total_cost == pytest.approx(expected, rel=1e-10)
@@ -649,9 +652,9 @@ class TestLoadAllTrajectories:
                 )
 
         trajs = load_all_trajectories(str(tmp_path))
-        assert len(trajs["robot0_trajectories"]) == 2
-        assert len(trajs["robot1_trajectories"]) == 2
-        assert trajs["object_trajectory"]["positions"].shape == (n_wp, 3)
+        assert len(trajs.robot0_trajectories) == 2
+        assert len(trajs.robot1_trajectories) == 2
+        assert trajs.object_trajectory.positions.shape == (n_wp, 3)
 
     def test_loaded_trajectories_work_with_assignment(self, tmp_path):
         """End-to-end: save, load, run assignment."""
@@ -697,8 +700,8 @@ class TestLoadAllTrajectories:
             object_frame_ids=np.array(["world"] * 3),
         )
         trajs = load_all_trajectories(str(tmp_path))
-        assert len(trajs["robot0_trajectories"]) == 0
-        assert len(trajs["robot1_trajectories"]) == 0
+        assert len(trajs.robot0_trajectories) == 0
+        assert len(trajs.robot1_trajectories) == 0
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -909,6 +912,9 @@ class TestPlanningExports:
         for name in (
             "compute_optimal_robot_assignment",
             "AssignmentResult",
+            "ObjectTrajectory",
+            "RobotTrajectory",
+            "TrajectoryBundle",
             "save_assignment_result",
             "load_assignment_result",
             "load_all_trajectories",

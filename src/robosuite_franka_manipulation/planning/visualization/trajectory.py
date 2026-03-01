@@ -11,6 +11,7 @@ from grasp_gen.utils.meshcat_utils import make_frame
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from robosuite_franka_manipulation.planning.assignment.models import TrajectoryBundle
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ def visualize_handover_plan(
 # ---------------------------------------------------------------------------
 
 def visualize_trajectory_feasibility(
-    trajectories: Dict[str, Any],
+    trajectories: TrajectoryBundle,
     save_path: Optional[str] = None,
 ) -> Any:
     """Render a heatmap of per-waypoint feasibility across all trajectories.
@@ -216,8 +217,7 @@ def visualize_trajectory_feasibility(
     (missing) cells.
 
     Args:
-        trajectories: Dict with ``'robot0_trajectories'``,
-            ``'robot1_trajectories'``, and ``'object_trajectory'``.
+        trajectories: Typed trajectory bundle for both arms.
         save_path: If provided, save the figure to this path.
 
     Returns:
@@ -229,9 +229,9 @@ def visualize_trajectory_feasibility(
         logger.warning("matplotlib not installed — skipping feasibility heatmap.")
         return None
 
-    r0 = trajectories["robot0_trajectories"]
-    r1 = trajectories["robot1_trajectories"]
-    n_waypoints = len(trajectories["object_trajectory"]["positions"])
+    r0 = trajectories.robot0_trajectories
+    r1 = trajectories.robot1_trajectories
+    n_waypoints = trajectories.object_trajectory.n_waypoints
     n_r0, n_r1 = len(r0), len(r1)
     total = n_r0 + n_r1
 
@@ -239,7 +239,7 @@ def visualize_trajectory_feasibility(
 
     def _fill(trajs, offset):
         for t_idx, traj in enumerate(trajs):
-            feasible = np.asarray(traj["is_feasible"])
+            feasible = np.asarray(traj.is_feasible)
             if feasible.ndim == 0:
                 feasible = np.full(n_waypoints, feasible.item(), dtype=bool)
             for w in range(min(n_waypoints, len(feasible))):

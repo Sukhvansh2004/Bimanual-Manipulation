@@ -60,6 +60,9 @@ from robosuite_franka_manipulation.planning.rrt import (
 from robosuite_franka_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     AssignmentResult,
+    ObjectTrajectory,
+    RobotTrajectory,
+    TrajectoryBundle,
     save_assignment_result,
     load_assignment_result,
     load_all_trajectories,
@@ -116,6 +119,9 @@ __all__ = [
     # Segment assignment planner
     'compute_optimal_robot_assignment',
     'AssignmentResult',
+    'ObjectTrajectory',
+    'RobotTrajectory',
+    'TrajectoryBundle',
     'save_assignment_result',
     'load_assignment_result',
     'load_all_trajectories',

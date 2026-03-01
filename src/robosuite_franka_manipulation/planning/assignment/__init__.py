@@ -6,6 +6,9 @@ and handover switching costs.
 
 Submodules
 ----------
+models
+    :class:`ObjectTrajectory`, :class:`RobotTrajectory`, and
+    :class:`TrajectoryBundle` typed trajectory containers.
 result
     :class:`AssignmentResult` dataclass and NPZ persistence helpers.
 cost
@@ -20,6 +23,11 @@ trajectory_io
     Disk I/O for robot/object trajectory NPZ files.
 """
 
+from robosuite_franka_manipulation.planning.assignment.models import (
+    ObjectTrajectory,
+    RobotTrajectory,
+    TrajectoryBundle,
+)
 from robosuite_franka_manipulation.planning.assignment.result import (
     AssignmentResult,
     save_assignment_result,
@@ -43,6 +51,9 @@ from robosuite_franka_manipulation.planning.assignment.trajectory_io import (
 )
 
 __all__ = [
+    "ObjectTrajectory",
+    "RobotTrajectory",
+    "TrajectoryBundle",
     "AssignmentResult",
     "save_assignment_result",
     "load_assignment_result",

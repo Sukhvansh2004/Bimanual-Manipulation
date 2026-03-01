@@ -21,12 +21,17 @@ compute_switching_cost
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.planning.assignment.models import (
+    ObjectTrajectory,
+    RobotTrajectory,
+    TrajectoryBundle,
+)
 from robosuite_franka_manipulation.planning.utils.manipulability import (
     compute_trajectory_manipulability,
 )
@@ -41,7 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def compute_segment_cost(
-    trajectory: Dict[str, Any],
+    trajectory: RobotTrajectory,
     start_idx: int,
     end_idx: int,
     alpha: float = constants.ASSIGNMENT_ALPHA,
@@ -51,9 +56,10 @@ def compute_segment_cost(
 ) -> Tuple[float, bool]:
     """Compute the task cost for one trajectory segment ``[start_idx, end_idx]``.
 
+    Cost = α · C₁(smoothness) + β · C₂(manipulability).
+
     Args:
-        trajectory: Dict with ``'is_feasible'`` (bool array) and
-            ``'joint_configs'`` (2-D float array).
+        trajectory: Robot trajectory with feasibility and joint data.
         start_idx: First waypoint index.
         end_idx: Last waypoint index (inclusive).
         alpha: Smoothness weight.
@@ -64,14 +70,23 @@ def compute_segment_cost(
     Returns:
         ``(cost, is_feasible)`` — cost is ``inf`` when infeasible.
     """
-    n_waypoints = len(trajectory["is_feasible"])
+    n_waypoints = trajectory.n_waypoints
     if start_idx < 0 or end_idx >= n_waypoints or start_idx >= end_idx:
+        logger.debug(
+            "Segment [%d, %d] out of range for trajectory with %d waypoints",
+            start_idx, end_idx, n_waypoints,
+        )
         return np.inf, False
 
-    segment_feasible = trajectory["is_feasible"][start_idx : end_idx + 1]
-    segment_joints = trajectory["joint_configs"][start_idx : end_idx + 1]
+    segment_feasible = trajectory.is_feasible[start_idx : end_idx + 1]
+    segment_joints = trajectory.joint_configs[start_idx : end_idx + 1]
 
     if len(segment_feasible) == 0 or not np.all(segment_feasible):
+        logger.debug(
+            "Segment [%d, %d] infeasible: %d/%d waypoints feasible",
+            start_idx, end_idx,
+            int(np.sum(segment_feasible)), len(segment_feasible),
+        )
         return np.inf, False
     if len(segment_joints) == 0:
         return np.inf, False
@@ -93,7 +108,12 @@ def compute_segment_cost(
     )
     manip_cost = float(np.sum(1.0 / (manip_vals + epsilon)))
 
-    return alpha * smoothness + beta * manip_cost, True
+    cost = alpha * smoothness + beta * manip_cost
+    logger.debug(
+        "Segment [%d, %d]: cost=%.4f (smoothness=%.4f, manip=%.4f)",
+        start_idx, end_idx, cost, alpha * smoothness, beta * manip_cost,
+    )
+    return cost, True
 
 
 # ---------------------------------------------------------------------------
@@ -101,8 +121,8 @@ def compute_segment_cost(
 # ---------------------------------------------------------------------------
 
 def compute_cost_matrix(
-    robot0_trajectories: List[Dict[str, Any]],
-    robot1_trajectories: List[Dict[str, Any]],
+    robot0_trajectories: List[RobotTrajectory],
+    robot1_trajectories: List[RobotTrajectory],
     n_segments: int,
     alpha: float = constants.ASSIGNMENT_ALPHA,
     beta: float = constants.ASSIGNMENT_BETA,
@@ -112,6 +132,12 @@ def compute_cost_matrix(
     """Build the per-segment cost for every ``(robot, trajectory)`` state.
 
     Args:
+        robot0_trajectories: Robot 0 grasp trajectories.
+        robot1_trajectories: Robot 1 grasp trajectories.
+        n_segments: Number of trajectory segments.
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        epsilon: Numerical floor for manipulability reciprocal.
         jacobian_fns: Optional mapping ``{robot_id: (q) -> J}`` providing
             per-robot Jacobian functions for Yoshikawa manipulability.
 
@@ -136,7 +162,8 @@ def compute_cost_matrix(
     for si, (robot_id, traj_idx) in trajectory_info.items():
         traj = robot0_trajectories[traj_idx] if robot_id == 0 else robot1_trajectories[traj_idx]
         jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
-        n_wp = len(traj["is_feasible"])
+        n_wp = traj.n_waypoints
+        feasible_segs = 0
         for seg in range(min(n_segments, n_wp - 1)):
             cost, ok = compute_segment_cost(
                 traj, seg, seg + 1,
@@ -144,7 +171,17 @@ def compute_cost_matrix(
             )
             if ok:
                 cost_matrix[seg, si] = cost
+                feasible_segs += 1
+        logger.debug(
+            "State %d (robot=%d, traj=%d): %d/%d feasible segments",
+            si, robot_id, traj_idx, feasible_segs, min(n_segments, n_wp - 1),
+        )
 
+    finite_count = int(np.isfinite(cost_matrix).sum())
+    logger.info(
+        "Cost matrix built: %d segments x %d states, %d/%d finite entries",
+        n_segments, n_states, finite_count, n_segments * n_states,
+    )
     return cost_matrix, trajectory_info
 
 
@@ -201,6 +238,11 @@ def _compute_handover_primitive_cost(
     receiver_configs = _solve_all(receiver_poses, receiver_robot_id) if receiver_poses else []
 
     if transfer_configs is None or receiver_configs is None:
+        logger.debug(
+            "Handover IK failure: transfer=%s, receiver=%s",
+            "failed" if transfer_configs is None else "ok",
+            "failed" if receiver_configs is None else "ok",
+        )
         return np.inf, False
 
     # --- Inter-arm collision check at the critical handover meeting point ---
@@ -248,7 +290,13 @@ def _compute_handover_primitive_cost(
         )
         manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
 
-    return alpha * smoothness + beta * manip_cost, True
+    cost = alpha * smoothness + beta * manip_cost
+    logger.debug(
+        "Handover primitive cost: smoothness=%.4f, manip=%.4f, total=%.4f "
+        "(transfer=robot%d, receiver=robot%d)",
+        smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
+    )
+    return cost, True
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +307,7 @@ def compute_switching_cost(
     prev_robot: int,
     curr_robot: int,
     segment_idx: int,
-    trajectories: Dict[str, Any],
+    trajectories: TrajectoryBundle,
     prev_state_idx: int,
     curr_state_idx: int,
     trajectory_info: Dict[int, Tuple[int, int]],
@@ -297,22 +345,22 @@ def compute_switching_cost(
         return constants.ASSIGNMENT_FALLBACK_SWITCH_COST
 
     # Build the handover primitive and evaluate its cost
-    obj_traj = trajectories["object_trajectory"]
-    if segment_idx >= len(obj_traj["positions"]):
+    obj_traj = trajectories.object_trajectory
+    if segment_idx >= obj_traj.n_waypoints:
         return np.inf
 
     obj_pose = StampedPose(
-        position=obj_traj["positions"][segment_idx],
-        quaternion=obj_traj["quaternions"][segment_idx],
+        position=obj_traj.positions[segment_idx],
+        quaternion=obj_traj.quaternions[segment_idx],
         frame_id=_frame_id_at(obj_traj, segment_idx),
     )
 
-    prev_traj = _get_trajectory(trajectories, prev_robot_id, prev_traj_idx)
-    curr_traj = _get_trajectory(trajectories, curr_robot_id, curr_traj_idx)
+    prev_traj = trajectories.get_trajectory(prev_robot_id, prev_traj_idx)
+    curr_traj = trajectories.get_trajectory(curr_robot_id, curr_traj_idx)
 
-    if segment_idx >= len(prev_traj.get("eef_positions", [])):
+    if segment_idx >= prev_traj.n_waypoints:
         return np.inf
-    if segment_idx >= len(curr_traj.get("eef_positions", [])):
+    if segment_idx >= curr_traj.n_waypoints:
         return np.inf
 
     # Compute grasp transforms: G = T_obj⁻¹ @ T_ee
@@ -339,6 +387,10 @@ def compute_switching_cost(
         transfer_robot_id=prev_robot_id,
         receiver_robot_id=curr_robot_id,
     )
+    logger.debug(
+        "Switching cost at seg %d (robot %d→%d): %.4f (ok=%s)",
+        segment_idx, prev_robot, curr_robot, cost, ok,
+    )
     return cost if ok else np.inf
 
 
@@ -346,9 +398,9 @@ def compute_switching_cost(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _frame_id_at(obj_traj: Dict[str, Any], idx: int) -> str:
+def _frame_id_at(obj_traj: ObjectTrajectory, idx: int) -> str:
     """Extract frame_id from object trajectory at *idx*."""
-    fids = obj_traj.get("frame_ids")
+    fids = obj_traj.frame_ids
     if fids is None:
         return constants.WORLD_FRAME
     if isinstance(fids, np.ndarray):
@@ -356,16 +408,9 @@ def _frame_id_at(obj_traj: Dict[str, Any], idx: int) -> str:
     return str(fids)
 
 
-def _get_trajectory(
-    trajectories: Dict[str, Any], robot_id: int, traj_idx: int
-) -> Dict[str, Any]:
-    key = "robot0_trajectories" if robot_id == 0 else "robot1_trajectories"
-    return trajectories[key][traj_idx]
-
-
-def _eef_matrix(traj: Dict[str, Any], idx: int) -> np.ndarray:
+def _eef_matrix(traj: RobotTrajectory, idx: int) -> np.ndarray:
     """Build a 4×4 homogeneous matrix from the EEF pose at *idx*."""
     mat = np.eye(4)
-    mat[:3, 3] = traj["eef_positions"][idx]
-    mat[:3, :3] = R.from_quat(traj["eef_quaternions"][idx]).as_matrix()
+    mat[:3, 3] = traj.eef_positions[idx]
+    mat[:3, :3] = R.from_quat(traj.eef_quaternions[idx]).as_matrix()
     return mat

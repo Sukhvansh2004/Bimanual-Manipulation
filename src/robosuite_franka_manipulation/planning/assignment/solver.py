@@ -8,11 +8,14 @@ trajectory segment.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from robosuite_franka_manipulation import constants
+from robosuite_franka_manipulation.planning.assignment.models import (
+    TrajectoryBundle,
+)
 from robosuite_franka_manipulation.planning.assignment.result import (
     AssignmentResult,
 )
@@ -31,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _solve_optimal_assignment(
     cost_matrix: np.ndarray,
     trajectory_info: Dict[int, Tuple[int, int]],
-    trajectories: Dict[str, Any],
+    trajectories: TrajectoryBundle,
     transfer_feasibility: Optional[Dict[Tuple[int, int, int, int], bool]] = None,
     alpha: float = constants.ASSIGNMENT_ALPHA,
     beta: float = constants.ASSIGNMENT_BETA,
@@ -107,7 +110,13 @@ def _solve_optimal_assignment(
             best_final_state = si
 
     if best_final_state == -1:
+        logger.error("No feasible assignment found across %d states", n_states)
         raise ValueError("No feasible assignment found — check trajectory feasibility.")
+
+    logger.debug(
+        "Forward pass complete: best terminal cost=%.4f at state %d",
+        best_final_cost, best_final_state,
+    )
 
     # Backtrack using cached switching costs (append + reverse for O(n))
     sequence: List[int] = []
@@ -162,7 +171,7 @@ def _solve_optimal_assignment(
 # ---------------------------------------------------------------------------
 
 def compute_optimal_robot_assignment(
-    trajectories: Dict[str, Any],
+    trajectories: TrajectoryBundle,
     transfer_feasibility: Optional[Dict[Tuple[int, int, int, int], bool]] = None,
     initial_robot: Optional[int] = None,
     alpha: float = constants.ASSIGNMENT_ALPHA,
@@ -175,8 +184,7 @@ def compute_optimal_robot_assignment(
     """Compute the globally optimal robot-to-segment assignment.
 
     Args:
-        trajectories: Dict with keys ``'robot0_trajectories'``,
-            ``'robot1_trajectories'``, and ``'object_trajectory'``.
+        trajectories: Typed trajectory bundle for both arms.
         transfer_feasibility: Optional ``{(from_robot, from_traj, to_robot,
             to_traj): bool}`` — *False* blocks that handover.
         initial_robot: Force the first segment to a specific robot.
@@ -195,10 +203,9 @@ def compute_optimal_robot_assignment(
     Raises:
         ValueError: If no feasible assignment exists.
     """
-    r0 = trajectories["robot0_trajectories"]
-    r1 = trajectories["robot1_trajectories"]
-    n_wp = len(trajectories["object_trajectory"]["positions"])
-    n_segments = n_wp - 1
+    r0 = trajectories.robot0_trajectories
+    r1 = trajectories.robot1_trajectories
+    n_segments = trajectories.n_segments
 
     logger.info(
         "Computing assignment for %d segments (%d R0 + %d R1 trajectories, "
