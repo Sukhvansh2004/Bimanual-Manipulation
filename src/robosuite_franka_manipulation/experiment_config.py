@@ -100,6 +100,16 @@ class RuntimeConfig:
 
 
 @dataclass
+class AssignmentConfig:
+    """Segment assignment planner settings."""
+    alpha: float = constants.ASSIGNMENT_ALPHA
+    beta: float = constants.ASSIGNMENT_BETA
+    epsilon: float = constants.ASSIGNMENT_EPSILON
+    initial_robot: Optional[int] = None
+    transfer_feasibility: Optional[Dict[str, bool]] = None  # JSON keys are strings; decoded at use-time
+
+
+@dataclass
 class ExperimentConfig:
     """Top-level experiment configuration."""
     name: str
@@ -113,6 +123,7 @@ class ExperimentConfig:
     output: OutputConfig
     execution: ExecutionConfig
     runtime: RuntimeConfig
+    assignment: AssignmentConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
     table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
 
@@ -277,6 +288,17 @@ def load_experiment(path: str) -> ExperimentConfig:
         num_workers=rt_raw.get("num_workers", 0),
     )
 
+    # --- assignment ---
+    asgn_raw = raw.get("assignment", {})
+    tf_feas_raw = asgn_raw.get("transfer_feasibility", None)
+    assignment = AssignmentConfig(
+        alpha=asgn_raw.get("alpha", constants.ASSIGNMENT_ALPHA),
+        beta=asgn_raw.get("beta", constants.ASSIGNMENT_BETA),
+        epsilon=asgn_raw.get("epsilon", constants.ASSIGNMENT_EPSILON),
+        initial_robot=asgn_raw.get("initial_robot", None),
+        transfer_feasibility=tf_feas_raw,
+    )
+
     return ExperimentConfig(
         name=raw.get("name", resolved.stem),
         description=raw.get("description", ""),
@@ -289,6 +311,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         output=output,
         execution=execution,
         runtime=runtime,
+        assignment=assignment,
         raw=raw,
         table_full_size=table_full_size,
     )

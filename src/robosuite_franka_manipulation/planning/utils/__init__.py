@@ -26,6 +26,12 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory,
     WaypointFeasibilityResult
 )
+from robosuite_franka_manipulation.planning.utils.manipulability import (
+    compute_manipulability_simple,
+    compute_manipulability_from_jacobian,
+    compute_trajectory_manipulability,
+    compute_average_manipulability,
+)
 from robosuite_franka_manipulation.planning.utils.visualization_utils import (
     visualize_trajectory
 )
@@ -63,4 +69,9 @@ __all__ = [
     'visualize_trajectory',
     'RobotMeshVisualizer',
     'ObjectMeshVisualizer',
+    # Manipulability utilities
+    'compute_manipulability_simple',
+    'compute_manipulability_from_jacobian',
+    'compute_trajectory_manipulability',
+    'compute_average_manipulability',
 ]

@@ -72,6 +72,13 @@
         "traj0": null,
         "traj1": null
     },
+    "assignment": {
+        "alpha": 10.0,
+        "beta": 1.0,
+        "epsilon": 1e-6,
+        "initial_robot": null,
+        "transfer_feasibility": true
+    },
     "runtime": {
         "debug": false,
         "num_workers": 4

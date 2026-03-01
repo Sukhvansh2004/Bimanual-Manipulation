@@ -192,6 +192,16 @@ RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below 
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
 # =============================================================================
+# Segment Assignment Planner
+# =============================================================================
+
+# Cost function weights:  C = α * C_smoothness + β * C_manipulability
+ASSIGNMENT_ALPHA = 10.0       # smoothness weight (||Δq||²)
+ASSIGNMENT_BETA = 1.0         # manipulability weight (Σ 1/(w+ε))
+ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
+ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
+
+# =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
 

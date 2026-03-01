@@ -17,6 +17,13 @@ from robosuite_franka_manipulation.planning.dual_arm_planner import (
     DualArmParallelPlanner,
     ParallelExecutionResult,
 )
+from robosuite_franka_manipulation.planning.assignment_planner import (
+    compute_optimal_robot_assignment,
+    AssignmentResult,
+    save_assignment_result,
+    load_assignment_result,
+    load_all_trajectories,
+)
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
 
@@ -44,6 +51,12 @@ __all__ = [
     # Dual-arm parallel planner
     'DualArmParallelPlanner',
     'ParallelExecutionResult',
+    # Segment assignment planner
+    'compute_optimal_robot_assignment',
+    'AssignmentResult',
+    'save_assignment_result',
+    'load_assignment_result',
+    'load_all_trajectories',
     # Trajectory utilities
     'check_trajectory_feasibility',
     'check_dual_trajectory_feasibility',

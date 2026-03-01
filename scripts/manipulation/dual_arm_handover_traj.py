@@ -2,9 +2,17 @@
 """
 Dual-Arm Handover Demo using Trajectory Files and Experiment JSON Configs.
 
-Usage:
-    python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_8.npz --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_2.npz
-    python dual_arm_handover_traj.py --experiment experiments/flatPlate_shelf_to_box.json --traj0 ... --traj1 ...
+Can load trajectories explicitly (--traj0 / --traj1 in the experiment JSON),
+or use an optimal assignment produced by ``segment_assignment.py``.
+
+Usage::
+
+    # Explicit trajectories (original mode)
+    python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
+
+    # Using a pre-computed assignment result
+    python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \\
+        --assignment data/flatPlate_table_to_shelf/assignment_results.npz
 """
 
 import os
@@ -31,6 +39,11 @@ from robosuite_franka_manipulation.utils.primitives import (
     ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
 )
 from robosuite_franka_manipulation.planning.dual_arm_planner import DualArmParallelPlanner
+from robosuite_franka_manipulation.planning.assignment_planner import (
+    load_assignment_result,
+    load_all_trajectories,
+    AssignmentResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +79,9 @@ def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
+    parser.add_argument("--assignment", type=str, default=None,
+                        help="Path to assignment_results.npz (from segment_assignment.py). "
+                             "When provided, trajectory selection is driven by the optimal assignment.")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     args = parser.parse_args()
 
@@ -110,14 +126,64 @@ def main():
 
     try:
         # 2. Load Trajectories
-        # Resolve trajectory paths from experiment config
-        if not exec_cfg.traj0 or not exec_cfg.traj1:
-            logger.error("Trajectory paths (traj0, traj1) must be set in the experiment JSON execution section.")
+        # -------------------------------------------------------------------
+        # Two modes:
+        #   a) --assignment  → load trajectories from the assignment result
+        #   b) Explicit traj0/traj1 in the experiment JSON execution section
+        # -------------------------------------------------------------------
+        assignment: Optional[AssignmentResult] = None
+
+        if args.assignment:
+            logger.info("Loading assignment result from %s ...", args.assignment)
+            assignment = load_assignment_result(args.assignment)
+
+            # Resolve data directory from assignment path
+            assignment_dir = os.path.dirname(os.path.abspath(args.assignment))
+            all_traj_data = load_all_trajectories(assignment_dir)
+
+            # Pick the trajectory files for the first segment's robot & traj idx
+            start_robot = assignment.sequence[0]
+            start_traj_idx = assignment.trajectory_indices[0]
+            end_robot = assignment.sequence[-1]
+            end_traj_idx = assignment.trajectory_indices[-1]
+
+            traj_path0 = os.path.join(assignment_dir, f"robot0_trajectory_{start_traj_idx if start_robot == 0 else assignment.trajectory_indices[assignment.sequence.index(0)] if 0 in assignment.sequence else 0}.npz")
+            traj_path1 = os.path.join(assignment_dir, f"robot1_trajectory_{start_traj_idx if start_robot == 1 else assignment.trajectory_indices[assignment.sequence.index(1)] if 1 in assignment.sequence else 0}.npz")
+
+            # Build paths from actual trajectory indices used
+            r0_traj_idx = None
+            r1_traj_idx = None
+            for seq_robot, seq_traj in zip(assignment.sequence, assignment.trajectory_indices):
+                if seq_robot == 0 and r0_traj_idx is None:
+                    r0_traj_idx = seq_traj
+                if seq_robot == 1 and r1_traj_idx is None:
+                    r1_traj_idx = seq_traj
+
+            if r0_traj_idx is not None:
+                traj_path0 = os.path.join(assignment_dir, f"robot0_trajectory_{r0_traj_idx}.npz")
+            else:
+                # Robot 0 not used — load first available as placeholder
+                traj_path0 = os.path.join(assignment_dir, "robot0_trajectory_0.npz")
+
+            if r1_traj_idx is not None:
+                traj_path1 = os.path.join(assignment_dir, f"robot1_trajectory_{r1_traj_idx}.npz")
+            else:
+                traj_path1 = os.path.join(assignment_dir, "robot1_trajectory_0.npz")
+
+            logger.info("Assignment selected: R0 traj %s, R1 traj %s", r0_traj_idx, r1_traj_idx)
+            logger.info("Handover points: %s", assignment.handover_points)
+
+        elif exec_cfg.traj0 and exec_cfg.traj1:
+            traj_path0 = exec_cfg.traj0
+            traj_path1 = exec_cfg.traj1
+        else:
+            logger.error(
+                "No trajectory source specified. Provide --assignment or set "
+                "traj0/traj1 in the experiment JSON execution section."
+            )
             return
-        traj_path0 = exec_cfg.traj0
-        traj_path1 = exec_cfg.traj1
-        
-        logger.info(f"Loading trajectories: {traj_path0}, {traj_path1}")
+
+        logger.info("Loading trajectories: %s, %s", traj_path0, traj_path1)
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)
         eef_traj1, obj_traj1, joints1, res1 = load_trajectory(traj_path1)
         
@@ -150,15 +216,23 @@ def main():
             return
 
         # 5. Execution Loop
-        first0 = find_first_feasible_point(res0)
-        first1 = find_first_feasible_point(res1)
-        
-        if first0 is None and first1 is None:
-            logger.error("No feasible starting point found.")
-            return
-            
-        current_robot = 0 if (first0 is not None and (first1 is None or first0 <= first1)) else 1
-        current_idx = first0 if current_robot == 0 else first1
+        # -------------------------------------------------------------------
+        # When an assignment result is available, use its optimal handover
+        # points instead of the heuristic feasibility-gap search.
+        # -------------------------------------------------------------------
+        if assignment is not None:
+            current_robot = assignment.sequence[0]
+            current_idx = 0
+        else:
+            first0 = find_first_feasible_point(res0)
+            first1 = find_first_feasible_point(res1)
+
+            if first0 is None and first1 is None:
+                logger.error("No feasible starting point found.")
+                return
+
+            current_robot = 0 if (first0 is not None and (first1 is None or first0 <= first1)) else 1
+            current_idx = first0 if current_robot == 0 else first1
         
         logger.info(f"Robot {current_robot} starting at waypoint {current_idx}")
         current_arm = system.left_arm if current_robot == 0 else system.right_arm
@@ -187,22 +261,35 @@ def main():
             res_other = res1 if current_robot == 0 else res0
             
             next_handover_idx = -1
-            for i in range(current_idx + 1, len(res_current)):
-                if not res_current[i].is_feasible:
-                    for j in reversed(range(current_idx, i)):
-                        if res_current[j].is_feasible and res_other[j].is_feasible:
-                            next_handover_idx = j
-                            break
-                    break
-            
-            if next_handover_idx == -1:
-                last_feasible_other = find_last_feasible_point(res_other)
-                last_feasible_current = find_last_feasible_point(res_current)
-                if last_feasible_other is not None and last_feasible_current is not None and last_feasible_other > last_feasible_current:
-                    for j in reversed(range(current_idx, last_feasible_current + 1)):
-                        if res_current[j].is_feasible and res_other[j].is_feasible:
-                            next_handover_idx = j
-                            break
+
+            if assignment is not None:
+                # ---- Assignment-driven handover detection ----------------
+                # Walk the assignment sequence from current_idx+1 to find the
+                # next robot switch.
+                for seg in range(current_idx + 1, len(assignment.sequence)):
+                    if assignment.sequence[seg] != current_robot:
+                        next_handover_idx = seg
+                        break
+            else:
+                # ---- Heuristic fallback (original logic) -----------------
+                for i in range(current_idx + 1, len(res_current)):
+                    if not res_current[i].is_feasible:
+                        for j in reversed(range(current_idx, i)):
+                            if res_current[j].is_feasible and res_other[j].is_feasible:
+                                next_handover_idx = j
+                                break
+                        break
+
+                if next_handover_idx == -1:
+                    last_feasible_other = find_last_feasible_point(res_other)
+                    last_feasible_current = find_last_feasible_point(res_current)
+                    if (last_feasible_other is not None
+                            and last_feasible_current is not None
+                            and last_feasible_other > last_feasible_current):
+                        for j in reversed(range(current_idx, last_feasible_current + 1)):
+                            if res_current[j].is_feasible and res_other[j].is_feasible:
+                                next_handover_idx = j
+                                break
             
             if next_handover_idx != -1 and next_handover_idx > current_idx:
                 # -------------------------------------------------------
