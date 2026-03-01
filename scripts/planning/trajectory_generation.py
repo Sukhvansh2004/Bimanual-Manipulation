@@ -56,9 +56,9 @@ from robosuite_franka_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
-from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
-from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
-from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import ObjectMeshVisualizer
+from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
+from robosuite_franka_manipulation.planning.visualization.robot_mesh import RobotMeshVisualizer
+from robosuite_franka_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
 from robosuite_franka_manipulation.experiment_config import (
     load_experiment, detect_start_pose, get_collision_filter_fn, ExperimentConfig
 )

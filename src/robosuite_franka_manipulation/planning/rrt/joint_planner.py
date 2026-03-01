@@ -15,7 +15,9 @@ joint-space-specific callbacks (distance, steer, sample, collision)
 and a post-processing pipeline:
 
 1. **Shortcutting** — via :func:`path_smoothing.shortcut_generic`.
-2. **Densification** — via :func:`path_smoothing.densify_generic`.
+2. **Bézier smoothing** — per-segment cubic Bézier in R^D with
+   collision checking and linear fallback.
+3. **Densification** — via :func:`path_smoothing.densify_generic`.
 
 Optional Meshcat visualization is supported via the same
 :class:`RRTVisualizer` used by the SE(3) planner (tree edges and paths
@@ -48,7 +50,7 @@ import numpy as np
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.planning.rrt_planner import rrt_connect_generic
+from robosuite_franka_manipulation.planning.rrt.core import rrt_connect_generic
 from robosuite_franka_manipulation.planning.utils.collision_utils import (
     _ensure_geom_caches,
     _get_ids_for_prefixes,
@@ -62,11 +64,14 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_native_mj_object,
     set_qpos,
 )
-from robosuite_franka_manipulation.planning.utils.path_smoothing import (
+from robosuite_franka_manipulation.planning.rrt.path_smoothing import (
     shortcut_generic,
     densify_generic,
+    bezier_smooth_generic,
+    _compute_bezier_control_points,
+    _eval_cubic_bezier,
 )
-from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +106,7 @@ def _check_arm_config_collision(
     native_data,
     arm_b_geom_ids: np.ndarray,
     *,
-    contact_threshold: float = 1e-6,
+    contact_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
 ) -> bool:
     """Check whether arm B at *q_b* collides with anything.
 
@@ -606,6 +611,105 @@ def densify_joint_path(
     return np.array(result)
 
 
+def bezier_smooth_joint_path(
+    env: DualArmEnvironment,
+    path: List[np.ndarray],
+    q_other_arm: np.ndarray,
+    robot_id_a: int,
+    robot_id_b: int,
+    env_lock=None,
+    samples_per_segment: int = None,
+    tension: float = None,
+) -> List[np.ndarray]:
+    """Smooth a joint-space path with per-segment cubic Bézier curves.
+
+    Delegates to :func:`path_smoothing.bezier_smooth_generic` with
+    joint-space-specific callbacks for collision checking, Bézier
+    evaluation, and linear interpolation fallback.
+
+    Args:
+        env: Simulation environment.
+        path: Shortcut-smoothed list of joint configurations ``(D,)``.
+        q_other_arm: Fixed configuration of the other arm ``(D,)``.
+        robot_id_a: Robot ID of the other arm.
+        robot_id_b: Robot ID of the planned arm.
+        env_lock: Optional threading lock.
+        samples_per_segment: Number of dense samples per segment.
+        tension: Bézier tension parameter (0 → linear, higher → curvier).
+
+    Returns:
+        Densely sampled smoothed path (list of joint configurations).
+    """
+    if samples_per_segment is None:
+        samples_per_segment = constants.BEZIER_SAMPLES_PER_SEGMENT
+    if tension is None:
+        tension = constants.BEZIER_TENSION
+
+    if len(path) <= 1:
+        return list(path)
+
+    ctx = env_lock if env_lock is not None else nullcontext()
+
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        native_model = get_native_mj_object(model)
+        native_data = get_native_mj_object(data)
+
+        jids_a = get_arm_joint_ids(native_model, robot_id_a)
+        jids_b = get_arm_joint_ids(native_model, robot_id_b)
+        qpos_idx_a = get_joint_qpos_indices(native_model, jids_a)
+        qpos_idx_b = get_joint_qpos_indices(native_model, jids_b)
+
+        _ensure_geom_caches(model)
+        arm_b_geom_ids = np.array(
+            _get_ids_for_prefixes(
+                [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
+            ),
+            dtype=int,
+        )
+
+        qpos_backup = np.array(data.qpos, copy=True)
+        qvel_backup = np.array(data.qvel, copy=True)
+
+        try:
+            def _collision(q):
+                return _check_arm_config_collision(
+                    env, q, qpos_idx_b,
+                    q_other_arm, qpos_idx_a,
+                    native_model, native_data, arm_b_geom_ids,
+                )
+
+            def _eval_segment(path_local, seg_idx, sps):
+                ctrl_segs = _compute_bezier_control_points(
+                    path_local, tension=tension,
+                )
+                C0, C1, C2, C3 = ctrl_segs[seg_idx]
+                return [
+                    _eval_cubic_bezier(C0, C1, C2, C3, k / float(sps))
+                    for k in range(sps + 1)
+                ]
+
+            def _linear_fallback(start, end, num_samples):
+                return [
+                    start + (k / float(num_samples)) * (end - start)
+                    for k in range(num_samples + 1)
+                ]
+
+            return bezier_smooth_generic(
+                path,
+                collision_fn=_collision,
+                eval_segment_fn=_eval_segment,
+                linear_fallback_fn=_linear_fallback,
+                samples_per_segment=samples_per_segment,
+            )
+
+        finally:
+            data.qpos[:] = qpos_backup
+            data.qvel[:] = qvel_backup
+            mujoco.mj_forward(native_model, native_data)
+
+
 # ============================================================================
 # Convenience: plan + smooth + densify
 # ============================================================================
@@ -628,8 +732,9 @@ def plan_arm_trajectory(
 ) -> Tuple[np.ndarray, bool]:
     """Plan a collision-free joint trajectory for arm B — full pipeline.
 
-    Runs joint-space RRT-Connect, shortcut smoothing, and densification.
-    Falls back to linear interpolation if RRT fails.
+    Runs joint-space RRT-Connect, followed by a two-phase smoothing
+    pipeline (shortcutting + per-segment Bézier), and finally
+    densification.  Falls back to linear interpolation if RRT fails.
 
     Args:
         env: Simulation environment.
@@ -674,10 +779,11 @@ def plan_arm_trajectory(
     if result.success:
         logger.info(
             "Joint RRT succeeded (%d iters, %d raw waypoints).  "
-            "Smoothing...",
+            "Phase 1: shortcutting...",
             result.iterations, len(result.path),
         )
-        smoothed = shortcut_joint_path(
+        # Phase 1: shortcut smoothing
+        shortcut = shortcut_joint_path(
             env=env,
             path=result.path,
             q_other_arm=q_other_arm,
@@ -687,10 +793,21 @@ def plan_arm_trajectory(
             max_iterations=smoothing_iterations,
         )
         logger.info(
-            "Smoothed path: %d -> %d waypoints.",
-            len(result.path), len(smoothed),
+            "Phase 1 shortcutting: %d -> %d waypoints.  "
+            "Phase 2: Bézier smoothing...",
+            len(result.path), len(shortcut),
         )
-        traj = densify_joint_path(smoothed, num_steps)
+        # Phase 2: per-segment Bézier smoothing
+        bezier = bezier_smooth_joint_path(
+            env=env,
+            path=shortcut,
+            q_other_arm=q_other_arm,
+            robot_id_a=robot_id_a,
+            robot_id_b=robot_id_b,
+            env_lock=env_lock,
+        )
+        # Final densification to target number of steps
+        traj = densify_joint_path(bezier, num_steps)
         return traj, True
 
     logger.warning(

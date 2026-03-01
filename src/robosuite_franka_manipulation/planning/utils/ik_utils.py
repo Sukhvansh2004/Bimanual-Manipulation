@@ -187,7 +187,7 @@ def solve_ik_mink(
     return None
 
 
-def unique_solutions(solutions: Iterable[np.ndarray], atol: float = 1e-3) -> List[np.ndarray]:
+def unique_solutions(solutions: Iterable[np.ndarray], atol: float = constants.IK_UNIQUE_TOLERANCE) -> List[np.ndarray]:
     uniq: List[np.ndarray] = []
     for q in solutions:
         if not any(np.allclose(q, u, atol=atol, rtol=0.0) for u in uniq):

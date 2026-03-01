@@ -36,7 +36,6 @@ from robosuite_franka_manipulation import constants
 from robosuite.utils import transform_utils as T
 import mujoco
 from contextlib import nullcontext
-from scipy.spatial.transform import Rotation as R
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -85,7 +84,7 @@ def check_single_grasp_feasibility(
         target_pose=target_pose,
         arm=arm,
         site_name=site_name,
-        max_solutions=constants.DEFAULT_IK_MAX_SOLUTIONS,
+        max_solutions=constants.GRASP_IK_MAX_SOLUTIONS,
         env_lock=env_lock,
         tf_manager=tf_manager
     )
@@ -178,7 +177,7 @@ def find_feasible_grasp_pairs(
                 eef_pose_robot1=g1,
                 object_name=object_name,
                 ignore_names=ignore_names,
-                max_pairs=constants.DEFAULT_FEASIBILITY_MAX_PAIRS,
+                max_pairs=constants.DUAL_GRASP_FEASIBILITY_MAX_PAIRS,
                 env_lock=env_lock,
                 tf_manager=tf_manager
             )

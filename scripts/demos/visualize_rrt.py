@@ -51,7 +51,7 @@ from robosuite_franka_manipulation.experiment_config import (
     detect_start_pose,
 )
 from robosuite_franka_manipulation.planning.object_trajectory_planner import plan_object_trajectory
-from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logging.basicConfig(
     level=logging.INFO,

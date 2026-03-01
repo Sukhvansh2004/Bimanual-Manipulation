@@ -22,6 +22,10 @@ from robosuite_franka_manipulation.utils.se3 import (
     interpolate_pose,
 )
 from robosuite_franka_manipulation.utils import env_step
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+    quintic_scalar,
+    plan_quintic_joint_trajectory,
+)
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging
 
@@ -550,62 +554,6 @@ class RobosuiteArmController:
         )
         return False
 
-    @staticmethod
-    def _quintic_polynomial(s0: float, sf: float, v0: float = 0.0, vf: float = 0.0, 
-                            a0: float = 0.0, af: float = 0.0, 
-                            num_points: int = 100) -> np.ndarray:
-        """
-        Generate a 5th-order (quintic) polynomial trajectory.
-        
-        The quintic polynomial ensures smooth motion with:
-        - Continuous position (C0 continuity)
-        - Continuous velocity (C1 continuity) 
-        - Continuous acceleration (C2 continuity)
-        
-        This results in jerk-limited motion which is smoother than trapezoidal profiles.
-        
-        Args:
-            s0: Initial position (typically 0)
-            sf: Final position (typically 1)
-            v0: Initial velocity (default 0 - start from rest)
-            vf: Final velocity (default 0 - end at rest)
-            a0: Initial acceleration (default 0)
-            af: Final acceleration (default 0)
-            num_points: Number of trajectory points to generate
-            
-        Returns:
-            s_trajectory: Array of interpolation parameters in [0, 1]
-        """
-        T = 1.0  # Normalize time to [0, 1]
-        time = np.linspace(0, T, num_points)
-        
-        # Coefficient matrix for quintic polynomial boundary conditions:
-        # s(0) = s0, s(T) = sf
-        # s'(0) = v0, s'(T) = vf  
-        # s''(0) = a0, s''(T) = af
-        M = np.array([
-            [0, 0, 0, 0, 0, 1],                      # s(0)
-            [T**5, T**4, T**3, T**2, T, 1],          # s(T)
-            [0, 0, 0, 0, 1, 0],                      # s'(0)
-            [5*T**4, 4*T**3, 3*T**2, 2*T, 1, 0],    # s'(T)
-            [0, 0, 0, 2, 0, 0],                      # s''(0)
-            [20*T**3, 12*T**2, 6*T, 2, 0, 0]        # s''(T)
-        ])
-        
-        # Boundary conditions vector
-        b = np.array([s0, sf, v0, vf, a0, af])
-        
-        # Solve for polynomial coefficients [a5, a4, a3, a2, a1, a0]
-        coeffs = np.linalg.solve(M, b)
-        
-        # Evaluate polynomial at each time step
-        s_trajectory = np.zeros(num_points)
-        for i, t in enumerate(time):
-            T_vec = np.array([t**5, t**4, t**3, t**2, t, 1])
-            s_trajectory[i] = T_vec @ coeffs
-        
-        return s_trajectory
-    
     def plan_quintic_trajectory(self, start_pos: np.ndarray, start_quat: np.ndarray, 
                                 target_pos: np.ndarray, target_quat: np.ndarray,
                                 num_points: int = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -661,12 +609,7 @@ class RobosuiteArmController:
         
         # Generate quintic polynomial interpolation parameters s(t) in [0, 1]
         # Starting and ending at rest with zero acceleration
-        s_trajectory = self._quintic_polynomial(
-            s0=0.0, sf=1.0,  # Interpolate from start (0) to target (1)
-            v0=0.0, vf=0.0,  # Zero velocity at endpoints (smooth stop)
-            a0=0.0, af=0.0,  # Zero acceleration at endpoints (jerk-limited)
-            num_points=num_points
-        )
+        s_trajectory = quintic_scalar(num_points)
         
         # Generate trajectory waypoints using the abstracted interpolation function
         positions = []
@@ -725,12 +668,7 @@ class RobosuiteArmController:
             total_dist = 1.0
 
         # 3. Generate quintic polynomial interpolation parameters s(t) in [0, total_dist]
-        s_profile = self._quintic_polynomial(
-            s0=0.0, sf=total_dist,
-            v0=0.0, vf=0.0,
-            a0=0.0, af=0.0,
-            num_points=num_steps
-        )
+        s_profile = quintic_scalar(num_steps) * total_dist
         
         # 4. Interpolate poses along the path using the smoothened distance profile
         smooth_pos = []
@@ -1089,40 +1027,6 @@ class RobosuiteArmController:
             return False
         finally:
             self.is_moving = False
-    
-    def _plan_joint_quintic_trajectory(
-        self,
-        start_joints: np.ndarray,
-        target_joints: np.ndarray,
-        num_steps: int,
-    ) -> np.ndarray:
-        """
-        Plan a quintic polynomial trajectory in joint space.
-
-        Each joint is independently interpolated using a quintic polynomial
-        with zero velocity/acceleration boundary conditions.
-
-        Args:
-            start_joints: Start joint configuration (7,)
-            target_joints: Target joint configuration (7,)
-            num_steps: Number of interpolation steps
-
-        Returns:
-            Array of joint configs (num_steps, 7)
-        """
-        n_joints = len(start_joints)
-        trajectory = np.zeros((num_steps, n_joints))
-
-        # Generate quintic interpolation parameter s(t) in [0, 1]
-        s_traj = self._quintic_polynomial(
-            s0=0.0, sf=1.0, v0=0.0, vf=0.0, a0=0.0, af=0.0,
-            num_points=num_steps,
-        )
-
-        for j in range(n_joints):
-            trajectory[:, j] = start_joints[j] + s_traj * (target_joints[j] - start_joints[j])
-
-        return trajectory
 
     def move_to_joint_config(
         self,
@@ -1130,7 +1034,7 @@ class RobosuiteArmController:
         gripper_action: float = 0.0,
         num_steps: int = constants.TRAJECTORY_NUM_POINTS,
         dt: float = constants.TRAJECTORY_TIME_STEP,
-        threshold: float = 0.05,
+        threshold: float = constants.JOINT_CONVERGENCE_THRESHOLD,
     ) -> bool:
         """
         Move the arm to a target joint configuration using a quintic trajectory.
@@ -1167,7 +1071,7 @@ class RobosuiteArmController:
             traj_num_steps = max(2, num_steps)  # Ensure at least start and end points
 
             current_joints = self.get_joint_positions()
-            trajectory = self._plan_joint_quintic_trajectory(
+            trajectory = plan_quintic_joint_trajectory(
                 current_joints, target_joints, traj_num_steps
             )
 
@@ -1254,7 +1158,7 @@ class RobosuiteArmController:
         joint_trajectory: List[np.ndarray],
         gripper_action: float = 0.0,
         dt: float = constants.TRAJECTORY_TIME_STEP,
-        threshold: float = 0.05,
+        threshold: float = constants.JOINT_CONVERGENCE_THRESHOLD,
         num_steps: Optional[int] = None,
         smoothen: bool = False,
     ) -> bool:
@@ -1301,7 +1205,7 @@ class RobosuiteArmController:
             if smoothen:
                 traj_steps = num_steps if num_steps is not None else n_waypoints
                 current_joints = self.get_joint_positions()
-                joint_configs = self._plan_joint_quintic_trajectory(
+                joint_configs = plan_quintic_joint_trajectory(
                     current_joints, waypoints[-1], traj_steps
                 )
             else:

@@ -85,11 +85,11 @@ class TestPlanningModule:
         np.testing.assert_allclose(eef_traj[1].position, [1, 0, 1.1], atol=1e-6)
         assert eef_traj[0].frame_id == "world"
 
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.mujoco')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.set_qpos')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_arm_joint_ids')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.in_collision')
     def test_check_trajectory_feasibility_success(
@@ -127,10 +127,10 @@ class TestPlanningModule:
         mock_ik.assert_called() 
         assert mock_utils_mujoco.mj_fwdPosition.called or mock_gen_mujoco.mj_fwdPosition.called
 
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.mujoco')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_arm_joint_ids')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
     def test_check_trajectory_feasibility_ik_fail(
         self,
@@ -159,11 +159,11 @@ class TestPlanningModule:
         assert results[0].ik_success is False
         assert results[0].is_feasible is False
 
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.mujoco')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.set_qpos')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.trajectory_generator.get_arm_joint_ids')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
     @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.in_collision')
     def test_check_trajectory_feasibility_collision(

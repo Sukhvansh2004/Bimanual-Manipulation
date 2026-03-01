@@ -3,6 +3,7 @@
 from contextlib import nullcontext
 import threading
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
+from robosuite_franka_manipulation import constants
 import logging
 import numpy as np
 from typing import List, Optional, Tuple
@@ -62,7 +63,7 @@ def get_robot_geom_mask(model) -> np.ndarray:
 def in_collision(
     env: DualArmEnvironment,
     *,
-    contact_dist_threshold: float = 1e-6,
+    contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
     env_lock: threading.RLock = None,
     ignore_names: Optional[List[str]] = None,
     ignore_pairs: Optional[List[Tuple[str, str]]] = None,
@@ -144,7 +145,7 @@ def in_collision(
 def check_inter_arm_collision(
     env: DualArmEnvironment,
     *,
-    contact_dist_threshold: float = 1e-6,
+    contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
 ) -> bool:
     """Return True if any robot0/gripper0 geom contacts a robot1/gripper1 geom.
 

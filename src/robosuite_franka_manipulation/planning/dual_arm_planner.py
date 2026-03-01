@@ -80,12 +80,12 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     resample_joint_trajectory,
-    quintic_scalar,
     plan_quintic_joint_trajectory,
 )
-from robosuite_franka_manipulation.planning.rrt_joint_planner import (
+from robosuite_franka_manipulation.planning.rrt.joint_planner import (
     plan_arm_trajectory,
 )
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -198,9 +198,10 @@ class DualArmParallelPlanner:
         env_lock=None,
         tf_manager=None,
         dt: float = constants.TRAJECTORY_TIME_STEP,
-        convergence_threshold: float = 0.05,
+        convergence_threshold: float = constants.JOINT_CONVERGENCE_THRESHOLD,
         collision_check: bool = True,
         manipulated_object: Optional[str] = None,
+        rrt_vis: Optional[RRTVisualizer] = None,
     ):
         self.env = env
         self.env_lock = env_lock
@@ -211,6 +212,7 @@ class DualArmParallelPlanner:
         self.convergence_threshold = convergence_threshold
         self.collision_check = collision_check
         self.manipulated_object = manipulated_object
+        self.rrt_vis = rrt_vis
 
         # ── Lazy-initialised mink objects (built on first execute) ─────
         self._mink_initialised = False
@@ -791,6 +793,7 @@ class DualArmParallelPlanner:
                     num_steps=desired_length,
                     env_lock=self.env_lock,
                     manipulated_object=self.manipulated_object,
+                    rrt_vis=self.rrt_vis,
                 )
                 if rrt_success:
                     logger.info(

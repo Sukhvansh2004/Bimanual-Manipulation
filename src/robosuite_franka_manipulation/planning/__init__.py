@@ -1,4 +1,24 @@
-"""robosuite_franka_manipulation.planning manipulation package."""
+"""robosuite_franka_manipulation.planning — manipulation planning package.
+
+Subpackages
+-----------
+rrt
+    RRT-Connect planners (generic core, SE(3), joint-space), path
+    smoothing, and Meshcat visualization.
+visualization
+    Robot/object mesh visualization and trajectory plotting.
+utils
+    Low-level shared utilities (IK, collision, MuJoCo helpers, etc.).
+
+Note
+----
+``DualArmParallelPlanner`` and ``ParallelExecutionResult`` are imported
+lazily (via ``__getattr__``) because ``dual_arm_planner`` depends on
+``controllers.arm``, which in turn imports ``planning.utils``.  Eager
+importing would create a circular dependency.
+"""
+
+import importlib as _importlib
 
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 from robosuite_franka_manipulation.planning.collision_checker import (
@@ -13,32 +33,31 @@ from robosuite_franka_manipulation.planning.trajectory_generator import (
 from robosuite_franka_manipulation.planning.object_trajectory_planner import (
     plan_object_trajectory,
 )
-from robosuite_franka_manipulation.planning.utils.rrt_visualizer import (
-    RRTVisualizer,
-)
-from robosuite_franka_manipulation.planning.rrt_planner import (
-    rrt_connect_se3,
+
+# ── RRT subpackage ────────────────────────────────────────────────────────
+from robosuite_franka_manipulation.planning.rrt import (
     rrt_connect_generic,
+    rrt_connect_se3,
     RRTNode,
     RRTResult,
-)
-from robosuite_franka_manipulation.planning.rrt_joint_planner import (
+    RRTVisualizer,
     rrt_connect_joint_space,
     JointRRTResult,
     plan_arm_trajectory,
     shortcut_joint_path,
+    bezier_smooth_joint_path,
     densify_joint_path,
-)
-from robosuite_franka_manipulation.planning.utils.path_smoothing import (
-    smooth_path,
-    densify_path,
     shortcut_generic,
     densify_generic,
+    bezier_smooth_generic,
+    smooth_path,
+    densify_path,
 )
-from robosuite_franka_manipulation.planning.dual_arm_planner import (
-    DualArmParallelPlanner,
-    ParallelExecutionResult,
-)
+
+# ── Dual-arm execution (lazy — avoids circular import via controllers.arm) ────
+# Accessed via __getattr__ at end of file.
+
+# ── Segment assignment ────────────────────────────────────────────────────
 from robosuite_franka_manipulation.planning.assignment_planner import (
     compute_optimal_robot_assignment,
     AssignmentResult,
@@ -49,19 +68,18 @@ from robosuite_franka_manipulation.planning.assignment_planner import (
     make_ik_solver_fn,
     make_jacobian_fns,
 )
+
 from robosuite_franka_manipulation.schema import GraspSchema
 from robosuite_franka_manipulation.transforms import StampedPose
 
-# Trajectory utilities
+# ── Utils / trajectory ────────────────────────────────────────────────────
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
-    WaypointFeasibilityResult
+    WaypointFeasibilityResult,
 )
 
-# Visualization utilities
-from robosuite_franka_manipulation.planning.utils.visualization_utils import (
+# ── Visualization subpackage ─────────────────────────────────────────────
+from robosuite_franka_manipulation.planning.visualization import (
     visualize_trajectory,
-)
-from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import (
     RobotMeshVisualizer,
 )
 
@@ -84,10 +102,12 @@ __all__ = [
     'JointRRTResult',
     'plan_arm_trajectory',
     'shortcut_joint_path',
+    'bezier_smooth_joint_path',
     'densify_joint_path',
     # Path smoothing
     'shortcut_generic',
     'densify_generic',
+    'bezier_smooth_generic',
     'smooth_path',
     'densify_path',
     # Dual-arm parallel planner
@@ -110,3 +130,17 @@ __all__ = [
     'visualize_trajectory',
     'RobotMeshVisualizer',
 ]
+
+
+# ── Lazy loader for dual-arm planner (breaks circular import) ─────────────
+def __getattr__(name: str):
+    _LAZY = {
+        "DualArmParallelPlanner": "dual_arm_planner",
+        "ParallelExecutionResult": "dual_arm_planner",
+    }
+    if name in _LAZY:
+        mod = _importlib.import_module(f".{_LAZY[name]}", __name__)
+        val = getattr(mod, name)
+        globals()[name] = val  # cache for subsequent access
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

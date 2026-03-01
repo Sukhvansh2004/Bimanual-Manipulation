@@ -11,7 +11,7 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 from dataclasses import dataclass
 
-from robosuite_franka_manipulation.planning.rrt_joint_planner import (
+from robosuite_franka_manipulation.planning.rrt.joint_planner import (
     JointRRTResult,
     _joint_distance,
     _steer,
@@ -21,13 +21,13 @@ from robosuite_franka_manipulation.planning.rrt_joint_planner import (
     shortcut_joint_path,
     plan_arm_trajectory,
 )
-from robosuite_franka_manipulation.planning.rrt_planner import (
+from robosuite_franka_manipulation.planning.rrt.core import (
     rrt_connect_generic,
     _TreeNode,
     _generic_nearest,
     _generic_extract_path,
 )
-from robosuite_franka_manipulation.planning.utils.path_smoothing import (
+from robosuite_franka_manipulation.planning.rrt.path_smoothing import (
     shortcut_generic,
     densify_generic,
 )
@@ -342,10 +342,10 @@ class TestRRTConnectMocked:
     """Tests for ``rrt_connect_joint_space`` with mocked collision checking."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt_joint_planner._collision_free_joint_segment"
+        "robosuite_franka_manipulation.planning.rrt.joint_planner._collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt_joint_planner._check_arm_config_collision"
+        "robosuite_franka_manipulation.planning.rrt.joint_planner._check_arm_config_collision"
     )
     def test_direct_path_success(self, mock_collision, mock_segment):
         """When the direct segment is collision-free, return immediately."""
@@ -374,24 +374,24 @@ class TestRRTConnectMocked:
         env.sim.data = data
 
         with patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_arm_joint_ids",
             return_value=list(range(7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_joint_qpos_indices",
             return_value=np.arange(7),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.get_joint_limits",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_joint_limits",
             return_value=(np.full(7, -2.0), np.full(7, 2.0)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_native_mj_object",
             return_value=model,
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner._ensure_geom_caches",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner._ensure_geom_caches",
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner._get_ids_for_prefixes",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner._get_ids_for_prefixes",
             return_value=[0, 1, 2],
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.mujoco",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.mujoco",
         ):
             result = rrt_connect_joint_space(
                 env=env,
@@ -411,7 +411,7 @@ class TestPlanArmTrajectoryMocked:
     """Tests for the ``plan_arm_trajectory`` convenience function."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt_joint_planner.rrt_connect_joint_space"
+        "robosuite_franka_manipulation.planning.rrt.joint_planner.rrt_connect_joint_space"
     )
     def test_rrt_success_returns_dense(self, mock_rrt):
         """When RRT succeeds, the result should be densified to num_steps."""
@@ -422,8 +422,11 @@ class TestPlanArmTrajectoryMocked:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.rrt_joint_planner.shortcut_joint_path",
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.shortcut_joint_path",
             side_effect=lambda env, path, **kw: path,  # no-op smoothing
+        ), patch(
+            "robosuite_franka_manipulation.planning.rrt.joint_planner.bezier_smooth_joint_path",
+            side_effect=lambda path, **kw: path,  # no-op Bézier
         ):
             traj, success = plan_arm_trajectory(
                 env=MagicMock(),
@@ -441,7 +444,7 @@ class TestPlanArmTrajectoryMocked:
         np.testing.assert_array_almost_equal(traj[-1], np.ones(7))
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt_joint_planner.rrt_connect_joint_space"
+        "robosuite_franka_manipulation.planning.rrt.joint_planner.rrt_connect_joint_space"
     )
     def test_rrt_failure_falls_back(self, mock_rrt):
         """When RRT fails, should fall back to linear interpolation."""

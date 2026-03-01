@@ -32,7 +32,7 @@ from robosuite_franka_manipulation.experiment_config import load_experiment, Exp
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
-from robosuite_franka_manipulation.planning.utils.visualization_utils import (
+from robosuite_franka_manipulation.planning.visualization.trajectory import (
     visualize_trajectory, visualize_handover_plan
 )
 from robosuite_franka_manipulation.utils.primitives import (

@@ -59,7 +59,7 @@ from robosuite_franka_manipulation.planning.assignment_planner import (
     make_jacobian_fns,
     save_assignment_result,
 )
-from robosuite_franka_manipulation.planning.utils.visualization_utils import (
+from robosuite_franka_manipulation.planning.visualization.trajectory import (
     visualize_trajectory_feasibility,
     visualize_assignment_result,
 )

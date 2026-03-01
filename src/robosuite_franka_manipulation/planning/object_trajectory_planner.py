@@ -1,8 +1,8 @@
 """
 High-level collision-aware object trajectory planner.
 
-Orchestrates the RRT-Connect planner (:mod:`rrt_planner`) and path
-post-processing (:mod:`path_smoothing`) to produce a collision-free
+Orchestrates the RRT-Connect planner (:mod:`rrt.se3_planner`) and path
+post-processing (:mod:`rrt.path_smoothing`) to produce a collision-free
 object trajectory through the workspace.
 """
 
@@ -18,10 +18,10 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
-from robosuite_franka_manipulation.planning.rrt_planner import rrt_connect_se3
-from robosuite_franka_manipulation.planning.utils.path_smoothing import smooth_path, densify_path
+from robosuite_franka_manipulation.planning.rrt.se3_planner import rrt_connect_se3
+from robosuite_franka_manipulation.planning.rrt.path_smoothing import smooth_path, densify_path
 
-from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 

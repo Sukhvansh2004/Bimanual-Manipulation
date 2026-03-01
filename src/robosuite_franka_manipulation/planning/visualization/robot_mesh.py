@@ -41,10 +41,10 @@ class RobotMeshVisualizer:
     - Organizes meshes under trajectory ID paths in MeshCat hierarchy
     """
     
-    # Color constants
-    COLOR_FEASIBLE = 0x00ff00  # Green
-    COLOR_INFEASIBLE = 0xff0000  # Red
-    COLOR_IK_FAILED = 0xff8800  # Orange (IK failed, different from collision)
+    # Color constants (from centralized config)
+    COLOR_FEASIBLE = constants.VIS_COLOR_FEASIBLE
+    COLOR_INFEASIBLE = constants.VIS_COLOR_INFEASIBLE
+    COLOR_IK_FAILED = constants.VIS_COLOR_IK_FAILED
     
     def __init__(
         self, 

@@ -24,7 +24,7 @@ from scipy.spatial.transform import Rotation as R, Slerp
 
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.planning.rrt_planner import (
+from robosuite_franka_manipulation.planning.rrt.se3_planner import (
     _collision_free_segment,
     check_object_pose_collision,
     se3_pose_distance,
@@ -36,7 +36,7 @@ from robosuite_franka_manipulation.planning.utils.collision_utils import (
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import get_native_mj_object
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
-from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +188,7 @@ def _shortcut_path(
 
 def _compute_bezier_control_points(
     waypoints: List[np.ndarray],
-    tension: float = 0.33,
+    tension: float = None,
 ) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """Compute cubic Bézier control points for a polyline.
 
@@ -211,6 +211,9 @@ def _compute_bezier_control_points(
     n = len(waypoints)
     if n < 2:
         return []
+
+    if tension is None:
+        tension = constants.BEZIER_TENSION
 
     tangents = []
     for i in range(n):
@@ -243,25 +246,80 @@ def _eval_cubic_bezier(C0, C1, C2, C3, t: float):
     return s**3 * C0 + 3 * s**2 * t * C1 + 3 * s * t**2 * C2 + t**3 * C3
 
 
-def _bezier_smooth_positions(
-    positions: List[np.ndarray],
-    samples_per_segment: int = 10,
-    tension: float = 0.33,
-) -> List[np.ndarray]:
-    """Fit a composite cubic Bézier spline through *positions* and resample.
+def bezier_smooth_generic(
+    path: list,
+    *,
+    collision_fn: Callable[[Any], bool],
+    eval_segment_fn: Callable[[list, int, int], list],
+    linear_fallback_fn: Callable[[Any, Any, int], list],
+    samples_per_segment: int = None,
+    tension: float = None,
+) -> list:
+    """Domain-agnostic per-segment Bézier smoothing with collision fallback.
 
-    Returns ``(N-1) * samples_per_segment + 1`` evenly-parameterised points.
+    For each segment of the (already shortcut-smoothed) path:
+
+    1. Evaluate a dense Bézier curve via *eval_segment_fn*.
+    2. Collision-check every sample via *collision_fn*.
+    3. If collision-free → use the smooth segment.
+       Otherwise → fall back to *linear_fallback_fn* for that segment.
+
+    Both the SE(3) and joint-space smoothers delegate to this function.
+
+    Args:
+        path: Ordered list of waypoints (any domain).
+        collision_fn: ``state -> bool`` — ``True`` if the state is in
+            collision.
+        eval_segment_fn: ``(path, seg_idx, samples_per_segment) -> list``
+            — returns ``samples_per_segment + 1`` dense samples for a
+            single segment, using the full *path* for tangent context.
+        linear_fallback_fn: ``(start, end, num_samples) -> list`` —
+            returns ``num_samples + 1`` linearly-interpolated samples
+            between two waypoints.
+        samples_per_segment: Number of dense samples per segment.
+            Defaults to :data:`constants.BEZIER_SAMPLES_PER_SEGMENT`.
+        tension: Bézier tension (unused here — forwarded by callers).
+
+    Returns:
+        Densely sampled smoothed path.
     """
-    segs = _compute_bezier_control_points(positions, tension=tension)
-    if not segs:
-        return list(positions)
+    if samples_per_segment is None:
+        samples_per_segment = constants.BEZIER_SAMPLES_PER_SEGMENT
 
-    result = []
-    for seg_idx, (C0, C1, C2, C3) in enumerate(segs):
-        n_pts = samples_per_segment if seg_idx < len(segs) - 1 else samples_per_segment + 1
-        for k in range(n_pts):
-            t = k / float(samples_per_segment)
-            result.append(_eval_cubic_bezier(C0, C1, C2, C3, t))
+    if len(path) <= 1:
+        return list(path)
+    if len(path) == 2:
+        return linear_fallback_fn(path[0], path[1], samples_per_segment)
+
+    num_segs = len(path) - 1
+    n_ok = 0
+    result: list = []
+
+    for seg_idx in range(num_segs):
+        bez_pts = eval_segment_fn(path, seg_idx, samples_per_segment)
+
+        seg_collides = False
+        for pt in bez_pts:
+            if collision_fn(pt):
+                seg_collides = True
+                break
+
+        if not seg_collides:
+            n_ok += 1
+            start = 1 if seg_idx > 0 else 0
+            result.extend(bez_pts[start:])
+        else:
+            lin_pts = linear_fallback_fn(
+                path[seg_idx], path[seg_idx + 1], samples_per_segment,
+            )
+            start = 1 if seg_idx > 0 else 0
+            result.extend(lin_pts[start:])
+
+    logger.info(
+        "Bézier smoothing: %d/%d segments smoothed, "
+        "%d fell back to linear (%d total dense waypoints)",
+        n_ok, num_segs, num_segs - n_ok, len(result),
+    )
     return result
 
 
@@ -291,7 +349,7 @@ def _bezier_smooth_one_segment(
     path: List[Tuple[np.ndarray, np.ndarray]],
     seg_idx: int,
     samples_per_segment: int,
-    tension: float = 0.33,
+    tension: float = None,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """Evaluate the Bézier curve for a **single** segment of the path.
 
@@ -300,6 +358,8 @@ def _bezier_smooth_one_segment(
 
     Returns ``samples_per_segment + 1`` (pos, quat) samples.
     """
+    if tension is None:
+        tension = constants.BEZIER_TENSION
     positions = [p for p, _ in path]
     quaternions = [q for _, q in path]
     n = len(positions)
@@ -452,54 +512,44 @@ def smooth_path(
                 rrt_vis.draw_shortcut_path(shortcut)
 
             # Phase 2: per-segment hybrid Bézier smoothing
-            samples_per_seg = max(8, 40 // max(1, len(shortcut) - 1))
+            samples_per_seg = max(
+                constants.BEZIER_SAMPLES_PER_SEGMENT,
+                40 // max(1, len(shortcut) - 1),
+            )
 
             positions = [p for p, _ in shortcut]
-            ctrl_segments = _compute_bezier_control_points(positions, tension=0.33)
+            tension = constants.BEZIER_TENSION
+            ctrl_segments = _compute_bezier_control_points(positions, tension=tension)
             if rrt_vis is not None and ctrl_segments:
                 rrt_vis.draw_bezier_control_polygon(ctrl_segments)
 
-            num_segs = len(shortcut) - 1
-            bezier_seg_ok = [False] * num_segs
-            result: List[Tuple[np.ndarray, np.ndarray]] = []
-
-            for seg_idx in range(num_segs):
-                bez_pts = _bezier_smooth_one_segment(
-                    shortcut, seg_idx,
-                    samples_per_segment=samples_per_seg,
-                    tension=0.33,
+            def _se3_collision(pose_pair):
+                pos, quat = pose_pair
+                return check_object_pose_collision(
+                    env, object_name, pos, quat,
+                    object_geom_ids, robot_mask, obj_joint_addr,
                 )
 
-                seg_collides = False
-                for pos, quat in bez_pts:
-                    if check_object_pose_collision(
-                        env, object_name, pos, quat,
-                        object_geom_ids, robot_mask, obj_joint_addr,
-                    ):
-                        seg_collides = True
-                        break
+            def _se3_eval_segment(path_local, seg_idx, sps):
+                return _bezier_smooth_one_segment(
+                    path_local, seg_idx,
+                    samples_per_segment=sps,
+                    tension=tension,
+                )
 
-                if not seg_collides:
-                    bezier_seg_ok[seg_idx] = True
-                    start = 1 if seg_idx > 0 else 0
-                    result.extend(bez_pts[start:])
-                else:
-                    lin_pts = _linear_interpolate_segment(
-                        shortcut[seg_idx], shortcut[seg_idx + 1],
-                        num_samples=samples_per_seg,
-                    )
-                    start = 1 if seg_idx > 0 else 0
-                    result.extend(lin_pts[start:])
+            def _se3_linear_fallback(start, end, num_samples):
+                return _linear_interpolate_segment(start, end, num_samples)
 
-            n_ok = sum(bezier_seg_ok)
-            logger.info(
-                "Phase 2 hybrid Bézier: %d/%d segments smoothed, "
-                "%d fell back to linear (%d total dense waypoints)",
-                n_ok, num_segs, num_segs - n_ok, len(result),
+            result = bezier_smooth_generic(
+                shortcut,
+                collision_fn=_se3_collision,
+                eval_segment_fn=_se3_eval_segment,
+                linear_fallback_fn=_se3_linear_fallback,
+                samples_per_segment=samples_per_seg,
             )
 
             if rrt_vis is not None:
-                rrt_vis.draw_bezier_curve(result, collision_free=(n_ok == num_segs))
+                rrt_vis.draw_bezier_curve(result, collision_free=True)
                 rrt_vis.draw_smoothed_path(result)
 
         finally:
