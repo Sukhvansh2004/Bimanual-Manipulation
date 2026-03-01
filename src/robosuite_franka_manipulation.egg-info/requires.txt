@@ -22,6 +22,8 @@ trimesh==4.5.3
 addict
 torch-geometric
 yourdfpy==0.0.56
+mink>=1.0.0
+proxsuite
 
 [dev]
 pytest>=7.0.0

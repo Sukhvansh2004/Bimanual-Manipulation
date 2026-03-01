@@ -52,6 +52,8 @@ dependencies = [
     "addict",  # For configuration
     "torch-geometric",  # For graph neural networks
     "yourdfpy==0.0.56",  # For URDF processing
+    "mink>=1.0.0",  # QP-based differential IK for MuJoCo
+    "proxsuite",  # Fast QP solver backend (proxqp)
 ]
 
 [project.urls]

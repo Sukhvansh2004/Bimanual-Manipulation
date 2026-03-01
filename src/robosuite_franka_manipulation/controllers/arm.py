@@ -1,6 +1,8 @@
 from contextlib import nullcontext
 import time
 
+import mink
+from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
 import numpy as np
 import threading
 from scipy.spatial.transform import Rotation as R
@@ -342,6 +344,212 @@ class RobosuiteArmController:
         robot_action[-1] = gripper_action
         return robot_action
 
+    # ------------------------------------------------------------------
+    # Mink-based reactive trajectory execution (JOINT_POSITION only)
+    # ------------------------------------------------------------------
+
+    def _execute_mink_trajectory(
+        self,
+        positions: np.ndarray,
+        quaternions: np.ndarray,
+        gripper_action: float = 0.0,
+        dt: float = constants.TRAJECTORY_TIME_STEP,
+        threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+    ) -> bool:
+        """Execute a trajectory using mink's reactive differential IK.
+
+        At each simulation tick the method:
+
+        1. Sets the ``FrameTask`` target to the next waypoint (in world
+           frame, with body↔site orientation correction applied).
+        2. Calls ``mink.solve_ik`` — a single QP solve — to get the
+           optimal joint velocity for the arm.
+        3. Integrates the velocity to get target joint positions and
+           sends them via ``construct_joint_action``.
+
+        This replaces the per-step ``enumerate_ik_solutions_for_arm``
+        approach with a lightweight single-QP call, giving smoother and
+        faster trajectory tracking.
+
+        Args:
+            positions: Waypoint positions ``(N, 3)`` in **base** frame.
+            quaternions: Waypoint quaternions ``(N, 4)`` xyzw in **base** frame.
+            gripper_action: Gripper command to hold during execution.
+            dt: Wall-clock time between steps (for drift-correcting sleep).
+            threshold: Convergence threshold on final-waypoint error.
+
+        Returns:
+            ``True`` if the final waypoint was reached, ``False`` otherwise.
+        """
+
+        num_waypoints = len(positions)
+        if num_waypoints <= 1:
+            return True
+
+        # ── Transform waypoints from base frame to world frame ────────
+        try:
+            base_to_world = self.tf_manager.get_transform(
+                constants.WORLD_FRAME, self.base_frame
+            )
+            T_base_to_world = base_to_world.to_matrix()
+        except Exception:
+            T_base_to_world = np.eye(4)
+
+        world_positions = np.zeros_like(positions)
+        world_quaternions = np.zeros_like(quaternions)
+        for i in range(num_waypoints):
+            T_wp = pose_to_SE3(positions[i], quaternions[i])
+            T_world = T_base_to_world @ T_wp
+            world_positions[i] = T_world[:3, 3]
+            world_quaternions[i] = R.from_matrix(T_world[:3, :3]).as_quat()
+
+        # ── Apply body→site orientation correction (-90° Z) ──────────
+        r_corr = R.from_euler('z', -90, degrees=True)
+        for i in range(num_waypoints):
+            r_wp = R.from_quat(world_quaternions[i])
+            world_quaternions[i] = (r_wp * r_corr).as_quat()
+
+        # ── Build mink objects ────────────────────────────────────────
+        # Lazy import to avoid circular: arm → planning → services → arm
+        from robosuite_franka_manipulation.planning.utils import mujoco_utils as _mu
+
+        model = self.env.sim.model
+        data = self.env.sim.data
+        model_native = _mu.get_native_mj_object(model)
+
+        joint_ids = _mu.get_arm_joint_ids(model, self.robot_id)
+        arm_qpos_idx = _mu.get_joint_qpos_indices(model, joint_ids)
+        arm_dof_idx = _mu.get_joint_dof_indices(model, joint_ids)
+
+        site_name = f"gripper{self.robot_id}_{self.arm_id}_ft_frame"
+
+        q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
+        config = mink.Configuration(model_native, q=q_full)
+
+        frame_task = mink.FrameTask(
+            frame_name=site_name,
+            frame_type="site",
+            position_cost=constants.MINK_POSITION_COST,
+            orientation_cost=constants.MINK_ORIENTATION_COST,
+            gain=constants.MINK_FRAME_GAIN,
+            lm_damping=constants.MINK_LM_DAMPING,
+        )
+
+        posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
+        posture_task.set_target(q_full)
+
+        damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
+        vel_limit = mink.VelocityLimit(model_native)
+        config_limit = mink.ConfigurationLimit(model_native)
+
+        from robosuite_franka_manipulation.planning.utils.ik_utils import _get_frozen_dof_indices  # lazy to avoid circular import
+        frozen_dofs = _get_frozen_dof_indices(model_native, arm_dof_idx)
+        freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
+
+        tasks: list = [frame_task, posture_task, damping_task]
+        if freeze_task is not None:
+            tasks.append(freeze_task)
+        limits = [vel_limit, config_limit]
+
+        # ── Reactive execution loop ───────────────────────────────────
+        max_steps = num_waypoints * 2
+        current_wp_idx = 0
+        steps_taken = 0
+        start_time = time.time()
+
+        while steps_taken < max_steps:
+            if self._stop_event.is_set():
+                logger.info("mink trajectory cancelled for robot%d_%s", self.robot_id, self.arm_id)
+                self.last_status = 0
+                return False
+
+            # Advance waypoint
+            if current_wp_idx < num_waypoints - 1:
+                current_wp_idx += 1
+
+            # Set mink FrameTask target
+            wp_pos = world_positions[current_wp_idx]
+            wp_quat = world_quaternions[current_wp_idx]
+            target_so3 = MinkSO3.from_matrix(R.from_quat(wp_quat).as_matrix())
+            target_se3 = MinkSE3.from_rotation_and_translation(target_so3, wp_pos)
+            frame_task.set_target(target_se3)
+
+            # Sync mink config with actual sim state
+            q_actual = np.array(data.qpos, copy=True, dtype=float).ravel()
+            config.update(q=q_actual)
+
+            # Single QP solve
+            try:
+                vel = mink.solve_ik(
+                    config, tasks, constants.MINK_DT,
+                    solver=constants.MINK_QP_SOLVER,
+                    limits=limits,
+                )
+            except Exception:
+                # QP infeasible — use current joints (hold position)
+                logger.debug("mink QP infeasible at step %d, holding position", steps_taken)
+                vel = np.zeros(model_native.nv)
+
+            # Integrate to get target joint positions
+            q_next = config.integrate(vel, constants.MINK_DT)
+            target_joints = q_next[arm_qpos_idx]
+
+            # Send joint command
+            robot_action = self.construct_joint_action(target_joints, gripper_action)
+            with self.env_lock if self.env_lock else nullcontext():
+                env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)
+
+            steps_taken += 1
+
+            # Drift-correcting sleep
+            elapsed = time.time() - start_time
+            target_time = steps_taken * dt
+            time.sleep(max(0, target_time - elapsed))
+
+            # Convergence check at final waypoint
+            if current_wp_idx == num_waypoints - 1:
+                current_pos, current_quat = self.get_eef_pose_in_base()
+                final_pos = positions[-1]
+                final_quat = quaternions[-1]
+                pos_err = np.linalg.norm(final_pos - current_pos)
+                ori_err = np.linalg.norm(
+                    (R.from_quat(final_quat) * R.from_quat(current_quat).inv()).as_rotvec()
+                )
+                if pos_err < threshold and ori_err < threshold:
+                    logger.debug("mink trajectory converged at step %d", steps_taken)
+                    self.last_status = 1
+                    return True
+
+            # Log progress
+            if steps_taken % 20 == 0:
+                current_pos, current_quat = self.get_eef_pose_in_base()
+                pos_err = np.linalg.norm(positions[current_wp_idx] - current_pos)
+                logger.debug(
+                    "mink step %d/%d, wp %d/%d, pos_err=%.4f",
+                    steps_taken, max_steps, current_wp_idx, num_waypoints - 1, pos_err,
+                )
+
+        # Final report
+        current_pos, current_quat = self.get_eef_pose_in_base()
+        pos_err = np.linalg.norm(positions[-1] - current_pos)
+        ori_err = np.linalg.norm(
+            (R.from_quat(quaternions[-1]) * R.from_quat(current_quat).inv()).as_rotvec()
+        )
+        if pos_err < threshold and ori_err < threshold:
+            self.last_status = 1
+            logger.info(
+                "ROBOT %d:%s - mink trajectory converged: pos_err=%.4f, ori_err=%.4f",
+                self.robot_id, self.arm_id, pos_err, ori_err,
+            )
+            return True
+
+        self.last_status = 0
+        logger.info(
+            "ROBOT %d:%s - mink trajectory did NOT converge: pos_err=%.4f, ori_err=%.4f",
+            self.robot_id, self.arm_id, pos_err, ori_err,
+        )
+        return False
+
     @staticmethod
     def _quintic_polynomial(s0: float, sf: float, v0: float = 0.0, vf: float = 0.0, 
                             a0: float = 0.0, af: float = 0.0, 
@@ -625,6 +833,17 @@ class RobosuiteArmController:
                 self.last_status = 1
                 return True  # Already at target
 
+            # ── Mink reactive path for JOINT_POSITION controllers ─────
+            # Uses a single mink QP per tick instead of full IK per step.
+            if self.is_joint_position_controller:
+                return self._execute_mink_trajectory(
+                    positions, quaternions,
+                    gripper_action=gripper_action,
+                    dt=dt,
+                    threshold=threshold,
+                )
+
+            # ── OSC path (delta/absolute operational space control) ────
             # Trajectory execution: commands are generated based on controller configuration
             # For delta mode: compute delta from current position to next waypoint
             # For absolute mode: send target position directly
@@ -784,6 +1003,16 @@ class RobosuiteArmController:
                 self._clear_trajectory_visualization()
                 self._visualize_se3_trajectory(positions, quaternions)
             
+            # ── Mink reactive path for JOINT_POSITION controllers ─────
+            if self.is_joint_position_controller:
+                return self._execute_mink_trajectory(
+                    positions, quaternions,
+                    gripper_action=gripper_action,
+                    dt=dt,
+                    threshold=threshold,
+                )
+
+            # ── OSC path ──────────────────────────────────────────────
             num_waypoints = len(positions)
             max_steps = num_steps * 2 if num_steps is not None else num_waypoints * 2
             

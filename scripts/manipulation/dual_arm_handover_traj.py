@@ -30,6 +30,7 @@ from robosuite_franka_manipulation.planning.utils.visualization_utils import (
 from robosuite_franka_manipulation.utils.primitives import (
     ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
 )
+from robosuite_franka_manipulation.planning.dual_arm_planner import DualArmParallelPlanner
 
 logger = logging.getLogger(__name__)
 
@@ -204,37 +205,84 @@ def main():
                             break
             
             if next_handover_idx != -1 and next_handover_idx > current_idx:
-                logger.info(f"Robot {current_robot} following segment to handover at {next_handover_idx}...")
-                joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : next_handover_idx+1])
-                current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, num_steps=200, smoothen=exec_cfg.smoothen)
-                current_idx = next_handover_idx
-                
-                logger.info(f"Executing handover at {current_idx}...")
-                obj_pose_h = (obj_traj0 if current_robot == 0 else obj_traj1)[current_idx]
+                # -------------------------------------------------------
+                # PARALLEL EXECUTION: While arm A follows its trajectory
+                # segment to the handover point, arm B simultaneously
+                # moves to its handover pre-pose.  This saves the time
+                # that arm B would otherwise spend waiting.
+                # -------------------------------------------------------
+                other_arm = system.right_arm if current_robot == 0 else system.left_arm
+                other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
+
+                # Pre-compute the handover plan so we know arm B's target
+                obj_pose_h = (obj_traj0 if current_robot == 0 else obj_traj1)[next_handover_idx]
                 h_planner = DualArmHandoverPlanner(
                     grasp_transfer=grasp0 if current_robot == 0 else grasp1,
                     grasp_receiver=grasp1 if current_robot == 0 else grasp0,
                     handover_object_pose=obj_pose_h
                 )
                 h_traj = h_planner.generate_trajectory()
-                
+
                 # Visualize handover plan in MeshCat
                 if exec_cfg.visualize and vis is not None:
                     visualize_handover_plan(
                         vis, h_traj,
-                        name=f"handover_{current_idx}",
+                        name=f"handover_{next_handover_idx}",
                         tf_manager=system.tf_manager,
                     )
-                
-                other_arm = system.right_arm if current_robot == 0 else system.left_arm
-                other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
-                
-                # Use planning joint configs as IK hints for the handover poses
+
+                # Arm A's joint segment (carrying the object)
+                joint_segment = list((joints0 if current_robot == 0 else joints1)[current_idx+1 : next_handover_idx+1])
+
+                # Arm B's target: the handover receiver pre-pose
+                receiver_pre_pose = h_traj["receiver_pre"][0]
                 other_joints = joints1 if current_robot == 0 else joints0
-                q_warm_start_receiver = other_joints[current_idx] if other_joints[current_idx] is not None else None
-                
-                logger.info(f"Robot {1 - current_robot} moving to handover pre-pose...")
-                other_arm.move_to_pose(h_traj["receiver_pre"][0])
+                q_warm_start_receiver = other_joints[next_handover_idx] if other_joints[next_handover_idx] is not None else None
+
+                logger.info(
+                    f"PARALLEL: Robot {current_robot} following segment to handover at {next_handover_idx} "
+                    f"while Robot {1 - current_robot} moves to handover pre-pose"
+                )
+
+                # Use the DualArmParallelPlanner for synchronised execution.
+                # mink's CollisionAvoidanceLimit is configured so that
+                # arm B avoids arm A AND the grasped object, while arm A
+                # (frozen in the QP) follows its pre-planned trajectory.
+                parallel_planner = DualArmParallelPlanner(
+                    env=system.env,
+                    arm_a=current_arm,
+                    arm_b=other_arm,
+                    env_lock=system.env_lock,
+                    tf_manager=system.tf_manager,
+                    collision_check=True,
+                    manipulated_object=exp_cfg.task.manipulated_object,
+                )
+                par_result = parallel_planner.execute_parallel(
+                    traj_a=joint_segment,
+                    target_b=receiver_pre_pose,
+                    gripper_a=1.0,       # keep gripper A closed (holding object)
+                    gripper_b=-1.0,      # open gripper B (ready to receive)
+                    q_warm_start_b=q_warm_start_receiver,
+                    num_steps_override=200,
+                )
+
+                if not par_result.success_a:
+                    logger.warning(f"Arm A did not fully converge (err={par_result.final_pos_error_a:.4f})")
+                if not par_result.success_b:
+                    logger.warning(f"Arm B did not fully converge (err={par_result.final_pos_error_b:.4f})")
+                if par_result.collision_free:
+                    logger.info("Parallel execution completed collision-free.")
+                else:
+                    logger.warning("Parallel execution had QP solver fallbacks — check collision avoidance.")
+
+                current_idx = next_handover_idx
+
+                # -------------------------------------------------------
+                # Handover sequence (sequential — physical contact phase)
+                # Arm B is already at the handover pre-pose from parallel
+                # execution above.
+                # -------------------------------------------------------
+                logger.info(f"Executing handover at {current_idx}...")
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)

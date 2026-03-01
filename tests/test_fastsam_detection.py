@@ -18,7 +18,7 @@ def perception_services(request):
     manager = ServiceManager()
     manager.start()
     
-    env = make_dual_arm_env()
+    env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
     env.reset()
     
     tf_manager = TransformManager(env)
