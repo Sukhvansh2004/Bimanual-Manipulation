@@ -27,12 +27,11 @@ from robosuite_franka_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
     check_dual_trajectory_feasibility,
 )
-from robosuite_franka_manipulation.planning.trajectory_generator import (
-    generate_end_effector_trajectory,
-)
 from robosuite_franka_manipulation.planning.trajectory import (
     plan_object_trajectory,
     plan_arm_trajectory,
+    generate_end_effector_trajectory,
+    generate_object_trajectory,
 )
 
 # ── RRT subpackage ────────────────────────────────────────────────────────
@@ -90,6 +89,7 @@ __all__ = [
     'find_feasible_grasp_pairs',
     'check_single_grasp_feasibility',
     'generate_end_effector_trajectory',
+    'generate_object_trajectory',
     'plan_object_trajectory',
     # RRT planner
     'rrt_connect_generic',

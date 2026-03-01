@@ -2,6 +2,11 @@
 Trajectory generator for end effector poses based on grasp pairs.
 
 Generates simple pick-and-lift trajectories for feasible grasps.
+
+* :func:`generate_object_trajectory` — collision-aware (RRT) or direct
+  SE(3) interpolation for the object.
+* :func:`generate_end_effector_trajectory` — maps an object trajectory
+  to EEF poses via a fixed grasp transform.
 """
 
 import numpy as np
@@ -19,9 +24,10 @@ from robosuite_franka_manipulation.planning.trajectory.object_planner import (
 
 logger = logging.getLogger(__name__)
 
+
 def generate_object_trajectory(
-    start_pose: StampedPose, 
-    target_pose: StampedPose, 
+    start_pose: StampedPose,
+    target_pose: StampedPose,
     tf_manager: TransformManager,
     num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS,
     env: Optional[DualArmEnvironment] = None,
@@ -30,12 +36,12 @@ def generate_object_trajectory(
     pos_bounds: Optional[np.ndarray] = None,
 ) -> List[StampedPose]:
     """Generate a collision-free trajectory for the object from start to target pose.
-    
+
     When *env* and *object_name* are provided, an RRT-Connect planner is used
     to find a collision-free path (ignoring contacts with robot arms/grippers).
     If the planner fails, or if *env* is not provided, falls back to simple
     SE(3) interpolation.
-    
+
     Args:
         start_pose: Start pose as StampedPose
         target_pose: Target pose as StampedPose
@@ -47,7 +53,7 @@ def generate_object_trajectory(
         pos_bounds: (Optional) Workspace bounds as (2, 3) numpy array
             ``[[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]``.
             Overrides auto-computed bounds when provided.
-        
+
     Returns:
         List of StampedPose objects representing the trajectory
     """
@@ -56,10 +62,13 @@ def generate_object_trajectory(
         start_pose = tf_manager.transform_pose(start_pose, constants.WORLD_FRAME)
     if target_pose.frame_id != constants.WORLD_FRAME:
         target_pose = tf_manager.transform_pose(target_pose, constants.WORLD_FRAME)
-            
+
     # If still mismatch (should not happen if tf_manager works), warn
     if start_pose.frame_id != target_pose.frame_id:
-        logger.warning(f"Frame mismatch in generate_object_trajectory: {start_pose.frame_id} vs {target_pose.frame_id}")
+        logger.warning(
+            f"Frame mismatch in generate_object_trajectory: "
+            f"{start_pose.frame_id} vs {target_pose.frame_id}"
+        )
 
     # ---- Collision-aware planning (when env is available) ----
     if env is not None and object_name is not None:
@@ -77,18 +86,25 @@ def generate_object_trajectory(
         if success:
             return trajectory
         else:
-            logger.warning("RRT planner failed — returned trajectory is a direct interpolation fallback.")
+            logger.warning(
+                "RRT planner failed — returned trajectory is a direct interpolation fallback."
+            )
             return trajectory
 
     # ---- Fallback: simple SE(3) interpolation ----
     logger.info("No environment provided — using direct SE(3) interpolation for object trajectory.")
     frame_id = start_pose.frame_id
-    
+
     trajectory_points = []
     for i in range(num_steps + 1):
         t = i / float(num_steps)
-        pos, quat = interpolate_pose(start_pose.position, start_pose.quaternion, target_pose.position, target_pose.quaternion, t)
-        trajectory_points.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
+        pos, quat = interpolate_pose(
+            start_pose.position, start_pose.quaternion,
+            target_pose.position, target_pose.quaternion, t,
+        )
+        trajectory_points.append(
+            StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
+        )
 
     return trajectory_points
 
@@ -96,19 +112,18 @@ def generate_object_trajectory(
 def generate_end_effector_trajectory(
     object_trajectory: List[StampedPose],
     grasp: StampedPose,
-    tf_manager: TransformManager
+    tf_manager: TransformManager,
 ) -> List[StampedPose]:
-    """
-    Generate end effector trajectory from object trajectory and a grasp pose.
-    
+    """Generate end effector trajectory from object trajectory and a grasp pose.
+
     The grasp pose is assumed to already be at the robot's grip_site frame
     (i.e., the grasp service has already applied any necessary offsets).
-    
+
     Args:
         object_trajectory: List of object poses (StampedPose).
         grasp: Grasp pose (GraspSchema/StampedPose) - already at grip_site frame.
         tf_manager: TransformManager to handle frame conversions.
-        
+
     Returns:
         List of StampedPose objects representing end effector poses in world frame.
     """
@@ -121,23 +136,28 @@ def generate_end_effector_trajectory(
 
     # 2. Ensure Object Trajectory is in World Frame
     if object_trajectory[0].frame_id != constants.WORLD_FRAME:
-        object_trajectory = [tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory]
+        object_trajectory = [
+            tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory
+        ]
 
     # Grasp is already at grip_site frame (no offset needed)
     T_world_grasp = grasp.to_matrix()
 
-    # Assumption: object_trajectory[0] corresponds to the object pose at the time 'grasp' was generated.
+    # Assumption: object_trajectory[0] corresponds to the object pose at the
+    # time 'grasp' was generated.
     T_world_obj_start = object_trajectory[0].to_matrix()
-    
+
     # Compute grasp pose relative to object
     T_obj_grasp = np.linalg.inv(T_world_obj_start) @ T_world_grasp
-    
+
     end_effector_trajectory = []
-    
+
     for obj_pose in object_trajectory:
         T_object = obj_pose.to_matrix()
         # Transform to end effector frame: T_world_end_eff = T_world_obj * T_obj_grasp
         T_end_effector = T_object @ T_obj_grasp
-        end_effector_trajectory.append(StampedPose.from_matrix(T_end_effector, frame_id=constants.WORLD_FRAME))
-    
+        end_effector_trajectory.append(
+            StampedPose.from_matrix(T_end_effector, frame_id=constants.WORLD_FRAME)
+        )
+
     return end_effector_trajectory

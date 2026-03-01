@@ -7,7 +7,7 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import make_dual_arm_env
 from robosuite_franka_manipulation.planning.utils import ik_utils, mujoco_utils
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
-from robosuite_franka_manipulation.planning.trajectory_generator import (
+from robosuite_franka_manipulation.planning.trajectory.generator import (
     generate_object_trajectory,
     generate_end_effector_trajectory,
 )

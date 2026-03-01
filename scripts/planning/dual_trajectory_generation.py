@@ -49,7 +49,7 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 
 # Planning Modules
-from robosuite_franka_manipulation.planning.trajectory_generator import (
+from robosuite_franka_manipulation.planning.trajectory import (
     generate_end_effector_trajectory, 
     generate_object_trajectory,
 )
