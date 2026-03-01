@@ -442,8 +442,8 @@ class RobosuiteArmController:
         vel_limit = mink.VelocityLimit(model_native)
         config_limit = mink.ConfigurationLimit(model_native)
 
-        from robosuite_franka_manipulation.planning.utils.ik_utils import _get_frozen_dof_indices  # lazy to avoid circular import
-        frozen_dofs = _get_frozen_dof_indices(model_native, arm_dof_idx)
+        from robosuite_franka_manipulation.planning.utils.mujoco_utils import get_frozen_dof_indices  # lazy to avoid circular import
+        frozen_dofs = get_frozen_dof_indices(model_native, arm_dof_idx)
         freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
 
         tasks: list = [frame_task, posture_task, damping_task]

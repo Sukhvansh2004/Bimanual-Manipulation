@@ -9,6 +9,81 @@ from robosuite.utils.binding_utils import MjSim, MjModel
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Standalone geometry converter (shared by all MeshCat visualizer classes)
+# ---------------------------------------------------------------------------
+
+def mujoco_geom_to_meshcat(
+    model,
+    geom_id: int,
+    mesh_cache: Dict[str, g.Geometry],
+    mesh_sample_ratio: float = 1.0,
+) -> Optional[g.Geometry]:
+    """Convert a MuJoCo geom to a MeshCat geometry, with caching.
+
+    Handles sphere, capsule, cylinder, box, and mesh geom types.
+    Results are cached in *mesh_cache* (keyed by ``geom_<id>_type_<t>``).
+
+    Args:
+        model: MuJoCo model (native or robosuite wrapper).
+        geom_id: Index of the geom in the model.
+        mesh_cache: Mutable dict used as a geometry cache.
+        mesh_sample_ratio: Fraction of mesh faces to keep (0–1).
+            Values < 1 subsample faces to reduce MeshCat rendering load.
+
+    Returns:
+        A ``meshcat.geometry.Geometry`` instance, or *None* for unsupported types.
+    """
+    geom_type = model.geom_type[geom_id]
+    cache_key = f"geom_{geom_id}_type_{geom_type}"
+
+    if cache_key in mesh_cache:
+        return mesh_cache[cache_key]
+
+    geometry: Optional[g.Geometry] = None
+
+    if geom_type == 7:  # Mesh
+        mesh_id = model.geom_dataid[geom_id]
+        vert_adr = model.mesh_vertadr[mesh_id]
+        vert_num = model.mesh_vertnum[mesh_id]
+        face_adr = model.mesh_faceadr[mesh_id]
+        face_num = model.mesh_facenum[mesh_id]
+
+        vertices = np.array(model.mesh_vert[vert_adr:vert_adr + vert_num])
+        faces = np.array(model.mesh_face[face_adr:face_adr + face_num])
+
+        if mesh_sample_ratio < 1.0 and len(faces) > 10:
+            num_keep = max(4, int(len(faces) * mesh_sample_ratio))
+            idx = np.linspace(0, len(faces) - 1, num_keep, dtype=int)
+            faces = faces[idx]
+
+        geometry = g.TriangularMeshGeometry(vertices, faces)
+
+    elif geom_type == 2:  # Sphere
+        radius = float(model.geom_size[geom_id][0])
+        geometry = g.Sphere(radius)
+
+    elif geom_type == 3:  # Capsule (approximated as cylinder)
+        radius = float(model.geom_size[geom_id][0])
+        height = float(model.geom_size[geom_id][1]) * 2
+        geometry = g.Cylinder(height, radius)
+
+    elif geom_type == 5:  # Cylinder
+        radius = float(model.geom_size[geom_id][0])
+        height = float(model.geom_size[geom_id][1]) * 2
+        geometry = g.Cylinder(height, radius)
+
+    elif geom_type == 6:  # Box
+        size = np.array(model.geom_size[geom_id]) * 2
+        geometry = g.Box(size.tolist())
+
+    if geometry is not None:
+        mesh_cache[cache_key] = geometry
+
+    return geometry
+
+
 class MeshcatMjVisualizer:
     """
     Utility to publish MuJoCo environment geometries to MeshCat.
@@ -22,66 +97,7 @@ class MeshcatMjVisualizer:
 
     def _get_meshcat_geometry(self, model: MjModel, geom_id: int) -> Optional[g.Geometry]:
         """Convert MuJoCo geom to MeshCat geometry."""
-        geom_type = model.geom_type[geom_id]
-        
-        # Unique key for caching
-        cache_key = f"type_{geom_type}_size_{model.geom_size[geom_id]}"
-        
-        if geom_type == 7:  # Mesh
-            mesh_id = model.geom_dataid[geom_id]
-            cache_key = f"mesh_{mesh_id}"
-            if cache_key in self._mesh_cache:
-                return self._mesh_cache[cache_key]
-            
-            # Extract vertices and faces from MuJoCo model
-            vert_adr = model.mesh_vertadr[mesh_id]
-            vert_num = model.mesh_vertnum[mesh_id]
-            face_adr = model.mesh_faceadr[mesh_id]
-            face_num = model.mesh_facenum[mesh_id]
-            
-            vertices = model.mesh_vert[vert_adr : vert_adr + vert_num]
-            faces = model.mesh_face[face_adr : face_adr + face_num]
-            
-            meshcat_geom = g.TriangularMeshGeometry(vertices, faces)
-            self._mesh_cache[cache_key] = meshcat_geom
-            return meshcat_geom
-        
-        elif geom_type == 2:  # Sphere
-            radius = model.geom_size[geom_id][0]
-            if cache_key in self._mesh_cache:
-                return self._mesh_cache[cache_key]
-            meshcat_geom = g.Sphere(radius)
-            self._mesh_cache[cache_key] = meshcat_geom
-            return meshcat_geom
-            
-        elif geom_type == 3:  # Capsule
-            radius = model.geom_size[geom_id][0]
-            height = model.geom_size[geom_id][1] * 2
-            if cache_key in self._mesh_cache:
-                return self._mesh_cache[cache_key]
-            # MeshCat doesn't have a native capsule, use a cylinder for now
-            meshcat_geom = g.Cylinder(height, radius)
-            self._mesh_cache[cache_key] = meshcat_geom
-            return meshcat_geom
-            
-        elif geom_type == 5:  # Cylinder (MuJoCo type 5)
-            radius = model.geom_size[geom_id][0]
-            height = model.geom_size[geom_id][1] * 2
-            if cache_key in self._mesh_cache:
-                return self._mesh_cache[cache_key]
-            meshcat_geom = g.Cylinder(height, radius)
-            self._mesh_cache[cache_key] = meshcat_geom
-            return meshcat_geom
-            
-        elif geom_type == 6:  # Box
-            size = model.geom_size[geom_id] * 2
-            if cache_key in self._mesh_cache:
-                return self._mesh_cache[cache_key]
-            meshcat_geom = g.Box(size)
-            self._mesh_cache[cache_key] = meshcat_geom
-            return meshcat_geom
-            
-        return None
+        return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache)
 
     def _get_group_for_geom(self, geom_name: str) -> str:
         """Determine the visualization group for a geometry based on its name prefix."""

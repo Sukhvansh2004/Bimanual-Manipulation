@@ -14,7 +14,7 @@ from scipy.interpolate import interp1d
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
-    apply_ik_orientation_correction
+    apply_ik_orientation_correction,
 )
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
@@ -26,7 +26,6 @@ from robosuite_franka_manipulation import constants
 
 logger = logging.getLogger(__name__)
 
-from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, Transform
 
 

@@ -140,6 +140,9 @@ def get_all_dof_indices_except(model, active_robot_id: int) -> List[int]:
     These DOFs are typically frozen in a QP so that only the active
     robot's arm moves.
 
+    This is a convenience wrapper around :func:`get_frozen_dof_indices`
+    that resolves the robot's arm DOF indices automatically.
+
     Args:
         model: Native MuJoCo model.
         active_robot_id: Robot whose joints should be *excluded* from the result.
@@ -147,21 +150,9 @@ def get_all_dof_indices_except(model, active_robot_id: int) -> List[int]:
     Returns:
         List of DOF indices to freeze.
     """
-    import mujoco as _mj  # local import to avoid top-level dependency
-
-    active_jids = set(get_arm_joint_ids(model, active_robot_id))
-    frozen: List[int] = []
-    for jid in range(model.njnt):
-        if jid not in active_jids:
-            dof_adr = model.jnt_dofadr[jid]
-            n_dof = {
-                _mj.mjtJoint.mjJNT_FREE: 6,
-                _mj.mjtJoint.mjJNT_BALL: 3,
-                _mj.mjtJoint.mjJNT_SLIDE: 1,
-                _mj.mjtJoint.mjJNT_HINGE: 1,
-            }.get(model.jnt_type[jid], 1)
-            frozen.extend(range(dof_adr, dof_adr + n_dof))
-    return frozen
+    active_jids = get_arm_joint_ids(model, active_robot_id)
+    active_dof_idx = get_joint_dof_indices(model, active_jids)
+    return get_frozen_dof_indices(model, active_dof_idx)
 
 
 def get_object_collision_geoms(model, object_name: Optional[str]) -> List[str]:
@@ -226,3 +217,41 @@ def get_environment_collision_geoms(
             continue
         env_geoms.append(name)
     return env_geoms
+
+
+# ---------------------------------------------------------------------------
+# Frozen-DOF helper
+# ---------------------------------------------------------------------------
+
+def get_frozen_dof_indices(
+    model_native,
+    active_dof_idx: np.ndarray,
+) -> List[int]:
+    """Return DOF indices of everything *except* the given active DOFs.
+
+    Used to construct a ``DofFreezingTask`` so that only the target arm
+    moves during IK.
+
+    Args:
+        model_native: **Native** ``mujoco.MjModel``.
+        active_dof_idx: DOF indices for the arm being solved.
+
+    Returns:
+        List of DOF indices to freeze.
+    """
+    import mujoco as _mj  # local import to avoid top-level dependency
+
+    active_set = set(int(d) for d in active_dof_idx)
+    frozen: List[int] = []
+    for jid in range(model_native.njnt):
+        dof_adr = int(model_native.jnt_dofadr[jid])
+        n_dof = {
+            _mj.mjtJoint.mjJNT_FREE: 6,
+            _mj.mjtJoint.mjJNT_BALL: 3,
+            _mj.mjtJoint.mjJNT_SLIDE: 1,
+            _mj.mjtJoint.mjJNT_HINGE: 1,
+        }.get(int(model_native.jnt_type[jid]), 1)
+        for d in range(dof_adr, dof_adr + n_dof):
+            if d not in active_set:
+                frozen.append(d)
+    return frozen

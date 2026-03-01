@@ -22,47 +22,16 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 
 from robosuite_franka_manipulation.planning.utils import mujoco_utils
+from robosuite_franka_manipulation.planning.utils.manipulability import (
+    compute_manipulability_from_jacobian,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _manipulability_from_jac(jac: np.ndarray) -> float:
-    """Yoshikawa manipulability: sqrt(det(J @ J^T)).
-
-    A robust formulation using singular values to avoid numerical issues
-    with near-singular Jacobians.
-    """
-    sv = np.linalg.svd(jac, compute_uv=False)
-    return float(np.prod(sv))  # == sqrt(det(J @ J^T))
 
 
 # ---------------------------------------------------------------------------
 # Frozen-DOF helper (shared with compute_arm_jacobian / mink IK)
 # ---------------------------------------------------------------------------
-
-def _get_frozen_dof_indices(
-    model_native: mujoco.MjModel,
-    active_dof_idx: np.ndarray,
-) -> List[int]:
-    """Return DOF indices of everything *except* the given active DOFs.
-
-    Used to construct a ``DofFreezingTask`` so that only the target arm
-    moves during IK.
-    """
-    active_set = set(int(d) for d in active_dof_idx)
-    frozen: List[int] = []
-    for jid in range(model_native.njnt):
-        dof_adr = int(model_native.jnt_dofadr[jid])
-        n_dof = {
-            mujoco.mjtJoint.mjJNT_FREE: 6,
-            mujoco.mjtJoint.mjJNT_BALL: 3,
-            mujoco.mjtJoint.mjJNT_SLIDE: 1,
-            mujoco.mjtJoint.mjJNT_HINGE: 1,
-        }.get(int(model_native.jnt_type[jid]), 1)
-        for d in range(dof_adr, dof_adr + n_dof):
-            if d not in active_set:
-                frozen.append(d)
-    return frozen
 
 
 def _build_target_se3(
@@ -148,7 +117,7 @@ def solve_ik_mink(
     damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
     config_limit = mink.ConfigurationLimit(model_native)
 
-    frozen_dofs = _get_frozen_dof_indices(model_native, arm_dof_idx)
+    frozen_dofs = mujoco_utils.get_frozen_dof_indices(model_native, arm_dof_idx)
     freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
 
     # ── Set target SE3 ────────────────────────────────────────────────
@@ -401,7 +370,7 @@ def enumerate_ik_solutions_for_arm(
             config = mink.Configuration(model_native, q=q_full)
             J = config.get_frame_jacobian(site_name, "site")
             J_arm = J[:, joint_dof_idx]  # (6, 7)
-            m = _manipulability_from_jac(J_arm)
+            m = compute_manipulability_from_jacobian(J_arm)
             if m < min_manip:
                 logger.debug("IK solution rejected: manipulability %.4e < %.2e", m, min_manip)
                 return None
@@ -472,7 +441,7 @@ def enumerate_ik_solutions_for_arm(
 
 def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame.
-    
+
     Converts a pose from body-frame convention to site-frame convention.
     Used before IK solving.
     """
@@ -485,7 +454,7 @@ def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
 
 def reverse_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     """Apply +90 degree Z rotation to convert from site-frame to body-frame convention.
-    
+
     This is the inverse of apply_ik_orientation_correction.
     Used when converting stored site-frame EEF poses back to body-frame
     for use with move_to_pose / follow_trajectory.

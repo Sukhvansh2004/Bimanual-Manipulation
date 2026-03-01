@@ -14,7 +14,7 @@ from typing import List, Tuple, Union, Optional
 import logging
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
-    apply_ik_orientation_correction
+    apply_ik_orientation_correction,
 )
 from robosuite_franka_manipulation.planning.utils.collision_utils import in_collision
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (

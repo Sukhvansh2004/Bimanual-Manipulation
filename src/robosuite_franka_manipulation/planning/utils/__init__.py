@@ -24,6 +24,7 @@ from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_all_dof_indices_except,
     get_object_collision_geoms,
     get_environment_collision_geoms,
+    get_frozen_dof_indices,
 )
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     save_trajectory,
@@ -51,6 +52,10 @@ from robosuite_franka_manipulation.planning.utils.object_mesh_visualizer import 
 from robosuite_franka_manipulation.planning.utils.rrt_visualizer import (
     RRTVisualizer
 )
+from robosuite_franka_manipulation.planning.utils.path_smoothing import (
+    smooth_path,
+    densify_path,
+)
 
 __all__ = [
     # IK utilities
@@ -75,6 +80,7 @@ __all__ = [
     'get_all_dof_indices_except',
     'get_object_collision_geoms',
     'get_environment_collision_geoms',
+    'get_frozen_dof_indices',
     # Trajectory utilities
     'save_trajectory',
     'load_trajectory',
@@ -92,4 +98,7 @@ __all__ = [
     'compute_manipulability_from_jacobian',
     'compute_trajectory_manipulability',
     'compute_average_manipulability',
+    # Path smoothing
+    'smooth_path',
+    'densify_path',
 ]

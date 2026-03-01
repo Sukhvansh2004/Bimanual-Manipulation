@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import mujoco
 import numpy as np
@@ -40,8 +40,7 @@ from robosuite_franka_manipulation.utils.se3 import (
 )
 from robosuite.utils import transform_utils as T
 
-if TYPE_CHECKING:
-    from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 

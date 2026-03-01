@@ -9,7 +9,7 @@ object trajectory through the workspace.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -19,10 +19,9 @@ from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
 from robosuite_franka_manipulation.planning.rrt_planner import rrt_connect_se3
-from robosuite_franka_manipulation.planning.path_smoothing import smooth_path, densify_path
+from robosuite_franka_manipulation.planning.utils.path_smoothing import smooth_path, densify_path
 
-if TYPE_CHECKING:
-    from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.utils.rrt_visualizer import RRTVisualizer
 
 logger = logging.getLogger(__name__)
 

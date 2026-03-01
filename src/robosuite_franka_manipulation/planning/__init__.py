@@ -21,7 +21,7 @@ from robosuite_franka_manipulation.planning.rrt_planner import (
     RRTNode,
     RRTResult,
 )
-from robosuite_franka_manipulation.planning.path_smoothing import (
+from robosuite_franka_manipulation.planning.utils.path_smoothing import (
     smooth_path,
     densify_path,
 )
