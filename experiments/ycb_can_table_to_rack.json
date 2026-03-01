@@ -12,7 +12,7 @@
             },
             {
                 "ycb_name": "tomato_soup_can",
-                "position": [0.1, 0.0, 0.950],
+                "position": [0.1, 0.0, 0.95],
                 "quaternion": [0, 0, 0, 1]
             }
         ],
@@ -22,29 +22,25 @@
         "manipulated_object": "tomato_soup_can_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.152, 0.0, 0.960],
+            "position": [-0.152, 0.0, 0.96],
             "quaternion": [0, 0, 0, 1]
         }
     },
     "planning": {
         "num_grasps": 200,
         "num_entropy_grasps": 20,
-        "gripper_types": [
-            "finger",
-            "suction"
-        ],
+        "gripper_types": ["finger", "suction"],
         "collision_check": null,
         "num_steps": 50,
         "lift_height": 0.15,
         "approach_offset": 0.25,
-        "rrt_bounds": [[-0.5, -0.4, 0.90], [0.5, 0.4, 1.3]]
+        "rrt_bounds": [
+            [-0.5, -0.4, 0.9],
+            [0.5, 0.4, 1.3]
+        ]
     },
     "collision_filter": {
-        "exclude_patterns": [
-            "tomato_soup_can",
-            "track",
-            "table_rack"
-        ]
+        "exclude_patterns": ["tomato_soup_can", "track", "table_rack"]
     },
     "visualization": {
         "visualize_mesh": false,
@@ -64,6 +60,13 @@
         "smoothen": false,
         "traj0": null,
         "traj1": null
+    },
+    "assignment": {
+        "alpha": 10.0,
+        "beta": 1.0,
+        "epsilon": 1e-06,
+        "initial_robot": null,
+        "transfer_feasibility": null
     },
     "runtime": {
         "debug": false,

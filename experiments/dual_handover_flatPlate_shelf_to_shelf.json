@@ -1,6 +1,6 @@
 {
     "name": "dual_handover_flatPlate_shelf_to_shelf",
-    "description": "Dual-handover shelf-to-shelf: Robot-0 (finger gripper) extracts a flat plate from Shelf-A, hands it to Robot-1 (suction gripper) which carries it around the central wall via the +y side, then Robot-1 hands the plate back to Robot-0 (finger gripper) who inserts it into Shelf-B. The wall is tall enough and the RRT z-bound is low enough that the trajectory CANNOT go over the wall — it must route around through the suction gripper's workspace.",
+    "description": "Dual-handover shelf-to-shelf: Robot-0 (finger gripper) extracts a flat plate from Shelf-A, hands it to Robot-1 (suction gripper) which carries it around the central wall via the +y side, then Robot-1 hands the plate back to Robot-0 (finger gripper) who inserts it into Shelf-B. The wall is tall enough and the RRT z-bound is low enough that the trajectory CANNOT go over the wall \u2014 it must route around through the suction gripper's workspace.",
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "ycb_objects": [
@@ -24,7 +24,7 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.20, -0.05, 1.04],
+                "position": [-0.2, -0.05, 1.04],
                 "quaternion": [0, 0.70710678, 0, 0.70710678],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
@@ -34,13 +34,13 @@
             {
                 "type": "box",
                 "name": "wallObstacle",
-                "size": [0.10, 0.45, 0.50],
-                "position": [0.0, -0.10, 1.10],
+                "size": [0.1, 0.45, 0.5],
+                "position": [0.0, -0.1, 1.1],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall: x=±0.10, y=−0.55 to +0.35, z=0.60–1.60. Shifted toward −y and extended to completely block the front passage. Only the back corridor (y>+0.35) remains open, forcing the plate to detour through the suction gripper's workspace."
+                "_comment": "Central wall: x=\u00b10.10, y=\u22120.55 to +0.35, z=0.60\u20131.60. Shifted toward \u2212y and extended to completely block the front passage. Only the back corridor (y>+0.35) remains open, forcing the plate to detour through the suction gripper's workspace."
             }
         ]
     },
@@ -48,7 +48,7 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.20, -0.05, 1.04],
+            "position": [0.2, -0.05, 1.04],
             "quaternion": [0, 0.70710678, 0, 0.70710678],
             "_comment": "Vertical slot in Shelf-B (mirrored from Shelf-A)"
         }
@@ -56,27 +56,19 @@
     "planning": {
         "num_grasps": 200,
         "num_entropy_grasps": 20,
-        "gripper_types": [
-            "finger",
-            "suction"
-        ],
+        "gripper_types": ["finger", "suction"],
         "collision_check": null,
         "num_steps": 80,
         "lift_height": 0.15,
         "approach_offset": 0.25,
-        "rrt_bounds": [[-0.50, -0.50, 0.90], [0.50, 0.50, 1.45]],
-        "_rrt_bounds_comment": "z-max=1.45 gives enough lift space above the shelves (~1.15) for handover positions, while still 0.15m below wall top (1.60). y=±0.50 allows detour around wall (y=+0.35)."
+        "rrt_bounds": [
+            [-0.5, -0.5, 0.9],
+            [0.5, 0.5, 1.45]
+        ],
+        "_rrt_bounds_comment": "z-max=1.45 gives enough lift space above the shelves (~1.15) for handover positions, while still 0.15m below wall top (1.60). y=\u00b10.50 allows detour around wall (y=+0.35)."
     },
     "collision_filter": {
-        "exclude_patterns": [
-            "flatPlate",
-            "plate",
-            "tshelf",
-            "table_shelf",
-            "shelf_a",
-            "shelf_b",
-            "wall"
-        ]
+        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "shelf_a", "shelf_b", "wall"]
     },
     "visualization": {
         "visualize_mesh": true,
@@ -96,6 +88,13 @@
         "smoothen": false,
         "traj0": null,
         "traj1": null
+    },
+    "assignment": {
+        "alpha": 10.0,
+        "beta": 1.0,
+        "epsilon": 1e-06,
+        "initial_robot": null,
+        "transfer_feasibility": null
     },
     "runtime": {
         "debug": false,
