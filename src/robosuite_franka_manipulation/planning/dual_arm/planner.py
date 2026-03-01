@@ -58,7 +58,7 @@ from robosuite_franka_manipulation.utils.env_utils import env_step
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     resample_joint_trajectory,
 )
-from robosuite_franka_manipulation.planning.rrt.joint_planner import (
+from robosuite_franka_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
 from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer

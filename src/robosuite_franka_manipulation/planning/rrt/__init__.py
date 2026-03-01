@@ -33,7 +33,6 @@ from robosuite_franka_manipulation.planning.rrt.joint_planner import (
     shortcut_joint_path,
     bezier_smooth_joint_path,
     densify_joint_path,
-    plan_arm_trajectory,
 )
 from robosuite_franka_manipulation.planning.rrt.path_smoothing import (
     shortcut_generic,
@@ -59,7 +58,6 @@ __all__ = [
     "shortcut_joint_path",
     "bezier_smooth_joint_path",
     "densify_joint_path",
-    "plan_arm_trajectory",
     # Path smoothing
     "shortcut_generic",
     "densify_generic",

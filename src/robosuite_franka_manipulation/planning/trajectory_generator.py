@@ -13,7 +13,7 @@ from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.transforms import TransformManager
 from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.planning.object_trajectory_planner import (
+from robosuite_franka_manipulation.planning.trajectory.object_planner import (
     plan_object_trajectory,
 )
 

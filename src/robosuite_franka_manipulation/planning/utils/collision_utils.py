@@ -39,7 +39,7 @@ def _get_ids_for_prefixes(prefixes):
 
 
 # ── Public accessors for cached geom metadata ──────────────────────────────
-# These allow other modules (e.g. object_trajectory_planner) to reuse the
+# These allow other modules (e.g. trajectory.object_planner) to reuse the
 # geom caches without duplicating the iteration/prefix-matching logic.
 
 def get_geom_ids_by_prefix(model, prefix: str) -> np.ndarray:

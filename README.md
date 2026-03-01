@@ -91,7 +91,9 @@ pip install -e .
 │   │   ├── trajectory_generator.py          # SE(3) trajectory generation & IK validation
 │   │   ├── collision_checker.py             # Single/dual-arm grasp feasibility
 │   │   ├── grasp_generator.py               # High-level grasp sampling API
-│   │   ├── object_trajectory_planner.py     # RRT-Connect in SE(3) + Bézier smoothing
+│   │   ├── trajectory/                     # High-level trajectory planners
+│   │   │   ├── object_planner.py            # RRT-Connect in SE(3) + Bézier smoothing
+│   │   │   └── arm_planner.py               # Joint-space RRT + smoothing pipeline
 │   │   └── utils/                           # Planning sub-utilities
 │   │       ├── collision_utils.py           # MuJoCo collision helpers
 │   │       ├── ik_utils.py                  # Scipy-based IK solver

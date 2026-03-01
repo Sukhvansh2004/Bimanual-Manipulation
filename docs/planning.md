@@ -24,7 +24,7 @@ The planning pipeline follows these stages:
 
 ## Key Components
 
-### 1. Object Trajectory Planner (`object_trajectory_planner.py`)
+### 1. Object Trajectory Planner (`trajectory/object_planner.py`)
 
 The centrepiece of the planning module. It plans a collision-free path for an object through the workspace, ignoring contacts with robot arms/grippers (since the robots will be carrying the object).
 
@@ -88,7 +88,7 @@ Key constants in `constants.py`:
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.object_trajectory_planner import plan_object_trajectory
+from robosuite_franka_manipulation.planning.trajectory import plan_object_trajectory
 
 trajectory, success = plan_object_trajectory(
     env=env,

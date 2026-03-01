@@ -30,8 +30,9 @@ from robosuite_franka_manipulation.planning.collision_checker import (
 from robosuite_franka_manipulation.planning.trajectory_generator import (
     generate_end_effector_trajectory,
 )
-from robosuite_franka_manipulation.planning.object_trajectory_planner import (
+from robosuite_franka_manipulation.planning.trajectory import (
     plan_object_trajectory,
+    plan_arm_trajectory,
 )
 
 # ── RRT subpackage ────────────────────────────────────────────────────────
@@ -43,7 +44,6 @@ from robosuite_franka_manipulation.planning.rrt import (
     RRTVisualizer,
     rrt_connect_joint_space,
     JointRRTResult,
-    plan_arm_trajectory,
     shortcut_joint_path,
     bezier_smooth_joint_path,
     densify_joint_path,

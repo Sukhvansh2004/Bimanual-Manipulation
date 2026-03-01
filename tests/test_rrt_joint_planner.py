@@ -19,6 +19,8 @@ from robosuite_franka_manipulation.planning.rrt.joint_planner import (
     densify_joint_path,
     rrt_connect_joint_space,
     shortcut_joint_path,
+)
+from robosuite_franka_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
 from robosuite_franka_manipulation.planning.rrt.core import (
@@ -411,7 +413,7 @@ class TestPlanArmTrajectoryMocked:
     """Tests for the ``plan_arm_trajectory`` convenience function."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint_planner.rrt_connect_joint_space"
+        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_rrt_success_returns_dense(self, mock_rrt):
         """When RRT succeeds, the result should be densified to num_steps."""
@@ -422,10 +424,10 @@ class TestPlanArmTrajectoryMocked:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.shortcut_joint_path",
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
             side_effect=lambda env, path, **kw: path,  # no-op smoothing
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.bezier_smooth_joint_path",
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
             side_effect=lambda path, **kw: path,  # no-op Bézier
         ):
             traj, success = plan_arm_trajectory(
@@ -444,7 +446,7 @@ class TestPlanArmTrajectoryMocked:
         np.testing.assert_array_almost_equal(traj[-1], np.ones(7))
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint_planner.rrt_connect_joint_space"
+        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_rrt_failure_falls_back(self, mock_rrt):
         """When RRT fails, should fall back to linear interpolation."""
