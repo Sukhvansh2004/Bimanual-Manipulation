@@ -375,12 +375,12 @@ def enumerate_ik_solutions_for_arm(
                 fallback_seeds.append(q0)
 
         # Random perturbation seeds from current
-        for _ in range(max(0, int(num_seed_configs))):
+        for _ in range(max(0, int(num_seed_configs/3))):
             q0 = q_current + rng.normal(scale=constants.IK_RANDOM_PERTURBATION_SCALE, size=q_current.shape)
             fallback_seeds.append(np.clip(q0, joint_lo, joint_hi))
 
         # Uniform random seeds
-        for _ in range(max(0, int(num_seed_configs))):
+        for _ in range(max(0, int(2*num_seed_configs/3))):
             fallback_seeds.append(rng.uniform(low=joint_lo, high=joint_hi))
 
         # Save and restore simulation state
