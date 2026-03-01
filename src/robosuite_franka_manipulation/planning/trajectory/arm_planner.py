@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
-from robosuite_franka_manipulation.planning.rrt.joint_planner import (
+from robosuite_franka_manipulation.planning.rrt.joint import (
     rrt_connect_joint_space,
     shortcut_joint_path,
     bezier_smooth_joint_path,

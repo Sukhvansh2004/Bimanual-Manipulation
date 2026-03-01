@@ -11,11 +11,11 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 from dataclasses import dataclass
 
-from robosuite_franka_manipulation.planning.rrt.joint_planner import (
+from robosuite_franka_manipulation.planning.rrt.joint import (
     JointRRTResult,
-    _joint_distance,
-    _steer,
-    _sample_random_config,
+    joint_distance,
+    steer,
+    sample_random_config,
     densify_joint_path,
     rrt_connect_joint_space,
     shortcut_joint_path,
@@ -64,22 +64,22 @@ class TestDataclasses:
 # ============================================================================
 
 class TestJointDistance:
-    """Tests for ``_joint_distance``."""
+    """Tests for ``joint_distance``."""
 
     def test_zero_distance(self):
         q = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
-        assert _joint_distance(q, q) == pytest.approx(0.0)
+        assert joint_distance(q, q) == pytest.approx(0.0)
 
     def test_known_distance(self):
         q1 = np.zeros(7)
         q2 = np.ones(7)
         expected = np.sqrt(7.0)
-        assert _joint_distance(q1, q2) == pytest.approx(expected)
+        assert joint_distance(q1, q2) == pytest.approx(expected)
 
     def test_symmetry(self):
         q1 = np.random.randn(7)
         q2 = np.random.randn(7)
-        assert _joint_distance(q1, q2) == pytest.approx(_joint_distance(q2, q1))
+        assert joint_distance(q1, q2) == pytest.approx(joint_distance(q2, q1))
 
 
 class TestNearestNode:
@@ -112,45 +112,45 @@ class TestNearestNode:
 
 
 class TestSteer:
-    """Tests for ``_steer``."""
+    """Tests for ``steer``."""
 
     def test_within_step_size(self):
         q_from = np.zeros(7)
         q_to = np.ones(7) * 0.01
-        result = _steer(q_from, q_to, step_size=1.0)
+        result = steer(q_from, q_to, step_size=1.0)
         np.testing.assert_array_almost_equal(result, q_to)
 
     def test_beyond_step_size(self):
         q_from = np.zeros(7)
         q_to = np.ones(7)  # dist = sqrt(7) ≈ 2.65
         step_size = 1.0
-        result = _steer(q_from, q_to, step_size=step_size)
+        result = steer(q_from, q_to, step_size=step_size)
         dist = np.linalg.norm(result - q_from)
         assert dist == pytest.approx(step_size, abs=1e-6)
 
     def test_direction_preserved(self):
         q_from = np.zeros(7)
         q_to = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        result = _steer(q_from, q_to, step_size=0.5)
+        result = steer(q_from, q_to, step_size=0.5)
         expected = np.array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         np.testing.assert_array_almost_equal(result, expected)
 
 
 class TestSampleRandomConfig:
-    """Tests for ``_sample_random_config``."""
+    """Tests for ``sample_random_config``."""
 
     def test_within_bounds(self):
         lo = np.full(7, -2.0)
         hi = np.full(7, 2.0)
         for _ in range(100):
-            q = _sample_random_config(lo, hi)
+            q = sample_random_config(lo, hi)
             assert np.all(q >= lo)
             assert np.all(q <= hi)
 
     def test_shape(self):
         lo = np.full(7, -1.0)
         hi = np.full(7, 1.0)
-        q = _sample_random_config(lo, hi)
+        q = sample_random_config(lo, hi)
         assert q.shape == (7,)
 
 
@@ -344,10 +344,10 @@ class TestRRTConnectMocked:
     """Tests for ``rrt_connect_joint_space`` with mocked collision checking."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint_planner._collision_free_joint_segment"
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint_planner._check_arm_config_collision"
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_direct_path_success(self, mock_collision, mock_segment):
         """When the direct segment is collision-free, return immediately."""
@@ -376,24 +376,24 @@ class TestRRTConnectMocked:
         env.sim.data = data
 
         with patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
             return_value=list(range(7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
             return_value=np.arange(7),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_joint_limits",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_limits",
             return_value=(np.full(7, -2.0), np.full(7, 2.0)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_native_mj_object",
             return_value=model,
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner._ensure_geom_caches",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner._get_ids_for_prefixes",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
             return_value=[0, 1, 2],
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint_planner.mujoco",
+            "robosuite_franka_manipulation.planning.rrt.joint.planner.mujoco",
         ):
             result = rrt_connect_joint_space(
                 env=env,

@@ -285,7 +285,7 @@ else:
 | `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
 | `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
 
-#### Joint-Space RRT for Arm B Reference Trajectory (`rrt_joint_planner.py`)
+#### Joint-Space RRT for Arm B Reference Trajectory (`rrt/joint/`)
 
 When `target_b` is a `StampedPose`, the planner uses a **joint-space RRT-Connect** algorithm to find a collision-free reference trajectory for Arm B, rather than blindly interpolating in joint space.
 
@@ -309,7 +309,7 @@ The previous approach — solve IK for the target pose and quintic-interpolate f
 
 ##### Visualisation
 
-The `RRTVisualizer` (shared with the SE(3) planner) can be passed to `rrt_connect_joint_space()` and `plan_arm_trajectory()` via the `rrt_vis` parameter.  Joint-space states are projected to 3-D end-effector positions through forward kinematics (`_make_ee_pos_fn`), enabling:
+The `RRTVisualizer` (shared with the SE(3) planner) can be passed to `rrt_connect_joint_space()` and `plan_arm_trajectory()` via the `rrt_vis` parameter.  Joint-space states are projected to 3-D end-effector positions through forward kinematics (`make_ee_pos_fn`), enabling:
 
 - **Tree edges** shown at the EE positions corresponding to each joint config.
 - **Collision samples** shown as red spheres at the rejected EE position.
@@ -319,18 +319,23 @@ The same `pos_fn` parameter on `draw_path()`, `draw_smoothed_path()`, and `draw_
 
 ##### Generic Path Post-Processing (`path_smoothing.py`)
 
-Both the SE(3) and joint-space planners share two generic building blocks:
+Both the SE(3) and joint-space planners share three generic building blocks:
 
 | Function | Description |
 |----------|-------------|
 | `shortcut_generic(path, *, segment_free_fn, max_iterations)` | Domain-agnostic random shortcutting.  Randomly selects two waypoints and removes intermediate nodes when `segment_free_fn` returns `True`. |
 | `densify_generic(path, num_steps, *, distance_fn, interpolate_fn)` | Domain-agnostic arc-length resampling.  Computes cumulative arc-length, normalises to `[0, 1]`, and samples at uniform parameter values using `interpolate_fn`. |
+| `bezier_smooth_generic(path, *, collision_fn, eval_segment_fn, linear_fallback_fn, …)` | Domain-agnostic per-segment Bézier smoothing with collision-based fallback to linear interpolation. |
 
-The SE(3)-specific wrappers (`_shortcut_path`, `densify_path`) and joint-space wrappers (`shortcut_joint_path`, `densify_joint_path`) delegate to these generics with the appropriate domain callbacks.  The Bézier smoothing phase (`smooth_path`) remains SE(3)-specific.
+##### SE(3) Path Smoothing (`rrt/se3/smoothing.py`)
+
+The SE(3)-specific wrappers (`_shortcut_path`, `smooth_path`, `densify_path`) live in `rrt/se3/smoothing.py` and delegate to the generic utilities with SE(3) collision, distance, and interpolation callbacks.  Includes quaternion SLERP helpers and De Casteljau SO(3) Bézier evaluation.
+
+The joint-space wrappers (`shortcut_joint_path`, `bezier_smooth_joint_path`, `densify_joint_path`) delegate to the same generics with joint-space callbacks.
 
 ##### Collision Checking
 
-The collision checker (`_check_arm_config_collision`) is designed for speed inside the RRT inner loop:
+The collision checker (`check_arm_config_collision`) is designed for speed inside the RRT inner loop:
 
 - Sets both arms' qpos in MuJoCo, calls `mj_fwdPosition` (cheaper than full `mj_forward`).
 - Scans the contact buffer for contacts involving Arm B's geom IDs.
