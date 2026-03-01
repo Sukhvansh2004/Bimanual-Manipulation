@@ -7,18 +7,14 @@ in MeshCat with color-coded feasibility (matching robot feasibility).
 
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple
 from contextlib import nullcontext
-import mujoco
 
 import meshcat
 import meshcat.geometry as g
-import meshcat.transformations as tf
 
-from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 from robosuite.utils import transform_utils as rs_T
 from scipy.spatial.transform import Rotation as R
 
