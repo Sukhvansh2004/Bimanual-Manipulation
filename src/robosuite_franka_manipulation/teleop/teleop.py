@@ -119,33 +119,36 @@ class KeyboardTeleop:
         Convert a 6D EEF delta (pos + ori) to a 7-DOF joint delta via the
         damped Jacobian pseudo-inverse.
 
-        The Jacobian is evaluated at the ``ft_frame`` flange site (the same
-        frame used by the IK solver) rather than the EEF body, and the
-        rotational part of the delta is corrected for the ~90° Z-offset
-        between the body frame and the flange site frame.
+        The Jacobian from mink is expressed in the site's **body (local)
+        frame**.  The keyboard delta is in world frame.  The only
+        correction needed is the fixed ~90° Z-axis offset between the
+        EEF body frame (robosuite convention) and the ``ft_frame`` site
+        (IK / Jacobian convention).  This is the same rotation applied
+        by ``apply_ik_orientation_correction``.
 
         Args:
             robot: Robot instance from env.robots
             arm_name: Name of the arm (e.g. "right")
-            eef_delta: 6-element array [dx, dy, dz, drx, dry, drz]
+            eef_delta: 6-element array [dx, dy, dz, drx, dry, drz] in world frame
 
         Returns:
             7-element joint delta array
         """
         robot_id = self.env.robots.index(robot)
 
-        # Compute site-based Jacobian at the flange (ft_frame)
+        # Compute site-based Jacobian at the flange (ft_frame).
+        # mink returns this in the site's LOCAL (body) frame.
         J = compute_arm_jacobian(
             self.env,
             robot_id=robot_id,
             arm=arm_name,
             env_lock=self.env_lock,
-        )  # (6, 7), world frame
+        )  # (6, 7), body frame of EEF site
 
-        # The keyboard delta is relative to the EEF body frame which is
-        # rotated ~90° around Z w.r.t. the ft_frame site.  Rotate both
-        # the translational and rotational parts so they align with the
-        # site frame used by the Jacobian.
+        # The keyboard delta is in world frame.  The Jacobian is in the
+        # ft_frame site's body frame, which is rotated −90° around Z
+        # relative to the EEF body frame.  Apply the same IK orientation
+        # correction (−90° Z) to align the delta with the site frame.
         R_correction = R.from_euler('z', -90, degrees=True).as_matrix()  # (3, 3)
         delta = eef_delta[:6].copy()
         delta[0:3] = R_correction @ delta[0:3]

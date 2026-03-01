@@ -240,7 +240,7 @@ def compute_arm_jacobian(
     Uses ``mink.Configuration.get_frame_jacobian`` and slices to the
     arm's DOF columns.  The Jacobian maps 7-DOF joint velocities to
     6-D spatial velocities ``[v_x, v_y, v_z, ω_x, ω_y, ω_z]``
-    expressed in the **world frame**.
+    expressed in the **body (local) frame** of the site (mink convention).
 
     Args:
         env: The dual-arm simulation environment.
@@ -283,7 +283,7 @@ def compute_arm_jacobian(
 
         config = mink.Configuration(model_native, q=q_full)
 
-        # get_frame_jacobian returns (6, nv); slice to arm DOFs
+        # get_frame_jacobian returns (6, nv) in the site's local (body) frame.
         J_full = config.get_frame_jacobian(site_name, "site")  # (6, nv)
         return J_full[:, joint_dof_idx]  # (6, 7)
 
@@ -343,8 +343,6 @@ def enumerate_ik_solutions_for_arm(
 
         if site_name is None:
             site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-        # robosuite wraps the MjModel; use its name->id helper
-        site_id = int(model.site_name2id(site_name))
 
         q_current = mujoco_utils.get_qpos(data, joint_qpos_idx)
 
@@ -392,7 +390,6 @@ def enumerate_ik_solutions_for_arm(
         # Pre-compute mink helpers (native model, frozen DOFs, full qpos)
         model_native = mujoco_utils.get_native_mj_object(model)
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
-        frozen_dof_indices = _get_frozen_dof_indices(model_native, joint_dof_idx)
 
         min_manip = constants.IK_MIN_MANIPULABILITY
         scored: List[Tuple[float, np.ndarray]] = []
