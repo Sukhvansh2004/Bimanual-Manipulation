@@ -362,6 +362,33 @@ The RRT checks collisions against Arm A at `traj_a[-1]` — the pose Arm A will 
 
 Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
 
+#### Typed Trajectory Data (`models.py`)
+
+All trajectory data flowing through the assignment pipeline is represented by **typed dataclasses** (not raw dictionaries), providing IDE autocompletion, static type checking, and runtime validation:
+
+| Dataclass | Fields | Key Properties |
+|-----------|--------|----------------|
+| `ObjectTrajectory` | `positions`, `quaternions`, `frame_ids` | `n_waypoints` |
+| `RobotTrajectory` | `eef_positions`, `eef_quaternions`, `eef_frame_ids`, `object_positions`, `object_quaternions`, `object_frame_ids`, `is_feasible`, `ik_success`, `collision_free`, `joint_configs` | `n_waypoints`, `feasibility_ratio` |
+| `TrajectoryBundle` | `object_trajectory`, `robot0_trajectories`, `robot1_trajectories` | `n_segments`, `get_trajectory(robot_id, traj_idx)`, `get_robot_trajectories(robot_id)` |
+
+All numeric fields are coerced to `np.ndarray` via `__post_init__`, so constructing from lists works seamlessly. `TrajectoryBundle` is the single entry point — returned by `load_all_trajectories()` and accepted by `compute_optimal_robot_assignment()`, `compute_cost_matrix()`, `compute_switching_cost()`, and `visualize_trajectory_feasibility()`.
+
+```python
+from robosuite_franka_manipulation.planning.assignment import (
+    ObjectTrajectory, RobotTrajectory, TrajectoryBundle,
+)
+
+# Construct programmatically
+bundle = TrajectoryBundle(
+    object_trajectory=ObjectTrajectory(positions=pos, quaternions=quat, frame_ids=fids),
+    robot0_trajectories=[RobotTrajectory(...)],
+    robot1_trajectories=[RobotTrajectory(...)],
+)
+assert bundle.n_segments == len(pos) - 1
+assert bundle.get_trajectory(0, 0).feasibility_ratio >= 0.0
+```
+
 #### Problem Formulation
 
 An object trajectory with $N$ waypoints defines $N - 1$ **segments** $[p_i, p_{i+1}]$. Each segment can be executed by either Robot 0 or Robot 1 using one of several pre-computed grasp trajectories. The optimisation selects a sequence of *(robot, trajectory)* pairs that minimises total cost subject to:
@@ -502,7 +529,7 @@ Results are persisted as `.npz` files:
 
 - **`save_assignment_result(result, filepath)`** — serialize all fields to NumPy arrays.
 - **`load_assignment_result(filepath)`** — deserialize back to `AssignmentResult`.
-- **`load_all_trajectories(data_dir)`** — load `object_trajectory.npz` and all `robot{0,1}_trajectory_*.npz` files into the dict format expected by `compute_optimal_robot_assignment`.
+- **`load_all_trajectories(data_dir)`** — load `object_trajectory.npz` and all `robot{0,1}_trajectory_*.npz` files into a `TrajectoryBundle` dataclass with typed `ObjectTrajectory` and `RobotTrajectory` fields.
 
 #### CLI Usage
 
@@ -524,6 +551,28 @@ python scripts/planning/segment_assignment.py \
 python scripts/planning/segment_assignment.py \
     --experiment experiments/flatPlate_table_to_shelf.json --no-plot
 ```
+
+#### Structured Logging
+
+All assignment submodules use Python's `logging` module with the standard `__name__`-based logger hierarchy:
+
+| Level | Examples |
+|-------|----------|
+| `INFO` | Cost matrix dimensions, finite-entry counts, assignment total cost & handover count, trajectory loading summaries |
+| `DEBUG` | Per-segment cost breakdowns (smoothness / manipulability), per-state feasibility ratios, IK failures, collision rejections, switching cost evaluations, Viterbi forward-pass terminal state |
+
+Enable with `--debug` on the CLI or `logging.getLogger('robosuite_franka_manipulation.planning.assignment').setLevel(logging.DEBUG)` programmatically.
+
+#### Submodule Summary
+
+| Module | Purpose |
+|--------|---------|
+| `models.py` | `ObjectTrajectory`, `RobotTrajectory`, `TrajectoryBundle` dataclasses |
+| `trajectory_io.py` | NPZ disk I/O — `load_all_trajectories()` → `TrajectoryBundle` |
+| `cost.py` | Segment cost, cost-matrix construction, handover primitive cost, switching cost |
+| `solver.py` | Viterbi DP solver — `compute_optimal_robot_assignment()` |
+| `result.py` | `AssignmentResult` dataclass + NPZ save/load |
+| `factories.py` | Environment-bound closures for IK, Jacobian, and collision checking |
 
 #### Workflow Position
 
