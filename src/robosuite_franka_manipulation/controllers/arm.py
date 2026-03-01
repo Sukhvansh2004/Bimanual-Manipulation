@@ -439,6 +439,7 @@ class RobosuiteArmController:
         posture_task.set_target(q_full)
 
         damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
+        vel_limit = mink.VelocityLimit(model_native)
         config_limit = mink.ConfigurationLimit(model_native)
 
         from robosuite_franka_manipulation.planning.utils.ik_utils import _get_frozen_dof_indices  # lazy to avoid circular import
@@ -448,7 +449,7 @@ class RobosuiteArmController:
         tasks: list = [frame_task, posture_task, damping_task]
         if freeze_task is not None:
             tasks.append(freeze_task)
-        limits = [config_limit]
+        limits = [vel_limit, config_limit]
 
         # ── Reactive execution loop ───────────────────────────────────
         max_steps = num_waypoints * 2

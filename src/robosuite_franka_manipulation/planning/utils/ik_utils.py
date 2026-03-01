@@ -424,27 +424,24 @@ def enumerate_ik_solutions_for_arm(
                 )
                 if q_sol is not None:
                     q_sol = np.asarray(q_sol, dtype=float)
+                    # De-duplicate: check BEFORE computing manipulability (O(n) per solution)
+                    if any(np.allclose(q_sol, s[1], atol=unique_atol, rtol=0.0) for s in scored):
+                        continue
                     # Check manipulability before accepting the solution
                     m = _check_manipulability(q_sol)
                     if m is None:
                         continue
                     scored.append((m, q_sol))
-                    # De-duplicate by joint config (keep score attached)
-                    seen: List[Tuple[float, np.ndarray]] = []
-                    for entry in scored:
-                        if not any(np.allclose(entry[1], s[1], atol=unique_atol, rtol=0.0) for s in seen):
-                            seen.append(entry)
-                    scored = seen
                     if len(scored) >= int(max_solutions):
                         return True
             return False
 
         try:
-            # Try priority seeds first
+            # Try priority seeds first (warm-start + perturbations)
             run_ik_on_seeds(priority_seeds)
 
-            # If no solutions found from priority seeds, try fallback seeds
-            if not scored:
+            # Try fallback seeds if we haven't filled max_solutions yet
+            if len(scored) < max_solutions:
                 run_ik_on_seeds(fallback_seeds)
 
             if not scored:

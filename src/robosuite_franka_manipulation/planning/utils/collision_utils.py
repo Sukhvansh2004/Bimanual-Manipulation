@@ -13,17 +13,19 @@ logger = logging.getLogger(__name__)
 _robot_mask = None      # Boolean array of size ngeom
 _geom_names = None      # List of geom names indexed by ID
 _prefix_to_ids = {}     # Cache for name prefix -> list of geom IDs
+_cached_model_id = None # id() of the model object used to build the caches
 
 def _ensure_geom_caches(model):
     """Ensure global caches for geom names and robot memberships are initialized."""
-    global _robot_mask, _geom_names, _prefix_to_ids
-    if _robot_mask is None or len(_robot_mask) != model.ngeom:
+    global _robot_mask, _geom_names, _prefix_to_ids, _cached_model_id
+    if _robot_mask is None or _cached_model_id != id(model):
         _geom_names = [model.geom_id2name(i) or "" for i in range(model.ngeom)]
         _robot_mask = np.zeros(model.ngeom, dtype=bool)
         for i, name in enumerate(_geom_names):
             if any(name.startswith(p) for p in ["robot0_", "gripper0_", "robot1_", "gripper1_"]):
                 _robot_mask[i] = True
-        _prefix_to_ids = {} # Reset prefix cache
+        _prefix_to_ids = {}  # Reset prefix cache
+        _cached_model_id = id(model)
 
 def _get_ids_for_prefixes(prefixes):
     """Get union of geom IDs that start with any of the given prefixes."""
