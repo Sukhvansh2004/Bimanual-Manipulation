@@ -429,7 +429,7 @@ def make_dual_arm_env(
     camera_width: int = constants.DEFAULT_CAMERA_WIDTH,
     controller_name: str = constants.DEFAULT_CONTROLLER_NAME,
     input_type: str = constants.DEFAULT_INPUT_TYPE,
-    table_full_size=None,
+    table_full_size: Optional[Tuple] = None,
 ) -> DualArmEnvironment:
     """
     Creates a DualArmEnvironment configured for a dual-arm Franka task.
@@ -536,11 +536,8 @@ def make_dual_arm_env(
         "horizon": constants.DEFAULT_HORIZON,
         "ignore_done": constants.DEFAULT_IGNORE_DONE,
         "render_camera": constants.DEFAULT_RENDER_CAMERA,
+        'table_full_size': table_full_size if table_full_size is not None else constants.DEFAULT_TABLE_SIZE,
     }
-
-    # Optional table size override
-    if table_full_size is not None:
-        env_kwargs["table_full_size"] = tuple(table_full_size)
 
     env = DualArmEnvironment(
         custom_objects=custom_objects,
