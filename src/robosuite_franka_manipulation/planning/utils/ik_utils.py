@@ -394,10 +394,24 @@ def enumerate_ik_solutions_for_arm(
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
         frozen_dof_indices = _get_frozen_dof_indices(model_native, joint_dof_idx)
 
-        solutions: List[np.ndarray] = []
-        
+        min_manip = constants.IK_MIN_MANIPULABILITY
+        scored: List[Tuple[float, np.ndarray]] = []
+
+        def _check_manipulability(q_sol: np.ndarray) -> Optional[float]:
+            """Compute manipulability and return the score if above threshold, else None."""
+            q_full = full_qpos.copy()
+            q_full[joint_qpos_idx] = q_sol
+            config = mink.Configuration(model_native, q=q_full)
+            J = config.get_frame_jacobian(site_name, "site")
+            J_arm = J[:, joint_dof_idx]  # (6, 7)
+            m = _manipulability_from_jac(J_arm)
+            if m < min_manip:
+                logger.debug("IK solution rejected: manipulability %.4e < %.2e", m, min_manip)
+                return None
+            return m
+
         def run_ik_on_seeds(seeds_list):
-            nonlocal solutions
+            nonlocal scored
             for q0 in seeds_list:
                 q_sol = solve_ik_mink(
                     model_native,
@@ -412,60 +426,52 @@ def enumerate_ik_solutions_for_arm(
                     ori_tol=ori_tol,
                 )
                 if q_sol is not None:
-                    solutions.append(np.asarray(q_sol, dtype=float))
-                    solutions = unique_solutions(solutions, atol=unique_atol)
-                    if len(solutions) >= int(max_solutions):
+                    q_sol = np.asarray(q_sol, dtype=float)
+                    # Check manipulability before accepting the solution
+                    m = _check_manipulability(q_sol)
+                    if m is None:
+                        continue
+                    scored.append((m, q_sol))
+                    # De-duplicate by joint config (keep score attached)
+                    seen: List[Tuple[float, np.ndarray]] = []
+                    for entry in scored:
+                        if not any(np.allclose(entry[1], s[1], atol=unique_atol, rtol=0.0) for s in seen):
+                            seen.append(entry)
+                    scored = seen
+                    if len(scored) >= int(max_solutions):
                         return True
             return False
 
         try:
             # Try priority seeds first
-            found_priority = run_ik_on_seeds(priority_seeds)
-            
+            run_ik_on_seeds(priority_seeds)
+
             # If no solutions found from priority seeds, try fallback seeds
-            if not solutions:
+            if not scored:
                 run_ik_on_seeds(fallback_seeds)
-            
-            if not solutions:
+
+            if not scored:
                 logger.debug(f"No IK solutions found for robot {robot_id} at {target_pos}")
-                
+
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
-            
+
             # Unwrap for native call
             mujoco.mj_fwdPosition(mujoco_utils.get_native_mj_object(model), mujoco_utils.get_native_mj_object(data))
 
         # ------------------------------------------------------------------
-        # Rank solutions by manipulability and reject near-singular ones.
-        # Uses mink Configuration for Jacobian computation.
+        # Sort accepted solutions by manipulability (best first).
         # ------------------------------------------------------------------
-        if solutions:
-            scored: List[Tuple[float, np.ndarray]] = []
-            for q_sol in solutions:
-                q_full = full_qpos.copy()
-                q_full[joint_qpos_idx] = q_sol
-                config = mink.Configuration(model_native, q=q_full)
-                J = config.get_frame_jacobian(site_name, "site")
-                J_arm = J[:, joint_dof_idx]  # (6, 7)
-                m = _manipulability_from_jac(J_arm)
-                scored.append((m, q_sol))
-
-            # Filter out near-singular solutions
-            min_manip = constants.IK_MIN_MANIPULABILITY
-            scored = [(m, q) for m, q in scored if m >= min_manip]
-
-            # Sort descending by manipulability (best first)
+        if scored:
             scored.sort(key=lambda x: x[0], reverse=True)
             solutions = [q for _, q in scored]
-
-            if scored:
-                logger.debug(
-                    "IK solutions ranked by manipulability: best=%.4e, worst=%.4e (%d solutions)",
-                    scored[0][0], scored[-1][0], len(scored),
-                )
-            else:
-                logger.debug("All IK solutions rejected (manipulability < %.2e)", min_manip)
+            logger.debug(
+                "IK solutions ranked by manipulability: best=%.4e, worst=%.4e (%d solutions)",
+                scored[0][0], scored[-1][0], len(scored),
+            )
+        else:
+            solutions = []
 
         return solutions
 
