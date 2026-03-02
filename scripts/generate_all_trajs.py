@@ -7,9 +7,9 @@ Runs every experiment JSON in experiments/ sequentially with:
   - Automatic trajectory saving enabled (--save-traj)
 
 Usage:
-    python scratch/run_all_experiments.py                  # run all experiments
-    python scratch/run_all_experiments.py --only flatPlate_shelf_to_box flatPlate_table_to_shelf
-    python scratch/run_all_experiments.py --workers 4      # override worker count
+    python script/generate_all_trajs.py                  # run all experiments
+    python script/generate_all_trajs.py --only flatPlate_shelf_to_box flatPlate_table_to_shelf
+    python script/generate_all_trajs.py --workers 4      # override worker count
 """
 
 import argparse
