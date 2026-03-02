@@ -20,12 +20,12 @@
                 "type": "box",
                 "name": "wallObstacle",
                 "size": [0.1, 0.45, 0.5],
-                "position": [0.0, -0.1, 1.1],
+                "position": [0.0, 0.1, 1.1],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall: x=±0.10, y=−0.325 to +0.125, z=0.85–1.60. Shifted toward −y to completely block the front passage. Only the back corridor (y > +0.125) remains open, forcing the plate to detour through the other arm's workspace."
+                "_comment": "Central wall shifted toward Robot-1 (suction, +y side): x=±0.10, y=−0.125 to +0.325, z=0.85–1.60. Blocks the back corridor, leaving only the front passage (y < −0.125) open through Robot-0 (finger) workspace."
             },
             {
                 "type": "box",
