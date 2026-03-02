@@ -1,0 +1,24 @@
+{
+  "experiment": "flatPlate_shelf_to_shelf",
+  "config_label": "Stride=3",
+  "config_id": "Stride3",
+  "planning": {
+    "experiment": "flatPlate_shelf_to_shelf",
+    "config_label": "Stride=3",
+    "total_cost": 4759.800345269146,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      18,
+      57
+    ],
+    "mean_task_cost": 44.14823692882485,
+    "total_switching_cost": 1227.941390963159,
+    "mean_manipulability": 0.7727468141274887,
+    "min_manipulability": 0.6662910706155333,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 493.53695821762085
+  }
+}

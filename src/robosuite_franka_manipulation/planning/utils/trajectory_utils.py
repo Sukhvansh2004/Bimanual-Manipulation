@@ -487,3 +487,65 @@ def plan_quintic_joint_trajectory(
     """
     s = quintic_scalar(num_steps)
     return start[np.newaxis, :] + np.outer(s, target - start)
+
+
+def velocity_profile_joint_trajectory(
+    waypoints: np.ndarray,
+    num_steps: Optional[int] = None,
+) -> np.ndarray:
+    """Apply quintic velocity profiling to a multi-waypoint joint trajectory.
+
+    Re-parameterizes time along the existing path using a quintic
+    (jerk-limited) profile so the robot accelerates smoothly from rest
+    and decelerates to rest, while *preserving the path shape*.
+
+    Unlike :func:`plan_quintic_joint_trajectory`, which only interpolates
+    between two endpoints, this function keeps all intermediate waypoints
+    and merely adjusts the timing/spacing.
+
+    Args:
+        waypoints: Joint trajectory ``(N, D)`` — the raw waypoints.
+        num_steps: Desired output length.  If ``None``, keeps the same
+            number of waypoints as the input.
+
+    Returns:
+        Array of shape ``(M, D)`` where ``M = num_steps or N``.
+    """
+    N = len(waypoints)
+    if N <= 2:
+        return waypoints
+
+    M = num_steps if num_steps is not None else N
+
+    # Compute cumulative arc-length along the original path
+    diffs = np.diff(waypoints, axis=0)
+    seg_lengths = np.linalg.norm(diffs, axis=1)
+    cum_lengths = np.concatenate([[0.0], np.cumsum(seg_lengths)])
+    total_length = cum_lengths[-1]
+
+    if total_length < 1e-12:
+        return np.tile(waypoints[0], (M, 1))
+
+    # Normalise to [0, 1]
+    cum_norm = cum_lengths / total_length
+
+    # Generate quintic-profiled parameter values in [0, 1]
+    s = quintic_scalar(M)
+
+    # Interpolate along the original path at the quintic-profiled times
+    profiled = np.empty((M, waypoints.shape[1]))
+    for k in range(M):
+        # Find which segment s[k] falls in
+        seg_idx = int(np.clip(
+            np.searchsorted(cum_norm, s[k], side="right") - 1,
+            0, N - 2,
+        ))
+        seg_start = cum_norm[seg_idx]
+        seg_end = cum_norm[seg_idx + 1]
+        t_local = (
+            0.0 if seg_end - seg_start < 1e-12
+            else (s[k] - seg_start) / (seg_end - seg_start)
+        )
+        profiled[k] = waypoints[seg_idx] + t_local * diffs[seg_idx]
+
+    return profiled

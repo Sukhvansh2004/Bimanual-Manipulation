@@ -25,6 +25,7 @@ from robosuite_franka_manipulation.utils import env_step
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     quintic_scalar,
     plan_quintic_joint_trajectory,
+    velocity_profile_joint_trajectory,
 )
 from grasp_gen.utils.meshcat_utils import make_frame
 import logging
@@ -1204,10 +1205,18 @@ class RobosuiteArmController:
 
             if smoothen:
                 traj_steps = num_steps if num_steps is not None else n_waypoints
-                current_joints = self.get_joint_positions()
-                joint_configs = plan_quintic_joint_trajectory(
-                    current_joints, waypoints[-1], traj_steps
-                )
+                if n_waypoints > 2:
+                    # Multi-waypoint: apply quintic velocity profiling along
+                    # the existing path (preserves shape, smooths timing)
+                    joint_configs = velocity_profile_joint_trajectory(
+                        np.array(waypoints), num_steps=traj_steps,
+                    )
+                else:
+                    # Two-point: simple A→B quintic interpolation
+                    current_joints = self.get_joint_positions()
+                    joint_configs = plan_quintic_joint_trajectory(
+                        current_joints, waypoints[-1], traj_steps
+                    )
             else:
                 joint_configs = np.array(waypoints)
 

@@ -1,0 +1,25 @@
+{
+  "experiment": "dual_handover_plate",
+  "config_label": "No Manipulability (\u03b2=0)",
+  "config_id": "No_Manipulability_\u03b20",
+  "planning": {
+    "experiment": "dual_handover_plate",
+    "config_label": "No Manipulability (\u03b2=0)",
+    "total_cost": 233.53805958847204,
+    "n_segments": 80,
+    "n_handovers": 3,
+    "handover_points": [
+      61,
+      62,
+      64
+    ],
+    "mean_task_cost": 0.04457272361671445,
+    "total_switching_cost": 229.9722416991349,
+    "mean_manipulability": 0.8136819174515282,
+    "min_manipulability": 0.7593755770030473,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1540.6276993751526
+  }
+}

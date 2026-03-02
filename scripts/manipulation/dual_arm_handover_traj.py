@@ -154,6 +154,10 @@ def main():
     parser.add_argument("--traj1", type=str, default=None,
                         help="Path to robot-1 trajectory NPZ (bypasses assignment).")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
+    parser.add_argument("--smoothen", action="store_true", default=None,
+                        help="Apply quintic velocity profiling to joint trajectories (overrides JSON)")
+    parser.add_argument("--no-smoothen", dest="smoothen", action="store_false",
+                        help="Disable trajectory smoothing")
 
     # --- Assignment overrides (override values from experiment JSON) ---
     asgn_group = parser.add_argument_group("assignment overrides",
@@ -208,6 +212,12 @@ def main():
     exec_cfg = exp_cfg.execution
     vis_cfg = exp_cfg.visualization
     rt_cfg = exp_cfg.runtime
+
+    # Apply smoothen override if provided
+    if args.smoothen is not None:
+        old_val = exec_cfg.smoothen
+        exec_cfg.smoothen = args.smoothen
+        logger.info("Smoothen override: %s (was %s)", args.smoothen, old_val)
 
     debug = args.debug or rt_cfg.debug
     if debug:
@@ -370,7 +380,8 @@ def main():
         def _current_path(robot_id: int, segment_idx: int) -> str:
             """Return the trajectory path (cache key) for *segment_idx*."""
             if assignment is not None:
-                return assignment.trajectory_paths[segment_idx]
+                idx = min(segment_idx, len(assignment.trajectory_paths) - 1)
+                return assignment.trajectory_paths[idx]
             return _explicit_paths[robot_id]
 
         if assignment is not None:
@@ -456,8 +467,11 @@ def main():
         current_gripper.grasp()
         stabilise(system.env, system.env_lock)
 
-        # Total number of segments (from the first trajectory's length)
+        # Total number of segments — bounded by the assignment length
+        # (trajectory files may have more waypoints than the assignment covers)
         n_segments = len(res_cur)
+        if assignment is not None:
+            n_segments = min(n_segments, len(assignment.sequence))
 
         while current_idx < n_segments - 1:
             cur_path = _current_path(current_robot, current_idx)
@@ -590,7 +604,8 @@ def main():
                 other_gripper.grasp()
                 stabilise(system.env, system.env_lock)
                 current_gripper.release()
-                
+                stabilise(system.env, system.env_lock)
+
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
                 current_robot = 1 - current_robot
@@ -598,10 +613,19 @@ def main():
                 current_gripper = other_gripper
             else:
                 last_idx = find_last_feasible_point(res_cur)
+                # Clamp to assignment boundary
+                if assignment is not None and last_idx is not None:
+                    last_idx = min(last_idx, len(assignment.sequence) - 1)
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
                     joint_segment = list(joints_cur[current_idx+1 : last_idx+1])
-                    current_arm.follow_joint_trajectory(joint_segment, gripper_action=1.0, smoothen=exec_cfg.smoothen, num_steps=200)
+                    # Scale num_steps to segment length; at least 100, cap at 300
+                    n_raw = len(joint_segment)
+                    n_steps = max(100, min(300, n_raw * 5))
+                    current_arm.follow_joint_trajectory(
+                        joint_segment, gripper_action=1.0,
+                        smoothen=exec_cfg.smoothen, num_steps=n_steps,
+                    )
                     current_idx = last_idx
                 break
 
