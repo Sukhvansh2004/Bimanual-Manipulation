@@ -555,7 +555,7 @@ Experiments are defined as JSON files in the `experiments/` directory. Each conf
 
 The config is loaded via `load_experiment()` into typed dataclasses (`ExperimentConfig`, `TaskConfig`, `PlanningConfig`, `VisualizationConfig`, `ExecutionConfig`, etc.).
 
-**Available experiments** (13): `flatPlate_shelf_to_box`, `flatPlate_shelf_to_table`, `flatPlate_table_to_shelf`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`, `dual_handover_flatPlate_shelf_to_shelf`, `dual_handover_mug`, `dual_handover_plate`.
+**Available experiments** (13): `flatPlate_shelf_to_box`, `flatPlate_shelf_to_table`, `flatPlate_shelf_to_shelf`, `flatPlate_table_to_shelf`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`, `dual_handover_mug`, `dual_handover_plate`.
 
 ## Microservices Architecture
 
