@@ -75,7 +75,6 @@ def rrt_connect_joint_space(
     q_other_arm: np.ndarray,
     robot_id_a: int,
     env_lock=None,
-    manipulated_object: Optional[str] = None,
     max_iterations: int = None,
     step_size: float = None,
     goal_bias: float = None,

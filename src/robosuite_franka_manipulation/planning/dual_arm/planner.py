@@ -546,7 +546,6 @@ class DualArmParallelPlanner:
                     robot_id_a=self.arm_a.robot_id,
                     num_steps=desired_length,
                     env_lock=self.env_lock,
-                    manipulated_object=self.manipulated_object,
                     rrt_vis=self.rrt_vis,
                 )
                 if rrt_success:
