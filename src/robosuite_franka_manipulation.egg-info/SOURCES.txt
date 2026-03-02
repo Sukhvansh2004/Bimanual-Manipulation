@@ -27,6 +27,7 @@ src/robosuite_franka_manipulation/planning/grasp_generator.py
 src/robosuite_franka_manipulation/planning/assignment/__init__.py
 src/robosuite_franka_manipulation/planning/assignment/cost.py
 src/robosuite_franka_manipulation/planning/assignment/factories.py
+src/robosuite_franka_manipulation/planning/assignment/models.py
 src/robosuite_franka_manipulation/planning/assignment/result.py
 src/robosuite_franka_manipulation/planning/assignment/solver.py
 src/robosuite_franka_manipulation/planning/assignment/trajectory_io.py
