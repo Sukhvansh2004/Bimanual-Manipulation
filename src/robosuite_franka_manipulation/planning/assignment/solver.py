@@ -56,6 +56,7 @@ def _solve_optimal_assignment(
     prev_state = np.full((n_segments, n_states), -1, dtype=int)
     switch_cost_cache = np.zeros((n_segments, n_states))
 
+    logger.info("Setting up DP solver initial states")
     # Initialise first segment
     for si in range(n_states):
         robot_id, _ = trajectory_info[si]
@@ -63,6 +64,7 @@ def _solve_optimal_assignment(
             continue
         J_star[0, si] = cost_matrix[0, si]
 
+    logger.info("Starting forward pass of DP solver over %d segments and %d states", n_segments, n_states)
     # Forward pass
     for i in range(1, n_segments):
         for cs in range(n_states):
@@ -113,7 +115,7 @@ def _solve_optimal_assignment(
         logger.error("No feasible assignment found across %d states", n_states)
         raise ValueError("No feasible assignment found — check trajectory feasibility.")
 
-    logger.debug(
+    logger.info(
         "Forward pass complete: best terminal cost=%.4f at state %d",
         best_final_cost, best_final_state,
     )
