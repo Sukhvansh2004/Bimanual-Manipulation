@@ -107,6 +107,7 @@ class AssignmentConfig:
     epsilon: float = constants.ASSIGNMENT_EPSILON
     initial_robot: Optional[int] = None
     transfer_feasibility: Optional[Dict[str, bool]] = None  # JSON keys are strings; decoded at use-time
+    beam_width: Optional[int] = None  # DP beam width; None = unlimited (exact)
 
 
 @dataclass
@@ -297,6 +298,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         epsilon=asgn_raw.get("epsilon", constants.ASSIGNMENT_EPSILON),
         initial_robot=asgn_raw.get("initial_robot", None),
         transfer_feasibility=tf_feas_raw,
+        beam_width=asgn_raw.get("beam_width", None),
     )
 
     return ExperimentConfig(

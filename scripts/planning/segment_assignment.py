@@ -123,6 +123,11 @@ def main() -> None:
         "--no-env", action="store_true",
         help="Skip environment creation (disables IK / Jacobian — faster but less accurate)",
     )
+    parser.add_argument(
+        "--beam-width", type=int, default=None,
+        help="Beam width for DP solver (limits surviving states per segment). "
+             "Recommended 8–12 when using IK to avoid hour-long solves.",
+    )
 
     args = parser.parse_args()
 
@@ -159,8 +164,13 @@ def main() -> None:
     epsilon = asgn_cfg.epsilon
     initial_robot = asgn_cfg.initial_robot
     transfer_feasibility = _parse_transfer_feasibility(asgn_cfg.transfer_feasibility)
+    beam_width = args.beam_width if args.beam_width is not None else asgn_cfg.beam_width
 
-    logger.info("Assignment parameters: α=%.2f, β=%.2f, ε=%.1e", alpha, beta, epsilon)
+    logger.info(
+        "Assignment parameters: α=%.2f, β=%.2f, ε=%.1e, beam=%s",
+        alpha, beta, epsilon,
+        beam_width if beam_width is not None else "unlimited",
+    )
 
     # --- Build IK / Jacobian / collision closures from the simulation environment ---
     ik_solver_fn = None
@@ -214,6 +224,7 @@ def main() -> None:
         ik_solver_fn=ik_solver_fn,
         jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
+        beam_width=beam_width,
     )
 
     # --- Print summary ---

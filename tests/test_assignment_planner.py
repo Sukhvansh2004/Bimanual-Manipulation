@@ -610,6 +610,31 @@ class TestComputeOptimalRobotAssignment:
         expected = float(np.sum(result.task_costs) + np.sum(result.switching_costs))
         assert result.total_cost == pytest.approx(expected, rel=1e-10)
 
+    def test_beam_width_produces_valid_result(self):
+        """With beam_width set, the solver should still return a valid assignment."""
+        trajs = _make_trajectories(n_waypoints=6, n_r0=3, n_r1=3, seed=77)
+        result = compute_optimal_robot_assignment(trajs, beam_width=4)
+        n_segments = 5
+        assert len(result.sequence) == n_segments
+        assert all(r in (0, 1) for r in result.sequence)
+        assert np.isfinite(result.total_cost)
+
+    def test_beam_width_none_matches_unlimited(self):
+        """beam_width=None (default) should match unlimited search."""
+        trajs = _make_trajectories(n_waypoints=6, n_r0=2, n_r1=2, seed=88)
+        r_unlimited = compute_optimal_robot_assignment(trajs)
+        r_none = compute_optimal_robot_assignment(trajs, beam_width=None)
+        assert r_unlimited.total_cost == pytest.approx(r_none.total_cost)
+        assert r_unlimited.sequence == r_none.sequence
+
+    def test_beam_width_large_matches_unlimited(self):
+        """A beam_width >= n_states should give the same result as unlimited."""
+        trajs = _make_trajectories(n_waypoints=6, n_r0=2, n_r1=2, seed=99)
+        r_unlimited = compute_optimal_robot_assignment(trajs)
+        r_large = compute_optimal_robot_assignment(trajs, beam_width=100)
+        assert r_unlimited.total_cost == pytest.approx(r_large.total_cost)
+        assert r_unlimited.sequence == r_large.sequence
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests — load_all_trajectories
