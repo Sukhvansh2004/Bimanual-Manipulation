@@ -279,6 +279,9 @@ class DualArmHandoverPlanner:
             self.G1
         )
 
+        if self.ramp_steps <= 0:
+            return [], [], []
+
         ramp = sigmoid_ramp(self.ramp_steps)
 
         forces = [

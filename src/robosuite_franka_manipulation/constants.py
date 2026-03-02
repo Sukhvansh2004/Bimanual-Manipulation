@@ -218,6 +218,10 @@ ASSIGNMENT_BETA = 1.0         # manipulability weight (Σ 1/(w+ε))
 ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
+# Coarse handover resolution for cost evaluation (fewer IK calls)
+COST_EVAL_APPROACH_STEPS = 5     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
+
 # =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================

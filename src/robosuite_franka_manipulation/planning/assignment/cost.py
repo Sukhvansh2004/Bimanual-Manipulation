@@ -234,15 +234,17 @@ def _compute_handover_primitive_cost(
                 return None
         return configs
 
+    # Early-out: solve the transfer arm first (fewer poses — typically
+    # just hold + retreat) so we can fail fast before spending time on
+    # the receiver arm's longer approach trajectory.
     transfer_configs = _solve_all(transfer_poses, transfer_robot_id) if transfer_poses else []
-    receiver_configs = _solve_all(receiver_poses, receiver_robot_id) if receiver_poses else []
+    if transfer_configs is None:
+        logger.debug("Handover IK failure: transfer arm (robot%d)", transfer_robot_id)
+        return np.inf, False
 
-    if transfer_configs is None or receiver_configs is None:
-        logger.debug(
-            "Handover IK failure: transfer=%s, receiver=%s",
-            "failed" if transfer_configs is None else "ok",
-            "failed" if receiver_configs is None else "ok",
-        )
+    receiver_configs = _solve_all(receiver_poses, receiver_robot_id) if receiver_poses else []
+    if receiver_configs is None:
+        logger.debug("Handover IK failure: receiver arm (robot%d)", receiver_robot_id)
         return np.inf, False
 
     # --- Inter-arm collision check at the critical handover meeting point ---
@@ -378,6 +380,8 @@ def compute_switching_cost(
         grasp_transfer=grasp_transfer,
         grasp_receiver=grasp_receiver,
         handover_object_pose=obj_pose,
+        approach_steps=constants.COST_EVAL_APPROACH_STEPS,
+        ramp_steps=constants.COST_EVAL_RAMP_STEPS,
     )
     h_traj = h_planner.generate_trajectory()
 
