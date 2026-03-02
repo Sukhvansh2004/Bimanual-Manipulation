@@ -79,6 +79,8 @@ def rrt_connect_joint_space(
     step_size: float = None,
     goal_bias: float = None,
     rrt_vis: Optional[RRTVisualizer] = None,
+    q_other_arm_trajectory: Optional[np.ndarray] = None,
+    max_temporal_samples: int = None,
 ) -> JointRRTResult:
     """Plan a collision-free joint-space path for arm B using RRT-Connect.
 
@@ -86,22 +88,34 @@ def rrt_connect_joint_space(
     between arm B and arm A, the environment, and (optionally) a
     grasped object.
 
+    When *q_other_arm_trajectory* is provided, the planner checks
+    arm B's configurations against multiple sampled arm A positions
+    (temporal collision checking).  This prevents arm B from colliding
+    with arm A at intermediate positions along its trajectory.
+
     Args:
         env: Simulation environment.
         robot_id_b: Robot ID of the arm to plan for.
         start_q: Start joint configuration ``(7,)``.
         goal_q: Goal joint configuration ``(7,)``.
         q_other_arm: Fixed joint configuration of the other arm.
+            Used when *q_other_arm_trajectory* is not provided.
         robot_id_a: Robot ID of the other arm.
         env_lock: Optional threading lock.
-        manipulated_object: Object held by arm A (contacts between arm A
-            gripper and this object are expected and ignored).
         max_iterations: Maximum RRT-Connect iterations.
         step_size: Step size for tree extension (radians).
         goal_bias: Probability of sampling the goal.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
             Tree edges and paths are projected to 3-D end-effector
             positions via forward kinematics.
+        q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
+            other arm.  When provided, the collision checker validates
+            arm B against multiple sampled positions from this
+            trajectory rather than a single static configuration.
+        max_temporal_samples: Maximum number of arm A configurations
+            sampled from *q_other_arm_trajectory* for temporal
+            collision checking.  Defaults to
+            ``constants.ARM_RRT_TEMPORAL_SAMPLES``.
 
     Returns:
         :class:`JointRRTResult` with success flag and path.
@@ -112,6 +126,28 @@ def rrt_connect_joint_space(
         step_size = constants.ARM_RRT_STEP_SIZE
     if goal_bias is None:
         goal_bias = constants.ARM_RRT_GOAL_BIAS
+    if max_temporal_samples is None:
+        max_temporal_samples = constants.ARM_RRT_TEMPORAL_SAMPLES
+
+    # ── Build list of arm A configs for collision checking ─────────
+    #    When a trajectory is provided, sample representative configs
+    #    for conservative temporal collision avoidance.
+    if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
+        n_traj = len(q_other_arm_trajectory)
+        if n_traj <= max_temporal_samples:
+            q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
+        else:
+            indices = np.unique(
+                np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
+            )
+            q_a_samples = [q_other_arm_trajectory[i] for i in indices]
+        logger.info(
+            "Temporal collision checking: using %d sampled arm A "
+            "configs from trajectory of length %d.",
+            len(q_a_samples), n_traj,
+        )
+    else:
+        q_a_samples = [np.asarray(q_other_arm)]
 
     ctx = env_lock if env_lock is not None else nullcontext()
 
@@ -151,12 +187,16 @@ def rrt_connect_joint_space(
 
         try:
             # ── Fast path: try direct connection ──────────────────────
-            if collision_free_joint_segment(
-                env, start_q, goal_q,
-                q_other_arm, qpos_idx_a, qpos_idx_b,
-                native_model, native_data, arm_b_geom_ids,
-                skip_endpoints=False,
-            ):
+            direct_ok = all(
+                collision_free_joint_segment(
+                    env, start_q, goal_q,
+                    q_a, qpos_idx_a, qpos_idx_b,
+                    native_model, native_data, arm_b_geom_ids,
+                    skip_endpoints=False,
+                )
+                for q_a in q_a_samples
+            )
+            if direct_ok:
                 logger.info(
                     "Joint RRT: direct path is collision-free, "
                     "no RRT needed."
@@ -177,18 +217,24 @@ def rrt_connect_joint_space(
 
             # ── Domain callbacks for generic RRT-Connect ─────────────
             def _collision(q):
-                return check_arm_config_collision(
-                    env, q, qpos_idx_b,
-                    q_other_arm, qpos_idx_a,
-                    native_model, native_data, arm_b_geom_ids,
+                return any(
+                    check_arm_config_collision(
+                        env, q, qpos_idx_b,
+                        q_a, qpos_idx_a,
+                        native_model, native_data, arm_b_geom_ids,
+                    )
+                    for q_a in q_a_samples
                 )
 
             def _seg_free(q1, q2):
-                return collision_free_joint_segment(
-                    env, q1, q2,
-                    q_other_arm, qpos_idx_a, qpos_idx_b,
-                    native_model, native_data, arm_b_geom_ids,
-                    skip_endpoints=True,
+                return all(
+                    collision_free_joint_segment(
+                        env, q1, q2,
+                        q_a, qpos_idx_a, qpos_idx_b,
+                        native_model, native_data, arm_b_geom_ids,
+                        skip_endpoints=True,
+                    )
+                    for q_a in q_a_samples
                 )
 
             def _sample():
@@ -209,6 +255,10 @@ def rrt_connect_joint_space(
                     start_ee = _ee_pos_fn(start_q)
                     goal_ee = _ee_pos_fn(goal_q)
                     rrt_vis.draw_start_goal(start_ee, goal_ee)
+                    logger.info(
+                        "RRT visualisation active: start_ee=%s, goal_ee=%s",
+                        start_ee, goal_ee,
+                    )
 
                     def _on_extend(parent_q, new_q, is_start):
                         rrt_vis.draw_tree_edge(
@@ -219,6 +269,12 @@ def rrt_connect_joint_space(
 
                     def _on_collision(q):
                         rrt_vis.draw_collision_sample(_ee_pos_fn(q))
+                else:
+                    logger.warning(
+                        "RRT visualisation requested but EE position "
+                        "function unavailable (site not found for robot%d).",
+                        robot_id_b,
+                    )
 
                 def _on_iteration(it, ta_size, tb_size):
                     rrt_vis.log_iteration(it, ta_size, tb_size)

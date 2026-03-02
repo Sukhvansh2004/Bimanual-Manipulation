@@ -49,12 +49,17 @@ def shortcut_joint_path(
     robot_id_b: int,
     env_lock=None,
     max_iterations: int = None,
+    q_other_arm_trajectory: Optional[np.ndarray] = None,
+    max_temporal_samples: int = None,
 ) -> List[np.ndarray]:
     """Shortcut-smooth a joint-space path by randomly removing waypoints.
 
     Randomly picks two non-adjacent waypoints and tries a direct
     connection.  If the segment is collision-free, all intermediate
     waypoints are removed.
+
+    When *q_other_arm_trajectory* is provided, uses temporal collision
+    checking (same semantics as :func:`rrt_connect_joint_space`).
 
     Args:
         env: Simulation environment.
@@ -64,12 +69,17 @@ def shortcut_joint_path(
         robot_id_b: Robot ID of the planned arm.
         env_lock: Optional threading lock.
         max_iterations: Number of random shortcut attempts.
+        q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
+            other arm for temporal collision checking.
+        max_temporal_samples: Max sampled arm A configs.
 
     Returns:
         Smoothed path (list of joint configurations).
     """
     if max_iterations is None:
         max_iterations = constants.ARM_RRT_SMOOTHING_ITERATIONS
+    if max_temporal_samples is None:
+        max_temporal_samples = constants.ARM_RRT_TEMPORAL_SAMPLES
 
     if len(path) <= 2:
         return list(path)
@@ -98,13 +108,29 @@ def shortcut_joint_path(
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
+        # Build arm A sample list for temporal checking
+        if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
+            n_traj = len(q_other_arm_trajectory)
+            if n_traj <= max_temporal_samples:
+                q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
+            else:
+                indices = np.unique(
+                    np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
+                )
+                q_a_samples = [q_other_arm_trajectory[i] for i in indices]
+        else:
+            q_a_samples = [q_other_arm]
+
         try:
             def _seg_free(q1, q2):
-                return collision_free_joint_segment(
-                    env, q1, q2,
-                    q_other_arm, qpos_idx_a, qpos_idx_b,
-                    native_model, native_data, arm_b_geom_ids,
-                    skip_endpoints=True,
+                return all(
+                    collision_free_joint_segment(
+                        env, q1, q2,
+                        q_a, qpos_idx_a, qpos_idx_b,
+                        native_model, native_data, arm_b_geom_ids,
+                        skip_endpoints=True,
+                    )
+                    for q_a in q_a_samples
                 )
 
             return shortcut_generic(
@@ -162,12 +188,17 @@ def bezier_smooth_joint_path(
     env_lock=None,
     samples_per_segment: int = None,
     tension: float = None,
+    q_other_arm_trajectory: Optional[np.ndarray] = None,
+    max_temporal_samples: int = None,
 ) -> List[np.ndarray]:
     """Smooth a joint-space path with per-segment cubic Bézier curves.
 
     Delegates to :func:`path_smoothing.bezier_smooth_generic` with
     joint-space-specific callbacks for collision checking, Bézier
     evaluation, and linear interpolation fallback.
+
+    When *q_other_arm_trajectory* is provided, uses temporal collision
+    checking (same semantics as :func:`rrt_connect_joint_space`).
 
     Args:
         env: Simulation environment.
@@ -178,6 +209,9 @@ def bezier_smooth_joint_path(
         env_lock: Optional threading lock.
         samples_per_segment: Number of dense samples per segment.
         tension: Bézier tension parameter (0 → linear, higher → curvier).
+        q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
+            other arm for temporal collision checking.
+        max_temporal_samples: Max sampled arm A configs.
 
     Returns:
         Densely sampled smoothed path (list of joint configurations).
@@ -186,6 +220,8 @@ def bezier_smooth_joint_path(
         samples_per_segment = constants.BEZIER_SAMPLES_PER_SEGMENT
     if tension is None:
         tension = constants.BEZIER_TENSION
+    if max_temporal_samples is None:
+        max_temporal_samples = constants.ARM_RRT_TEMPORAL_SAMPLES
 
     if len(path) <= 1:
         return list(path)
@@ -214,12 +250,28 @@ def bezier_smooth_joint_path(
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
+        # Build arm A sample list for temporal checking
+        if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
+            n_traj = len(q_other_arm_trajectory)
+            if n_traj <= max_temporal_samples:
+                q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
+            else:
+                indices = np.unique(
+                    np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
+                )
+                q_a_samples = [q_other_arm_trajectory[i] for i in indices]
+        else:
+            q_a_samples = [q_other_arm]
+
         try:
             def _collision(q):
-                return check_arm_config_collision(
-                    env, q, qpos_idx_b,
-                    q_other_arm, qpos_idx_a,
-                    native_model, native_data, arm_b_geom_ids,
+                return any(
+                    check_arm_config_collision(
+                        env, q, qpos_idx_b,
+                        q_a, qpos_idx_a,
+                        native_model, native_data, arm_b_geom_ids,
+                    )
+                    for q_a in q_a_samples
                 )
 
             def _eval_segment(path_local, seg_idx, sps):

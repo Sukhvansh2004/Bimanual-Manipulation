@@ -200,6 +200,7 @@ ARM_RRT_COLLISION_RESOLUTION = 0.05  # Resolution for edge collision checking (r
 ARM_RRT_CONNECT_MAX_STEPS = 50  # Max connect steps toward a target node
 ARM_RRT_SMOOTHING_ITERATIONS = 150   # Number of shortcutting attempts for path smoothing
 ARM_RRT_JOINT_MARGIN = 0.05     # Margin (rad) inside joint limits for sampling
+ARM_RRT_TEMPORAL_SAMPLES = 10   # Max arm-A configs sampled for temporal collision checking
 
 # =============================================================================
 # Bézier Path Smoothing (shared by SE(3) and joint-space planners)

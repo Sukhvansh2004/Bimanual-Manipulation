@@ -547,6 +547,7 @@ class DualArmParallelPlanner:
                     num_steps=desired_length,
                     env_lock=self.env_lock,
                     rrt_vis=self.rrt_vis,
+                    q_other_arm_trajectory=traj_a,
                 )
                 if rrt_success:
                     logger.info(

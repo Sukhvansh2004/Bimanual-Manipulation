@@ -42,6 +42,10 @@ from robosuite_franka_manipulation.utils.primitives import (
 )
 from robosuite_franka_manipulation.planning.dual_arm import DualArmParallelPlanner
 from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+from robosuite_franka_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
+from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
+    plan_pose_to_joint_trajectory,
+)
 from robosuite_franka_manipulation.planning.assignment import (
     load_assignment_result,
     AssignmentResult,
@@ -350,19 +354,53 @@ def main():
         # Use planning joint config as IK hint for initial grasp
         q_warm_start_grasp = joints_cur[current_idx] if joints_cur[current_idx] is not None else None
         
-        logger.info(f"Robot {current_robot} moving to pre-grasp pose...")
-        current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
+        # Create RRT visualizer early (used for initial approach + parallel planner)
+        rrt_vis = None
+        if exec_cfg.visualize and vis is not None:
+            rrt_vis = RRTVisualizer(vis)
+
+        # --- RRT-based collision-free approach to pre-grasp pose ---
+        other_robot = 1 - current_robot
+        other_arm_ctrl = system.right_arm if current_robot == 0 else system.left_arm
+        start_q = current_arm.get_joint_positions()
+        q_other = other_arm_ctrl.get_joint_positions()
+
+        # Solve IK for the pre-grasp target
+        _, pregrasp_goal_q = plan_pose_to_joint_trajectory(
+            current_arm, grasp_traj_data["pregrasp"], num_steps=100,
+            q_warm_start=q_warm_start_grasp,
+        )
+
+        if pregrasp_goal_q is not None:
+            logger.info(f"Robot {current_robot} planning RRT to pre-grasp pose...")
+            rrt_traj, rrt_ok = plan_arm_trajectory(
+                env=system.env,
+                robot_id_b=current_robot,
+                start_q=start_q,
+                goal_q=pregrasp_goal_q,
+                q_other_arm=q_other,
+                robot_id_a=other_robot,
+                num_steps=100,
+                env_lock=system.env_lock,
+                rrt_vis=rrt_vis,
+            )
+            if rrt_ok:
+                logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
+                current_arm.follow_joint_trajectory(
+                    list(rrt_traj), gripper_action=-1.0,
+                )
+            else:
+                logger.warning("RRT to pre-grasp failed — falling back to move_to_pose")
+                current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
+        else:
+            logger.warning("IK failed for pre-grasp — falling back to move_to_pose")
+            current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
 
         logger.info(f"Robot {current_robot} following grasp approach trajectory...")
         current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start_grasp)
 
         current_gripper.grasp()
         stabilise(system.env, system.env_lock)
-
-        # Create RRT visualizer for the dual arm planner
-        rrt_vis = None
-        if exec_cfg.visualize and vis is not None:
-            rrt_vis = RRTVisualizer(vis)
 
         # Total number of segments (from the first trajectory's length)
         n_segments = len(res_cur)

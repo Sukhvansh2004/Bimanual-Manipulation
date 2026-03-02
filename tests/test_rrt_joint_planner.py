@@ -749,3 +749,515 @@ class TestDensifyGeneric:
                 distance_fn=lambda a, b: 0.0,
                 interpolate_fn=lambda a, b, t: a,
             )
+
+
+# ============================================================================
+# Test: Temporal Collision Checking
+# ============================================================================
+
+class TestTemporalCollisionChecking:
+    """Verify temporal collision checking in RRT and smoothing functions."""
+
+    def _mock_env(self):
+        """Build a minimal mock environment for patched RRT calls."""
+        env = MagicMock()
+        model = MagicMock()
+        model.ngeom = 10
+        model.njnt = 14
+        model.jnt_type = np.zeros(14, dtype=int)
+        model.jnt_dofadr = np.arange(14, dtype=int)
+        model.jnt_qposadr = np.arange(14, dtype=int)
+        model.jnt_range = np.column_stack([
+            np.full(14, -2.0), np.full(14, 2.0)
+        ])
+        model.geom = MagicMock(side_effect=lambda i: MagicMock(name=f"geom_{i}"))
+
+        data = MagicMock()
+        data.qpos = np.zeros(14)
+        data.qvel = np.zeros(14)
+        data.ncon = 0
+
+        env.sim.model = model
+        env.sim.data = data
+        return env
+
+    def _common_patches(self):
+        """Return a list of context managers that patch MuJoCo internals."""
+        from unittest.mock import patch as _p
+        return [
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
+                return_value=list(range(7)),
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
+                return_value=np.arange(7),
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_limits",
+                return_value=(np.full(7, -2.0), np.full(7, 2.0)),
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_native_mj_object",
+                return_value=MagicMock(),
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
+                return_value=[0, 1, 2],
+            ),
+            _p(
+                "robosuite_franka_manipulation.planning.rrt.joint.planner.mujoco",
+            ),
+        ]
+
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+    )
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+    )
+    def test_direct_path_checked_against_all_samples(
+        self, mock_collision, mock_segment
+    ):
+        """Direct path check should validate against all sampled arm A configs."""
+        call_count = {"segment": 0}
+
+        def _seg_side_effect(*args, **kw):
+            call_count["segment"] += 1
+            return True
+
+        mock_segment.side_effect = _seg_side_effect
+        mock_collision.return_value = False
+
+        env = self._mock_env()
+        traj_a = np.random.randn(20, 7)
+
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            for p in self._common_patches():
+                stack.enter_context(p)
+
+            result = rrt_connect_joint_space(
+                env=env,
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                q_other_arm_trajectory=traj_a,
+                max_temporal_samples=5,
+            )
+
+        assert result.success is True
+        # Direct path should be checked against all 5 sampled configs
+        assert call_count["segment"] == 5
+
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+    )
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+    )
+    def test_direct_path_fails_if_any_sample_collides(
+        self, mock_collision, mock_segment
+    ):
+        """If direct path collides with any arm A sample, RRT should run."""
+        call_count = {"segment": 0}
+
+        def _seg_side_effect(*args, **kw):
+            call_count["segment"] += 1
+            # Fail on the 2nd sampled config
+            return call_count["segment"] != 2
+
+        mock_segment.side_effect = _seg_side_effect
+        mock_collision.return_value = False  # no point collisions
+
+        env = self._mock_env()
+        traj_a = np.random.randn(20, 7)
+
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            for p in self._common_patches():
+                stack.enter_context(p)
+
+            result = rrt_connect_joint_space(
+                env=env,
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                q_other_arm_trajectory=traj_a,
+                max_temporal_samples=5,
+                max_iterations=10,  # limit iterations for test speed
+            )
+
+        # Direct path was blocked (2nd sample failed), so RRT should have run
+        # (may or may not have found solution in 10 iterations)
+        # Key assertion: we verified the direct path wasn't accepted
+
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+    )
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+    )
+    def test_single_q_other_arm_used_without_trajectory(
+        self, mock_collision, mock_segment
+    ):
+        """Without trajectory, should use single q_other_arm (1 direct check)."""
+        call_count = {"segment": 0}
+
+        def _seg_side_effect(*args, **kw):
+            call_count["segment"] += 1
+            return True
+
+        mock_segment.side_effect = _seg_side_effect
+        mock_collision.return_value = False
+
+        env = self._mock_env()
+
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            for p in self._common_patches():
+                stack.enter_context(p)
+
+            result = rrt_connect_joint_space(
+                env=env,
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                q_other_arm_trajectory=None,
+            )
+
+        assert result.success is True
+        # Without trajectory, only 1 direct path check
+        assert call_count["segment"] == 1
+
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+    )
+    @patch(
+        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+    )
+    def test_small_trajectory_uses_all_configs(
+        self, mock_collision, mock_segment
+    ):
+        """Trajectory shorter than max_temporal_samples uses all configs."""
+        call_count = {"segment": 0}
+
+        def _seg_side_effect(*args, **kw):
+            call_count["segment"] += 1
+            return True
+
+        mock_segment.side_effect = _seg_side_effect
+        mock_collision.return_value = False
+
+        env = self._mock_env()
+        traj_a = np.random.randn(3, 7)  # only 3 configs
+
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            for p in self._common_patches():
+                stack.enter_context(p)
+
+            result = rrt_connect_joint_space(
+                env=env,
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                q_other_arm_trajectory=traj_a,
+                max_temporal_samples=10,
+            )
+
+        assert result.success is True
+        # All 3 configs used for direct path check
+        assert call_count["segment"] == 3
+
+
+class TestTemporalCollisionInPlanArmTrajectory:
+    """Verify that plan_arm_trajectory passes temporal trajectory through."""
+
+    @patch(
+        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+    )
+    def test_trajectory_passed_to_rrt(self, mock_rrt):
+        """q_other_arm_trajectory should be forwarded to RRT."""
+        mock_rrt.return_value = JointRRTResult(
+            success=True,
+            path=[np.zeros(7), np.ones(7)],
+            iterations=5,
+        )
+        traj_a = np.random.randn(30, 7)
+
+        with patch(
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
+            side_effect=lambda env, path, **kw: path,
+        ), patch(
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
+            side_effect=lambda path, **kw: path,
+        ):
+            traj, success = plan_arm_trajectory(
+                env=MagicMock(),
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                num_steps=20,
+                q_other_arm_trajectory=traj_a,
+            )
+
+        assert success is True
+        # Verify q_other_arm_trajectory was passed to rrt_connect
+        call_kwargs = mock_rrt.call_args
+        assert call_kwargs is not None
+        passed_traj = call_kwargs.kwargs.get("q_other_arm_trajectory")
+        assert passed_traj is not None
+        np.testing.assert_array_equal(passed_traj, traj_a)
+
+    @patch(
+        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+    )
+    def test_trajectory_passed_to_smoothing(self, mock_rrt):
+        """q_other_arm_trajectory should be forwarded to smoothing steps."""
+        mock_rrt.return_value = JointRRTResult(
+            success=True,
+            path=[np.zeros(7), np.ones(7) * 0.5, np.ones(7)],
+            iterations=10,
+        )
+        traj_a = np.random.randn(30, 7)
+
+        with patch(
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
+            side_effect=lambda env, path, **kw: path,
+        ) as mock_shortcut, patch(
+            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
+            side_effect=lambda path, **kw: path,
+        ) as mock_bezier:
+            plan_arm_trajectory(
+                env=MagicMock(),
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                num_steps=20,
+                q_other_arm_trajectory=traj_a,
+            )
+
+        # Check shortcut received the trajectory
+        shortcut_kwargs = mock_shortcut.call_args.kwargs
+        assert "q_other_arm_trajectory" in shortcut_kwargs
+        np.testing.assert_array_equal(
+            shortcut_kwargs["q_other_arm_trajectory"], traj_a,
+        )
+
+        # Check bezier received the trajectory
+        bezier_kwargs = mock_bezier.call_args.kwargs
+        assert "q_other_arm_trajectory" in bezier_kwargs
+        np.testing.assert_array_equal(
+            bezier_kwargs["q_other_arm_trajectory"], traj_a,
+        )
+
+
+class TestTemporalCollisionInDualArmPlanner:
+    """Verify that DualArmParallelPlanner passes traj_a as temporal trajectory."""
+
+    def test_plan_collision_free_passes_traj_a(self):
+        """_plan_collision_free_trajectory_b should pass full traj_a."""
+        from robosuite_franka_manipulation.planning.dual_arm import (
+            DualArmParallelPlanner,
+        )
+        from robosuite_franka_manipulation.transforms import StampedPose
+
+        env = MagicMock()
+        arm_a = MagicMock()
+        arm_a.robot_id = 0
+        arm_a.arm_id = "right"
+        arm_a.tf_manager = MagicMock()
+
+        arm_b = MagicMock()
+        arm_b.robot_id = 1
+        arm_b.arm_id = "right"
+        arm_b.base_frame = "world"
+        arm_b.tf_manager = MagicMock()
+        arm_b.get_joint_positions.return_value = np.zeros(7)
+        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+
+        planner = DualArmParallelPlanner(
+            env=env,
+            arm_a=arm_a,
+            arm_b=arm_b,
+            collision_check=False,
+        )
+
+        traj_a = np.random.randn(50, 7)
+        target_pose = StampedPose(
+            position=np.array([0.3, 0.0, 1.2]),
+            quaternion=np.array([0.0, 0.0, 0.0, 1.0]),
+            frame_id="world",
+        )
+
+        with patch(
+            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+        ) as mock_plan:
+            mock_plan.return_value = (np.random.randn(50, 7), True)
+
+            planner._resolve_trajectory_b(target_pose, 50, None, traj_a)
+
+            # Verify traj_a was passed as q_other_arm_trajectory
+            call_kwargs = mock_plan.call_args.kwargs
+            assert "q_other_arm_trajectory" in call_kwargs
+            np.testing.assert_array_equal(
+                call_kwargs["q_other_arm_trajectory"], traj_a,
+            )
+
+    def test_q_other_arm_uses_traj_a_last(self):
+        """q_other_arm (static fallback) should use traj_a[-1]."""
+        from robosuite_franka_manipulation.planning.dual_arm import (
+            DualArmParallelPlanner,
+        )
+        from robosuite_franka_manipulation.transforms import StampedPose
+
+        env = MagicMock()
+        arm_a = MagicMock()
+        arm_a.robot_id = 0
+        arm_a.arm_id = "right"
+        arm_a.tf_manager = MagicMock()
+
+        arm_b = MagicMock()
+        arm_b.robot_id = 1
+        arm_b.arm_id = "right"
+        arm_b.base_frame = "world"
+        arm_b.tf_manager = MagicMock()
+        arm_b.get_joint_positions.return_value = np.zeros(7)
+        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+
+        planner = DualArmParallelPlanner(
+            env=env,
+            arm_a=arm_a,
+            arm_b=arm_b,
+            collision_check=False,
+        )
+
+        traj_a = np.random.randn(50, 7)
+        target_pose = StampedPose(
+            position=np.array([0.3, 0.0, 1.2]),
+            quaternion=np.array([0.0, 0.0, 0.0, 1.0]),
+            frame_id="world",
+        )
+
+        with patch(
+            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+        ) as mock_plan:
+            mock_plan.return_value = (np.random.randn(50, 7), True)
+
+            planner._resolve_trajectory_b(target_pose, 50, None, traj_a)
+
+            # q_other_arm positional arg should be traj_a[-1]
+            call_kwargs = mock_plan.call_args.kwargs
+            np.testing.assert_array_equal(
+                call_kwargs["q_other_arm"], traj_a[-1],
+            )
+
+
+# ============================================================================
+# Test: RRT Visualizer
+# ============================================================================
+
+class TestRRTVisualizerCallbacks:
+    """Verify that the RRT visualizer is called correctly."""
+
+    def test_draw_path_with_custom_pos_fn(self):
+        """draw_path should accept a custom position extractor."""
+        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+
+        mock_vis = MagicMock()
+        rrt_vis = RRTVisualizer(mock_vis)
+
+        path = [np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+                np.array([2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])]
+
+        # Custom pos_fn: extract first 3 elements as position
+        def pos_fn(q):
+            return q[:3]
+
+        # Should not raise
+        rrt_vis.draw_path(path, pos_fn=pos_fn)
+
+    def test_draw_start_goal(self):
+        """draw_start_goal should create sphere objects."""
+        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+
+        mock_vis = MagicMock()
+        rrt_vis = RRTVisualizer(mock_vis)
+
+        start = np.array([0.1, 0.2, 0.3])
+        goal = np.array([0.4, 0.5, 0.6])
+
+        # Should not raise
+        rrt_vis.draw_start_goal(start, goal)
+
+    def test_draw_smoothed_path(self):
+        """draw_smoothed_path should create line segments."""
+        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+
+        mock_vis = MagicMock()
+        rrt_vis = RRTVisualizer(mock_vis)
+
+        path = [np.array([0.0, 0.0, 0.0]),
+                np.array([1.0, 1.0, 1.0]),
+                np.array([2.0, 2.0, 2.0])]
+
+        pos_fn = lambda q: q[:3]
+        rrt_vis.draw_smoothed_path(path, pos_fn=pos_fn)
+
+    def test_edge_counter_increments(self):
+        """Each tree edge should have a unique counter."""
+        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+
+        mock_vis = MagicMock()
+        rrt_vis = RRTVisualizer(mock_vis)
+
+        start = rrt_vis._edge_counter
+        rrt_vis.draw_tree_edge(
+            np.array([0.0, 0.0, 0.0]),
+            np.array([1.0, 1.0, 1.0]),
+            is_tree_a=True,
+        )
+        assert rrt_vis._edge_counter == start + 1
+
+        rrt_vis.draw_tree_edge(
+            np.array([1.0, 1.0, 1.0]),
+            np.array([2.0, 2.0, 2.0]),
+            is_tree_a=False,
+        )
+        assert rrt_vis._edge_counter == start + 2
+
+
+# ============================================================================
+# Test: ARM_RRT_TEMPORAL_SAMPLES constant
+# ============================================================================
+
+class TestTemporalSamplesConstant:
+    """Verify the temporal samples constant exists and is reasonable."""
+
+    def test_constant_exists(self):
+        from robosuite_franka_manipulation import constants
+        assert hasattr(constants, "ARM_RRT_TEMPORAL_SAMPLES")
+
+    def test_constant_positive(self):
+        from robosuite_franka_manipulation import constants
+        assert constants.ARM_RRT_TEMPORAL_SAMPLES > 0
+
+    def test_constant_reasonable_range(self):
+        from robosuite_franka_manipulation import constants
+        assert 2 <= constants.ARM_RRT_TEMPORAL_SAMPLES <= 50

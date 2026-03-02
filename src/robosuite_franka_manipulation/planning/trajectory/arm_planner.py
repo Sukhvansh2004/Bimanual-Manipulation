@@ -22,6 +22,7 @@ from robosuite_franka_manipulation.planning.rrt.joint import (
     shortcut_joint_path,
     bezier_smooth_joint_path,
     densify_joint_path,
+    make_ee_pos_fn,
 )
 from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
 
@@ -46,12 +47,17 @@ def plan_arm_trajectory(
     goal_bias: float = None,
     smoothing_iterations: int = None,
     rrt_vis: Optional[RRTVisualizer] = None,
+    q_other_arm_trajectory: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, bool]:
     """Plan a collision-free joint trajectory for arm B — full pipeline.
 
     Runs joint-space RRT-Connect, followed by a two-phase smoothing
     pipeline (shortcutting + per-segment Bézier), and finally
     densification.  Falls back to linear interpolation if RRT fails.
+
+    When *q_other_arm_trajectory* is provided, all stages (RRT,
+    shortcutting, Bézier) use temporal collision checking against
+    sampled arm A positions from the trajectory.
 
     Args:
         env: Simulation environment.
@@ -62,12 +68,13 @@ def plan_arm_trajectory(
         robot_id_a: Robot ID of the other arm.
         num_steps: Number of output trajectory waypoints.
         env_lock: Optional threading lock.
-        manipulated_object: Object held by arm A (for contact filtering).
         max_iterations: Max RRT iterations.
         step_size: RRT step size (radians).
         goal_bias: RRT goal bias.
         smoothing_iterations: Shortcut smoothing attempts.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
+        q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
+            other arm for temporal collision checking.
 
     Returns:
         Tuple of ``(trajectory, planning_success)`` where trajectory is
@@ -90,6 +97,7 @@ def plan_arm_trajectory(
         step_size=step_size,
         goal_bias=goal_bias,
         rrt_vis=rrt_vis,
+        q_other_arm_trajectory=q_other_arm_trajectory,
     )
 
     if result.success:
@@ -107,6 +115,7 @@ def plan_arm_trajectory(
             robot_id_b=robot_id_b,
             env_lock=env_lock,
             max_iterations=smoothing_iterations,
+            q_other_arm_trajectory=q_other_arm_trajectory,
         )
         logger.info(
             "Phase 1 shortcutting: %d -> %d waypoints.  "
@@ -121,7 +130,37 @@ def plan_arm_trajectory(
             robot_id_a=robot_id_a,
             robot_id_b=robot_id_b,
             env_lock=env_lock,
+            q_other_arm_trajectory=q_other_arm_trajectory,
         )
+
+        # Visualize the smoothed path in MeshCat
+        if rrt_vis is not None and len(bezier) >= 2:
+            try:
+                from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+                    get_native_mj_object,
+                    get_arm_joint_ids,
+                    get_joint_qpos_indices,
+                )
+                native_model = get_native_mj_object(env.sim.model)
+                native_data = get_native_mj_object(env.sim.data)
+                jids_b = get_arm_joint_ids(native_model, robot_id_b)
+                qpos_idx_b_vis = get_joint_qpos_indices(native_model, jids_b)
+
+                ee_fn = make_ee_pos_fn(
+                    env.sim.data, qpos_idx_b_vis,
+                    native_model, native_data, robot_id_b,
+                )
+                if ee_fn is not None:
+                    rrt_vis.draw_shortcut_path(shortcut, pos_fn=ee_fn)
+                    rrt_vis.draw_smoothed_path(bezier, pos_fn=ee_fn)
+                    logger.info(
+                        "RRT visualisation: drew shortcut (%d pts) and "
+                        "smoothed (%d pts) paths in MeshCat.",
+                        len(shortcut), len(bezier),
+                    )
+            except Exception as exc:
+                logger.debug("RRT visualisation for smoothed path failed: %s", exc)
+
         # Final densification to target number of steps
         traj = densify_joint_path(bezier, num_steps)
         return traj, True
