@@ -135,7 +135,7 @@ NO_DIVERSITY = _cfg(
     beam_width=10,
 )
 
-PROPOSED = _cfg("Proposed", beam_width=10)   # same as BASELINE
+PROPOSED = _cfg("Proposed", beam_width=None)  # full method — no beam pruning
 
 
 # ═══════════════════════════════════════════════════════════════════════════
