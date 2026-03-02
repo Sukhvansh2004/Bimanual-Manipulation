@@ -7,9 +7,9 @@ set -e
 echo "=== Dual-Arm Franka Manipulation Installer ==="
 echo ""
 
-# Initialize git submodules (GraspGen, YCB_Dataset, etc.)
+# Initialize git submodules (GraspGen, YCB_Dataset)
 echo "Initializing git submodules..."
-git submodule update --init --recursive
+git submodule update --init deps/GraspGen deps/YCB_Dataset
 
 # Install system dependencies for rendering
 echo "Installing system dependencies for offscreen rendering..."
