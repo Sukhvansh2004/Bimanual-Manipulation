@@ -109,6 +109,8 @@ class AssignmentConfig:
     beam_width: Optional[int] = None  # DP beam width; None = unlimited (exact)
     handover_stride: int = 1  # only attempt handovers every K segments
     handover_clearance_radius: Optional[float] = None  # metres; None = disabled
+    num_trajectories_robot0: Optional[int] = None  # max robot-0 trajectories; None = all
+    num_trajectories_robot1: Optional[int] = None  # max robot-1 trajectories; None = all
 
 
 @dataclass
@@ -301,6 +303,8 @@ def load_experiment(path: str) -> ExperimentConfig:
         beam_width=asgn_raw.get("beam_width", None),
         handover_stride=asgn_raw.get("handover_stride", 1),
         handover_clearance_radius=asgn_raw.get("handover_clearance_radius", None),
+        num_trajectories_robot0=asgn_raw.get("num_trajectories_robot0", None),
+        num_trajectories_robot1=asgn_raw.get("num_trajectories_robot1", None),
     )
 
     return ExperimentConfig(

@@ -16,8 +16,8 @@ TrajectoryBundle
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 import numpy as np
 
@@ -77,6 +77,8 @@ class RobotTrajectory:
     ik_success: np.ndarray
     collision_free: np.ndarray
     joint_configs: np.ndarray
+    source_path: Optional[str] = field(default=None, repr=False)
+    """Filename (basename) of the NPZ file this trajectory was loaded from."""
 
     @property
     def n_waypoints(self) -> int:

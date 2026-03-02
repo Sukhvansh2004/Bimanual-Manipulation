@@ -56,6 +56,7 @@ def _make_trajectory(
     n_joints: int = 7,
     feasible: bool = True,
     seed: int = 0,
+    source_path: str | None = None,
 ) -> RobotTrajectory:
     """Build a minimal RobotTrajectory suitable for the assignment planner."""
     rng = np.random.default_rng(seed)
@@ -73,6 +74,7 @@ def _make_trajectory(
         object_frame_ids=np.array(["world"] * n_waypoints),
         ik_success=np.ones(n_waypoints, dtype=bool),
         collision_free=np.ones(n_waypoints, dtype=bool),
+        source_path=source_path,
     )
 
 
@@ -96,10 +98,18 @@ def _make_trajectories(
     return TrajectoryBundle(
         object_trajectory=_make_object_trajectory(n_waypoints, seed=seed + 100),
         robot0_trajectories=[
-            _make_trajectory(n_waypoints, seed=seed + i) for i in range(n_r0)
+            _make_trajectory(
+                n_waypoints, seed=seed + i,
+                source_path=f"robot0_trajectory_{i}.npz",
+            )
+            for i in range(n_r0)
         ],
         robot1_trajectories=[
-            _make_trajectory(n_waypoints, seed=seed + 50 + i) for i in range(n_r1)
+            _make_trajectory(
+                n_waypoints, seed=seed + 50 + i,
+                source_path=f"robot1_trajectory_{i}.npz",
+            )
+            for i in range(n_r1)
         ],
     )
 
@@ -120,7 +130,13 @@ class TestAssignmentResult:
     def _sample_result(self) -> AssignmentResult:
         return AssignmentResult(
             sequence=[0, 0, 1, 1, 0],
-            trajectory_indices=[0, 0, 1, 1, 0],
+            trajectory_paths=[
+                "robot0_trajectory_0.npz",
+                "robot0_trajectory_0.npz",
+                "robot1_trajectory_1.npz",
+                "robot1_trajectory_1.npz",
+                "robot0_trajectory_0.npz",
+            ],
             total_cost=42.5,
             task_costs=np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
             switching_costs=np.array([0.0, 0.0, 10.0, 0.0, 10.0]),
@@ -144,7 +160,7 @@ class TestAssignmentResult:
 
         loaded = load_assignment_result(fpath)
         assert loaded.sequence == original.sequence
-        assert loaded.trajectory_indices == original.trajectory_indices
+        assert loaded.trajectory_paths == original.trajectory_paths
         assert loaded.total_cost == pytest.approx(original.total_cost)
         np.testing.assert_allclose(loaded.task_costs, original.task_costs)
         np.testing.assert_allclose(loaded.switching_costs, original.switching_costs)
@@ -520,7 +536,7 @@ class TestComputeOptimalRobotAssignment:
 
         n_segments = 5
         assert len(result.sequence) == n_segments
-        assert len(result.trajectory_indices) == n_segments
+        assert len(result.trajectory_paths) == n_segments
         assert len(result.task_costs) == n_segments
         assert len(result.switching_costs) == n_segments
         assert np.isfinite(result.total_cost)
@@ -680,6 +696,45 @@ class TestLoadAllTrajectories:
         assert len(trajs.robot0_trajectories) == 2
         assert len(trajs.robot1_trajectories) == 2
         assert trajs.object_trajectory.positions.shape == (n_wp, 3)
+        # Verify source_path is populated from file name
+        assert trajs.robot0_trajectories[0].source_path == "robot0_trajectory_0.npz"
+        assert trajs.robot0_trajectories[1].source_path == "robot0_trajectory_1.npz"
+        assert trajs.robot1_trajectories[0].source_path == "robot1_trajectory_0.npz"
+
+    def test_max_robot_limits(self, tmp_path):
+        """max_robot0 / max_robot1 select only the first N trajectories."""
+        n_wp = 5
+        rng = np.random.default_rng(42)
+
+        self._save_npz(
+            str(tmp_path / "object_trajectory.npz"),
+            object_positions=rng.random((n_wp, 3)),
+            object_quaternions=np.tile([0, 0, 0, 1], (n_wp, 1)).astype(float),
+            object_frame_ids=np.array(["world"] * n_wp),
+        )
+        for rid in [0, 1]:
+            for ti in range(5):
+                self._save_npz(
+                    str(tmp_path / f"robot{rid}_trajectory_{ti}.npz"),
+                    eef_positions=rng.random((n_wp, 3)),
+                    eef_quaternions=np.tile([0, 0, 0, 1], (n_wp, 1)).astype(float),
+                    eef_frame_ids=np.array(["world"] * n_wp),
+                    object_positions=rng.random((n_wp, 3)),
+                    object_quaternions=np.tile([0, 0, 0, 1], (n_wp, 1)).astype(float),
+                    object_frame_ids=np.array(["world"] * n_wp),
+                    is_feasible=np.ones(n_wp, dtype=bool),
+                    ik_success=np.ones(n_wp, dtype=bool),
+                    collision_free=np.ones(n_wp, dtype=bool),
+                    joint_configs=rng.random((n_wp, 7)),
+                )
+
+        trajs = load_all_trajectories(str(tmp_path), max_robot0=3, max_robot1=2)
+        assert len(trajs.robot0_trajectories) == 3
+        assert len(trajs.robot1_trajectories) == 2
+        # Verify numericaly sorted: 0, 1, 2
+        assert trajs.robot0_trajectories[0].source_path == "robot0_trajectory_0.npz"
+        assert trajs.robot0_trajectories[2].source_path == "robot0_trajectory_2.npz"
+        assert trajs.robot1_trajectories[1].source_path == "robot1_trajectory_1.npz"
 
     def test_loaded_trajectories_work_with_assignment(self, tmp_path):
         """End-to-end: save, load, run assignment."""
@@ -711,6 +766,10 @@ class TestLoadAllTrajectories:
         result = compute_optimal_robot_assignment(trajs)
         assert len(result.sequence) == n_wp - 1
         assert np.isfinite(result.total_cost)
+        # trajectory_paths should reference the actual NPZ filenames
+        for p in result.trajectory_paths:
+            assert p.endswith(".npz")
+            assert p.startswith("robot")
 
     def test_missing_object_trajectory_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):

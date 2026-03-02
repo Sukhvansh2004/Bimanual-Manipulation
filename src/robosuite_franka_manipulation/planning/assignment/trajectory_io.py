@@ -8,6 +8,7 @@ for :func:`~solver.compute_optimal_robot_assignment`.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import List
 
@@ -22,7 +23,11 @@ from robosuite_franka_manipulation.planning.assignment.models import (
 logger = logging.getLogger(__name__)
 
 
-def load_all_trajectories(data_dir: str) -> TrajectoryBundle:
+def load_all_trajectories(
+    data_dir: str,
+    max_robot0: int | None = None,
+    max_robot1: int | None = None,
+) -> TrajectoryBundle:
     """Load all trajectory NPZ files produced by trajectory-generation scripts.
 
     Expects the directory to contain:
@@ -32,6 +37,10 @@ def load_all_trajectories(data_dir: str) -> TrajectoryBundle:
 
     Args:
         data_dir: Path to the directory containing trajectory NPZ files.
+        max_robot0: If set, load only the first *max_robot0* robot-0
+            trajectories (sorted numerically by filename suffix).
+        max_robot1: If set, load only the first *max_robot1* robot-1
+            trajectories.
 
     Returns:
         :class:`TrajectoryBundle` with object and per-robot trajectories.
@@ -57,8 +66,17 @@ def load_all_trajectories(data_dir: str) -> TrajectoryBundle:
         object_trajectory.positions.shape,
     )
 
-    def _load_robot_trajectories(prefix: str) -> List[RobotTrajectory]:
-        files = sorted(data_path.glob(f"{prefix}_trajectory_*.npz"))
+    def _load_robot_trajectories(
+        prefix: str, max_count: int | None = None,
+    ) -> List[RobotTrajectory]:
+        def _numeric_key(p: Path) -> int:
+            """Extract the numeric suffix for natural sort order."""
+            m = re.search(r"_(\d+)\.npz$", p.name)
+            return int(m.group(1)) if m else 0
+
+        files = sorted(data_path.glob(f"{prefix}_trajectory_*.npz"), key=_numeric_key)
+        if max_count is not None:
+            files = files[:max_count]
         trajs: List[RobotTrajectory] = []
         for f in files:
             d = np.load(f)
@@ -73,6 +91,7 @@ def load_all_trajectories(data_dir: str) -> TrajectoryBundle:
                 ik_success=d["ik_success"],
                 collision_free=d["collision_free"],
                 joint_configs=d["joint_configs"],
+                source_path=f.name,
             )
             trajs.append(traj)
         n_feasible = sum(1 for t in trajs if np.all(t.is_feasible))
@@ -84,8 +103,8 @@ def load_all_trajectories(data_dir: str) -> TrajectoryBundle:
 
     bundle = TrajectoryBundle(
         object_trajectory=object_trajectory,
-        robot0_trajectories=_load_robot_trajectories("robot0"),
-        robot1_trajectories=_load_robot_trajectories("robot1"),
+        robot0_trajectories=_load_robot_trajectories("robot0", max_robot0),
+        robot1_trajectories=_load_robot_trajectories("robot1", max_robot1),
     )
     logger.info(
         "TrajectoryBundle ready: %d segments, %d robot0 + %d robot1 trajectories",

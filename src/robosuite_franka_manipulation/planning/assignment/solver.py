@@ -244,7 +244,7 @@ def _solve_optimal_assignment(
 
     # Backtrack using cached switching costs (append + reverse for O(n))
     sequence: List[int] = []
-    traj_indices: List[int] = []
+    traj_paths: List[str] = []
     task_costs_list: List[float] = []
     switch_costs_list: List[float] = []
 
@@ -252,7 +252,9 @@ def _solve_optimal_assignment(
     for i in range(n_segments - 1, -1, -1):
         robot_id, traj_idx = trajectory_info[cs]
         sequence.append(robot_id)
-        traj_indices.append(traj_idx)
+        # Resolve the NPZ filename from the trajectory object
+        traj_obj = trajectories.get_trajectory(robot_id, traj_idx)
+        traj_paths.append(traj_obj.source_path or f"robot{robot_id}_trajectory_{traj_idx}.npz")
         task_costs_list.append(float(cost_matrix[i, cs]))
 
         if i > 0:
@@ -262,7 +264,7 @@ def _solve_optimal_assignment(
             switch_costs_list.append(0.0)
 
     sequence.reverse()
-    traj_indices.reverse()
+    traj_paths.reverse()
     task_costs_list.reverse()
     switch_costs_list.reverse()
 
@@ -280,7 +282,7 @@ def _solve_optimal_assignment(
 
     return AssignmentResult(
         sequence=sequence,
-        trajectory_indices=traj_indices,
+        trajectory_paths=traj_paths,
         total_cost=best_final_cost,
         task_costs=np.array(task_costs_list),
         switching_costs=np.array(switch_costs_list),

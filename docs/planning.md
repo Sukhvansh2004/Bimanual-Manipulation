@@ -444,7 +444,7 @@ The result is an `AssignmentResult` containing:
 | Field | Type | Description |
 |-------|------|-------------|
 | `sequence` | `List[int]` | Robot ID (0 or 1) for each segment |
-| `trajectory_indices` | `List[int]` | Grasp trajectory index for each segment |
+| `trajectory_paths` | `List[str]` | NPZ filename for each segment (e.g. `"robot0_trajectory_6.npz"`) |
 | `total_cost` | `float` | Globally optimal total cost |
 | `task_costs` | `np.ndarray` | Per-segment task cost |
 | `switching_costs` | `np.ndarray` | Per-segment switching cost |

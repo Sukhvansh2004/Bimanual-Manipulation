@@ -95,6 +95,7 @@ def rrt_connect_generic(
     on_extend: Optional[Callable] = None,
     on_collision: Optional[Callable] = None,
     on_iteration: Optional[Callable] = None,
+    log_interval: int = 0,
 ) -> Tuple[bool, list, int, int, int]:
     """Domain-agnostic bi-directional RRT-Connect.
 
@@ -129,6 +130,8 @@ def rrt_connect_generic(
             is rejected due to collision.
         on_iteration: Optional ``(iteration, tree_a_size, tree_b_size)``
             callback invoked at the start of each iteration.
+        log_interval: If > 0, log progress at INFO level every *log_interval*
+            iterations.
 
     Returns:
         ``(success, path, iterations, tree_a_size, tree_b_size)`` where
@@ -141,6 +144,12 @@ def rrt_connect_generic(
     for iteration in range(max_iterations):
         if on_iteration is not None:
             on_iteration(iteration, len(tree_a), len(tree_b))
+
+        if log_interval > 0 and iteration % log_interval == 0:
+            logger.info(
+                "RRT iter %d/%d  (tree_a=%d, tree_b=%d)",
+                iteration, max_iterations, len(tree_a), len(tree_b),
+            )
 
         # ── Sample ────────────────────────────────────────────────────
         if np.random.random() < goal_bias:

@@ -22,7 +22,7 @@ class AssignmentResult:
     """Outcome of :func:`~solver.compute_optimal_robot_assignment`."""
 
     sequence: List[int]               # robot id (0 or 1) per segment
-    trajectory_indices: List[int]     # grasp-trajectory index per segment
+    trajectory_paths: List[str]       # NPZ filename per segment (e.g. "robot0_trajectory_6.npz")
     total_cost: float
     task_costs: np.ndarray            # per-segment task cost
     switching_costs: np.ndarray       # per-segment switching cost
@@ -36,7 +36,7 @@ def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
     np.savez(
         filepath,
         sequence=np.array(result.sequence),
-        trajectory_indices=np.array(result.trajectory_indices),
+        trajectory_paths=np.array(result.trajectory_paths, dtype=str),
         total_cost=result.total_cost,
         task_costs=result.task_costs,
         switching_costs=result.switching_costs,
@@ -52,7 +52,7 @@ def load_assignment_result(filepath: str) -> AssignmentResult:
     data = np.load(filepath, allow_pickle=True)
     return AssignmentResult(
         sequence=data["sequence"].tolist(),
-        trajectory_indices=data["trajectory_indices"].tolist(),
+        trajectory_paths=data["trajectory_paths"].tolist(),
         total_cost=float(data["total_cost"]),
         task_costs=data["task_costs"],
         switching_costs=data["switching_costs"],

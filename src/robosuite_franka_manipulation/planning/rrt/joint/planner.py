@@ -239,6 +239,7 @@ def rrt_connect_joint_space(
                 on_extend=_on_extend,
                 on_collision=_on_collision,
                 on_iteration=_on_iteration,
+                log_interval=200,
             )
 
             if success:

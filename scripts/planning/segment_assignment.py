@@ -138,6 +138,15 @@ def main() -> None:
         help="Minimum distance (metres) from object to environment geoms for a "
              "handover to be attempted.  Disabled when omitted.",
     )
+    parser.add_argument(
+        "--num-traj0", type=int, default=None,
+        help="Number of robot-0 trajectories to evaluate (default: all). "
+             "E.g. --num-traj0 10 uses robot0_trajectory_0 … robot0_trajectory_9.",
+    )
+    parser.add_argument(
+        "--num-traj1", type=int, default=None,
+        help="Number of robot-1 trajectories to evaluate (default: all).",
+    )
 
     args = parser.parse_args()
 
@@ -159,8 +168,16 @@ def main() -> None:
             data_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
 
     # --- Load trajectories ---
+    max_r0 = args.num_traj0 if args.num_traj0 is not None else asgn_cfg.num_trajectories_robot0
+    max_r1 = args.num_traj1 if args.num_traj1 is not None else asgn_cfg.num_trajectories_robot1
     logger.info("Loading trajectories from %s ...", data_dir)
-    trajectories = load_all_trajectories(data_dir)
+    if max_r0 is not None or max_r1 is not None:
+        logger.info(
+            "  Trajectory count limits: robot0=%s, robot1=%s",
+            max_r0 if max_r0 is not None else "all",
+            max_r1 if max_r1 is not None else "all",
+        )
+    trajectories = load_all_trajectories(data_dir, max_robot0=max_r0, max_robot1=max_r1)
 
     # --- Optional feasibility heatmap ---
     if not args.no_plot:
@@ -287,13 +304,12 @@ def _print_summary(result) -> None:
 
     robot_names = {0: "Robot0", 1: "Robot1"}
     for i, robot_id in enumerate(result.sequence):
-        traj_idx = result.trajectory_indices[i]
+        traj_path = result.trajectory_paths[i]
         tc = result.task_costs[i]
         sc = result.switching_costs[i]
-        traj_str = f"{traj_idx:3d}" if traj_idx >= 0 else "N/A"
         logger.info(
             "  Seg %3d: %s  traj=%s  task=%.4f  switch=%.4f  total=%.4f",
-            i, robot_names[robot_id], traj_str, tc, sc, tc + sc,
+            i, robot_names[robot_id], traj_path, tc, sc, tc + sc,
         )
 
     # Per-robot feasibility summary

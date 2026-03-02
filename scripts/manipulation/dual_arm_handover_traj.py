@@ -92,22 +92,22 @@ def _visualize_assignment_segments(
     """
 
     seq = assignment.sequence
-    traj_ids = assignment.trajectory_indices
+    traj_paths = assignment.trajectory_paths
     n = len(seq)
 
-    # Build list of contiguous runs: (robot_id, traj_idx, start, end)
+    # Build list of contiguous runs: (robot_id, traj_path, start, end)
     runs: List[tuple] = []
     run_start = 0
     for i in range(1, n):
-        if seq[i] != seq[run_start] or traj_ids[i] != traj_ids[run_start]:
-            runs.append((int(seq[run_start]), int(traj_ids[run_start]), run_start, i - 1))
+        if seq[i] != seq[run_start] or traj_paths[i] != traj_paths[run_start]:
+            runs.append((int(seq[run_start]), traj_paths[run_start], run_start, i - 1))
             run_start = i
-    runs.append((int(seq[run_start]), int(traj_ids[run_start]), run_start, n - 1))
+    runs.append((int(seq[run_start]), traj_paths[run_start], run_start, n - 1))
 
     robot_colors = {0: 0x1f77b4, 1: 0xff7f0e}
 
-    for run_idx, (rid, tidx, start, end) in enumerate(runs):
-        eef, obj, _, res, fname = traj_cache[(rid, tidx)]
+    for run_idx, (rid, tpath, start, end) in enumerate(runs):
+        eef, obj, _, res, fname = traj_cache[tpath]
         stem = os.path.splitext(fname)[0]
         # Slice only the executed waypoints
         seg_eef = eef[start : end + 1]
@@ -193,26 +193,28 @@ def main():
         # -------------------------------------------------------------------
         assignment: Optional[AssignmentResult] = None
 
-        # Trajectory data keyed by (robot_id, traj_idx).
+        # Trajectory data keyed by trajectory path (NPZ filename).
         # Each value is (eef_traj, obj_traj, joints, res, file_path).
         traj_cache: dict = {}
 
-        def _load_cached(robot_id: int, traj_idx: int, directory: str):
+        def _load_cached(traj_path: str, directory: str):
             """Load a trajectory file once and cache it."""
-            key = (robot_id, traj_idx)
-            if key not in traj_cache:
-                fname = f"robot{robot_id}_trajectory_{traj_idx}.npz"
-                fpath = os.path.join(directory, fname)
+            if traj_path not in traj_cache:
+                fpath = os.path.join(directory, traj_path)
                 eef, obj, jts, res = load_trajectory(fpath)
-                traj_cache[key] = (eef, obj, jts, res, fname)
-            return traj_cache[key]
+                traj_cache[traj_path] = (eef, obj, jts, res, traj_path)
+            return traj_cache[traj_path]
 
         if args.traj0 and args.traj1:
             # ---- Explicit trajectory mode --------------------------------
             eef0, obj0, jts0, res0 = load_trajectory(args.traj0)
             eef1, obj1, jts1, res1 = load_trajectory(args.traj1)
-            traj_cache[(0, 0)] = (eef0, obj0, jts0, res0, os.path.basename(args.traj0))
-            traj_cache[(1, 0)] = (eef1, obj1, jts1, res1, os.path.basename(args.traj1))
+            t0_name = os.path.basename(args.traj0)
+            t1_name = os.path.basename(args.traj1)
+            traj_cache[t0_name] = (eef0, obj0, jts0, res0, t0_name)
+            traj_cache[t1_name] = (eef1, obj1, jts1, res1, t1_name)
+            # Build a synthetic assignment-like mapping for explicit mode
+            _explicit_paths = {0: t0_name, 1: t1_name}
             logger.info("Explicit trajectory mode (--traj0 / --traj1).")
         else:
             # ---- Assignment mode (default) -------------------------------
@@ -240,26 +242,25 @@ def main():
 
             assignment_dir = os.path.dirname(os.path.abspath(assignment_file))
 
-            # Pre-load every unique (robot_id, traj_idx) referenced by the
-            # assignment so that mid-sequence trajectory changes are handled.
-            unique_keys = set(zip(assignment.sequence, assignment.trajectory_indices))
-            for rid, tidx in sorted(unique_keys):
-                _load_cached(rid, tidx, assignment_dir)
+            # Pre-load every unique trajectory path referenced by the assignment.
+            unique_paths = set(assignment.trajectory_paths)
+            for tpath in sorted(unique_paths):
+                _load_cached(tpath, assignment_dir)
 
             logger.info(
                 "Loaded %d unique trajectories for assignment: %s",
-                len(unique_keys),
-                sorted(unique_keys),
+                len(unique_paths),
+                sorted(unique_paths),
             )
             logger.info("Handover points: %s", assignment.handover_points)
 
         # Convenience accessors for the two-trajectory explicit mode
-        def _get_traj_data(robot_id: int, traj_idx: int):
+        def _get_traj_data(traj_path: str):
             """Return (eef, obj, joints, res, filename) for a trajectory."""
-            return traj_cache[(robot_id, traj_idx)]
+            return traj_cache[traj_path]
 
         # Validate all loaded trajectories
-        for (rid, tidx), (eef, obj, jts, res, fname) in traj_cache.items():
+        for tpath, (eef, obj, jts, res, fname) in traj_cache.items():
             if res is None:
                 logger.error("Feasibility results missing from %s.", fname)
                 return
@@ -278,7 +279,7 @@ def main():
                 )
             else:
                 # Explicit mode — show full trajectories
-                for (rid, tidx), (eef, obj, jts, res, fname) in traj_cache.items():
+                for tpath, (eef, obj, jts, res, fname) in traj_cache.items():
                     stem = os.path.splitext(fname)[0]
                     visualize_trajectory(
                         vis, eef, res,
@@ -291,17 +292,17 @@ def main():
                             color=0xff00ff, tf_manager=system.tf_manager,
                         )
 
-        # 4. Extract grasps per (robot_id, traj_idx)
+        # 4. Extract grasps per trajectory path
         # G = inv(T_ee) @ T_obj — object pose in EE frame
         logger.info("Extracting grasps from trajectory first waypoints...")
         grasp_cache: dict = {}
-        for (rid, tidx), (eef, obj, jts, res, fname) in traj_cache.items():
+        for tpath, (eef, obj, jts, res, fname) in traj_cache.items():
             if obj:
                 g = extract_grasp_transform(eef[0], obj[0])
                 if g is None:
                     logger.error("Failed to extract grasp from %s.", fname)
                     return
-                grasp_cache[(rid, tidx)] = g
+                grasp_cache[tpath] = g
             else:
                 logger.error("Object trajectory missing in %s — cannot extract grasp.", fname)
                 return
@@ -309,21 +310,21 @@ def main():
         # ------------------------------------------------------------------
         # 5. Execution Loop
         # ------------------------------------------------------------------
-        # Helper to look up the current segment's data from the assignment
-        # or from the explicit (robot_id=rid, traj_idx=0) keys.
-        def _current_key(robot_id: int, segment_idx: int):
-            """Return the (robot_id, traj_idx) cache key for *segment_idx*."""
+        # Helper to look up the current segment's trajectory path from the
+        # assignment or from the explicit trajectory mapping.
+        def _current_path(robot_id: int, segment_idx: int) -> str:
+            """Return the trajectory path (cache key) for *segment_idx*."""
             if assignment is not None:
-                return (robot_id, int(assignment.trajectory_indices[segment_idx]))
-            return (robot_id, 0)
+                return assignment.trajectory_paths[segment_idx]
+            return _explicit_paths[robot_id]
 
         if assignment is not None:
             current_robot = assignment.sequence[0]
             current_idx = 0
         else:
             # Explicit mode — find first feasible waypoint
-            _, _, _, res0, _ = _get_traj_data(0, 0)
-            _, _, _, res1, _ = _get_traj_data(1, 0)
+            _, _, _, res0, _ = _get_traj_data(_explicit_paths[0])
+            _, _, _, res1, _ = _get_traj_data(_explicit_paths[1])
             first0 = find_first_feasible_point(res0)
             first1 = find_first_feasible_point(res1)
 
@@ -338,9 +339,9 @@ def main():
         current_arm = system.left_arm if current_robot == 0 else system.right_arm
         current_gripper = system.left_gripper if current_robot == 0 else system.right_gripper
 
-        cur_key = _current_key(current_robot, current_idx)
-        eef_cur, obj_cur, joints_cur, res_cur, _ = _get_traj_data(*cur_key)
-        current_grasp = grasp_cache[cur_key]
+        cur_path = _current_path(current_robot, current_idx)
+        eef_cur, obj_cur, joints_cur, res_cur, _ = _get_traj_data(cur_path)
+        current_grasp = grasp_cache[cur_path]
         
         obj_pose = obj_cur[current_idx]
         grasp_primitive = ObjectGraspPrimitive(object_pose=obj_pose, grasp_transform=current_grasp)
@@ -367,8 +368,8 @@ def main():
         n_segments = len(res_cur)
 
         while current_idx < n_segments - 1:
-            cur_key = _current_key(current_robot, current_idx)
-            eef_cur, obj_cur, joints_cur, res_cur, _ = _get_traj_data(*cur_key)
+            cur_path = _current_path(current_robot, current_idx)
+            eef_cur, obj_cur, joints_cur, res_cur, _ = _get_traj_data(cur_path)
             
             next_handover_idx = -1
 
@@ -380,7 +381,7 @@ def main():
                         break
             else:
                 # ---- Heuristic fallback (original logic) -----------------
-                _, _, _, res_other, _ = _get_traj_data(1 - current_robot, 0)
+                _, _, _, res_other, _ = _get_traj_data(_explicit_paths[1 - current_robot])
                 for i in range(current_idx + 1, len(res_cur)):
                     if not res_cur[i].is_feasible:
                         for j in reversed(range(current_idx, i)):
@@ -410,13 +411,13 @@ def main():
                 other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
 
                 # Resolve trajectory data for the current and next segments
-                cur_key = _current_key(current_robot, current_idx)
-                next_key = _current_key(1 - current_robot, next_handover_idx)
-                _, obj_cur, joints_cur, _, _ = _get_traj_data(*cur_key)
-                _, _, joints_next, _, _ = _get_traj_data(*next_key)
+                cur_path = _current_path(current_robot, current_idx)
+                next_path = _current_path(1 - current_robot, next_handover_idx)
+                _, obj_cur, joints_cur, _, _ = _get_traj_data(cur_path)
+                _, _, joints_next, _, _ = _get_traj_data(next_path)
 
-                grasp_transfer = grasp_cache[cur_key]
-                grasp_receiver = grasp_cache[next_key]
+                grasp_transfer = grasp_cache[cur_path]
+                grasp_receiver = grasp_cache[next_path]
 
                 # Pre-compute the handover plan so we know arm B's target
                 obj_pose_h = obj_cur[next_handover_idx]
@@ -514,8 +515,8 @@ def main():
 
         # 6. Release and Retreat
         logger.info(f"Robot {current_robot} releasing object and retreating...")
-        cur_key = _current_key(current_robot, current_idx)
-        eef_cur, _, _, _, _ = _get_traj_data(*cur_key)
+        cur_path = _current_path(current_robot, current_idx)
+        eef_cur, _, _, _, _ = _get_traj_data(cur_path)
         release_pose = eef_cur[current_idx]
         release_primitive = ReleaseRetreatPrimitive()
         release_traj_data = release_primitive.generate_trajectory(release_pose)
