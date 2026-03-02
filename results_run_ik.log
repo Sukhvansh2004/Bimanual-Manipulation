@@ -3760,3 +3760,43 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-02 23:02:40,534 [W-112294 flatPlate_shelf_to_shelf] INFO  Forward pass complete: total IK evals=479, pruned=415, elapsed=1431.9s
 2026-03-02 23:02:40,534 [W-112294 flatPlate_shelf_to_shelf] INFO  Best terminal cost=4746.2498 at state 14
 2026-03-02 23:02:40,536 [W-112294 flatPlate_shelf_to_shelf] INFO  Assignment solved: total_cost=4746.2498, handovers=2
+2026-03-02 23:02:40,551 [W-112294 flatPlate_shelf_to_shelf] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_shelf/configs/Clearance0p05m/assignment_results.npz
+2026-03-02 23:02:40,613 [W-112294 flatPlate_shelf_to_shelf] INFO      ✓ cost=4746.25, handovers=2, manip=0.7767, time=1434.5s
+2026-03-02 23:02:40,629 [W-112294 flatPlate_shelf_to_shelf] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_shelf/Clearance0p05m.json
+2026-03-02 23:02:40,629 [W-112294 flatPlate_shelf_to_shelf] INFO  [10/16] flatPlate_shelf_to_shelf × Clearance=0.10m
+2026-03-02 23:02:40,630 [W-112294 flatPlate_shelf_to_shelf] INFO    Config: Clearance=0.10m
+2026-03-02 23:02:40,635 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-02 23:02:40,670 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 23:02:40,702 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 23:02:40,703 [W-112294 flatPlate_shelf_to_shelf] INFO  TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 23:02:40,703 [W-112294 flatPlate_shelf_to_shelf] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=0.100, feas_filter=on, switch_override=off
+2026-03-02 23:02:40,703 [W-112294 flatPlate_shelf_to_shelf] INFO  Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-02 23:02:42,316 [W-112295 dual_handover_plate] INFO  Segment 36/79: 54.8s (IK=6, pruned=6, alive=6) ETA 132s
+2026-03-02 23:02:42,871 [W-112294 flatPlate_shelf_to_shelf] INFO  Cost matrix built: 80 segments x 40 states, 819/3200 finite entries
+2026-03-02 23:02:42,871 [W-112294 flatPlate_shelf_to_shelf] INFO  Cost matrix: 80 segments × 40 states
+2026-03-02 23:02:42,872 [W-112294 flatPlate_shelf_to_shelf] INFO  DP solver: 80 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-02 23:02:42,872 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 1/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,872 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 2/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,872 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 3/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,873 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 4/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,873 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 5/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,873 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 6/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,873 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 7/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,873 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 8/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,874 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 9/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,874 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 10/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,874 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 11/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,874 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 12/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,874 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 13/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:42,875 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 14/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 23:02:55,833 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 15/79: 13.0s (IK=3, pruned=3, alive=4) ETA 55s
+2026-03-02 23:03:12,716 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 16/79: 16.9s (IK=7, pruned=4, alive=4) ETA 118s
+2026-03-02 23:03:13,610 [W-112296 flatPlate_shelf_to_box] INFO  Segment 32/49: 92.5s (IK=38, pruned=5, alive=5) ETA 690s
+2026-03-02 23:03:29,275 [W-112291 flatPlate_shelf_to_table] INFO  Segment 37/49: 233.0s (IK=54, pruned=10, alive=10) ETA 700s
+2026-03-02 23:03:39,851 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 17/79: 27.1s (IK=13, pruned=4, alive=5) ETA 208s
+2026-03-02 23:04:00,754 [W-112295 dual_handover_plate] INFO  Segment 37/79: 78.4s (IK=12, pruned=6, alive=6) ETA 215s
+2026-03-02 23:04:38,035 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 18/79: 58.2s (IK=26, pruned=5, alive=5) ETA 390s
+2026-03-02 23:04:42,146 [W-112296 flatPlate_shelf_to_box] INFO  Segment 33/49: 88.5s (IK=38, pruned=5, alive=5) ETA 673s
+2026-03-02 23:05:49,568 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 19/79: 71.5s (IK=35, pruned=4, alive=4) ETA 590s
+2026-03-02 23:05:55,982 [W-112295 dual_handover_plate] INFO  Segment 38/79: 115.2s (IK=18, pruned=6, alive=6) ETA 328s
+2026-03-02 23:06:00,108 [W-112296 flatPlate_shelf_to_box] INFO  Segment 34/49: 78.0s (IK=30, pruned=4, alive=4) ETA 647s
