@@ -214,10 +214,28 @@ class DualArmParallelPlanner:
         if ref_traj_b is None:
             logger.error(
                 "Failed to plan reference trajectory for arm B "
-                "(robot%d_%s).",
+                "(robot%d_%s). Falling back to arm-A-only execution.",
                 self.arm_b.robot_id, self.arm_b.arm_id,
             )
-            return ParallelExecutionResult(duration_s=time.time() - t0)
+            # Fall back: execute arm A's trajectory alone so it still
+            # reaches the handover region, even though arm B couldn't
+            # be moved simultaneously.
+            logger.info(
+                "Executing arm A trajectory alone (%d waypoints).",
+                len(traj_a),
+            )
+            self.arm_a.follow_joint_trajectory(
+                traj_a, smoothen=False,
+                gripper_action=gripper_a,
+            )
+            err_a = self._joint_error(self.arm_a, traj_a[-1])
+            result = ParallelExecutionResult(duration_s=time.time() - t0)
+            result.success_a = err_a < self.convergence_threshold
+            result.final_pos_error_a = err_a
+            result.success_b = False
+            result.final_pos_error_b = float("inf")
+            result.collision_free = False
+            return result
 
         # ── Synchronise lengths ───────────────────────────────────────
         target_len = num_steps_override or max(n_a, len(ref_traj_b))
@@ -313,6 +331,8 @@ class DualArmParallelPlanner:
         steps_taken = 0
         start_time = time.time()
         qp_fail_count = 0
+        consecutive_qp_fails = 0
+        MAX_CONSECUTIVE_QP_FAILS = 30
 
         result = ParallelExecutionResult()
 
@@ -352,12 +372,24 @@ class DualArmParallelPlanner:
                 # the QP resume once arm A moves away.
                 arm_b_joints = q_full[m.qpos_idx_b].copy()
                 qp_fail_count += 1
+                consecutive_qp_fails += 1
                 logger.debug(
                     "mink QP failed at step %d — holding arm B position "
                     "(ref drift=%.3f rad).",
                     steps_taken,
                     float(np.max(np.abs(arm_b_joints - ref_q_b))),
                 )
+                # Early bail-out when QP fails too many times in a row —
+                # arm B clearly cannot move in this configuration.
+                if consecutive_qp_fails >= MAX_CONSECUTIVE_QP_FAILS:
+                    logger.warning(
+                        "QP failed %d consecutive steps — aborting "
+                        "parallel execution early (arm B stuck).",
+                        consecutive_qp_fails,
+                    )
+                    break
+            else:
+                consecutive_qp_fails = 0
 
             # ── Build and send actions ────────────────────────────────
             action_a = self.arm_a.construct_joint_action(

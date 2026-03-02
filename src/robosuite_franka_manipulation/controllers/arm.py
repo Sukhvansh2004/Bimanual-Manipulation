@@ -1195,7 +1195,7 @@ class RobosuiteArmController:
         try:
             self._stop_event.clear()
 
-            if not joint_trajectory:
+            if len(joint_trajectory) == 0:
                 self.last_status = 1
                 return True
 

@@ -3171,3 +3171,592 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-02 22:27:32,241 [W-112291 flatPlate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
 2026-03-02 22:27:32,242 [W-112291 flatPlate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
 2026-03-02 22:27:32,242 [W-112291 flatPlate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-02 22:27:49,885 [W-112296 flatPlate_shelf_to_box] INFO  Segment 18/49: 32.5s (IK=18, pruned=4, alive=4) ETA 225s
+2026-03-02 22:27:49,886 [W-112296 flatPlate_shelf_to_box] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=4) ETA 206s
+2026-03-02 22:27:49,886 [W-112296 flatPlate_shelf_to_box] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=4) ETA 189s
+2026-03-02 22:28:13,554 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 45/79: 64.6s (IK=24, pruned=6, alive=6) ETA 614s
+2026-03-02 22:28:19,133 [W-112296 flatPlate_shelf_to_box] INFO  Segment 21/49: 29.2s (IK=24, pruned=4, alive=4) ETA 213s
+2026-03-02 22:28:19,133 [W-112296 flatPlate_shelf_to_box] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=4) ETA 196s
+2026-03-02 22:28:19,133 [W-112296 flatPlate_shelf_to_box] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=4) ETA 181s
+2026-03-02 22:28:27,568 [W-112295 dual_handover_plate] INFO  Segment 42/79: 149.1s (IK=24, pruned=6, alive=6) ETA 833s
+2026-03-02 22:28:52,025 [W-112296 flatPlate_shelf_to_box] INFO  Segment 24/49: 32.9s (IK=24, pruned=4, alive=5) ETA 201s
+2026-03-02 22:28:52,025 [W-112296 flatPlate_shelf_to_box] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=5) ETA 185s
+2026-03-02 22:28:52,025 [W-112296 flatPlate_shelf_to_box] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=5) ETA 170s
+2026-03-02 22:29:11,924 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 46/79: 58.4s (IK=24, pruned=6, alive=6) ETA 625s
+2026-03-02 22:29:23,076 [W-112291 flatPlate_shelf_to_table] INFO  Segment 6/49: 110.8s (IK=28, pruned=7, alive=8) ETA 794s
+2026-03-02 22:30:03,805 [W-112296 flatPlate_shelf_to_box] INFO  Segment 27/49: 71.8s (IK=38, pruned=5, alive=5) ETA 215s
+2026-03-02 22:30:03,806 [W-112296 flatPlate_shelf_to_box] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=5) ETA 198s
+2026-03-02 22:30:03,806 [W-112296 flatPlate_shelf_to_box] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=5) ETA 182s
+2026-03-02 22:30:11,998 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 47/79: 60.1s (IK=24, pruned=6, alive=6) ETA 634s
+2026-03-02 22:30:48,984 [W-112295 dual_handover_plate] INFO  Segment 43/79: 141.4s (IK=24, pruned=6, alive=6) ETA 910s
+2026-03-02 22:31:31,303 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 48/79: 79.3s (IK=24, pruned=6, alive=6) ETA 653s
+2026-03-02 22:31:39,193 [W-112291 flatPlate_shelf_to_table] INFO  Segment 7/49: 136.1s (IK=30, pruned=8, alive=8) ETA 1482s
+2026-03-02 22:31:44,808 [W-112296 flatPlate_shelf_to_box] INFO  Segment 30/49: 101.0s (IK=42, pruned=5, alive=5) ETA 231s
+2026-03-02 22:31:44,809 [W-112296 flatPlate_shelf_to_box] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=5) ETA 212s
+2026-03-02 22:31:44,809 [W-112296 flatPlate_shelf_to_box] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=5) ETA 194s
+2026-03-02 22:32:59,259 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 49/79: 88.0s (IK=24, pruned=5, alive=5) ETA 673s
+2026-03-02 22:33:03,851 [W-112291 flatPlate_shelf_to_table] INFO  Segment 8/49: 84.7s (IK=30, pruned=8, alive=8) ETA 1700s
+2026-03-02 22:33:39,178 [W-112296 flatPlate_shelf_to_box] INFO  Segment 33/49: 114.4s (IK=38, pruned=5, alive=5) ETA 233s
+2026-03-02 22:33:39,179 [W-112296 flatPlate_shelf_to_box] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=4) ETA 212s
+2026-03-02 22:33:39,179 [W-112296 flatPlate_shelf_to_box] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=4) ETA 192s
+2026-03-02 22:33:46,853 [W-112295 dual_handover_plate] INFO  Segment 44/79: 177.9s (IK=24, pruned=6, alive=6) ETA 1006s
+2026-03-02 22:34:09,829 [W-112291 flatPlate_shelf_to_table] INFO  Segment 9/49: 66.0s (IK=23, pruned=8, alive=8) ETA 1767s
+2026-03-02 22:34:12,830 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 50/79: 73.6s (IK=20, pruned=5, alive=5) ETA 680s
+2026-03-02 22:34:45,821 [W-112296 flatPlate_shelf_to_box] INFO  Segment 36/49: 66.6s (IK=15, pruned=3, alive=3) ETA 197s
+2026-03-02 22:34:45,822 [W-112296 flatPlate_shelf_to_box] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=3) ETA 177s
+2026-03-02 22:34:45,822 [W-112296 flatPlate_shelf_to_box] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=3) ETA 158s
+2026-03-02 22:34:48,623 [W-112291 flatPlate_shelf_to_table] INFO  Segment 10/49: 38.8s (IK=16, pruned=8, alive=8) ETA 1702s
+2026-03-02 22:35:10,809 [W-112296 flatPlate_shelf_to_box] INFO  Segment 39/49: 25.0s (IK=10, pruned=2, alive=2) ETA 147s
+2026-03-02 22:35:10,810 [W-112296 flatPlate_shelf_to_box] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=2) ETA 129s
+2026-03-02 22:35:10,810 [W-112296 flatPlate_shelf_to_box] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=2) ETA 112s
+2026-03-02 22:35:16,393 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 51/79: 63.6s (IK=20, pruned=3, alive=3) ETA 678s
+2026-03-02 22:35:22,473 [W-112291 flatPlate_shelf_to_table] INFO  Segment 11/49: 33.8s (IK=12, pruned=8, alive=8) ETA 1624s
+2026-03-02 22:35:23,850 [W-112296 flatPlate_shelf_to_box] INFO  Segment 42/49: 13.0s (IK=5, pruned=1, alive=1) ETA 97s
+2026-03-02 22:35:23,850 [W-112296 flatPlate_shelf_to_box] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=1) ETA 82s
+2026-03-02 22:35:23,850 [W-112296 flatPlate_shelf_to_box] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=1) ETA 66s
+2026-03-02 22:35:23,850 [W-112296 flatPlate_shelf_to_box] INFO  Segment 45/49: 0.0s (IK=0, pruned=1, alive=1) ETA 52s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=1) ETA 38s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=1) ETA 25s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Segment 48/49: 0.0s (IK=0, pruned=1, alive=1) ETA 12s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=1) ETA 0s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Forward pass complete: total IK evals=254, pruned=55, elapsed=584.5s
+2026-03-02 22:35:23,851 [W-112296 flatPlate_shelf_to_box] INFO  Best terminal cost=1782.5098 at state 22
+2026-03-02 22:35:23,853 [W-112296 flatPlate_shelf_to_box] INFO  Assignment solved: total_cost=1782.5098, handovers=1
+2026-03-02 22:35:23,864 [W-112296 flatPlate_shelf_to_box] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_box/configs/Stride3/assignment_results.npz
+2026-03-02 22:35:23,906 [W-112296 flatPlate_shelf_to_box] INFO      ✓ cost=1782.51, handovers=1, manip=0.8156, time=586.5s
+2026-03-02 22:35:23,918 [W-112296 flatPlate_shelf_to_box] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Stride3.json
+2026-03-02 22:35:23,918 [W-112296 flatPlate_shelf_to_box] INFO  [7/16] flatPlate_shelf_to_box × Stride=5
+2026-03-02 22:35:23,918 [W-112296 flatPlate_shelf_to_box] INFO    Config: Stride=5
+2026-03-02 22:35:23,919 [W-112296 flatPlate_shelf_to_box] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-02 22:35:23,941 [W-112296 flatPlate_shelf_to_box] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 22:35:23,973 [W-112296 flatPlate_shelf_to_box] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 22:35:23,973 [W-112296 flatPlate_shelf_to_box] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 22:35:23,973 [W-112296 flatPlate_shelf_to_box] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=5, clearance=off, feas_filter=on, switch_override=off
+2026-03-02 22:35:23,973 [W-112296 flatPlate_shelf_to_box] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=5)
+2026-03-02 22:35:25,356 [W-112296 flatPlate_shelf_to_box] INFO  Cost matrix built: 50 segments x 40 states, 478/2000 finite entries
+2026-03-02 22:35:25,356 [W-112296 flatPlate_shelf_to_box] INFO  Cost matrix: 50 segments × 40 states
+2026-03-02 22:35:25,356 [W-112296 flatPlate_shelf_to_box] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=5
+2026-03-02 22:35:25,357 [W-112296 flatPlate_shelf_to_box] INFO  Segment 1/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,357 [W-112296 flatPlate_shelf_to_box] INFO  Segment 2/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,357 [W-112296 flatPlate_shelf_to_box] INFO  Segment 3/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,357 [W-112296 flatPlate_shelf_to_box] INFO  Segment 4/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,357 [W-112296 flatPlate_shelf_to_box] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:35:25,358 [W-112296 flatPlate_shelf_to_box] INFO  Segment 6/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,358 [W-112296 flatPlate_shelf_to_box] INFO  Segment 7/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,358 [W-112296 flatPlate_shelf_to_box] INFO  Segment 8/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:25,358 [W-112296 flatPlate_shelf_to_box] INFO  Segment 9/49: 0.0s (IK=0, pruned=0, alive=4) ETA 0s
+2026-03-02 22:35:53,753 [W-112295 dual_handover_plate] INFO  Segment 45/79: 126.9s (IK=24, pruned=6, alive=6) ETA 1051s
+2026-03-02 22:35:54,528 [W-112291 flatPlate_shelf_to_table] INFO  Segment 12/49: 32.1s (IK=12, pruned=7, alive=8) ETA 1549s
+2026-03-02 22:35:57,412 [W-112296 flatPlate_shelf_to_box] INFO  Segment 10/49: 32.1s (IK=12, pruned=4, alive=4) ETA 125s
+2026-03-02 22:35:57,413 [W-112296 flatPlate_shelf_to_box] INFO  Segment 11/49: 0.0s (IK=0, pruned=0, alive=4) ETA 111s
+2026-03-02 22:35:57,413 [W-112296 flatPlate_shelf_to_box] INFO  Segment 12/49: 0.0s (IK=0, pruned=0, alive=4) ETA 99s
+2026-03-02 22:35:57,413 [W-112296 flatPlate_shelf_to_box] INFO  Segment 13/49: 0.0s (IK=0, pruned=0, alive=4) ETA 89s
+2026-03-02 22:35:57,413 [W-112296 flatPlate_shelf_to_box] INFO  Segment 14/49: 0.0s (IK=0, pruned=0, alive=4) ETA 80s
+2026-03-02 22:35:59,115 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 52/79: 42.7s (IK=12, pruned=3, alive=3) ETA 664s
+2026-03-02 22:35:59,496 [W-112291 flatPlate_shelf_to_table] INFO  Segment 13/49: 5.0s (IK=6, pruned=7, alive=8) ETA 1405s
+2026-03-02 22:35:59,496 [W-112291 flatPlate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=8, alive=8) ETA 1268s
+2026-03-02 22:35:59,496 [W-112291 flatPlate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=8, alive=8) ETA 1150s
+2026-03-02 22:35:59,496 [W-112291 flatPlate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=8, alive=8) ETA 1046s
+2026-03-02 22:36:37,518 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 53/79: 38.4s (IK=15, pruned=3, alive=5) ETA 646s
+2026-03-02 22:36:37,905 [W-112291 flatPlate_shelf_to_table] INFO  Segment 17/49: 38.4s (IK=8, pruned=8, alive=8) ETA 1027s
+2026-03-02 22:36:49,473 [W-112296 flatPlate_shelf_to_box] INFO  Segment 15/49: 52.1s (IK=20, pruned=3, alive=4) ETA 191s
+2026-03-02 22:36:49,474 [W-112296 flatPlate_shelf_to_box] INFO  Segment 16/49: 0.0s (IK=0, pruned=0, alive=4) ETA 173s
+2026-03-02 22:36:49,474 [W-112296 flatPlate_shelf_to_box] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=4) ETA 158s
+2026-03-02 22:36:49,474 [W-112296 flatPlate_shelf_to_box] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=4) ETA 145s
+2026-03-02 22:36:49,474 [W-112296 flatPlate_shelf_to_box] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=4) ETA 133s
+2026-03-02 22:37:11,487 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 54/79: 34.0s (IK=17, pruned=6, alive=7) ETA 625s
+2026-03-02 22:37:22,399 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 55/79: 10.9s (IK=13, pruned=7, alive=7) ETA 594s
+2026-03-02 22:37:32,993 [W-112295 dual_handover_plate] INFO  Segment 46/79: 99.2s (IK=24, pruned=6, alive=6) ETA 1070s
+2026-03-02 22:37:36,288 [W-112296 flatPlate_shelf_to_box] INFO  Segment 20/49: 46.8s (IK=24, pruned=4, alive=4) ETA 190s
+2026-03-02 22:37:36,292 [W-112296 flatPlate_shelf_to_box] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=4) ETA 175s
+2026-03-02 22:37:36,293 [W-112296 flatPlate_shelf_to_box] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=4) ETA 161s
+2026-03-02 22:37:36,294 [W-112296 flatPlate_shelf_to_box] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=4) ETA 148s
+2026-03-02 22:37:36,294 [W-112296 flatPlate_shelf_to_box] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=4) ETA 136s
+2026-03-02 22:37:41,105 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 56/79: 18.7s (IK=14, pruned=8, alive=8) ETA 567s
+2026-03-02 22:37:55,119 [W-112291 flatPlate_shelf_to_table] INFO  Segment 18/49: 77.2s (IK=16, pruned=8, alive=8) ETA 1073s
+2026-03-02 22:38:14,501 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 57/79: 33.4s (IK=14, pruned=7, alive=7) ETA 546s
+2026-03-02 22:38:23,868 [W-112295 dual_handover_plate] INFO  Segment 47/79: 50.9s (IK=24, pruned=6, alive=6) ETA 1050s
+2026-03-02 22:38:25,988 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 58/79: 11.5s (IK=7, pruned=7, alive=7) ETA 516s
+2026-03-02 22:38:36,009 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 59/79: 10.0s (IK=8, pruned=7, alive=7) ETA 487s
+2026-03-02 22:38:37,345 [W-112295 dual_handover_plate] INFO  Segment 48/79: 13.5s (IK=18, pruned=6, alive=6) ETA 1004s
+2026-03-02 22:38:45,639 [W-112296 flatPlate_shelf_to_box] INFO  Segment 25/49: 69.3s (IK=26, pruned=4, alive=5) ETA 192s
+2026-03-02 22:38:45,639 [W-112296 flatPlate_shelf_to_box] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=5) ETA 177s
+2026-03-02 22:38:45,640 [W-112296 flatPlate_shelf_to_box] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=5) ETA 163s
+2026-03-02 22:38:45,640 [W-112296 flatPlate_shelf_to_box] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=5) ETA 150s
+2026-03-02 22:38:45,640 [W-112296 flatPlate_shelf_to_box] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=5) ETA 138s
+2026-03-02 22:38:45,812 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 60/79: 9.8s (IK=8, pruned=6, alive=6) ETA 458s
+2026-03-02 22:38:45,813 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 61/79: 0.0s (IK=0, pruned=6, alive=6) ETA 426s
+2026-03-02 22:38:45,814 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 62/79: 0.0s (IK=0, pruned=6, alive=6) ETA 396s
+2026-03-02 22:38:45,814 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 63/79: 0.0s (IK=0, pruned=5, alive=5) ETA 367s
+2026-03-02 22:38:45,814 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 64/79: 0.0s (IK=0, pruned=5, alive=5) ETA 339s
+2026-03-02 22:38:45,814 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 65/79: 0.0s (IK=0, pruned=5, alive=5) ETA 311s
+2026-03-02 22:38:45,815 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 66/79: 0.0s (IK=0, pruned=5, alive=5) ETA 285s
+2026-03-02 22:38:45,815 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 67/79: 0.0s (IK=0, pruned=4, alive=4) ETA 259s
+2026-03-02 22:38:45,815 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 68/79: 0.0s (IK=0, pruned=4, alive=4) ETA 234s
+2026-03-02 22:38:45,815 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 69/79: 0.0s (IK=0, pruned=4, alive=4) ETA 209s
+2026-03-02 22:38:45,816 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 70/79: 0.0s (IK=0, pruned=4, alive=4) ETA 186s
+2026-03-02 22:38:45,816 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 71/79: 0.0s (IK=0, pruned=4, alive=4) ETA 163s
+2026-03-02 22:38:45,816 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 72/79: 0.0s (IK=0, pruned=4, alive=4) ETA 140s
+2026-03-02 22:38:45,816 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 73/79: 0.0s (IK=0, pruned=4, alive=4) ETA 119s
+2026-03-02 22:38:45,816 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 74/79: 0.0s (IK=0, pruned=4, alive=4) ETA 98s
+2026-03-02 22:38:45,817 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 75/79: 0.0s (IK=0, pruned=4, alive=4) ETA 77s
+2026-03-02 22:38:45,817 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 76/79: 0.0s (IK=0, pruned=3, alive=3) ETA 57s
+2026-03-02 22:38:45,817 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 77/79: 0.0s (IK=0, pruned=3, alive=3) ETA 38s
+2026-03-02 22:38:45,818 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 78/79: 0.0s (IK=0, pruned=3, alive=3) ETA 19s
+2026-03-02 22:38:45,818 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 79/79: 0.0s (IK=0, pruned=2, alive=2) ETA 0s
+2026-03-02 22:38:45,821 [W-112294 flatPlate_shelf_to_shelf] INFO  Forward pass complete: total IK evals=479, pruned=415, elapsed=1445.0s
+2026-03-02 22:38:45,821 [W-112294 flatPlate_shelf_to_shelf] INFO  Best terminal cost=4746.2498 at state 14
+2026-03-02 22:38:45,825 [W-112294 flatPlate_shelf_to_shelf] INFO  Assignment solved: total_cost=4746.2498, handovers=2
+2026-03-02 22:38:45,854 [W-112294 flatPlate_shelf_to_shelf] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_shelf/configs/Clearanceoff/assignment_results.npz
+2026-03-02 22:38:45,938 [W-112294 flatPlate_shelf_to_shelf] INFO      ✓ cost=4746.25, handovers=2, manip=0.7767, time=1446.8s
+2026-03-02 22:38:45,953 [W-112294 flatPlate_shelf_to_shelf] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_shelf/Clearanceoff.json
+2026-03-02 22:38:45,953 [W-112294 flatPlate_shelf_to_shelf] INFO  [9/16] flatPlate_shelf_to_shelf × Clearance=0.05m
+2026-03-02 22:38:45,954 [W-112294 flatPlate_shelf_to_shelf] INFO    Config: Clearance=0.05m
+2026-03-02 22:38:45,975 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-02 22:38:46,009 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 22:38:46,036 [W-112294 flatPlate_shelf_to_shelf] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 22:38:46,036 [W-112294 flatPlate_shelf_to_shelf] INFO  TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 22:38:46,036 [W-112294 flatPlate_shelf_to_shelf] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=0.050, feas_filter=on, switch_override=off
+2026-03-02 22:38:46,036 [W-112294 flatPlate_shelf_to_shelf] INFO  Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-02 22:38:48,600 [W-112294 flatPlate_shelf_to_shelf] INFO  Cost matrix built: 80 segments x 40 states, 819/3200 finite entries
+2026-03-02 22:38:48,600 [W-112294 flatPlate_shelf_to_shelf] INFO  Cost matrix: 80 segments × 40 states
+2026-03-02 22:38:48,600 [W-112294 flatPlate_shelf_to_shelf] INFO  DP solver: 80 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-02 22:38:48,601 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 1/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,601 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 2/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,601 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 3/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,602 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 4/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,602 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 5/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,602 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 6/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,602 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 7/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,602 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 8/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,603 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 9/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,603 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 10/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,603 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 11/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,603 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 12/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,603 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 13/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:48,604 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 14/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:38:50,468 [W-112295 dual_handover_plate] INFO  Segment 49/79: 13.1s (IK=18, pruned=6, alive=6) ETA 960s
+2026-03-02 22:39:03,894 [W-112295 dual_handover_plate] INFO  Segment 50/79: 13.4s (IK=18, pruned=6, alive=6) ETA 917s
+2026-03-02 22:39:04,389 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 15/79: 15.8s (IK=3, pruned=3, alive=4) ETA 67s
+2026-03-02 22:39:17,793 [W-112295 dual_handover_plate] INFO  Segment 51/79: 13.9s (IK=18, pruned=6, alive=6) ETA 876s
+2026-03-02 22:39:26,111 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 16/79: 21.7s (IK=7, pruned=4, alive=4) ETA 148s
+2026-03-02 22:39:31,009 [W-112295 dual_handover_plate] INFO  Segment 52/79: 13.2s (IK=18, pruned=6, alive=6) ETA 835s
+2026-03-02 22:39:44,424 [W-112295 dual_handover_plate] INFO  Segment 53/79: 13.4s (IK=18, pruned=6, alive=6) ETA 796s
+2026-03-02 22:39:44,654 [W-112291 flatPlate_shelf_to_table] INFO  Segment 19/49: 109.5s (IK=24, pruned=8, alive=8) ETA 1156s
+2026-03-02 22:39:57,598 [W-112295 dual_handover_plate] INFO  Segment 54/79: 13.2s (IK=18, pruned=6, alive=6) ETA 757s
+2026-03-02 22:40:00,548 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 17/79: 34.4s (IK=13, pruned=4, alive=5) ETA 262s
+2026-03-02 22:40:30,320 [W-112295 dual_handover_plate] INFO  Segment 55/79: 32.7s (IK=24, pruned=6, alive=6) ETA 728s
+2026-03-02 22:40:30,659 [W-112296 flatPlate_shelf_to_box] INFO  Segment 30/49: 105.0s (IK=42, pruned=5, alive=5) ETA 193s
+2026-03-02 22:40:30,659 [W-112296 flatPlate_shelf_to_box] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=5) ETA 177s
+2026-03-02 22:40:30,659 [W-112296 flatPlate_shelf_to_box] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=5) ETA 162s
+2026-03-02 22:40:30,659 [W-112296 flatPlate_shelf_to_box] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=5) ETA 148s
+2026-03-02 22:40:30,659 [W-112296 flatPlate_shelf_to_box] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=4) ETA 135s
+2026-03-02 22:41:02,288 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 18/79: 61.7s (IK=26, pruned=5, alive=5) ETA 453s
+2026-03-02 22:41:12,177 [W-112295 dual_handover_plate] INFO  Segment 56/79: 41.9s (IK=30, pruned=5, alive=5) ETA 702s
+2026-03-02 22:41:23,371 [W-112291 flatPlate_shelf_to_table] INFO  Segment 20/49: 98.7s (IK=24, pruned=8, alive=8) ETA 1205s
+2026-03-02 22:41:24,787 [W-112296 flatPlate_shelf_to_box] INFO  Segment 35/49: 54.1s (IK=17, pruned=4, alive=4) ETA 144s
+2026-03-02 22:41:24,787 [W-112296 flatPlate_shelf_to_box] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=3) ETA 130s
+2026-03-02 22:41:24,787 [W-112296 flatPlate_shelf_to_box] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=3) ETA 117s
+2026-03-02 22:41:24,787 [W-112296 flatPlate_shelf_to_box] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=3) ETA 104s
+2026-03-02 22:41:24,787 [W-112296 flatPlate_shelf_to_box] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=2) ETA 92s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 40/49: 8.7s (IK=5, pruned=2, alive=2) ETA 83s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=2) ETA 72s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=1) ETA 61s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=1) ETA 51s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=1) ETA 42s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 45/49: 0.0s (IK=0, pruned=1, alive=1) ETA 33s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=1) ETA 24s
+2026-03-02 22:41:33,487 [W-112296 flatPlate_shelf_to_box] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=1) ETA 16s
+2026-03-02 22:41:33,488 [W-112296 flatPlate_shelf_to_box] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=1) ETA 8s
+2026-03-02 22:41:33,488 [W-112296 flatPlate_shelf_to_box] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=1) ETA 0s
+2026-03-02 22:41:33,488 [W-112296 flatPlate_shelf_to_box] INFO  Forward pass complete: total IK evals=146, pruned=31, elapsed=368.1s
+2026-03-02 22:41:33,488 [W-112296 flatPlate_shelf_to_box] INFO  Best terminal cost=1737.1067 at state 22
+2026-03-02 22:41:33,489 [W-112296 flatPlate_shelf_to_box] INFO  Assignment solved: total_cost=1737.1067, handovers=1
+2026-03-02 22:41:33,495 [W-112296 flatPlate_shelf_to_box] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_box/configs/Stride5/assignment_results.npz
+2026-03-02 22:41:33,526 [W-112296 flatPlate_shelf_to_box] INFO      ✓ cost=1737.11, handovers=1, manip=0.8151, time=369.5s
+2026-03-02 22:41:33,533 [W-112296 flatPlate_shelf_to_box] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Stride5.json
+2026-03-02 22:41:33,533 [W-112296 flatPlate_shelf_to_box] INFO  [8/16] flatPlate_shelf_to_box × Clearance=off
+2026-03-02 22:41:33,533 [W-112296 flatPlate_shelf_to_box] INFO    Config: Clearance=off
+2026-03-02 22:41:33,535 [W-112296 flatPlate_shelf_to_box] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-02 22:41:33,552 [W-112296 flatPlate_shelf_to_box] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 22:41:33,579 [W-112296 flatPlate_shelf_to_box] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 22:41:33,579 [W-112296 flatPlate_shelf_to_box] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 22:41:33,579 [W-112296 flatPlate_shelf_to_box] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-02 22:41:33,579 [W-112296 flatPlate_shelf_to_box] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-02 22:41:34,642 [W-112296 flatPlate_shelf_to_box] INFO  Cost matrix built: 50 segments x 40 states, 478/2000 finite entries
+2026-03-02 22:41:34,642 [W-112296 flatPlate_shelf_to_box] INFO  Cost matrix: 50 segments × 40 states
+2026-03-02 22:41:34,642 [W-112296 flatPlate_shelf_to_box] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-02 22:41:34,642 [W-112296 flatPlate_shelf_to_box] INFO  Segment 1/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:41:34,643 [W-112296 flatPlate_shelf_to_box] INFO  Segment 2/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:41:34,643 [W-112296 flatPlate_shelf_to_box] INFO  Segment 3/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:41:34,643 [W-112296 flatPlate_shelf_to_box] INFO  Segment 4/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:41:34,643 [W-112296 flatPlate_shelf_to_box] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-02 22:41:46,274 [W-112295 dual_handover_plate] INFO  Segment 57/79: 34.1s (IK=25, pruned=5, alive=5) ETA 673s
+2026-03-02 22:41:50,320 [W-112296 flatPlate_shelf_to_box] INFO  Segment 6/49: 15.7s (IK=8, pruned=4, alive=4) ETA 112s
+2026-03-02 22:42:07,539 [W-112296 flatPlate_shelf_to_box] INFO  Segment 7/49: 17.2s (IK=8, pruned=4, alive=4) ETA 197s
+2026-03-02 22:42:08,391 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 19/79: 66.1s (IK=35, pruned=4, alive=4) ETA 631s
+2026-03-02 22:42:21,589 [W-112295 dual_handover_plate] INFO  Segment 58/79: 35.3s (IK=25, pruned=5, alive=5) ETA 644s
+2026-03-02 22:42:21,750 [W-112296 flatPlate_shelf_to_box] INFO  Segment 8/49: 14.2s (IK=8, pruned=4, alive=4) ETA 241s
+2026-03-02 22:42:37,676 [W-112296 flatPlate_shelf_to_box] INFO  Segment 9/49: 15.9s (IK=8, pruned=4, alive=4) ETA 280s
+2026-03-02 22:42:52,581 [W-112291 flatPlate_shelf_to_table] INFO  Segment 21/49: 89.2s (IK=16, pruned=8, alive=8) ETA 1227s
+2026-03-02 22:42:52,581 [W-112291 flatPlate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=8, alive=8) ETA 1130s
+2026-03-02 22:42:52,581 [W-112291 flatPlate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=8, alive=8) ETA 1040s
+2026-03-02 22:42:52,581 [W-112291 flatPlate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=8, alive=8) ETA 959s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=8, alive=8) ETA 884s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=8, alive=8) ETA 814s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=8, alive=8) ETA 750s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=8, alive=8) ETA 690s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=8, alive=8) ETA 635s
+2026-03-02 22:42:52,582 [W-112291 flatPlate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=8, alive=8) ETA 583s
+2026-03-02 22:42:58,927 [W-112295 dual_handover_plate] INFO  Segment 59/79: 37.3s (IK=25, pruned=2, alive=2) ETA 616s
+2026-03-02 22:43:01,910 [W-112296 flatPlate_shelf_to_box] INFO  Segment 10/49: 24.2s (IK=12, pruned=4, alive=4) ETA 340s
+2026-03-02 22:43:20,127 [W-112295 dual_handover_plate] INFO  Segment 60/79: 21.2s (IK=10, pruned=1, alive=1) ETA 582s
+2026-03-02 22:43:29,670 [W-112296 flatPlate_shelf_to_box] INFO  Segment 11/49: 27.8s (IK=12, pruned=4, alive=4) ETA 397s
+2026-03-02 22:43:30,673 [W-112295 dual_handover_plate] INFO  Segment 61/79: 10.5s (IK=6, pruned=1, alive=2) ETA 545s
+2026-03-02 22:43:39,447 [W-112296 flatPlate_shelf_to_box] INFO  Segment 12/49: 9.8s (IK=4, pruned=4, alive=5) ETA 385s
+2026-03-02 22:43:44,152 [W-112295 dual_handover_plate] INFO  Segment 62/79: 13.5s (IK=8, pruned=1, alive=2) ETA 511s
+2026-03-02 22:43:52,425 [W-112291 flatPlate_shelf_to_table] INFO  Segment 31/49: 59.8s (IK=8, pruned=8, alive=8) ETA 569s
+2026-03-02 22:43:56,274 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 20/79: 107.9s (IK=26, pruned=4, alive=5) ETA 908s
+2026-03-02 22:43:59,668 [W-112295 dual_handover_plate] INFO  Segment 63/79: 15.5s (IK=8, pruned=2, alive=4) ETA 477s
+2026-03-02 22:44:11,237 [W-112296 flatPlate_shelf_to_box] INFO  Segment 13/49: 31.8s (IK=12, pruned=5, alive=5) ETA 434s
+2026-03-02 22:44:22,673 [W-112295 dual_handover_plate] INFO  Segment 64/79: 23.0s (IK=10, pruned=3, alive=3) ETA 445s
+2026-03-02 22:44:30,029 [W-112295 dual_handover_plate] INFO  Segment 65/79: 7.4s (IK=3, pruned=3, alive=3) ETA 411s
+2026-03-02 22:44:30,030 [W-112295 dual_handover_plate] INFO  Segment 66/79: 0.0s (IK=0, pruned=3, alive=3) ETA 376s
+2026-03-02 22:44:30,031 [W-112295 dual_handover_plate] INFO  Segment 67/79: 0.0s (IK=0, pruned=3, alive=3) ETA 342s
+2026-03-02 22:44:30,031 [W-112295 dual_handover_plate] INFO  Segment 68/79: 0.0s (IK=0, pruned=3, alive=3) ETA 309s
+2026-03-02 22:44:30,031 [W-112295 dual_handover_plate] INFO  Segment 69/79: 0.0s (IK=0, pruned=3, alive=3) ETA 277s
+2026-03-02 22:44:30,031 [W-112295 dual_handover_plate] INFO  Segment 70/79: 0.0s (IK=0, pruned=3, alive=3) ETA 245s
+2026-03-02 22:44:30,032 [W-112295 dual_handover_plate] INFO  Segment 71/79: 0.0s (IK=0, pruned=3, alive=3) ETA 215s
+2026-03-02 22:44:30,032 [W-112295 dual_handover_plate] INFO  Segment 72/79: 0.0s (IK=0, pruned=3, alive=3) ETA 185s
+2026-03-02 22:44:30,032 [W-112295 dual_handover_plate] INFO  Segment 73/79: 0.0s (IK=0, pruned=3, alive=3) ETA 157s
+2026-03-02 22:44:30,032 [W-112295 dual_handover_plate] INFO  Segment 74/79: 0.0s (IK=0, pruned=3, alive=3) ETA 129s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Segment 75/79: 0.0s (IK=0, pruned=3, alive=3) ETA 102s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Segment 76/79: 0.0s (IK=0, pruned=3, alive=3) ETA 75s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Segment 77/79: 0.0s (IK=0, pruned=3, alive=3) ETA 50s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Segment 78/79: 0.0s (IK=0, pruned=3, alive=3) ETA 24s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Segment 79/79: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Forward pass complete: total IK evals=576, pruned=400, elapsed=1907.9s
+2026-03-02 22:44:30,033 [W-112295 dual_handover_plate] INFO  Best terminal cost=2816.0727 at state 37
+2026-03-02 22:44:30,035 [W-112295 dual_handover_plate] INFO  Assignment solved: total_cost=2816.0727, handovers=1
+2026-03-02 22:44:30,052 [W-112295 dual_handover_plate] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/dual_handover_plate/configs/Stride1/assignment_results.npz
+2026-03-02 22:44:30,121 [W-112295 dual_handover_plate] INFO      ✓ cost=2816.07, handovers=1, manip=0.8151, time=1911.6s
+2026-03-02 22:44:30,131 [W-112295 dual_handover_plate] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Stride1.json
+2026-03-02 22:44:30,132 [W-112295 dual_handover_plate] INFO  [6/16] dual_handover_plate × Stride=3
+2026-03-02 22:44:30,132 [W-112295 dual_handover_plate] INFO    Config: Stride=3
+2026-03-02 22:44:30,134 [W-112295 dual_handover_plate] INFO  Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-02 22:44:30,162 [W-112295 dual_handover_plate] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 22:44:30,202 [W-112295 dual_handover_plate] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 22:44:30,203 [W-112295 dual_handover_plate] INFO  TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 22:44:30,203 [W-112295 dual_handover_plate] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=3, clearance=off, feas_filter=on, switch_override=off
+2026-03-02 22:44:30,203 [W-112295 dual_handover_plate] INFO  Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=3)
+2026-03-02 22:44:33,702 [W-112295 dual_handover_plate] INFO  Cost matrix built: 80 segments x 40 states, 1108/3200 finite entries
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  Cost matrix: 80 segments × 40 states
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  DP solver: 80 segments × 40 states, beam_width=10, handover_stride=3
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  Segment 1/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  Segment 2/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  Segment 3/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:44:33,703 [W-112295 dual_handover_plate] INFO  Segment 4/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 5/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 6/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 7/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 8/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 9/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:44:33,704 [W-112295 dual_handover_plate] INFO  Segment 10/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,705 [W-112295 dual_handover_plate] INFO  Segment 11/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,705 [W-112295 dual_handover_plate] INFO  Segment 12/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:44:33,705 [W-112295 dual_handover_plate] INFO  Segment 13/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:33,706 [W-112295 dual_handover_plate] INFO  Segment 14/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:44:52,204 [W-112295 dual_handover_plate] INFO  Segment 15/79: 18.5s (IK=6, pruned=6, alive=6) ETA 79s
+2026-03-02 22:44:52,205 [W-112295 dual_handover_plate] INFO  Segment 16/79: 0.0s (IK=0, pruned=0, alive=6) ETA 73s
+2026-03-02 22:44:52,205 [W-112295 dual_handover_plate] INFO  Segment 17/79: 0.0s (IK=0, pruned=0, alive=6) ETA 67s
+2026-03-02 22:44:52,205 [W-112295 dual_handover_plate] INFO  Segment 18/79: 0.0s (IK=0, pruned=6, alive=6) ETA 63s
+2026-03-02 22:44:52,205 [W-112295 dual_handover_plate] INFO  Segment 19/79: 0.0s (IK=0, pruned=0, alive=6) ETA 58s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 20/79: 0.0s (IK=0, pruned=0, alive=6) ETA 55s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 21/79: 0.0s (IK=0, pruned=6, alive=6) ETA 51s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 22/79: 0.0s (IK=0, pruned=0, alive=6) ETA 48s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 23/79: 0.0s (IK=0, pruned=0, alive=6) ETA 45s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 24/79: 0.0s (IK=0, pruned=6, alive=6) ETA 42s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 25/79: 0.0s (IK=0, pruned=0, alive=6) ETA 40s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 26/79: 0.0s (IK=0, pruned=0, alive=6) ETA 38s
+2026-03-02 22:44:52,206 [W-112295 dual_handover_plate] INFO  Segment 27/79: 0.0s (IK=0, pruned=6, alive=6) ETA 36s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 28/79: 0.0s (IK=0, pruned=0, alive=6) ETA 34s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 29/79: 0.0s (IK=0, pruned=0, alive=6) ETA 32s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 30/79: 0.0s (IK=0, pruned=6, alive=6) ETA 30s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 31/79: 0.0s (IK=0, pruned=0, alive=6) ETA 29s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 32/79: 0.0s (IK=0, pruned=0, alive=6) ETA 27s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 33/79: 0.0s (IK=0, pruned=6, alive=6) ETA 26s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 34/79: 0.0s (IK=0, pruned=0, alive=6) ETA 24s
+2026-03-02 22:44:52,207 [W-112295 dual_handover_plate] INFO  Segment 35/79: 0.0s (IK=0, pruned=0, alive=6) ETA 23s
+2026-03-02 22:45:02,499 [W-112296 flatPlate_shelf_to_box] INFO  Segment 14/49: 51.3s (IK=20, pruned=5, alive=5) ETA 520s
+2026-03-02 22:45:44,880 [W-112295 dual_handover_plate] INFO  Segment 36/79: 52.7s (IK=6, pruned=6, alive=6) ETA 85s
+2026-03-02 22:45:44,880 [W-112295 dual_handover_plate] INFO  Segment 37/79: 0.0s (IK=0, pruned=0, alive=6) ETA 81s
+2026-03-02 22:45:44,880 [W-112295 dual_handover_plate] INFO  Segment 38/79: 0.0s (IK=0, pruned=0, alive=6) ETA 77s
+2026-03-02 22:45:58,233 [W-112296 flatPlate_shelf_to_box] INFO  Segment 15/49: 55.7s (IK=20, pruned=4, alive=4) ETA 597s
+2026-03-02 22:45:59,898 [W-112291 flatPlate_shelf_to_table] INFO  Segment 32/49: 127.5s (IK=16, pruned=8, alive=8) ETA 588s
+2026-03-02 22:46:54,660 [W-112296 flatPlate_shelf_to_box] INFO  Segment 16/49: 56.4s (IK=15, pruned=4, alive=4) ETA 660s
+2026-03-02 22:47:03,623 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 21/79: 187.3s (IK=26, pruned=4, alive=8) ETA 1367s
+2026-03-02 22:47:26,842 [W-112296 flatPlate_shelf_to_box] INFO  Segment 17/49: 32.2s (IK=15, pruned=4, alive=4) ETA 663s
+2026-03-02 22:47:54,470 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 22/79: 50.8s (IK=13, pruned=7, alive=8) ETA 1414s
+2026-03-02 22:47:54,471 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 23/79: 0.0s (IK=0, pruned=8, alive=8) ETA 1329s
+2026-03-02 22:47:54,471 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 24/79: 0.0s (IK=0, pruned=8, alive=8) ETA 1251s
+2026-03-02 22:47:54,471 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 25/79: 0.0s (IK=0, pruned=8, alive=8) ETA 1179s
+2026-03-02 22:47:54,472 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 26/79: 0.0s (IK=0, pruned=8, alive=8) ETA 1113s
+2026-03-02 22:47:54,472 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 27/79: 0.0s (IK=0, pruned=8, alive=8) ETA 1051s
+2026-03-02 22:47:54,472 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 28/79: 0.0s (IK=0, pruned=8, alive=8) ETA 994s
+2026-03-02 22:47:54,473 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 29/79: 0.0s (IK=0, pruned=8, alive=8) ETA 941s
+2026-03-02 22:47:54,473 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 30/79: 0.0s (IK=0, pruned=8, alive=8) ETA 892s
+2026-03-02 22:47:54,473 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 31/79: 0.0s (IK=0, pruned=8, alive=8) ETA 845s
+2026-03-02 22:47:54,474 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 32/79: 0.0s (IK=0, pruned=8, alive=8) ETA 802s
+2026-03-02 22:47:54,474 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 33/79: 0.0s (IK=0, pruned=8, alive=8) ETA 761s
+2026-03-02 22:47:54,474 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 34/79: 0.0s (IK=0, pruned=8, alive=8) ETA 722s
+2026-03-02 22:47:54,475 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 35/79: 0.0s (IK=0, pruned=8, alive=8) ETA 686s
+2026-03-02 22:47:54,475 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 36/79: 0.0s (IK=0, pruned=8, alive=8) ETA 652s
+2026-03-02 22:47:54,475 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 37/79: 0.0s (IK=0, pruned=8, alive=8) ETA 620s
+2026-03-02 22:47:54,475 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 38/79: 0.0s (IK=0, pruned=8, alive=8) ETA 589s
+2026-03-02 22:47:54,476 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 39/79: 0.0s (IK=0, pruned=8, alive=8) ETA 560s
+2026-03-02 22:47:54,476 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 40/79: 0.0s (IK=0, pruned=8, alive=8) ETA 532s
+2026-03-02 22:48:02,875 [W-112296 flatPlate_shelf_to_box] INFO  Segment 18/49: 36.0s (IK=18, pruned=4, alive=4) ETA 669s
+2026-03-02 22:48:18,126 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 41/79: 23.6s (IK=8, pruned=6, alive=6) ETA 528s
+2026-03-02 22:48:38,846 [W-112295 dual_handover_plate] INFO  Segment 39/79: 174.0s (IK=24, pruned=6, alive=6) ETA 251s
+2026-03-02 22:48:38,846 [W-112295 dual_handover_plate] INFO  Segment 40/79: 0.0s (IK=0, pruned=0, alive=6) ETA 239s
+2026-03-02 22:48:38,846 [W-112295 dual_handover_plate] INFO  Segment 41/79: 0.0s (IK=0, pruned=0, alive=6) ETA 227s
+2026-03-02 22:48:43,711 [W-112296 flatPlate_shelf_to_box] INFO  Segment 19/49: 40.8s (IK=21, pruned=4, alive=4) ETA 677s
+2026-03-02 22:48:46,180 [W-112291 flatPlate_shelf_to_table] INFO  Segment 33/49: 166.3s (IK=31, pruned=8, alive=8) ETA 618s
+2026-03-02 22:49:10,680 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 42/79: 52.6s (IK=18, pruned=6, alive=6) ETA 548s
+2026-03-02 22:49:19,550 [W-112296 flatPlate_shelf_to_box] INFO  Segment 20/49: 35.8s (IK=24, pruned=4, alive=4) ETA 674s
+2026-03-02 22:49:55,684 [W-112296 flatPlate_shelf_to_box] INFO  Segment 21/49: 36.1s (IK=24, pruned=4, alive=4) ETA 668s
+2026-03-02 22:50:08,930 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 43/79: 58.2s (IK=18, pruned=6, alive=6) ETA 570s
+2026-03-02 22:50:23,668 [W-112296 flatPlate_shelf_to_box] INFO  Segment 22/49: 28.0s (IK=24, pruned=4, alive=4) ETA 649s
+2026-03-02 22:50:49,440 [W-112296 flatPlate_shelf_to_box] INFO  Segment 23/49: 25.8s (IK=24, pruned=4, alive=4) ETA 627s
+2026-03-02 22:51:07,388 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 44/79: 58.5s (IK=18, pruned=6, alive=6) ETA 588s
+2026-03-02 22:51:10,269 [W-112295 dual_handover_plate] INFO  Segment 42/79: 151.4s (IK=24, pruned=6, alive=6) ETA 349s
+2026-03-02 22:51:10,269 [W-112295 dual_handover_plate] INFO  Segment 43/79: 0.0s (IK=0, pruned=0, alive=6) ETA 332s
+2026-03-02 22:51:10,270 [W-112295 dual_handover_plate] INFO  Segment 44/79: 0.0s (IK=0, pruned=0, alive=6) ETA 315s
+2026-03-02 22:51:28,424 [W-112296 flatPlate_shelf_to_box] INFO  Segment 24/49: 39.0s (IK=24, pruned=4, alive=5) ETA 619s
+2026-03-02 22:52:00,767 [W-112291 flatPlate_shelf_to_table] INFO  Segment 34/49: 194.6s (IK=44, pruned=8, alive=8) ETA 648s
+2026-03-02 22:52:20,866 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 45/79: 73.5s (IK=24, pruned=6, alive=6) ETA 614s
+2026-03-02 22:52:31,431 [W-112296 flatPlate_shelf_to_box] INFO  Segment 25/49: 63.0s (IK=28, pruned=5, alive=5) ETA 631s
+2026-03-02 22:53:06,017 [W-112295 dual_handover_plate] INFO  Segment 45/79: 115.7s (IK=24, pruned=6, alive=6) ETA 387s
+2026-03-02 22:53:06,018 [W-112295 dual_handover_plate] INFO  Segment 46/79: 0.0s (IK=0, pruned=0, alive=6) ETA 368s
+2026-03-02 22:53:06,019 [W-112295 dual_handover_plate] INFO  Segment 47/79: 0.0s (IK=0, pruned=0, alive=6) ETA 349s
+2026-03-02 22:53:18,730 [W-112295 dual_handover_plate] INFO  Segment 48/79: 12.7s (IK=18, pruned=6, alive=6) ETA 339s
+2026-03-02 22:53:18,731 [W-112295 dual_handover_plate] INFO  Segment 49/79: 0.0s (IK=0, pruned=0, alive=6) ETA 321s
+2026-03-02 22:53:18,731 [W-112295 dual_handover_plate] INFO  Segment 50/79: 0.0s (IK=0, pruned=0, alive=6) ETA 305s
+2026-03-02 22:53:32,022 [W-112295 dual_handover_plate] INFO  Segment 51/79: 13.3s (IK=18, pruned=6, alive=6) ETA 296s
+2026-03-02 22:53:32,023 [W-112295 dual_handover_plate] INFO  Segment 52/79: 0.0s (IK=0, pruned=0, alive=6) ETA 280s
+2026-03-02 22:53:32,023 [W-112295 dual_handover_plate] INFO  Segment 53/79: 0.0s (IK=0, pruned=0, alive=6) ETA 264s
+2026-03-02 22:53:40,877 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 46/79: 80.0s (IK=24, pruned=6, alive=6) ETA 640s
+2026-03-02 22:53:46,027 [W-112296 flatPlate_shelf_to_box] INFO  Segment 26/49: 74.6s (IK=26, pruned=5, alive=5) ETA 647s
+2026-03-02 22:53:46,161 [W-112295 dual_handover_plate] INFO  Segment 54/79: 14.1s (IK=18, pruned=6, alive=6) ETA 256s
+2026-03-02 22:53:46,162 [W-112295 dual_handover_plate] INFO  Segment 55/79: 0.0s (IK=0, pruned=0, alive=6) ETA 241s
+2026-03-02 22:53:46,162 [W-112295 dual_handover_plate] INFO  Segment 56/79: 0.0s (IK=0, pruned=0, alive=5) ETA 227s
+2026-03-02 22:54:26,219 [W-112295 dual_handover_plate] INFO  Segment 57/79: 40.1s (IK=25, pruned=5, alive=5) ETA 229s
+2026-03-02 22:54:26,219 [W-112295 dual_handover_plate] INFO  Segment 58/79: 0.0s (IK=0, pruned=0, alive=5) ETA 215s
+2026-03-02 22:54:26,219 [W-112295 dual_handover_plate] INFO  Segment 59/79: 0.0s (IK=0, pruned=0, alive=2) ETA 201s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 60/79: 16.9s (IK=10, pruned=1, alive=1) ETA 193s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 61/79: 0.0s (IK=0, pruned=0, alive=1) ETA 180s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 62/79: 0.0s (IK=0, pruned=0, alive=0) ETA 167s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 63/79: 0.0s (IK=0, pruned=0, alive=0) ETA 155s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 64/79: 0.0s (IK=0, pruned=0, alive=0) ETA 143s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 65/79: 0.0s (IK=0, pruned=0, alive=0) ETA 131s
+2026-03-02 22:54:43,117 [W-112295 dual_handover_plate] INFO  Segment 66/79: 0.0s (IK=0, pruned=0, alive=0) ETA 120s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 67/79: 0.0s (IK=0, pruned=0, alive=0) ETA 109s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 68/79: 0.0s (IK=0, pruned=0, alive=0) ETA 99s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 69/79: 0.0s (IK=0, pruned=0, alive=0) ETA 88s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 70/79: 0.0s (IK=0, pruned=0, alive=0) ETA 78s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 71/79: 0.0s (IK=0, pruned=0, alive=0) ETA 69s
+2026-03-02 22:54:43,118 [W-112295 dual_handover_plate] INFO  Segment 72/79: 0.0s (IK=0, pruned=0, alive=0) ETA 59s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 73/79: 0.0s (IK=0, pruned=0, alive=0) ETA 50s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 74/79: 0.0s (IK=0, pruned=0, alive=0) ETA 41s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 75/79: 0.0s (IK=0, pruned=0, alive=0) ETA 33s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 76/79: 0.0s (IK=0, pruned=0, alive=0) ETA 24s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 77/79: 0.0s (IK=0, pruned=0, alive=0) ETA 16s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 78/79: 0.0s (IK=0, pruned=0, alive=0) ETA 8s
+2026-03-02 22:54:43,119 [W-112295 dual_handover_plate] INFO  Segment 79/79: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-02 22:54:43,120 [W-112295 dual_handover_plate] INFO  Forward pass complete: total IK evals=173, pruned=114, elapsed=609.4s
+2026-03-02 22:54:43,121 [W-112295 dual_handover_plate] ERROR  No feasible assignment found across 40 states
+2026-03-02 22:54:43,124 [W-112295 dual_handover_plate] ERROR      ✗ FAILED after 612.9s: No feasible assignment found — check trajectory feasibility.
+2026-03-02 22:54:43,143 [W-112295 dual_handover_plate] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Stride3.json
+2026-03-02 22:54:43,144 [W-112295 dual_handover_plate] INFO  [7/16] dual_handover_plate × Stride=5
+2026-03-02 22:54:43,144 [W-112295 dual_handover_plate] INFO    Config: Stride=5
+2026-03-02 22:54:43,156 [W-112295 dual_handover_plate] INFO  Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-02 22:54:43,185 [W-112295 dual_handover_plate] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 22:54:43,213 [W-112295 dual_handover_plate] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 22:54:43,213 [W-112295 dual_handover_plate] INFO  TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 22:54:43,213 [W-112295 dual_handover_plate] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=5, clearance=off, feas_filter=on, switch_override=off
+2026-03-02 22:54:43,213 [W-112295 dual_handover_plate] INFO  Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=5)
+2026-03-02 22:54:45,591 [W-112295 dual_handover_plate] INFO  Cost matrix built: 80 segments x 40 states, 1108/3200 finite entries
+2026-03-02 22:54:45,591 [W-112295 dual_handover_plate] INFO  Cost matrix: 80 segments × 40 states
+2026-03-02 22:54:45,591 [W-112295 dual_handover_plate] INFO  DP solver: 80 segments × 40 states, beam_width=10, handover_stride=5
+2026-03-02 22:54:45,592 [W-112295 dual_handover_plate] INFO  Segment 1/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,592 [W-112295 dual_handover_plate] INFO  Segment 2/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,592 [W-112295 dual_handover_plate] INFO  Segment 3/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,592 [W-112295 dual_handover_plate] INFO  Segment 4/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,592 [W-112295 dual_handover_plate] INFO  Segment 5/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 6/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 7/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 8/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 9/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 10/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 11/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 12/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 13/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:45,593 [W-112295 dual_handover_plate] INFO  Segment 14/79: 0.0s (IK=0, pruned=0, alive=6) ETA 0s
+2026-03-02 22:54:46,606 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 47/79: 65.7s (IK=24, pruned=6, alive=6) ETA 652s
+2026-03-02 22:55:00,220 [W-112295 dual_handover_plate] INFO  Segment 15/79: 14.6s (IK=6, pruned=6, alive=6) ETA 62s
+2026-03-02 22:55:00,220 [W-112295 dual_handover_plate] INFO  Segment 16/79: 0.0s (IK=0, pruned=0, alive=6) ETA 58s
+2026-03-02 22:55:00,220 [W-112295 dual_handover_plate] INFO  Segment 17/79: 0.0s (IK=0, pruned=0, alive=6) ETA 53s
+2026-03-02 22:55:00,220 [W-112295 dual_handover_plate] INFO  Segment 18/79: 0.0s (IK=0, pruned=0, alive=6) ETA 50s
+2026-03-02 22:55:00,221 [W-112295 dual_handover_plate] INFO  Segment 19/79: 0.0s (IK=0, pruned=0, alive=6) ETA 46s
+2026-03-02 22:55:00,222 [W-112295 dual_handover_plate] INFO  Segment 20/79: 0.0s (IK=0, pruned=6, alive=6) ETA 43s
+2026-03-02 22:55:00,222 [W-112295 dual_handover_plate] INFO  Segment 21/79: 0.0s (IK=0, pruned=0, alive=6) ETA 40s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 22/79: 0.0s (IK=0, pruned=0, alive=6) ETA 38s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 23/79: 0.0s (IK=0, pruned=0, alive=6) ETA 36s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 24/79: 0.0s (IK=0, pruned=0, alive=6) ETA 34s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 25/79: 0.0s (IK=0, pruned=6, alive=6) ETA 32s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 26/79: 0.0s (IK=0, pruned=0, alive=6) ETA 30s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 27/79: 0.0s (IK=0, pruned=0, alive=6) ETA 28s
+2026-03-02 22:55:00,223 [W-112295 dual_handover_plate] INFO  Segment 28/79: 0.0s (IK=0, pruned=0, alive=6) ETA 27s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 29/79: 0.0s (IK=0, pruned=0, alive=6) ETA 25s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 30/79: 0.0s (IK=0, pruned=6, alive=6) ETA 24s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 31/79: 0.0s (IK=0, pruned=0, alive=6) ETA 23s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 32/79: 0.0s (IK=0, pruned=0, alive=6) ETA 21s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 33/79: 0.0s (IK=0, pruned=0, alive=6) ETA 20s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 34/79: 0.0s (IK=0, pruned=0, alive=6) ETA 19s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 35/79: 0.0s (IK=0, pruned=6, alive=6) ETA 18s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 36/79: 0.0s (IK=0, pruned=0, alive=6) ETA 17s
+2026-03-02 22:55:00,224 [W-112295 dual_handover_plate] INFO  Segment 37/79: 0.0s (IK=0, pruned=0, alive=6) ETA 17s
+2026-03-02 22:55:00,225 [W-112295 dual_handover_plate] INFO  Segment 38/79: 0.0s (IK=0, pruned=0, alive=6) ETA 16s
+2026-03-02 22:55:00,225 [W-112295 dual_handover_plate] INFO  Segment 39/79: 0.0s (IK=0, pruned=0, alive=6) ETA 15s
+2026-03-02 22:55:06,553 [W-112296 flatPlate_shelf_to_box] INFO  Segment 27/49: 80.5s (IK=38, pruned=5, alive=5) ETA 662s
+2026-03-02 22:55:29,416 [W-112291 flatPlate_shelf_to_table] INFO  Segment 35/49: 208.6s (IK=46, pruned=8, alive=9) ETA 671s
+2026-03-02 22:56:10,172 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 48/79: 83.6s (IK=24, pruned=6, alive=6) ETA 673s
+2026-03-02 22:57:17,413 [W-112296 flatPlate_shelf_to_box] INFO  Segment 28/49: 130.9s (IK=46, pruned=5, alive=5) ETA 707s
+2026-03-02 22:57:47,597 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 49/79: 97.4s (IK=24, pruned=5, alive=5) ETA 697s
+2026-03-02 22:58:14,616 [W-112295 dual_handover_plate] INFO  Segment 40/79: 194.4s (IK=24, pruned=6, alive=6) ETA 204s
+2026-03-02 22:58:14,616 [W-112295 dual_handover_plate] INFO  Segment 41/79: 0.0s (IK=0, pruned=0, alive=6) ETA 194s
+2026-03-02 22:58:14,617 [W-112295 dual_handover_plate] INFO  Segment 42/79: 0.0s (IK=0, pruned=0, alive=6) ETA 184s
+2026-03-02 22:58:14,617 [W-112295 dual_handover_plate] INFO  Segment 43/79: 0.0s (IK=0, pruned=0, alive=6) ETA 175s
+2026-03-02 22:58:14,617 [W-112295 dual_handover_plate] INFO  Segment 44/79: 0.0s (IK=0, pruned=0, alive=6) ETA 166s
+2026-03-02 22:58:58,504 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 50/79: 70.9s (IK=20, pruned=5, alive=5) ETA 702s
+2026-03-02 22:59:09,730 [W-112296 flatPlate_shelf_to_box] INFO  Segment 29/49: 112.3s (IK=42, pruned=5, alive=5) ETA 728s
+2026-03-02 22:59:36,294 [W-112291 flatPlate_shelf_to_table] INFO  Segment 36/49: 246.9s (IK=50, pruned=9, alive=10) ETA 695s
+2026-03-02 22:59:46,545 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 51/79: 48.0s (IK=20, pruned=3, alive=3) ETA 691s
+2026-03-02 22:59:59,612 [W-112295 dual_handover_plate] INFO  Segment 45/79: 105.0s (IK=24, pruned=6, alive=6) ETA 237s
+2026-03-02 22:59:59,613 [W-112295 dual_handover_plate] INFO  Segment 46/79: 0.0s (IK=0, pruned=0, alive=6) ETA 225s
+2026-03-02 22:59:59,613 [W-112295 dual_handover_plate] INFO  Segment 47/79: 0.0s (IK=0, pruned=0, alive=6) ETA 214s
+2026-03-02 22:59:59,613 [W-112295 dual_handover_plate] INFO  Segment 48/79: 0.0s (IK=0, pruned=0, alive=6) ETA 203s
+2026-03-02 22:59:59,613 [W-112295 dual_handover_plate] INFO  Segment 49/79: 0.0s (IK=0, pruned=0, alive=6) ETA 192s
+2026-03-02 23:00:09,974 [W-112295 dual_handover_plate] INFO  Segment 50/79: 10.4s (IK=18, pruned=6, alive=6) ETA 188s
+2026-03-02 23:00:09,974 [W-112295 dual_handover_plate] INFO  Segment 51/79: 0.0s (IK=0, pruned=0, alive=6) ETA 178s
+2026-03-02 23:00:09,975 [W-112295 dual_handover_plate] INFO  Segment 52/79: 0.0s (IK=0, pruned=0, alive=6) ETA 168s
+2026-03-02 23:00:09,975 [W-112295 dual_handover_plate] INFO  Segment 53/79: 0.0s (IK=0, pruned=0, alive=6) ETA 159s
+2026-03-02 23:00:09,975 [W-112295 dual_handover_plate] INFO  Segment 54/79: 0.0s (IK=0, pruned=0, alive=6) ETA 150s
+2026-03-02 23:00:18,307 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 52/79: 31.8s (IK=12, pruned=3, alive=3) ETA 670s
+2026-03-02 23:00:27,097 [W-112296 flatPlate_shelf_to_box] INFO  Segment 30/49: 77.4s (IK=42, pruned=5, alive=5) ETA 717s
+2026-03-02 23:00:35,173 [W-112295 dual_handover_plate] INFO  Segment 55/79: 25.2s (IK=24, pruned=6, alive=6) ETA 153s
+2026-03-02 23:00:35,173 [W-112295 dual_handover_plate] INFO  Segment 56/79: 0.0s (IK=0, pruned=0, alive=5) ETA 144s
+2026-03-02 23:00:35,173 [W-112295 dual_handover_plate] INFO  Segment 57/79: 0.0s (IK=0, pruned=0, alive=5) ETA 135s
+2026-03-02 23:00:35,173 [W-112295 dual_handover_plate] INFO  Segment 58/79: 0.0s (IK=0, pruned=0, alive=5) ETA 127s
+2026-03-02 23:00:35,173 [W-112295 dual_handover_plate] INFO  Segment 59/79: 0.0s (IK=0, pruned=0, alive=2) ETA 119s
+2026-03-02 23:00:46,153 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 53/79: 27.8s (IK=15, pruned=3, alive=5) ETA 646s
+2026-03-02 23:00:49,353 [W-112295 dual_handover_plate] INFO  Segment 60/79: 14.2s (IK=10, pruned=1, alive=1) ETA 115s
+2026-03-02 23:00:49,353 [W-112295 dual_handover_plate] INFO  Segment 61/79: 0.0s (IK=0, pruned=0, alive=1) ETA 107s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 62/79: 0.0s (IK=0, pruned=0, alive=0) ETA 100s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 63/79: 0.0s (IK=0, pruned=0, alive=0) ETA 92s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 64/79: 0.0s (IK=0, pruned=0, alive=0) ETA 85s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 65/79: 0.0s (IK=0, pruned=0, alive=0) ETA 78s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 66/79: 0.0s (IK=0, pruned=0, alive=0) ETA 72s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 67/79: 0.0s (IK=0, pruned=0, alive=0) ETA 65s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 68/79: 0.0s (IK=0, pruned=0, alive=0) ETA 59s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 69/79: 0.0s (IK=0, pruned=0, alive=0) ETA 53s
+2026-03-02 23:00:49,354 [W-112295 dual_handover_plate] INFO  Segment 70/79: 0.0s (IK=0, pruned=0, alive=0) ETA 47s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 71/79: 0.0s (IK=0, pruned=0, alive=0) ETA 41s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 72/79: 0.0s (IK=0, pruned=0, alive=0) ETA 35s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 73/79: 0.0s (IK=0, pruned=0, alive=0) ETA 30s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 74/79: 0.0s (IK=0, pruned=0, alive=0) ETA 25s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 75/79: 0.0s (IK=0, pruned=0, alive=0) ETA 19s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 76/79: 0.0s (IK=0, pruned=0, alive=0) ETA 14s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 77/79: 0.0s (IK=0, pruned=0, alive=0) ETA 9s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 78/79: 0.0s (IK=0, pruned=0, alive=0) ETA 5s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Segment 79/79: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] INFO  Forward pass complete: total IK evals=106, pruned=67, elapsed=363.8s
+2026-03-02 23:00:49,355 [W-112295 dual_handover_plate] ERROR  No feasible assignment found across 40 states
+2026-03-02 23:00:49,356 [W-112295 dual_handover_plate] ERROR      ✗ FAILED after 366.1s: No feasible assignment found — check trajectory feasibility.
+2026-03-02 23:00:49,364 [W-112295 dual_handover_plate] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Stride5.json
+2026-03-02 23:00:49,364 [W-112295 dual_handover_plate] INFO  [8/16] dual_handover_plate × Clearance=off
+2026-03-02 23:00:49,364 [W-112295 dual_handover_plate] INFO    Config: Clearance=off
+2026-03-02 23:00:49,367 [W-112295 dual_handover_plate] INFO  Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-02 23:00:49,391 [W-112295 dual_handover_plate] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-02 23:00:49,413 [W-112295 dual_handover_plate] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-02 23:00:49,413 [W-112295 dual_handover_plate] INFO  TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-02 23:00:49,413 [W-112295 dual_handover_plate] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-02 23:00:49,413 [W-112295 dual_handover_plate] INFO  Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Cost matrix built: 80 segments x 40 states, 1108/3200 finite entries
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Cost matrix: 80 segments × 40 states
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  DP solver: 80 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 1/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 2/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 3/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 4/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 5/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 6/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,744 [W-112295 dual_handover_plate] INFO  Segment 7/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 8/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 9/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 10/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 11/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 12/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:00:51,745 [W-112295 dual_handover_plate] INFO  Segment 13/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-02 23:01:06,365 [W-112295 dual_handover_plate] INFO  Segment 14/79: 14.6s (IK=6, pruned=6, alive=6) ETA 68s
+2026-03-02 23:01:10,696 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 54/79: 24.5s (IK=17, pruned=6, alive=7) ETA 621s
+2026-03-02 23:01:19,279 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 55/79: 8.6s (IK=13, pruned=7, alive=7) ETA 589s
+2026-03-02 23:01:19,744 [W-112295 dual_handover_plate] INFO  Segment 15/79: 13.4s (IK=6, pruned=6, alive=6) ETA 119s
+2026-03-02 23:01:33,396 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 56/79: 14.1s (IK=14, pruned=8, alive=8) ETA 561s
+2026-03-02 23:01:33,398 [W-112295 dual_handover_plate] INFO  Segment 16/79: 13.7s (IK=6, pruned=6, alive=6) ETA 164s
+2026-03-02 23:01:41,153 [W-112296 flatPlate_shelf_to_box] INFO  Segment 31/49: 74.1s (IK=42, pruned=5, alive=5) ETA 701s
+2026-03-02 23:01:47,460 [W-112295 dual_handover_plate] INFO  Segment 17/79: 14.1s (IK=6, pruned=6, alive=6) ETA 203s
+2026-03-02 23:01:47,460 [W-112295 dual_handover_plate] INFO  Segment 18/79: 0.0s (IK=0, pruned=6, alive=6) ETA 189s
+2026-03-02 23:01:47,461 [W-112295 dual_handover_plate] INFO  Segment 19/79: 0.0s (IK=0, pruned=6, alive=6) ETA 176s
+2026-03-02 23:01:47,461 [W-112295 dual_handover_plate] INFO  Segment 20/79: 0.0s (IK=0, pruned=6, alive=6) ETA 164s
+2026-03-02 23:01:47,462 [W-112295 dual_handover_plate] INFO  Segment 21/79: 0.0s (IK=0, pruned=6, alive=6) ETA 154s
+2026-03-02 23:01:47,462 [W-112295 dual_handover_plate] INFO  Segment 22/79: 0.0s (IK=0, pruned=6, alive=6) ETA 144s
+2026-03-02 23:01:47,462 [W-112295 dual_handover_plate] INFO  Segment 23/79: 0.0s (IK=0, pruned=6, alive=6) ETA 136s
+2026-03-02 23:01:47,463 [W-112295 dual_handover_plate] INFO  Segment 24/79: 0.0s (IK=0, pruned=6, alive=6) ETA 128s
+2026-03-02 23:01:47,463 [W-112295 dual_handover_plate] INFO  Segment 25/79: 0.0s (IK=0, pruned=6, alive=6) ETA 120s
+2026-03-02 23:01:47,463 [W-112295 dual_handover_plate] INFO  Segment 26/79: 0.0s (IK=0, pruned=6, alive=6) ETA 114s
+2026-03-02 23:01:47,463 [W-112295 dual_handover_plate] INFO  Segment 27/79: 0.0s (IK=0, pruned=6, alive=6) ETA 107s
+2026-03-02 23:01:47,464 [W-112295 dual_handover_plate] INFO  Segment 28/79: 0.0s (IK=0, pruned=6, alive=6) ETA 101s
+2026-03-02 23:01:47,465 [W-112295 dual_handover_plate] INFO  Segment 29/79: 0.0s (IK=0, pruned=6, alive=6) ETA 96s
+2026-03-02 23:01:47,465 [W-112295 dual_handover_plate] INFO  Segment 30/79: 0.0s (IK=0, pruned=6, alive=6) ETA 91s
+2026-03-02 23:01:47,466 [W-112295 dual_handover_plate] INFO  Segment 31/79: 0.0s (IK=0, pruned=6, alive=6) ETA 86s
+2026-03-02 23:01:47,466 [W-112295 dual_handover_plate] INFO  Segment 32/79: 0.0s (IK=0, pruned=6, alive=6) ETA 82s
+2026-03-02 23:01:47,466 [W-112295 dual_handover_plate] INFO  Segment 33/79: 0.0s (IK=0, pruned=6, alive=6) ETA 78s
+2026-03-02 23:01:47,466 [W-112295 dual_handover_plate] INFO  Segment 34/79: 0.0s (IK=0, pruned=6, alive=6) ETA 74s
+2026-03-02 23:01:47,466 [W-112295 dual_handover_plate] INFO  Segment 35/79: 0.0s (IK=0, pruned=6, alive=6) ETA 70s
+2026-03-02 23:02:04,025 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 57/79: 30.6s (IK=14, pruned=7, alive=7) ETA 539s
+2026-03-02 23:02:18,266 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 58/79: 14.2s (IK=7, pruned=7, alive=7) ETA 510s
+2026-03-02 23:02:29,641 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 59/79: 11.4s (IK=8, pruned=7, alive=7) ETA 482s
+2026-03-02 23:02:40,529 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 60/79: 10.9s (IK=8, pruned=6, alive=6) ETA 453s
+2026-03-02 23:02:40,529 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 61/79: 0.0s (IK=0, pruned=6, alive=6) ETA 423s
+2026-03-02 23:02:40,530 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 62/79: 0.0s (IK=0, pruned=6, alive=6) ETA 393s
+2026-03-02 23:02:40,530 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 63/79: 0.0s (IK=0, pruned=5, alive=5) ETA 364s
+2026-03-02 23:02:40,530 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 64/79: 0.0s (IK=0, pruned=5, alive=5) ETA 336s
+2026-03-02 23:02:40,530 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 65/79: 0.0s (IK=0, pruned=5, alive=5) ETA 308s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 66/79: 0.0s (IK=0, pruned=5, alive=5) ETA 282s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 67/79: 0.0s (IK=0, pruned=4, alive=4) ETA 256s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 68/79: 0.0s (IK=0, pruned=4, alive=4) ETA 232s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 69/79: 0.0s (IK=0, pruned=4, alive=4) ETA 208s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 70/79: 0.0s (IK=0, pruned=4, alive=4) ETA 184s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 71/79: 0.0s (IK=0, pruned=4, alive=4) ETA 161s
+2026-03-02 23:02:40,531 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 72/79: 0.0s (IK=0, pruned=4, alive=4) ETA 139s
+2026-03-02 23:02:40,532 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 73/79: 0.0s (IK=0, pruned=4, alive=4) ETA 118s
+2026-03-02 23:02:40,532 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 74/79: 0.0s (IK=0, pruned=4, alive=4) ETA 97s
+2026-03-02 23:02:40,532 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 75/79: 0.0s (IK=0, pruned=4, alive=4) ETA 76s
+2026-03-02 23:02:40,532 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 76/79: 0.0s (IK=0, pruned=3, alive=3) ETA 57s
+2026-03-02 23:02:40,533 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 77/79: 0.0s (IK=0, pruned=3, alive=3) ETA 37s
+2026-03-02 23:02:40,533 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 78/79: 0.0s (IK=0, pruned=3, alive=3) ETA 18s
+2026-03-02 23:02:40,533 [W-112294 flatPlate_shelf_to_shelf] INFO  Segment 79/79: 0.0s (IK=0, pruned=2, alive=2) ETA 0s
+2026-03-02 23:02:40,534 [W-112294 flatPlate_shelf_to_shelf] INFO  Forward pass complete: total IK evals=479, pruned=415, elapsed=1431.9s
+2026-03-02 23:02:40,534 [W-112294 flatPlate_shelf_to_shelf] INFO  Best terminal cost=4746.2498 at state 14
+2026-03-02 23:02:40,536 [W-112294 flatPlate_shelf_to_shelf] INFO  Assignment solved: total_cost=4746.2498, handovers=2
