@@ -20,6 +20,9 @@ Usage::
     # Skip environment creation (faster but no IK/Jacobian):
     python scripts/experiments/run_all.py --no-env
 
+    # Run with 4 parallel workers (each gets its own MuJoCo env):
+    python scripts/experiments/run_all.py --workers 4
+
     # Generate analysis report after running:
     python scripts/experiments/run_all.py --analyze
 """
@@ -29,10 +32,12 @@ from __future__ import annotations
 import argparse
 import glob
 import logging
+import multiprocessing as mp
 import os
 import sys
 import threading
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -437,6 +442,58 @@ def resolve_configs(ablation_names: Optional[List[str]] = None) -> List[Ablation
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Multiprocessing worker
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _experiment_worker(
+    exp_json_path: str,
+    configs: List[AblationConfig],
+    no_env: bool,
+    results_dir_str: str,
+) -> List[dict]:
+    """Run a single experiment in a worker process.
+
+    Re-configures logging for the child process and returns dicts
+    (dataclass instances may not round-trip cleanly across the process
+    boundary, but dicts always do).
+    """
+    # Reconfigure logging for this worker process
+    exp_name = Path(exp_json_path).stem
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(asctime)s [W-{os.getpid()} {exp_name}] %(levelname)s  %(message)s",
+        force=True,
+    )
+
+    results_dir = Path(results_dir_str)
+    results = run_experiment(
+        exp_json_path, configs, no_env=no_env, results_dir=results_dir,
+    )
+    return [r.to_dict() for r in results]
+
+
+def _reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
+    """Rebuild ExperimentResult objects from worker-returned dicts."""
+    results = []
+    for d in dicts:
+        planning = None
+        if "planning" in d and d["planning"] is not None:
+            planning = PlanningMetrics(**d["planning"])
+        execution = None
+        if "execution" in d and d["execution"] is not None:
+            from scripts.experiments.metrics import ExecutionMetrics
+            execution = ExecutionMetrics(**d["execution"])
+        results.append(ExperimentResult(
+            experiment=d["experiment"],
+            config_label=d["config_label"],
+            config_id=d["config_id"],
+            planning=planning,
+            execution=execution,
+        ))
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -513,6 +570,11 @@ def main():
         "--dry-run", action="store_true",
         help="Show what would be run without executing.",
     )
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Number of parallel worker processes. Each worker handles one "
+             "experiment at a time (creates its own env). Default: 1 (sequential).",
+    )
 
     args = parser.parse_args()
 
@@ -543,16 +605,51 @@ def main():
         return
 
     # Run all
+    num_workers = max(1, args.workers)
     total_t0 = time.time()
     all_results: List[ExperimentResult] = []
 
-    for exp_path in exp_paths:
-        results = run_experiment(
-            exp_path, configs,
-            no_env=args.no_env,
-            results_dir=results_dir,
+    if num_workers == 1:
+        # Sequential — simpler output, easier to debug
+        for exp_path in exp_paths:
+            results = run_experiment(
+                exp_path, configs,
+                no_env=args.no_env,
+                results_dir=results_dir,
+            )
+            all_results.extend(results)
+    else:
+        logger.info(
+            "Launching %d parallel workers for %d experiments …",
+            min(num_workers, len(exp_paths)), len(exp_paths),
         )
-        all_results.extend(results)
+        # Use 'spawn' start method — safest with MuJoCo C libraries
+        ctx = mp.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=min(num_workers, len(exp_paths)),
+            mp_context=ctx,
+        ) as pool:
+            future_to_exp = {
+                pool.submit(
+                    _experiment_worker,
+                    ep,
+                    configs,
+                    args.no_env,
+                    str(results_dir),
+                ): Path(ep).stem
+                for ep in exp_paths
+            }
+            for future in as_completed(future_to_exp):
+                exp_name = future_to_exp[future]
+                try:
+                    result_dicts = future.result()
+                    results = _reconstruct_results(result_dicts)
+                    all_results.extend(results)
+                    logger.info(
+                        "✓ %s finished — %d results", exp_name, len(results),
+                    )
+                except Exception as exc:
+                    logger.error("✗ %s FAILED: %s", exp_name, exc)
 
     total_elapsed = time.time() - total_t0
     print_batch_summary(all_results, total_elapsed)

@@ -106,6 +106,7 @@ CLEARANCE_015 = _cfg("Clearance=0.15m", clearance_radius=0.15, beam_width=10)
 # ═══════════════════════════════════════════════════════════════════════════
 
 BEAM_UNLIMITED = _cfg("Beam=unlimited", beam_width=None)
+BEAM_1 = _cfg("Beam=1 (greedy)", beam_width=1)
 BEAM_5 = _cfg("Beam=5", beam_width=5)
 BEAM_10 = _cfg("Beam=10", beam_width=10)
 BEAM_20 = _cfg("Beam=20", beam_width=20)
@@ -122,7 +123,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "feasibility_filter": [BASELINE, NO_FEASIBILITY_FILTER],
     "handover_stride": [STRIDE_1, STRIDE_3, STRIDE_5],
     "clearance_radius": [CLEARANCE_NONE, CLEARANCE_005, CLEARANCE_010, CLEARANCE_015],
-    "beam_width": [BEAM_UNLIMITED, BEAM_5, BEAM_10, BEAM_20],
+    "beam_width": [BEAM_UNLIMITED, BEAM_1, BEAM_5, BEAM_10, BEAM_20],
 }
 
 # Flat list of all unique configs for running everything
@@ -139,6 +140,7 @@ ALL_CONFIGS: List[AblationConfig] = [
     CLEARANCE_010,
     CLEARANCE_015,
     BEAM_UNLIMITED,
+    BEAM_1,
     BEAM_5,
     BEAM_10,  # Same as BASELINE for beam
     BEAM_20,

@@ -1,5 +1,5 @@
 {
-    "name": "dual_handover_flatPlate_shelf_to_shelf",
+    "name": "flatPlate_shelf_to_shelf",
     "description": "Dual-handover shelf-to-shelf: Robot-0 (finger gripper) extracts a flat plate from Shelf-A, hands it to Robot-1 (suction gripper) which carries it around the central wall via the +y side, then Robot-1 hands the plate back to Robot-0 (finger gripper) who inserts it into Shelf-B. The wall is tall enough and the RRT z-bound is low enough that the trajectory CANNOT go over the wall \u2014 it must route around through the suction gripper's workspace.",
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
