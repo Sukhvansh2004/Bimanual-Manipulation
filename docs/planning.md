@@ -24,7 +24,7 @@ The planning pipeline follows these stages:
 
 ## Key Components
 
-### 1. Object Trajectory Planner (`object_trajectory_planner.py`)
+### 1. Object Trajectory Planner (`trajectory/object_planner.py`)
 
 The centrepiece of the planning module. It plans a collision-free path for an object through the workspace, ignoring contacts with robot arms/grippers (since the robots will be carrying the object).
 
@@ -88,7 +88,7 @@ Key constants in `constants.py`:
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.object_trajectory_planner import plan_object_trajectory
+from robosuite_franka_manipulation.planning.trajectory import plan_object_trajectory
 
 trajectory, success = plan_object_trajectory(
     env=env,
@@ -140,7 +140,7 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
 | `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
 
-### 6. Dual-Arm Parallel Planner (`dual_arm_planner.py`)
+### 6. Dual-Arm Parallel Planner (`dual_arm/`)
 
 Enables **simultaneous** execution of two arm motions with **reactive, online collision avoidance** powered by mink's QP-based differential IK. This replaces the earlier "plan-then-stagger" approach where arms moved sequentially to avoid collisions.
 
@@ -233,7 +233,7 @@ for each tick:
 **`execute_parallel(traj_a, target_b, gripper_a, gripper_b, ...)`**
 
 1. Normalises `traj_a` into a `(N, 7)` array.
-2. Resolves `target_b` — if a `StampedPose`, solves IK + quintic interpolation to produce a `(M, 7)` reference trajectory; if already a joint array, normalises it.
+2. Resolves `target_b` — if a `StampedPose`, attempts a **collision-free joint-space RRT** (see below); if the RRT fails or `traj_a` is unavailable, falls back to IK + quintic interpolation to produce a `(M, 7)` reference trajectory; if already a joint array, normalises it.
 3. Resamples the shorter trajectory (cubic interpolation) so both have equal length.
 4. Calls `_execute_mink_loop`.
 
@@ -244,7 +244,7 @@ Converts an EEF (Cartesian) trajectory for Arm A into joint space via sequential
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.dual_arm_planner import (
+from robosuite_franka_manipulation.planning.dual_arm import (
     DualArmParallelPlanner,
 )
 
@@ -279,10 +279,308 @@ else:
 |--------|---------|
 | `_set_arm_b_target_from_joints(ref_q_b)` | FK reference joints → SE3 → set `FrameTask` target, then restore config so the QP sees the *current* state. |
 | `_solve_mink_step()` | Assembles tasks/limits/constraints, calls `mink.solve_ik` (daqp solver), integrates velocity → returns Arm B's new 7-DOF config. Returns `None` on QP failure. |
-| `_resolve_trajectory_b(target_b, ...)` | Converts a `StampedPose` into a quintic joint trajectory, or normalises an existing array. |
+| `_resolve_trajectory_b(target_b, ...)` | Converts a `StampedPose` into a collision-free joint trajectory via RRT (or quintic fallback), or normalises an existing array. |
+| `_plan_collision_free_trajectory_b(...)` | Runs joint-space RRT-Connect against Arm A's final config, falls back to quintic interpolation on failure. |
 | `_eef_to_joint_trajectory(arm, eef_traj)` | Converts an EEF trajectory to joint space via sequential IK (warm-started). |
 | `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
 | `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
+
+#### Joint-Space RRT for Arm B Reference Trajectory (`rrt/joint/`)
+
+When `target_b` is a `StampedPose`, the planner uses a **joint-space RRT-Connect** algorithm to find a collision-free reference trajectory for Arm B, rather than blindly interpolating in joint space.
+
+The joint-space planner is a thin wrapper around the **generic `rrt_connect_generic()`** core defined in `rrt_planner.py`.  The generic function implements the bi-directional RRT-Connect tree-building loop parameterised by domain-specific callbacks (distance, steer, sample, collision, segment-free, copy).  Both the SE(3) object planner (`rrt_connect_se3`) and the joint-space arm planner (`rrt_connect_joint_space`) delegate to this shared core, eliminating algorithm duplication.
+
+##### Motivation
+
+The previous approach — solve IK for the target pose and quintic-interpolate from the current to the target joints — could produce a reference trajectory that passes through self-collision, inter-arm collision, or environment collision states.  The reactive mink QP would then need large deviations from the reference, potentially destabilising tracking or failing entirely.
+
+##### Algorithm
+
+1.  **IK** — Solve IK for the target `StampedPose` to obtain `goal_q`.
+2.  **Direct check** — If linear interpolation from `start_q` (Arm B's current joints) to `goal_q` is collision-free, return it immediately (fast path).
+3.  **RRT-Connect** — Build two trees rooted at `start_q` and `goal_q`.  At each iteration:
+    - Sample a random configuration uniformly within joint limits (with `ARM_RRT_GOAL_BIAS` probability of sampling the goal).
+    - Extend tree A toward the sample; extend tree B toward the new node.
+    - Collision checking sets Arm B to the candidate config and Arm A to its **final planned configuration** (`traj_a[-1]`), runs `mj_fwdPosition`, and checks for any contacts involving Arm B's geoms.
+4.  **Shortcut smoothing** — Delegates to `shortcut_generic()` from `path_smoothing.py` — the same domain-agnostic shortcutting loop used by the SE(3) planner, with a joint-space collision callback.  Randomly picks two non-adjacent waypoints; if the direct segment is collision-free, removes intermediaries.  Repeated for `ARM_RRT_SMOOTHING_ITERATIONS` rounds.
+5.  **Densification** — Delegates to `densify_generic()` from `path_smoothing.py` — the same arc-length-based resampling used by the SE(3) planner, with joint-space distance and linear interpolation callbacks.  Resamples the smoothed path to `num_steps` evenly-spaced waypoints.
+6.  **Fallback** — If the RRT fails after `ARM_RRT_MAX_ITERATIONS`, the planner falls back to the quintic interpolation baseline.  The reactive mink QP will still handle collision avoidance at runtime.
+
+##### Visualisation
+
+The `RRTVisualizer` (shared with the SE(3) planner) can be passed to `rrt_connect_joint_space()` and `plan_arm_trajectory()` via the `rrt_vis` parameter.  Joint-space states are projected to 3-D end-effector positions through forward kinematics (`make_ee_pos_fn`), enabling:
+
+- **Tree edges** shown at the EE positions corresponding to each joint config.
+- **Collision samples** shown as red spheres at the rejected EE position.
+- **Final / smoothed paths** drawn at the EE positions along the planned path.
+
+The same `pos_fn` parameter on `draw_path()`, `draw_smoothed_path()`, and `draw_shortcut_path()` is used by both the SE(3) and joint-space planners, keeping the visualiser domain-agnostic.
+
+##### Generic Path Post-Processing (`path_smoothing.py`)
+
+Both the SE(3) and joint-space planners share three generic building blocks:
+
+| Function | Description |
+|----------|-------------|
+| `shortcut_generic(path, *, segment_free_fn, max_iterations)` | Domain-agnostic random shortcutting.  Randomly selects two waypoints and removes intermediate nodes when `segment_free_fn` returns `True`. |
+| `densify_generic(path, num_steps, *, distance_fn, interpolate_fn)` | Domain-agnostic arc-length resampling.  Computes cumulative arc-length, normalises to `[0, 1]`, and samples at uniform parameter values using `interpolate_fn`. |
+| `bezier_smooth_generic(path, *, collision_fn, eval_segment_fn, linear_fallback_fn, …)` | Domain-agnostic per-segment Bézier smoothing with collision-based fallback to linear interpolation. |
+
+##### SE(3) Path Smoothing (`rrt/se3/smoothing.py`)
+
+The SE(3)-specific wrappers (`_shortcut_path`, `smooth_path`, `densify_path`) live in `rrt/se3/smoothing.py` and delegate to the generic utilities with SE(3) collision, distance, and interpolation callbacks.  Includes quaternion SLERP helpers and De Casteljau SO(3) Bézier evaluation.
+
+The joint-space wrappers (`shortcut_joint_path`, `bezier_smooth_joint_path`, `densify_joint_path`) delegate to the same generics with joint-space callbacks.
+
+##### Collision Checking
+
+The collision checker (`check_arm_config_collision`) is designed for speed inside the RRT inner loop:
+
+- Sets both arms' qpos in MuJoCo, calls `mj_fwdPosition` (cheaper than full `mj_forward`).
+- Scans the contact buffer for contacts involving Arm B's geom IDs.
+- Does **not** flag Arm A vs environment/object contacts (those are expected and irrelevant for Arm B's planning).
+- Simulation state is backed up once before the RRT and restored in a `finally` block.
+
+##### Constants (`constants.py`)
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `ARM_RRT_MAX_ITERATIONS` | 3000 | Maximum bi-directional RRT iterations |
+| `ARM_RRT_STEP_SIZE` | 0.25 | Tree extension step (radians in joint space) |
+| `ARM_RRT_GOAL_BIAS` | 0.20 | Probability of sampling the goal config |
+| `ARM_RRT_COLLISION_RESOLUTION` | 0.05 | Edge checking resolution (radians between checks) |
+| `ARM_RRT_CONNECT_MAX_STEPS` | 50 | Max greedy connect steps toward a new node |
+| `ARM_RRT_SMOOTHING_ITERATIONS` | 150 | Number of random shortcut attempts |
+| `ARM_RRT_JOINT_MARGIN` | 0.05 | Safety margin inside joint limits for sampling |
+
+##### Why Arm A's Final Config?
+
+The RRT checks collisions against Arm A at `traj_a[-1]` — the pose Arm A will occupy when both arms are at the handover point.  This is the most restrictive configuration (arms are closest together) and the most relevant for ensuring Arm B can safely arrive at its target without colliding with Arm A.  Transient collisions during the motion are still handled by the reactive mink QP at execution time.
+
+### 7. Segment Assignment Planner (`assignment/`)
+
+Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
+
+#### Typed Trajectory Data (`models.py`)
+
+All trajectory data flowing through the assignment pipeline is represented by **typed dataclasses** (not raw dictionaries), providing IDE autocompletion, static type checking, and runtime validation:
+
+| Dataclass | Fields | Key Properties |
+|-----------|--------|----------------|
+| `ObjectTrajectory` | `positions`, `quaternions`, `frame_ids` | `n_waypoints` |
+| `RobotTrajectory` | `eef_positions`, `eef_quaternions`, `eef_frame_ids`, `object_positions`, `object_quaternions`, `object_frame_ids`, `is_feasible`, `ik_success`, `collision_free`, `joint_configs` | `n_waypoints`, `feasibility_ratio` |
+| `TrajectoryBundle` | `object_trajectory`, `robot0_trajectories`, `robot1_trajectories` | `n_segments`, `get_trajectory(robot_id, traj_idx)`, `get_robot_trajectories(robot_id)` |
+
+All numeric fields are coerced to `np.ndarray` via `__post_init__`, so constructing from lists works seamlessly. `TrajectoryBundle` is the single entry point — returned by `load_all_trajectories()` and accepted by `compute_optimal_robot_assignment()`, `compute_cost_matrix()`, `compute_switching_cost()`, and `visualize_trajectory_feasibility()`.
+
+```python
+from robosuite_franka_manipulation.planning.assignment import (
+    ObjectTrajectory, RobotTrajectory, TrajectoryBundle,
+)
+
+# Construct programmatically
+bundle = TrajectoryBundle(
+    object_trajectory=ObjectTrajectory(positions=pos, quaternions=quat, frame_ids=fids),
+    robot0_trajectories=[RobotTrajectory(...)],
+    robot1_trajectories=[RobotTrajectory(...)],
+)
+assert bundle.n_segments == len(pos) - 1
+assert bundle.get_trajectory(0, 0).feasibility_ratio >= 0.0
+```
+
+#### Problem Formulation
+
+An object trajectory with $N$ waypoints defines $N - 1$ **segments** $[p_i, p_{i+1}]$. Each segment can be executed by either Robot 0 or Robot 1 using one of several pre-computed grasp trajectories. The optimisation selects a sequence of *(robot, trajectory)* pairs that minimises total cost subject to:
+
+1. **Intra-arm trajectory continuity** — an arm cannot switch to a different grasp trajectory mid-task; only a handover (arm switch) may change the active trajectory.
+2. **Transfer feasibility constraints** — certain *(from_robot, from_traj, to_robot, to_traj)* transitions can be explicitly blocked.
+3. **Initial robot constraint** — optionally force the first segment to a specific arm.
+
+#### Cost Model
+
+Each segment assignment $A_{i,j}$ (segment $i$, state $j$) incurs a **task cost**:
+
+$$C(A_{i,j}) = \alpha \cdot C_1(A_{i,j}) + \beta \cdot C_2(A_{i,j})$$
+
+| Component | Formula | Meaning |
+|-----------|---------|---------|
+| $C_1$ — **Smoothness** | $\|q_{i+1} - q_i\|^2$ | Squared joint displacement over the segment |
+| $C_2$ — **Manipulability** | $\sum_k \frac{1}{w(q_k) + \varepsilon}$ | Reciprocal Yoshikawa manipulability (low → penalised) |
+
+When a Jacobian function is available, $w(q)$ is the Yoshikawa index $\sqrt{\det(J J^\top)}$; otherwise a simple joint-distance-from-centre proxy is used.
+
+Infeasible segments (IK failures or collisions) receive $\infty$ cost.
+
+**Switching cost**: When the assignment switches arms between consecutive segments, a **handover primitive** is generated and its smoothness + manipulability cost is evaluated via IK. Additionally, an **inter-arm collision check** verifies that the two arms do not spatially interfere at the handover meeting point (the moment when the receiver arm reaches the grasp pose while the transfer arm holds the object). If inter-arm collision is detected, the handover is rejected ($\infty$ cost). If no IK solver is provided (e.g. `--no-env`), a fallback constant `ASSIGNMENT_FALLBACK_SWITCH_COST` is used and collision checking is skipped.
+
+#### Viterbi Dynamic Programming Solver
+
+The solver uses a **Viterbi-style forward pass** over the $N-1$ segments:
+
+```
+Initialisation:
+    J*(0, s) = cost_matrix[0, s]   for each state s (filtered by initial_robot)
+
+Forward pass (i = 1 … N-2):
+    For each current state cs:
+        For each previous state ps:
+            - Skip if same arm but different trajectory (continuity constraint)
+            - Compute switching_cost(ps → cs)
+            - total = J*(i-1, ps) + switching_cost
+            - Track best predecessor
+
+        J*(i, cs) = best_total + cost_matrix[i, cs]
+
+Termination:
+    best_final = argmin_s J*(N-2, s)
+
+Backtrack:
+    Recover optimal sequence from predecessor pointers
+```
+
+The result is an `AssignmentResult` containing:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sequence` | `List[int]` | Robot ID (0 or 1) for each segment |
+| `trajectory_paths` | `List[str]` | NPZ filename for each segment (e.g. `"robot0_trajectory_6.npz"`) |
+| `total_cost` | `float` | Globally optimal total cost |
+| `task_costs` | `np.ndarray` | Per-segment task cost |
+| `switching_costs` | `np.ndarray` | Per-segment switching cost |
+| `handover_points` | `List[int]` | Segment indices where arm switches occur |
+| `cost_matrix` | `np.ndarray` | `(N-1, 2)` — best cost per robot per segment |
+| `trajectory_matrix` | `np.ndarray` | `(N-1, 2)` — best trajectory index per robot per segment |
+
+#### Inter-Arm Collision Checking
+
+During handover cost evaluation, the planner checks for **physical interference between the two robot arms**. This is critical because a handover that looks cost-optimal may be physically impossible if the arms collide at the meeting point.
+
+The check works as follows:
+
+1. IK is solved for both arms at their respective handover poses (transfer-hold and receiver-final-approach).
+2. Both joint configurations are set simultaneously in MuJoCo.
+3. A forward pass (`mj_forward`) updates the contact state.
+4. `check_inter_arm_collision` scans the contact buffer for any contact between Robot 0 geoms (arm + gripper) and Robot 1 geoms (arm + gripper).
+5. If any inter-arm contact is detected, the handover is rejected (cost = $\infty$), forcing the DP solver to find an alternative.
+6. The simulation state is always restored after each check.
+
+This prevents the planner from assigning handovers at workspace configurations where the arms would physically interfere, which would otherwise only be caught at execution time by the reactive `DualArmParallelPlanner`.
+
+#### Factory Functions
+
+Three factory functions create closures around the simulation environment for IK, Jacobian, and collision evaluation:
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `make_ik_solver_fn(env, tf_manager, env_lock)` | `(StampedPose, int) → Optional[np.ndarray]` | Creates an IK solver that applies orientation correction and delegates to `enumerate_ik_solutions_for_arm` |
+| `make_jacobian_fns(env, env_lock)` | `Dict[int, (np.ndarray) → np.ndarray]` | Creates per-robot Jacobian closures mapping joint configs to 6×7 Jacobians via `compute_arm_jacobian` |
+| `make_collision_check_fn(env, env_lock)` | `(np.ndarray, np.ndarray) → bool` | Creates an inter-arm collision checker that sets both arms' joint configs, runs MuJoCo forward, and returns whether they are collision-free |
+
+When `--no-env` is used, all three are `None` and the planner falls back to simpler heuristics (joint-distance manipulability proxy, constant switching cost, no collision checking).
+
+#### Transfer Feasibility Constraints
+
+The `transfer_feasibility` field in the experiment JSON allows explicit blocking of specific handover transitions. It should be either `null` (no constraints) or a dict with string keys of the form `"from_robot,from_traj,to_robot,to_traj"` mapping to boolean values:
+
+```json
+"transfer_feasibility": {
+    "0,3,1,5": false,
+    "1,2,0,0": false
+}
+```
+
+Keys mapping to `false` block that specific handover. The parser decodes string keys to `(int, int, int, int)` tuples and checks both directions during switching-cost evaluation.
+
+#### Configuration
+
+Experiment JSON `assignment` block:
+
+```json
+"assignment": {
+    "alpha": 10.0,
+    "beta": 1.0,
+    "epsilon": 1e-06,
+    "initial_robot": null,
+    "transfer_feasibility": null
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `alpha` | `10.0` | Smoothness weight ($\|Δq\|^2$) |
+| `beta` | `1.0` | Manipulability weight ($Σ 1/(w + ε)$) |
+| `epsilon` | `1e-6` | Numerical floor for manipulability reciprocal |
+| `initial_robot` | `null` | Force first segment to this robot (0 or 1); `null` = auto |
+| `transfer_feasibility` | `null` | Per-transition feasibility dict or `null` |
+
+Constants in `constants.py`:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `ASSIGNMENT_ALPHA` | `10.0` | Default smoothness weight |
+| `ASSIGNMENT_BETA` | `1.0` | Default manipulability weight |
+| `ASSIGNMENT_EPSILON` | `1e-6` | Default manipulability floor |
+| `ASSIGNMENT_FALLBACK_SWITCH_COST` | `1e6` | Switching cost when no IK solver available |
+
+#### I/O
+
+Results are persisted as `.npz` files:
+
+- **`save_assignment_result(result, filepath)`** — serialize all fields to NumPy arrays.
+- **`load_assignment_result(filepath)`** — deserialize back to `AssignmentResult`.
+- **`load_all_trajectories(data_dir)`** — load `object_trajectory.npz` and all `robot{0,1}_trajectory_*.npz` files into a `TrajectoryBundle` dataclass with typed `ObjectTrajectory` and `RobotTrajectory` fields.
+
+#### CLI Usage
+
+```bash
+# Full run with environment (accurate IK + Jacobian costs):
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json
+
+# Quick dry-run without environment:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json --no-env
+
+# Override cost weights:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json \
+    --alpha 15.0 --beta 2.0
+
+# Skip matplotlib plots:
+python scripts/planning/segment_assignment.py \
+    --experiment experiments/flatPlate_table_to_shelf.json --no-plot
+```
+
+#### Structured Logging
+
+All assignment submodules use Python's `logging` module with the standard `__name__`-based logger hierarchy:
+
+| Level | Examples |
+|-------|----------|
+| `INFO` | Cost matrix dimensions, finite-entry counts, assignment total cost & handover count, trajectory loading summaries |
+| `DEBUG` | Per-segment cost breakdowns (smoothness / manipulability), per-state feasibility ratios, IK failures, collision rejections, switching cost evaluations, Viterbi forward-pass terminal state |
+
+Enable with `--debug` on the CLI or `logging.getLogger('robosuite_franka_manipulation.planning.assignment').setLevel(logging.DEBUG)` programmatically.
+
+#### Submodule Summary
+
+| Module | Purpose |
+|--------|---------|
+| `models.py` | `ObjectTrajectory`, `RobotTrajectory`, `TrajectoryBundle` dataclasses |
+| `trajectory_io.py` | NPZ disk I/O — `load_all_trajectories()` → `TrajectoryBundle` |
+| `cost.py` | Segment cost, cost-matrix construction, handover primitive cost, switching cost |
+| `solver.py` | Viterbi DP solver — `compute_optimal_robot_assignment()` |
+| `result.py` | `AssignmentResult` dataclass + NPZ save/load |
+| `factories.py` | Environment-bound closures for IK, Jacobian, and collision checking |
+
+#### Workflow Position
+
+```
+trajectory_generation.py  →  data/<experiment>/robot{0,1}_trajectory_*.npz
+    └── segment_assignment.py  →  data/<experiment>/assignment_results.npz
+        └── dual_arm_handover_traj.py  (reads assignment to execute handovers)
+```
 
 ---
 

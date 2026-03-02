@@ -71,7 +71,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
 - **YCB Object Support**: Load objects from the YCB dataset into simulation environments
-- **Comprehensive Test Suite**: 80 pytest tests covering all modules
+- **Comprehensive Test Suite**: 187 pytest tests covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
@@ -141,13 +141,28 @@ pip install -e .
 │   │   ├── object_detector.py               # FastSAM-based detection
 │   │   └── grasp_predictor.py               # GraspGen wrapper
 │   ├── planning/                            # Trajectory planning and validation
-│   │   ├── trajectory_generator.py          # SE(3) trajectory generation & IK validation
 │   │   ├── collision_checker.py             # Single/dual-arm grasp feasibility
 │   │   ├── grasp_generator.py               # High-level grasp sampling API
-│   │   ├── object_trajectory_planner.py     # RRT-Connect in SE(3) + Bézier smoothing
+│   │   ├── assignment/                      # Segment assignment planner (Viterbi DP)
+│   │   │   ├── models.py                    # ObjectTrajectory, RobotTrajectory, TrajectoryBundle
+│   │   │   ├── cost.py                      # Segment cost, cost matrix, switching cost
+│   │   │   ├── solver.py                    # Viterbi DP solver
+│   │   │   ├── result.py                    # AssignmentResult dataclass + NPZ I/O
+│   │   │   ├── trajectory_io.py             # Load trajectories from disk → TrajectoryBundle
+│   │   │   └── factories.py                 # IK / Jacobian / collision-check closures
+│   │   ├── dual_arm/                        # Reactive dual-arm parallel execution (mink QP)
+│   │   ├── rrt/                             # RRT planners
+│   │   │   ├── core.py                      # Generic bi-directional RRT-Connect
+│   │   │   ├── se3/                         # SE(3) object trajectory planning
+│   │   │   └── joint/                       # Joint-space arm trajectory planning
+│   │   ├── trajectory/                      # High-level trajectory planners
+│   │   │   ├── object_planner.py            # RRT-Connect in SE(3) + Bézier smoothing
+│   │   │   ├── arm_planner.py               # Joint-space RRT + smoothing pipeline
+│   │   │   └── generator.py                 # Object/EEF trajectory generation
+│   │   ├── visualization/                   # Meshcat + matplotlib visualization
 │   │   └── utils/                           # Planning sub-utilities
 │   │       ├── collision_utils.py           # MuJoCo collision helpers
-│   │       ├── ik_utils.py                  # Scipy-based IK solver
+│   │       ├── ik_utils.py                  # Mink QP-based IK solver
 │   │       ├── mujoco_utils.py              # Native MuJoCo object access
 │   │       ├── trajectory_utils.py          # Waypoint feasibility data structures
 │   │       ├── visualization_utils.py       # Meshcat planning visualization
@@ -178,6 +193,7 @@ pip install -e .
 │   ├── planning/                            # Trajectory planning scripts
 │   │   ├── trajectory_generation.py         # Single-mode trajectory generation
 │   │   ├── dual_trajectory_generation.py    # Dual-arm trajectory generation
+│   │   ├── segment_assignment.py            # Optimal robot-to-segment assignment
 │   │   └── visualize_robot_trajectory.py    # Trajectory playback & visualization
 │   ├── demos/                               # Demo scripts
 │   │   ├── go_to_pose.py                    # Arm position control demo
@@ -191,8 +207,8 @@ pip install -e .
 │   │   └── teleop_dual_arm.py
 │   └── transforms/
 │       └── transform_visualizer_meshcat.py  # Meshcat transform visualizer
-├── experiments/                             # 12 JSON experiment configurations
-├── tests/                                   # Pytest test suite (80 tests)
+├── experiments/                             # 13 JSON experiment configurations
+├── tests/                                   # Pytest test suite (187 tests)
 ├── data/                                    # Pre-recorded trajectory data (NPZ files)
 ├── models/                                  # Pre-trained models (FastSAM-x.pt)
 └── deps/                                    # Dependencies (GraspGen, GraspGenModels, YCB_Dataset)
@@ -238,6 +254,30 @@ python scripts/planning/dual_trajectory_generation.py --experiment experiments/f
 | `--debug` | `False` | Enable debug logging (overrides JSON) |
 | `--save-traj` | `False` | Force-save trajectories (overrides JSON) |
 | `--no-meshcat` | `False` | Disable all Meshcat visualization |
+
+#### `scripts/planning/segment_assignment.py`
+
+Solves the **optimal robot-to-segment assignment** problem using Viterbi DP. Loads pre-generated trajectory data (`TrajectoryBundle` from NPZ files), builds a cost matrix over smoothness and manipulability, and finds the globally optimal arm assignment per segment. Optionally displays feasibility heatmaps and cost breakdowns via matplotlib.
+
+```bash
+# Full run with environment (accurate IK + Jacobian costs)
+python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json
+
+# Quick dry-run without environment
+python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json --no-env
+
+# Override cost weights
+python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json --alpha 15.0 --beta 2.0
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiment` | **required** | Path to experiment JSON config |
+| `--debug` | `False` | Enable debug logging |
+| `--no-env` | `False` | Skip environment creation (no IK/Jacobian/collision) |
+| `--alpha` | from config | Override smoothness weight |
+| `--beta` | from config | Override manipulability weight |
+| `--no-plot` | `False` | Skip matplotlib visualizations |
 
 #### `scripts/planning/visualize_robot_trajectory.py`
 
@@ -324,11 +364,15 @@ system.right_gripper.close()
 
 #### `scripts/manipulation/dual_arm_handover_traj.py`
 
-Execute a dual-arm handover using pre-computed trajectory files. Loads trajectory paths from the experiment config's `execution.traj0`/`traj1` fields, extracts grasp transforms, and orchestrates: approach → grasp → follow trajectory → handover → release & retreat.
+Execute a dual-arm handover using pre-computed trajectory files. By default, loads the optimal assignment result (`assignment_results.npz`) from the experiment's data directory. Use `--traj0` / `--traj1` to specify trajectory files explicitly (bypasses assignment).
 
 ```bash
 python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
 python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/ycb_mug_rack_to_table.json --debug
+# Explicit trajectories (no assignment):
+python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \
+    --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_5.npz \
+    --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_1.npz
 ```
 
 | Argument | Default | Description |
@@ -511,7 +555,7 @@ Experiments are defined as JSON files in the `experiments/` directory. Each conf
 
 The config is loaded via `load_experiment()` into typed dataclasses (`ExperimentConfig`, `TaskConfig`, `PlanningConfig`, `VisualizationConfig`, `ExecutionConfig`, etc.).
 
-**Available experiments**: `flatPlate_shelf_to_box`, `flatPlate_shelf_to_table`, `flatPlate_table_to_shelf`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`, `dual_handover_mug`, `dual_handover_plate`.
+**Available experiments** (13): `flatPlate_shelf_to_box`, `flatPlate_shelf_to_table`, `flatPlate_table_to_shelf`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`, `dual_handover_flatPlate_shelf_to_shelf`, `dual_handover_mug`, `dual_handover_plate`.
 
 ## Microservices Architecture
 
@@ -644,6 +688,13 @@ from robosuite_franka_manipulation.planning import (
     generate_end_effector_trajectory, # Object → EEF trajectory via grasp transform
     check_trajectory_feasibility,     # IK + collision validation
     check_dual_trajectory_feasibility,
+    # Segment assignment
+    compute_optimal_robot_assignment, # Viterbi DP solver
+    AssignmentResult,                 # Result dataclass
+    ObjectTrajectory,                 # Typed object trajectory
+    RobotTrajectory,                  # Typed robot trajectory
+    TrajectoryBundle,                 # Bundle of all trajectories
+    load_all_trajectories,            # Load NPZ files → TrajectoryBundle
 )
 
 # Plan collision-free object path (RRT-Connect + Bézier smoothing)
@@ -713,19 +764,22 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (80 tests)
+# Run all tests (187 tests)
 python -m pytest tests/ -v
 
 # Run specific test modules
+python -m pytest tests/test_assignment_planner.py -v   # 52 tests
+python -m pytest tests/test_rrt_joint_planner.py -v    # 41 tests
+python -m pytest tests/test_grasps.py -v               # 24 tests
+python -m pytest tests/test_transforms.py -v           # 17 tests
+python -m pytest tests/test_trajectory_planning.py -v  # 15 tests
+python -m pytest tests/test_dual_arm_planner.py -v     # 10 tests
+python -m pytest tests/test_planning_module.py -v      # 9 tests
 python -m pytest tests/test_arm_controllers.py -v      # 7 tests
 python -m pytest tests/test_environments.py -v         # 3 tests
 python -m pytest tests/test_fastsam_detection.py -v    # 3 tests
-python -m pytest tests/test_grasps.py -v               # 24 tests
-python -m pytest tests/test_move_to_pose_service.py -v # 2 tests
-python -m pytest tests/test_planning_module.py -v      # 6 tests
 python -m pytest tests/test_services.py -v             # 3 tests
-python -m pytest tests/test_trajectory_planning.py -v  # 15 tests
-python -m pytest tests/test_transforms.py -v           # 17 tests
+python -m pytest tests/test_move_to_pose_service.py -v # 2 tests
 ```
 
 ## Documentation

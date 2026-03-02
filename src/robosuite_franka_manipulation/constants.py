@@ -117,10 +117,8 @@ ENTROPY_ORIENTATION_SCALE = 5
 # Planning Configuration
 # =============================================================================
 
-DEFAULT_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
-DEFAULT_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
-DEFAULT_LIFT_HEIGHT = 0.1  # Default lift height in meters
-DEFAULT_LIFT_STEPS = 10  # Number of waypoints for lift trajectory
+GRASP_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
+DUAL_GRASP_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
 
 # IK Solver Parameters (grasp feasibility — needs diversity)
 IK_NUM_SEED_CONFIGS = 16  # Number of random seed configurations for IK
@@ -192,6 +190,40 @@ RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below 
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
 # =============================================================================
+# Joint-Space RRT-Connect (Arm Trajectory Planner)
+# =============================================================================
+
+ARM_RRT_MAX_ITERATIONS = 3000   # Maximum RRT-Connect iterations in joint space
+ARM_RRT_STEP_SIZE = 0.25        # Step size for tree extension (radians in joint space)
+ARM_RRT_GOAL_BIAS = 0.20        # Probability of sampling the goal configuration
+ARM_RRT_COLLISION_RESOLUTION = 0.05  # Resolution for edge collision checking (radians)
+ARM_RRT_CONNECT_MAX_STEPS = 50  # Max connect steps toward a target node
+ARM_RRT_SMOOTHING_ITERATIONS = 150   # Number of shortcutting attempts for path smoothing
+ARM_RRT_JOINT_MARGIN = 0.05     # Margin (rad) inside joint limits for sampling
+ARM_RRT_TEMPORAL_SAMPLES = 10   # Max arm-A configs sampled for temporal collision checking
+
+# =============================================================================
+# Bézier Path Smoothing (shared by SE(3) and joint-space planners)
+# =============================================================================
+
+BEZIER_TENSION = 0.33           # Catmull-Rom tension for Bézier control points
+BEZIER_SAMPLES_PER_SEGMENT = 10 # Dense evaluation samples per segment
+
+# =============================================================================
+# Segment Assignment Planner
+# =============================================================================
+
+# Cost function weights:  C = α * C_smoothness + β * C_manipulability
+ASSIGNMENT_ALPHA = 10.0       # smoothness weight (||Δq||²)
+ASSIGNMENT_BETA = 1.0         # manipulability weight (Σ 1/(w+ε))
+ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
+ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
+
+# Coarse handover resolution for cost evaluation (fewer IK calls)
+COST_EVAL_APPROACH_STEPS = 5     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
+
+# =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================
 
@@ -214,6 +246,9 @@ TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in SE(3) distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movement needed
 
+# Joint-space convergence (used by arm controller & dual-arm planner)
+JOINT_CONVERGENCE_THRESHOLD = 0.05  # L-inf joint error (rad) for declaring convergence
+
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0
 GRIPPER_CLOSE_WIDTH = 0.0
@@ -224,6 +259,12 @@ VIS_TRAJECTORY_PATH = "trajectories"  # Subpath for trajectory visualizations
 VIS_ROBOT_CONFIG_PATH = "robot_configs"  # Subpath for robot mesh configurations
 VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
 VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
+
+# Feasibility color palette (hex RGB, shared by robot_mesh & object_mesh visualizers)
+VIS_COLOR_FEASIBLE = 0x00ff00    # Green
+VIS_COLOR_INFEASIBLE = 0xff0000  # Red
+VIS_COLOR_IK_FAILED = 0xff8800   # Orange
+VIS_COLOR_DEFAULT = 0xcccccc     # Grey
 
 # =============================================================================
 # Teleoperation Configuration

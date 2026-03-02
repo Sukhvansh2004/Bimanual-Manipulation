@@ -5,13 +5,13 @@ import numpy as np
 import logging
 import meshcat
 import meshcat.geometry as g
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from grasp_gen.utils.meshcat_utils import make_frame
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
-from typing import List, Optional
+from robosuite_franka_manipulation.planning.assignment.models import TrajectoryBundle
 
 logger = logging.getLogger(__name__)
 
@@ -201,3 +201,125 @@ def visualize_handover_plan(
                    color=0xFF6600, line_color=0xFF8800, label="transfer_retreat")
 
     logger.info(f"Handover plan '{name}' visualized in MeshCat.")
+
+
+# ---------------------------------------------------------------------------
+# Assignment / feasibility heatmap (matplotlib)
+# ---------------------------------------------------------------------------
+
+def visualize_trajectory_feasibility(
+    trajectories: TrajectoryBundle,
+    save_path: Optional[str] = None,
+) -> Any:
+    """Render a heatmap of per-waypoint feasibility across all trajectories.
+
+    Creates a single image with green (feasible), red (infeasible), and grey
+    (missing) cells.
+
+    Args:
+        trajectories: Typed trajectory bundle for both arms.
+        save_path: If provided, save the figure to this path.
+
+    Returns:
+        ``(fig, ax)`` matplotlib objects (or *None* if matplotlib unavailable).
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.warning("matplotlib not installed — skipping feasibility heatmap.")
+        return None
+
+    r0 = trajectories.robot0_trajectories
+    r1 = trajectories.robot1_trajectories
+    n_waypoints = trajectories.object_trajectory.n_waypoints
+    n_r0, n_r1 = len(r0), len(r1)
+    total = n_r0 + n_r1
+
+    matrix = np.full((total, n_waypoints), np.nan)
+
+    def _fill(trajs, offset):
+        for t_idx, traj in enumerate(trajs):
+            feasible = np.asarray(traj.is_feasible)
+            if feasible.ndim == 0:
+                feasible = np.full(n_waypoints, feasible.item(), dtype=bool)
+            for w in range(min(n_waypoints, len(feasible))):
+                matrix[offset + t_idx, w] = float(feasible[w])
+
+    _fill(r0, 0)
+    _fill(r1, n_r0)
+
+    fig, ax = plt.subplots(
+        figsize=(max(12, n_waypoints * 0.3), max(8, total * 0.4))
+    )
+    im = ax.imshow(
+        matrix, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1,
+        interpolation="nearest", origin="upper",
+    )
+    ax.set_xlabel("Waypoint Index", fontsize=12)
+    ax.set_ylabel("Trajectory Index", fontsize=12)
+    ax.set_title(
+        f"Trajectory Feasibility ({n_r0} R0 + {n_r1} R1, {n_waypoints} waypoints)",
+        fontsize=14, fontweight="bold",
+    )
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("Feasibility (1=OK, 0=fail)", fontsize=10)
+
+    labels = [f"R0-{i}" for i in range(n_r0)] + [f"R1-{i}" for i in range(n_r1)]
+    ax.set_yticks(range(len(labels)))
+    ax.set_yticklabels(labels, fontsize=9)
+
+    if n_r0 > 0 and n_r1 > 0:
+        ax.axhline(y=n_r0 - 0.5, color="blue", ls="--", lw=2, alpha=0.7)
+
+    ax.set_xticks(np.arange(-0.5, n_waypoints, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, total, 1), minor=True)
+    ax.grid(which="minor", color="black", ls="-", lw=0.5, alpha=0.5)
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        logger.info("Feasibility heatmap saved to %s", save_path)
+
+    return fig, ax
+
+
+def visualize_assignment_result(
+    result: Any,
+    save_path: Optional[str] = None,
+) -> Any:
+    """Render the optimal assignment sequence as a bar chart.
+
+    Args:
+        result: An :class:`AssignmentResult`.
+        save_path: If provided, save the figure to this path.
+
+    Returns:
+        ``(fig, ax)`` or *None*.
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.warning("matplotlib not installed — skipping assignment plot.")
+        return None
+
+    n = len(result.sequence)
+    colors = ["#1f77b4" if r == 0 else "#ff7f0e" for r in result.sequence]
+    fig, ax = plt.subplots(figsize=(max(10, n * 0.25), 5))
+    ax.bar(range(n), result.task_costs, color=colors, label="task cost")
+    ax.bar(range(n), result.switching_costs, bottom=result.task_costs,
+           color="red", alpha=0.5, label="switch cost")
+
+    for hp in result.handover_points:
+        ax.axvline(x=hp - 0.5, color="red", ls="--", lw=1.5, alpha=0.7)
+
+    ax.set_xlabel("Segment")
+    ax.set_ylabel("Cost")
+    ax.set_title(f"Assignment (total={result.total_cost:.3f}, handovers={len(result.handover_points)})")
+    ax.legend()
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        logger.info("Assignment plot saved to %s", save_path)
+
+    return fig, ax

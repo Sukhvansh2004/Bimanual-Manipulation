@@ -7,18 +7,14 @@ in MeshCat with color-coded feasibility (matching robot feasibility).
 
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple
 from contextlib import nullcontext
-import mujoco
 
 import meshcat
 import meshcat.geometry as g
-import meshcat.transformations as tf
 
-from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
 from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 from robosuite.utils import transform_utils as rs_T
 from scipy.spatial.transform import Rotation as R
 
@@ -35,11 +31,11 @@ class ObjectMeshVisualizer:
     - Organizes meshes under trajectory ID paths in MeshCat hierarchy
     """
     
-    # Color constants (matching RobotMeshVisualizer)
-    COLOR_FEASIBLE = 0x00ff00  # Green
-    COLOR_INFEASIBLE = 0xff0000  # Red
-    COLOR_IK_FAILED = 0xff8800  # Orange
-    COLOR_DEFAULT = 0xcccccc    # Grey
+    # Color constants (from centralized config)
+    COLOR_FEASIBLE = constants.VIS_COLOR_FEASIBLE
+    COLOR_INFEASIBLE = constants.VIS_COLOR_INFEASIBLE
+    COLOR_IK_FAILED = constants.VIS_COLOR_IK_FAILED
+    COLOR_DEFAULT = constants.VIS_COLOR_DEFAULT
     
     def __init__(
         self, 
@@ -72,55 +68,9 @@ class ObjectMeshVisualizer:
         self._mesh_cache: Dict[str, g.Geometry] = {}
         
     def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
-        """Convert MuJoCo geom to MeshCat geometry. (Adapted from RobotMeshVisualizer)"""
-        geom_type = model.geom_type[geom_id]
-        cache_key = f"geom_{geom_id}_type_{geom_type}"
-        
-        if cache_key in self._mesh_cache:
-            return self._mesh_cache[cache_key]
-        
-        geometry = None
-        
-        if geom_type == 7:  # Mesh
-            mesh_id = model.geom_dataid[geom_id]
-            vert_adr = model.mesh_vertadr[mesh_id]
-            vert_num = model.mesh_vertnum[mesh_id]
-            face_adr = model.mesh_faceadr[mesh_id]
-            face_num = model.mesh_facenum[mesh_id]
-            
-            vertices = np.array(model.mesh_vert[vert_adr:vert_adr + vert_num])
-            faces = np.array(model.mesh_face[face_adr:face_adr + face_num])
-            
-            # Subsample faces to reduce MeshCat rendering load
-            if self.mesh_sample_ratio < 1.0 and len(faces) > 10:
-                num_keep = max(4, int(len(faces) * self.mesh_sample_ratio))
-                idx = np.linspace(0, len(faces) - 1, num_keep, dtype=int)
-                faces = faces[idx]
-            
-            geometry = g.TriangularMeshGeometry(vertices, faces)
-            
-        elif geom_type == 2:  # Sphere
-            radius = float(model.geom_size[geom_id][0])
-            geometry = g.Sphere(radius)
-            
-        elif geom_type == 3:  # Capsule
-            radius = float(model.geom_size[geom_id][0])
-            height = float(model.geom_size[geom_id][1]) * 2
-            geometry = g.Cylinder(height, radius)
-            
-        elif geom_type == 5:  # Cylinder
-            radius = float(model.geom_size[geom_id][0])
-            height = float(model.geom_size[geom_id][1]) * 2
-            geometry = g.Cylinder(height, radius)
-            
-        elif geom_type == 6:  # Box
-            size = np.array(model.geom_size[geom_id]) * 2
-            geometry = g.Box(size.tolist())
-        
-        if geometry is not None:
-            self._mesh_cache[cache_key] = geometry
-            
-        return geometry
+        """Convert MuJoCo geom to MeshCat geometry."""
+        from robosuite_franka_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
+        return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache, self.mesh_sample_ratio)
 
     def _get_object_geoms(self, object_name: str) -> List[Tuple[int, np.ndarray]]:
         """

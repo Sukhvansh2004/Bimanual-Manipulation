@@ -1,5 +1,4 @@
-"""
-Dual-Arm Parallel Planner — mink-based collision-aware concurrent execution.
+"""Dual-Arm Parallel Planner — mink-based collision-aware concurrent execution.
 
 Enables one arm (arm A) to follow a pre-planned manipulation trajectory
 while the other arm (arm B) simultaneously moves to a target pose
@@ -22,17 +21,6 @@ Architecture — powered by `mink <https://github.com/kevinzakka/mink>`_:
 
     3.  Extracts arm B's joint velocity from the QP solution, integrates
         it, and sends both arms' commands via ``env_step``.
-
-This replaces the previous "plan-then-stagger" approach with a
-**reactive, online** planner: arm B continuously adapts its path to the
-latest arm A configuration, guaranteeing collision avoidance at every
-step without heuristic time-staggering.
-
-Dependencies:
-    - ``mink >= 1.0`` (already installed; QP-based differential IK for MuJoCo)
-    - ``qpsolvers`` with ``daqp`` backend (installed with mink)
-    - Existing arm controller infrastructure (``RobosuiteArmController``)
-    - ``scipy.interpolate`` for trajectory time-scaling
 
 Usage example (see also ``dual_arm_handover_traj.py``)::
 
@@ -57,226 +45,39 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import nullcontext
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Union
 
 import mink
-import mujoco
 import numpy as np
-from scipy.interpolate import interp1d
 
-from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
+from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
 from robosuite_franka_manipulation.utils.env_utils import env_step
-from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
-    get_arm_joint_ids,
-    get_joint_qpos_indices,
-    get_native_mj_object,
+from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+    resample_joint_trajectory,
+)
+from robosuite_franka_manipulation.planning.trajectory.arm_planner import (
+    plan_arm_trajectory,
+)
+from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+
+from robosuite_franka_manipulation.planning.dual_arm.result import (
+    ParallelExecutionResult,
+)
+from robosuite_franka_manipulation.planning.dual_arm.mink_setup import (
+    MinkComponents,
+    build_mink_components,
+)
+from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
+    plan_pose_to_joint_trajectory,
+    normalise_trajectory,
+    eef_to_joint_trajectory,
 )
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Data containers
-# ---------------------------------------------------------------------------
-
-@dataclass
-class ParallelExecutionResult:
-    """Outcome of a parallel dual-arm execution."""
-
-    success_a: bool = False
-    success_b: bool = False
-    steps_taken: int = 0
-    duration_s: float = 0.0
-    final_pos_error_a: float = float("inf")
-    final_pos_error_b: float = float("inf")
-    collision_free: bool = True
-
-    @property
-    def success(self) -> bool:
-        return self.success_a and self.success_b
-
-
-# ---------------------------------------------------------------------------
-# Trajectory helpers
-# ---------------------------------------------------------------------------
-
-def _resample_joint_trajectory(
-    waypoints: np.ndarray,
-    target_length: int,
-) -> np.ndarray:
-    """Resample a (N, D) joint trajectory to *target_length* waypoints.
-
-    Uses cubic interpolation via ``scipy.interpolate.interp1d``.
-    """
-    n, d = waypoints.shape
-    if n == target_length:
-        return waypoints
-    if n < 2:
-        return np.tile(waypoints[0], (target_length, 1))
-
-    old_t = np.linspace(0.0, 1.0, n)
-    new_t = np.linspace(0.0, 1.0, target_length)
-    return interp1d(old_t, waypoints, axis=0, kind="cubic")(new_t)
-
-
-def _quintic_scalar(n: int) -> np.ndarray:
-    """Quintic (jerk-limited) profile from 0 -> 1 over *n* steps."""
-    if n <= 1:
-        return np.array([1.0])
-    t = np.linspace(0.0, 1.0, n)
-    return 6 * t**5 - 15 * t**4 + 10 * t**3
-
-
-def _plan_quintic_joint_trajectory(
-    start: np.ndarray,
-    target: np.ndarray,
-    num_steps: int,
-) -> np.ndarray:
-    """Plan a quintic joint-space trajectory from *start* to *target*."""
-    s = _quintic_scalar(num_steps)
-    return start[np.newaxis, :] + np.outer(s, target - start)
-
-
-def _plan_pose_to_joint_trajectory(
-    arm: RobosuiteArmController,
-    target_pose: StampedPose,
-    num_steps: int,
-    q_warm_start: Optional[np.ndarray] = None,
-) -> Optional[np.ndarray]:
-    """Plan a quintic joint trajectory from the arm's current config to *target_pose*.
-
-    Uses the arm's IK solver for the goal configuration.
-    """
-    if target_pose.frame_id != arm.base_frame:
-        target_pose = arm.tf_manager.transform_pose(target_pose, arm.base_frame)
-
-    target_joints = arm._solve_ik_for_pose(
-        np.asarray(target_pose.position),
-        np.asarray(target_pose.quaternion),
-        q_warm_start=q_warm_start,
-    )
-    if target_joints is None:
-        logger.warning(
-            "IK failed for robot%d_%s target pose",
-            arm.robot_id, arm.arm_id,
-        )
-        return None
-
-    return _plan_quintic_joint_trajectory(
-        arm.get_joint_positions(), target_joints, num_steps,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Model-introspection helpers (thin wrappers around mujoco_utils)
-# ---------------------------------------------------------------------------
-
-def _get_robot_collision_geoms(
-    model: mujoco.MjModel,
-    robot_id: int,
-) -> List[str]:
-    """Return collision geom names for a robot (arm + gripper)."""
-    prefixes = (f"robot{robot_id}_", f"gripper{robot_id}_")
-    return [
-        model.geom(i).name
-        for i in range(model.ngeom)
-        if model.geom(i).name.startswith(prefixes)
-        and "vis" not in model.geom(i).name
-    ]
-
-
-def _get_all_dof_indices_except(
-    model: mujoco.MjModel,
-    active_robot_id: int,
-) -> List[int]:
-    """Return DOF indices of everything *except* the given robot's arm joints.
-
-    These DOFs will be frozen in the mink QP so that only the active
-    robot's arm moves.
-    """
-    active_jids = set(get_arm_joint_ids(model, active_robot_id))
-    frozen: List[int] = []
-    for jid in range(model.njnt):
-        if jid not in active_jids:
-            dof_adr = model.jnt_dofadr[jid]
-            n_dof = {
-                mujoco.mjtJoint.mjJNT_FREE: 6,
-                mujoco.mjtJoint.mjJNT_BALL: 3,
-                mujoco.mjtJoint.mjJNT_SLIDE: 1,
-                mujoco.mjtJoint.mjJNT_HINGE: 1,
-            }.get(model.jnt_type[jid], 1)
-            frozen.extend(range(dof_adr, dof_adr + n_dof))
-    return frozen
-
-
-def _get_object_collision_geoms(
-    model: mujoco.MjModel,
-    object_name: Optional[str],
-) -> List[str]:
-    """Return collision geom names whose name contains *object_name*.
-
-    Handles the robosuite naming convention where object geoms are
-    prefixed with the object's instance name (e.g. ``mug_0_g0``).
-    """
-    if not object_name:
-        return []
-    return [
-        model.geom(i).name
-        for i in range(model.ngeom)
-        if object_name in model.geom(i).name
-        and "vis" not in model.geom(i).name
-    ]
-
-
-def _get_environment_collision_geoms(
-    model: mujoco.MjModel,
-    robot_ids: Sequence[int],
-    object_name: Optional[str] = None,
-) -> List[str]:
-    """Return collision geom names for static environment obstacles.
-
-    These are geoms that belong to neither robot nor the manipulated
-    object — typically tables, shelves, walls, etc.  Visual-only geoms
-    (containing ``"vis"``) and the floor plane are excluded.
-
-    Parameters
-    ----------
-    model : mujoco.MjModel
-        Native MuJoCo model.
-    robot_ids : Sequence[int]
-        Robot indices whose geoms should be excluded (e.g. ``[0, 1]``).
-    object_name : str, optional
-        Name of the manipulated object whose geoms should be excluded.
-    """
-    robot_prefixes = tuple(
-        p
-        for rid in robot_ids
-        for p in (f"robot{rid}_", f"gripper{rid}_")
-    )
-    env_geoms: List[str] = []
-    for i in range(model.ngeom):
-        name = model.geom(i).name
-        if not name:  # unnamed geom — skip
-            continue
-        if "vis" in name:  # visual-only
-            continue
-        if name == "floor":  # floor plane — not useful for arm avoidance
-            continue
-        if name.startswith(robot_prefixes):
-            continue
-        if object_name and object_name in name:
-            continue
-        env_geoms.append(name)
-    return env_geoms
-
-
-# ---------------------------------------------------------------------------
-# Main planner class
-# ---------------------------------------------------------------------------
 
 class DualArmParallelPlanner:
     """Collision-aware concurrent trajectory executor for two arms.
@@ -319,9 +120,10 @@ class DualArmParallelPlanner:
         env_lock=None,
         tf_manager=None,
         dt: float = constants.TRAJECTORY_TIME_STEP,
-        convergence_threshold: float = 0.05,
+        convergence_threshold: float = constants.JOINT_CONVERGENCE_THRESHOLD,
         collision_check: bool = True,
         manipulated_object: Optional[str] = None,
+        rrt_vis: Optional[RRTVisualizer] = None,
     ):
         self.env = env
         self.env_lock = env_lock
@@ -332,23 +134,10 @@ class DualArmParallelPlanner:
         self.convergence_threshold = convergence_threshold
         self.collision_check = collision_check
         self.manipulated_object = manipulated_object
+        self.rrt_vis = rrt_vis
 
-        # ── Lazy-initialised mink objects (built on first execute) ─────
-        self._mink_initialised = False
-        self._native_model: Optional[mujoco.MjModel] = None
-        self._mink_config: Optional[mink.Configuration] = None
-        self._eef_task: Optional[mink.FrameTask] = None
-        self._posture_task: Optional[mink.PostureTask] = None
-        self._damping_task: Optional[mink.DampingTask] = None
-        self._freeze_task: Optional[mink.DofFreezingTask] = None
-        self._collision_limit: Optional[mink.CollisionAvoidanceLimit] = None
-        self._vel_limit: Optional[mink.VelocityLimit] = None
-        self._config_limit: Optional[mink.ConfigurationLimit] = None
-
-        # Cached index maps
-        self._qpos_idx_a: Optional[np.ndarray] = None
-        self._qpos_idx_b: Optional[np.ndarray] = None
-        self._dof_idx_b: Optional[List[int]] = None
+        # Lazy-initialised mink components (built on first execute)
+        self._mink: Optional[MinkComponents] = None
 
     # ------------------------------------------------------------------
     # Lazy initialisation
@@ -360,108 +149,12 @@ class DualArmParallelPlanner:
         Deferred so that the planner can be constructed before the
         environment is fully stepped / stabilised.
         """
-        if self._mink_initialised:
+        if self._mink is not None:
             return
-
-        model = self.env.sim.model
-        nm = get_native_mj_object(model)
-        self._native_model = nm
-
-        # ── Index maps ────────────────────────────────────────────────
-        jids_a = get_arm_joint_ids(nm, self.arm_a.robot_id)
-        jids_b = get_arm_joint_ids(nm, self.arm_b.robot_id)
-        self._qpos_idx_a = get_joint_qpos_indices(nm, jids_a)
-        self._qpos_idx_b = get_joint_qpos_indices(nm, jids_b)
-
-        # DOF indices for arm B (used to extract velocity from QP)
-        self._dof_idx_b = [nm.jnt_dofadr[j] for j in jids_b]
-
-        # ── mink.Configuration ────────────────────────────────────────
-        self._mink_config = mink.Configuration(
-            nm, q=self.env.sim.data.qpos.copy(),
-        )
-
-        # ── FrameTask for arm B's end-effector ────────────────────────
-        eef_body_name = self.arm_b._eef_body_name()
-        self._eef_task = mink.FrameTask(
-            frame_name=eef_body_name,
-            frame_type="body",
-            position_cost=constants.MINK_POSITION_COST,
-            orientation_cost=constants.MINK_ORIENTATION_COST,
-            gain=constants.MINK_FRAME_GAIN,
-            lm_damping=constants.MINK_LM_DAMPING,
-        )
-
-        # ── PostureTask — biases toward current (comfortable) config ──
-        self._posture_task = mink.PostureTask(
-            model=nm, cost=constants.MINK_POSTURE_COST,
-        )
-
-        # ── DampingTask — minimum-norm regulariser ────────────────────
-        self._damping_task = mink.DampingTask(model=nm, cost=constants.MINK_DAMPING_COST)
-
-        # ── DofFreezingTask — freeze everything except arm B ──────────
-        frozen_dofs = _get_all_dof_indices_except(nm, self.arm_b.robot_id)
-        if frozen_dofs:
-            self._freeze_task = mink.DofFreezingTask(
-                model=nm, dof_indices=frozen_dofs,
-            )
-
-        # ── Velocity / configuration limits ───────────────────────────
-        self._vel_limit = mink.VelocityLimit(nm)
-        self._config_limit = mink.ConfigurationLimit(nm)
-
-        # ── Collision avoidance limit ─────────────────────────────────
-        if self.collision_check:
-            geoms_a = _get_robot_collision_geoms(nm, self.arm_a.robot_id)
-            geoms_b = _get_robot_collision_geoms(nm, self.arm_b.robot_id)
-            obj_geoms = _get_object_collision_geoms(nm, self.manipulated_object)
-            env_geoms = _get_environment_collision_geoms(
-                nm,
-                robot_ids=[self.arm_a.robot_id, self.arm_b.robot_id],
-                object_name=self.manipulated_object,
-            )
-
-            # Build collision pairs:
-            #   arm_B  vs  arm_A   — prevent inter-arm collision
-            #   arm_B  vs  object  — prevent arm B from hitting the grasped object
-            #   arm_B  vs  env     — prevent arm B from hitting static obstacles
-            #                        (tables, shelves, walls, etc.)
-            # We do NOT add arm_A vs object (they are in expected grasp contact).
-            geom_pairs: List[Tuple[Sequence[str], Sequence[str]]] = []
-            if geoms_a and geoms_b:
-                geom_pairs.append((geoms_b, geoms_a))
-            if obj_geoms and geoms_b:
-                geom_pairs.append((geoms_b, obj_geoms))
-            if env_geoms and geoms_b:
-                geom_pairs.append((geoms_b, env_geoms))
-
-            if geom_pairs:
-                self._collision_limit = mink.CollisionAvoidanceLimit(
-                    model=nm,
-                    geom_pairs=geom_pairs,
-                    gain=constants.MINK_COLLISION_GAIN,
-                    minimum_distance_from_collisions=constants.MINK_COLLISION_MIN_DIST,
-                    collision_detection_distance=constants.MINK_COLLISION_DETECT_DIST,
-                )
-                logger.info(
-                    "mink CollisionAvoidanceLimit: %d geom-pair groups "
-                    "(arm_B=%d geoms, arm_A=%d geoms, object=%d geoms, "
-                    "env=%d geoms)",
-                    len(geom_pairs), len(geoms_b), len(geoms_a),
-                    len(obj_geoms), len(env_geoms),
-                )
-            else:
-                logger.warning(
-                    "No collision geom pairs found — "
-                    "collision avoidance disabled."
-                )
-
-        self._mink_initialised = True
-        logger.info(
-            "mink initialised for DualArmParallelPlanner "
-            "(nq=%d, nv=%d, frozen_dofs=%d, solver=%s)",
-            nm.nq, nm.nv, len(frozen_dofs), constants.MINK_QP_SOLVER,
+        self._mink = build_mink_components(
+            self.env, self.arm_a, self.arm_b,
+            collision_check=self.collision_check,
+            manipulated_object=self.manipulated_object,
         )
 
     # ------------------------------------------------------------------
@@ -507,13 +200,14 @@ class DualArmParallelPlanner:
         self._ensure_mink_init()
 
         # ── Normalise arm A's trajectory ──────────────────────────────
-        traj_a = self._normalise_trajectory(traj_a)
+        traj_a = normalise_trajectory(traj_a)
         n_a = len(traj_a)
 
         # ── Plan / normalise arm B's reference trajectory ─────────────
         with ThreadPoolExecutor(max_workers=1) as pool:
             future_b: Future = pool.submit(
-                self._resolve_trajectory_b, target_b, n_a, q_warm_start_b,
+                self._resolve_trajectory_b, target_b, n_a,
+                q_warm_start_b, traj_a,
             )
             ref_traj_b = future_b.result()
 
@@ -530,9 +224,9 @@ class DualArmParallelPlanner:
         target_len = max(target_len, 2)
 
         if len(traj_a) != target_len:
-            traj_a = _resample_joint_trajectory(traj_a, target_len)
+            traj_a = resample_joint_trajectory(traj_a, target_len)
         if len(ref_traj_b) != target_len:
-            ref_traj_b = _resample_joint_trajectory(ref_traj_b, target_len)
+            ref_traj_b = resample_joint_trajectory(ref_traj_b, target_len)
 
         logger.info(
             "DualArmParallelPlanner: executing %d steps "
@@ -572,7 +266,7 @@ class DualArmParallelPlanner:
 
         Each ``StampedPose`` is converted to joint space via sequential IK.
         """
-        joint_traj_a = self._eef_to_joint_trajectory(
+        joint_traj_a = eef_to_joint_trajectory(
             self.arm_a, traj_a, q_warm_start=q_warm_start_a,
         )
         if joint_traj_a is None:
@@ -622,9 +316,8 @@ class DualArmParallelPlanner:
 
         result = ParallelExecutionResult()
 
-        assert self._mink_config is not None
-        assert self._qpos_idx_a is not None
-        assert self._qpos_idx_b is not None
+        m = self._mink
+        assert m is not None
 
         while steps_taken < max_steps:
             # ── Advance waypoint ──────────────────────────────────────
@@ -635,36 +328,35 @@ class DualArmParallelPlanner:
             ref_q_b = ref_traj_b[wp_idx]
 
             # ── Update mink Configuration with current sim state ──────
-            # Copy the full qpos from the simulation, then overwrite
-            # arm A's joints with the *planned* waypoint (so the QP
-            # sees arm A where it *should* be, not where it is if
-            # the controller lags slightly).
             q_full = self.env.sim.data.qpos.copy()
-            q_full[self._qpos_idx_a] = target_q_a
-            self._mink_config.update(q=q_full)
+            q_full[m.qpos_idx_a] = target_q_a
+            m.config.update(q=q_full)
 
             # ── Set FrameTask target for arm B ────────────────────────
-            # FK the reference joints to get the EEF pose and set that
-            # as the target.  The QP tracks the reference subject to
-            # collision constraints.
             self._set_arm_b_target_from_joints(ref_q_b)
 
             # ── Set PostureTask target = reference config ─────────────
-            if self._posture_task is not None:
+            if m.posture_task is not None:
                 posture_q = q_full.copy()
-                posture_q[self._qpos_idx_b] = ref_q_b
-                self._posture_task.set_target(posture_q)
+                posture_q[m.qpos_idx_b] = ref_q_b
+                m.posture_task.set_target(posture_q)
 
             # ── Solve the QP ──────────────────────────────────────────
             arm_b_joints = self._solve_mink_step()
 
             if arm_b_joints is None:
-                # QP failed — fall back to reference trajectory
-                arm_b_joints = ref_q_b
+                # QP failed — hold arm B at its current sim position.
+                # Using the reference waypoint (ref_q_b) would cause a
+                # large jump if arm B is far behind the reference, leading
+                # to wild oscillations.  Holding position is safe and lets
+                # the QP resume once arm A moves away.
+                arm_b_joints = q_full[m.qpos_idx_b].copy()
                 qp_fail_count += 1
                 logger.debug(
-                    "mink QP failed at step %d, falling back to reference.",
+                    "mink QP failed at step %d — holding arm B position "
+                    "(ref drift=%.3f rad).",
                     steps_taken,
+                    float(np.max(np.abs(arm_b_joints - ref_q_b))),
                 )
 
             # ── Build and send actions ────────────────────────────────
@@ -751,33 +443,22 @@ class DualArmParallelPlanner:
     def _set_arm_b_target_from_joints(
         self, ref_q_b: np.ndarray,
     ) -> None:
-        """Set the FrameTask target by FK-ing the reference joints.
+        """Set the FrameTask target by FK-ing the reference joints."""
+        m = self._mink
+        assert m is not None
 
-        Temporarily sets arm B's joints in the mink Configuration to
-        *ref_q_b*, reads the resulting EEF SE3, then restores the
-        original state.
-        """
-        assert self._mink_config is not None
-        assert self._eef_task is not None
-        assert self._qpos_idx_b is not None
-
-        # Save current config
-        q_backup = self._mink_config.q.copy()
-
-        # Set arm B to reference joints and run FK
+        q_backup = m.config.q.copy()
         q_ref = q_backup.copy()
-        q_ref[self._qpos_idx_b] = ref_q_b
-        self._mink_config.update(q=q_ref)
+        q_ref[m.qpos_idx_b] = ref_q_b
+        m.config.update(q=q_ref)
 
-        # Read the EEF pose and set as target
         eef_body = self.arm_b._eef_body_name()
-        target_se3 = self._mink_config.get_transform_frame_to_world(
+        target_se3 = m.config.get_transform_frame_to_world(
             eef_body, "body",
         )
-        self._eef_task.set_target(target_se3)
+        m.eef_task.set_target(target_se3)
 
-        # Restore original config
-        self._mink_config.update(q=q_backup)
+        m.config.update(q=q_backup)
 
     def _solve_mink_step(self) -> Optional[np.ndarray]:
         """Run one mink solve_ik step and return arm B's target joints.
@@ -786,29 +467,28 @@ class DualArmParallelPlanner:
             (7,) joint configuration for arm B, or ``None`` if the QP
             fails.
         """
-        assert self._mink_config is not None
-        assert self._eef_task is not None
-        assert self._qpos_idx_b is not None
+        m = self._mink
+        assert m is not None
 
-        tasks = [self._eef_task, self._damping_task]
-        if self._posture_task is not None:
-            tasks.append(self._posture_task)
+        tasks = [m.eef_task, m.damping_task]
+        if m.posture_task is not None:
+            tasks.append(m.posture_task)
 
         limits = []
-        if self._vel_limit is not None:
-            limits.append(self._vel_limit)
-        if self._config_limit is not None:
-            limits.append(self._config_limit)
-        if self._collision_limit is not None:
-            limits.append(self._collision_limit)
+        if m.vel_limit is not None:
+            limits.append(m.vel_limit)
+        if m.config_limit is not None:
+            limits.append(m.config_limit)
+        if m.collision_limit is not None:
+            limits.append(m.collision_limit)
 
         constraints = []
-        if self._freeze_task is not None:
-            constraints.append(self._freeze_task)
+        if m.freeze_task is not None:
+            constraints.append(m.freeze_task)
 
         try:
             vel = mink.solve_ik(
-                configuration=self._mink_config,
+                configuration=m.config,
                 tasks=tasks,
                 dt=constants.MINK_DT,
                 solver=constants.MINK_QP_SOLVER,
@@ -819,79 +499,80 @@ class DualArmParallelPlanner:
             logger.debug("mink solve_ik failed: %s", exc)
             return None
 
-        # Integrate to get new joint positions
-        self._mink_config.integrate_inplace(vel, constants.MINK_DT)
-        new_q = self._mink_config.q
-
-        # Extract arm B's joint configuration
-        return new_q[self._qpos_idx_b].copy()
+        m.config.integrate_inplace(vel, constants.MINK_DT)
+        return m.config.q[m.qpos_idx_b].copy()
 
     # ------------------------------------------------------------------
-    # Trajectory helpers
+    # Trajectory resolution
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _normalise_trajectory(
-        traj: Union[List[np.ndarray], np.ndarray],
-    ) -> np.ndarray:
-        """Ensure trajectory is a 2-D numpy array."""
-        if isinstance(traj, list):
-            traj = np.array(
-                [np.asarray(w, dtype=np.float64) for w in traj],
-            )
-        else:
-            traj = np.asarray(traj, dtype=np.float64)
-        if traj.ndim == 1:
-            traj = traj.reshape(1, -1)
-        return traj
 
     def _resolve_trajectory_b(
         self,
         target_b: Union[StampedPose, List[np.ndarray], np.ndarray],
         desired_length: int,
         q_warm_start: Optional[np.ndarray],
+        traj_a: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
         """Convert *target_b* into a (N, 7) reference joint trajectory."""
         if isinstance(target_b, StampedPose):
-            return _plan_pose_to_joint_trajectory(
-                self.arm_b, target_b, desired_length,
-                q_warm_start=q_warm_start,
+            return self._plan_collision_free_trajectory_b(
+                target_b, desired_length, q_warm_start, traj_a,
             )
-        return self._normalise_trajectory(target_b)
+        return normalise_trajectory(target_b)
 
-    @staticmethod
-    def _eef_to_joint_trajectory(
-        arm: RobosuiteArmController,
-        eef_traj: List[StampedPose],
-        q_warm_start: Optional[np.ndarray] = None,
+    def _plan_collision_free_trajectory_b(
+        self,
+        target_pose: StampedPose,
+        desired_length: int,
+        q_warm_start: Optional[np.ndarray],
+        traj_a: Optional[np.ndarray],
     ) -> Optional[np.ndarray]:
-        """Convert an EEF trajectory to joint space by sequential IK."""
-        joint_configs = []
-        q_ws = (
-            q_warm_start if q_warm_start is not None
-            else arm.get_joint_positions()
+        """Plan arm B's reference trajectory using RRT when possible.
+
+        Returns ``None`` if RRT fails or IK cannot be solved.
+        """
+        quintic_traj, goal_q = plan_pose_to_joint_trajectory(
+            self.arm_b, target_pose, desired_length,
+            q_warm_start=q_warm_start,
         )
+        if quintic_traj is None or goal_q is None:
+            return None
 
-        for i, pose in enumerate(eef_traj):
-            if pose.frame_id != arm.base_frame:
-                pose = arm.tf_manager.transform_pose(
-                    pose, arm.base_frame,
+        if traj_a is not None and len(traj_a) > 0:
+            q_arm_a_ref = traj_a[-1]
+            start_q = self.arm_b.get_joint_positions()
+
+            try:
+                rrt_traj, rrt_success = plan_arm_trajectory(
+                    env=self.env,
+                    robot_id_b=self.arm_b.robot_id,
+                    start_q=start_q,
+                    goal_q=goal_q,
+                    q_other_arm=q_arm_a_ref,
+                    robot_id_a=self.arm_a.robot_id,
+                    num_steps=desired_length,
+                    env_lock=self.env_lock,
+                    rrt_vis=self.rrt_vis,
+                    q_other_arm_trajectory=traj_a,
                 )
-
-            q = arm._solve_ik_for_pose(
-                np.asarray(pose.position),
-                np.asarray(pose.quaternion),
-                q_warm_start=q_ws,
-            )
-            if q is None:
+                if rrt_success:
+                    logger.info(
+                        "Arm B reference trajectory planned via "
+                        "collision-free joint RRT."
+                    )
+                    return rrt_traj
+            except Exception as exc:
                 logger.warning(
-                    "IK failed at EEF waypoint %d/%d", i, len(eef_traj),
+                    "Joint RRT planning failed for arm B: %s", exc,
                 )
-                joint_configs.append(q_ws.copy())
-            else:
-                joint_configs.append(q)
-                q_ws = q
-        return np.array(joint_configs)
+
+            logger.warning(
+                "No collision-free trajectory found for arm B — "
+                "returning None (no unsafe fallback)."
+            )
+            return None
+
+        return quintic_traj
 
     # ------------------------------------------------------------------
     # Utility helpers

@@ -88,8 +88,7 @@ class ExecutionConfig:
     visualize: bool = True
     meshcat_tf: bool = True
     smoothen: bool = False
-    traj0: Optional[str] = None  # path to robot0 trajectory NPZ
-    traj1: Optional[str] = None  # path to robot1 trajectory NPZ
+    assignment_path: Optional[str] = None  # path to assignment_results.npz; None → auto-discover in data dir
 
 
 @dataclass
@@ -97,6 +96,21 @@ class RuntimeConfig:
     """Runtime / process-level settings."""
     debug: bool = False
     num_workers: int = 0  # 0 → auto (cpu_count // 2)
+
+
+@dataclass
+class AssignmentConfig:
+    """Segment assignment planner settings."""
+    alpha: float = constants.ASSIGNMENT_ALPHA
+    beta: float = constants.ASSIGNMENT_BETA
+    epsilon: float = constants.ASSIGNMENT_EPSILON
+    initial_robot: Optional[int] = None
+    transfer_feasibility: Optional[Dict[str, bool]] = None  # JSON keys are strings; decoded at use-time
+    beam_width: Optional[int] = None  # DP beam width; None = unlimited (exact)
+    handover_stride: int = 1  # only attempt handovers every K segments
+    handover_clearance_radius: Optional[float] = None  # metres; None = disabled
+    num_trajectories_robot0: Optional[int] = None  # max robot-0 trajectories; None = all
+    num_trajectories_robot1: Optional[int] = None  # max robot-1 trajectories; None = all
 
 
 @dataclass
@@ -113,6 +127,7 @@ class ExperimentConfig:
     output: OutputConfig
     execution: ExecutionConfig
     runtime: RuntimeConfig
+    assignment: AssignmentConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
     table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
 
@@ -266,8 +281,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         visualize=exec_raw.get("visualize", True),
         meshcat_tf=exec_raw.get("meshcat_tf", True),
         smoothen=exec_raw.get("smoothen", False),
-        traj0=exec_raw.get("traj0", None),
-        traj1=exec_raw.get("traj1", None),
+        assignment_path=exec_raw.get("assignment_path", None),
     )
 
     # --- runtime ---
@@ -275,6 +289,22 @@ def load_experiment(path: str) -> ExperimentConfig:
     runtime = RuntimeConfig(
         debug=rt_raw.get("debug", False),
         num_workers=rt_raw.get("num_workers", 0),
+    )
+
+    # --- assignment ---
+    asgn_raw = raw.get("assignment", {})
+    tf_feas_raw = asgn_raw.get("transfer_feasibility", None)
+    assignment = AssignmentConfig(
+        alpha=asgn_raw.get("alpha", constants.ASSIGNMENT_ALPHA),
+        beta=asgn_raw.get("beta", constants.ASSIGNMENT_BETA),
+        epsilon=asgn_raw.get("epsilon", constants.ASSIGNMENT_EPSILON),
+        initial_robot=asgn_raw.get("initial_robot", None),
+        transfer_feasibility=tf_feas_raw,
+        beam_width=asgn_raw.get("beam_width", None),
+        handover_stride=asgn_raw.get("handover_stride", 1),
+        handover_clearance_radius=asgn_raw.get("handover_clearance_radius", None),
+        num_trajectories_robot0=asgn_raw.get("num_trajectories_robot0", None),
+        num_trajectories_robot1=asgn_raw.get("num_trajectories_robot1", None),
     )
 
     return ExperimentConfig(
@@ -289,6 +319,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         output=output,
         execution=execution,
         runtime=runtime,
+        assignment=assignment,
         raw=raw,
         table_full_size=table_full_size,
     )

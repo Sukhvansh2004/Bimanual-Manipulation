@@ -49,15 +49,17 @@ from robosuite_franka_manipulation.services.services_core import ServiceManager
 from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
 
 # Planning Modules
-from robosuite_franka_manipulation.planning.trajectory_generator import (
+from robosuite_franka_manipulation.planning.trajectory import (
     generate_end_effector_trajectory, 
     generate_object_trajectory,
-    check_dual_trajectory_feasibility
+)
+from robosuite_franka_manipulation.planning.collision_checker import (
+    check_dual_trajectory_feasibility,
 )
 from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
-from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
-from robosuite_franka_manipulation.planning.utils.robot_mesh_visualizer import RobotMeshVisualizer
+from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
+from robosuite_franka_manipulation.planning.visualization.robot_mesh import RobotMeshVisualizer
 from robosuite_franka_manipulation.experiment_config import (
     load_experiment, detect_start_pose, get_collision_filter_fn, ExperimentConfig
 )

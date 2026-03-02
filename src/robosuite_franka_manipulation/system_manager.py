@@ -36,7 +36,7 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, 
     WaypointFeasibilityResult
 )
-from robosuite_franka_manipulation.planning.utils.visualization_utils import visualize_trajectory
+from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
 
 logger = logging.getLogger(__name__)
 
