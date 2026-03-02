@@ -1,0 +1,40 @@
+{
+  "experiment": "dual_handover_plate",
+  "config_label": "Proposed",
+  "config_id": "Proposed",
+  "planning": {
+    "experiment": "dual_handover_plate",
+    "config_label": "Proposed",
+    "total_cost": 2816.072692177291,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      62
+    ],
+    "mean_task_cost": 28.237303313645093,
+    "total_switching_cost": 557.0884270856841,
+    "mean_manipulability": 0.8151137260345152,
+    "min_manipulability": 0.7589665820936786,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1340.1197664737701
+  },
+  "execution": {
+    "experiment": "dual_handover_plate",
+    "config_label": "Proposed",
+    "task_success": false,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "n_collision_incidents": 0,
+    "execution_time_s": 10.362998247146606,
+    "grasp_success": false,
+    "transport_success": false,
+    "place_success": false,
+    "n_switches": 0,
+    "mean_manipulability": 0.0,
+    "parallel_collision_free": true,
+    "error_message": "Trajectory file not found: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/dual_handover_plate/configs/Proposed/robot0_trajectory_18.npz"
+  }
+}

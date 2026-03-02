@@ -1,0 +1,40 @@
+{
+  "experiment": "flatPlate_shelf_to_box",
+  "config_label": "Proposed",
+  "config_id": "Proposed",
+  "planning": {
+    "experiment": "flatPlate_shelf_to_box",
+    "config_label": "Proposed",
+    "total_cost": 1737.1067287344183,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      35
+    ],
+    "mean_task_cost": 23.797305066969248,
+    "total_switching_cost": 547.2414753859559,
+    "mean_manipulability": 0.8150615010136216,
+    "min_manipulability": 0.7937470815836098,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1226.7453186511993
+  },
+  "execution": {
+    "experiment": "flatPlate_shelf_to_box",
+    "config_label": "Proposed",
+    "task_success": false,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "n_collision_incidents": 0,
+    "execution_time_s": 10.46075963973999,
+    "grasp_success": false,
+    "transport_success": false,
+    "place_success": false,
+    "n_switches": 0,
+    "mean_manipulability": 0.0,
+    "parallel_collision_free": true,
+    "error_message": "Trajectory file not found: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_box/configs/Proposed/robot0_trajectory_1.npz"
+  }
+}

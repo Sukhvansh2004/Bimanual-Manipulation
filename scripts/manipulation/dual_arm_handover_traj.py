@@ -382,12 +382,14 @@ def main():
             logger.info("Loading assignment result from %s ...", assignment_file)
             assignment = load_assignment_result(assignment_file)
 
-            assignment_dir = os.path.dirname(os.path.abspath(assignment_file))
+            # Trajectory NPZs live in the experiment data directory, NOT next
+            # to the per-config assignment file.
+            traj_load_dir = data_dir
 
             # Pre-load every unique trajectory path referenced by the assignment.
             unique_paths = set(assignment.trajectory_paths)
             for tpath in sorted(unique_paths):
-                _load_cached(tpath, assignment_dir)
+                _load_cached(tpath, traj_load_dir)
 
             logger.info(
                 "Loaded %d unique trajectories for assignment: %s",

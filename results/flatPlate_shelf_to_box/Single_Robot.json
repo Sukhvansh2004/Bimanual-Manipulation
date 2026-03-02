@@ -1,0 +1,40 @@
+{
+  "experiment": "flatPlate_shelf_to_box",
+  "config_label": "Single Robot",
+  "config_id": "Single_Robot",
+  "planning": {
+    "experiment": "flatPlate_shelf_to_box",
+    "config_label": "Single Robot",
+    "total_cost": 1000000001113.4554,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      12
+    ],
+    "mean_task_cost": 22.26911045220051,
+    "total_switching_cost": 1000000000000.0,
+    "mean_manipulability": 0.8249556717123545,
+    "min_manipulability": 0.8133012944706883,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1331.175211906433
+  },
+  "execution": {
+    "experiment": "flatPlate_shelf_to_box",
+    "config_label": "Single Robot",
+    "task_success": true,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 1,
+    "n_collision_incidents": 0,
+    "execution_time_s": 125.40081763267517,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 1,
+    "mean_manipulability": 0.819505174811843,
+    "parallel_collision_free": true,
+    "error_message": ""
+  }
+}

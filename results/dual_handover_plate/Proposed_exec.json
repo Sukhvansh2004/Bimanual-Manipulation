@@ -1,0 +1,15 @@
+{
+  "task_success": false,
+  "grasp_success": false,
+  "transport_success": false,
+  "place_success": false,
+  "n_handovers_attempted": 0,
+  "n_handovers_succeeded": 0,
+  "handover_success_rate": 1.0,
+  "n_collision_incidents": 0,
+  "n_switches": 0,
+  "execution_time_s": 10.362998247146606,
+  "mean_manipulability": 0.0,
+  "parallel_collision_free": true,
+  "error_message": "Trajectory file not found: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/dual_handover_plate/configs/Proposed/robot0_trajectory_18.npz"
+}
