@@ -345,12 +345,18 @@ class DualArmParallelPlanner:
             arm_b_joints = self._solve_mink_step()
 
             if arm_b_joints is None:
-                # QP failed — fall back to reference trajectory
-                arm_b_joints = ref_q_b
+                # QP failed — hold arm B at its current sim position.
+                # Using the reference waypoint (ref_q_b) would cause a
+                # large jump if arm B is far behind the reference, leading
+                # to wild oscillations.  Holding position is safe and lets
+                # the QP resume once arm A moves away.
+                arm_b_joints = q_full[m.qpos_idx_b].copy()
                 qp_fail_count += 1
                 logger.debug(
-                    "mink QP failed at step %d, falling back to reference.",
+                    "mink QP failed at step %d — holding arm B position "
+                    "(ref drift=%.3f rad).",
                     steps_taken,
+                    float(np.max(np.abs(arm_b_joints - ref_q_b))),
                 )
 
             # ── Build and send actions ────────────────────────────────

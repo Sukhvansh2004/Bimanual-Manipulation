@@ -388,6 +388,7 @@ def main():
                 logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
                 current_arm.follow_joint_trajectory(
                     list(rrt_traj), gripper_action=-1.0,
+                    smoothen=exec_cfg.smoothen, num_steps=200,
                 )
             else:
                 logger.warning("RRT to pre-grasp failed — falling back to move_to_pose")
