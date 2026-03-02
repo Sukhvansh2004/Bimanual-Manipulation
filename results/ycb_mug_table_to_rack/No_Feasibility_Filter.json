@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_mug_table_to_rack",
+  "config_label": "No Feasibility Filter",
+  "config_id": "No_Feasibility_Filter",
+  "planning": {
+    "experiment": "ycb_mug_table_to_rack",
+    "config_label": "No Feasibility Filter",
+    "total_cost": 124.93096884099666,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 2.498619376819933,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8240414880547803,
+    "min_manipulability": 0.7886636919993326,
+    "feasibility_rate_robot0": 0.15,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.08267569541931152
+  }
+}

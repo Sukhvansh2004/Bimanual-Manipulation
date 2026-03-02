@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_mug_rack_to_table",
+  "config_label": "Clearance=0.10m",
+  "config_id": "Clearance0p10m",
+  "planning": {
+    "experiment": "ycb_mug_rack_to_table",
+    "config_label": "Clearance=0.10m",
+    "total_cost": 124.70296479340733,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 2.4940592958681473,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8294478811649484,
+    "min_manipulability": 0.8176610243606854,
+    "feasibility_rate_robot0": 0.2,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.06547427177429199
+  }
+}

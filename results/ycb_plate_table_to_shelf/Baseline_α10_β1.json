@@ -1,0 +1,23 @@
+{
+  "experiment": "ycb_plate_table_to_shelf",
+  "config_label": "Baseline (\u03b1=10, \u03b2=1)",
+  "config_id": "Baseline_\u03b110_\u03b21",
+  "planning": {
+    "experiment": "ycb_plate_table_to_shelf",
+    "config_label": "Baseline (\u03b1=10, \u03b2=1)",
+    "total_cost": 1000129.4012440363,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      6
+    ],
+    "mean_task_cost": 2.588024880721755,
+    "total_switching_cost": 1000000.0,
+    "mean_manipulability": 0.8141760327877666,
+    "min_manipulability": 0.7804535002657744,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.038039445877075195
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "experiment": "dual_handover_flatPlate_shelf_to_shelf",
+  "config_label": "Clearance=0.05m",
+  "config_id": "Clearance0p05m",
+  "planning": {
+    "experiment": "dual_handover_flatPlate_shelf_to_shelf",
+    "config_label": "Clearance=0.05m",
+    "total_cost": 2000206.0965336151,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      19,
+      44
+    ],
+    "mean_task_cost": 2.576206670186687,
+    "total_switching_cost": 2000000.0,
+    "mean_manipulability": 0.8103017118889835,
+    "min_manipulability": 0.7570938832332339,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.05568122863769531
+  }
+}

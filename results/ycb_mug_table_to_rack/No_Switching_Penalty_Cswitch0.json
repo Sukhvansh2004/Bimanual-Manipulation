@@ -1,0 +1,28 @@
+{
+  "experiment": "ycb_mug_table_to_rack",
+  "config_label": "No Switching Penalty (Cswitch=0)",
+  "config_id": "No_Switching_Penalty_Cswitch0",
+  "planning": {
+    "experiment": "ycb_mug_table_to_rack",
+    "config_label": "No Switching Penalty (Cswitch=0)",
+    "total_cost": 121.96435597942141,
+    "n_segments": 50,
+    "n_handovers": 6,
+    "handover_points": [
+      1,
+      2,
+      7,
+      8,
+      34,
+      35
+    ],
+    "mean_task_cost": 2.4392871195884287,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8357493278365815,
+    "min_manipulability": 0.8220074878101165,
+    "feasibility_rate_robot0": 0.15,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.06395149230957031
+  }
+}

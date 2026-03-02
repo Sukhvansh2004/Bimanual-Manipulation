@@ -1,0 +1,25 @@
+{
+  "experiment": "flatPlate_table_to_shelf",
+  "config_label": "Beam=5",
+  "config_id": "Beam5",
+  "planning": {
+    "experiment": "flatPlate_table_to_shelf",
+    "config_label": "Beam=5",
+    "total_cost": 3000131.7861848096,
+    "n_segments": 50,
+    "n_handovers": 3,
+    "handover_points": [
+      7,
+      36,
+      44
+    ],
+    "mean_task_cost": 2.6357236961986628,
+    "total_switching_cost": 3000000.0,
+    "mean_manipulability": 0.8060743477600748,
+    "min_manipulability": 0.7601549498984288,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.04206037521362305
+  }
+}

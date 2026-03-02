@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_bowl_rack_to_table",
+  "config_label": "Beam=unlimited",
+  "config_id": "Beamunlimited",
+  "planning": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "Beam=unlimited",
+    "total_cost": 125.85905885031228,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 2.517181177006246,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8107014619743336,
+    "min_manipulability": 0.7898300775016247,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.25,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.057935476303100586
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "experiment": "flatPlate_shelf_to_table",
+  "config_label": "Beam=unlimited",
+  "config_id": "Beamunlimited",
+  "planning": {
+    "experiment": "flatPlate_shelf_to_table",
+    "config_label": "Beam=unlimited",
+    "total_cost": 1000128.5763955126,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      39
+    ],
+    "mean_task_cost": 2.57152791024985,
+    "total_switching_cost": 1000000.0,
+    "mean_manipulability": 0.8212961414393877,
+    "min_manipulability": 0.8083637432557194,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.03907489776611328
+  }
+}

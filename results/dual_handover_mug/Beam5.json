@@ -1,0 +1,24 @@
+{
+  "experiment": "dual_handover_mug",
+  "config_label": "Beam=5",
+  "config_id": "Beam5",
+  "planning": {
+    "experiment": "dual_handover_mug",
+    "config_label": "Beam=5",
+    "total_cost": 2000203.5744485124,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      35,
+      61
+    ],
+    "mean_task_cost": 2.5446806064032486,
+    "total_switching_cost": 2000000.0,
+    "mean_manipulability": 0.7922515887519299,
+    "min_manipulability": 0.7642180119586839,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.09560704231262207
+  }
+}

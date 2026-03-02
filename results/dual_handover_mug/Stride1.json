@@ -1,0 +1,24 @@
+{
+  "experiment": "dual_handover_mug",
+  "config_label": "Stride=1",
+  "config_id": "Stride1",
+  "planning": {
+    "experiment": "dual_handover_mug",
+    "config_label": "Stride=1",
+    "total_cost": 2000203.4917022465,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      35,
+      61
+    ],
+    "mean_task_cost": 2.5436462780800313,
+    "total_switching_cost": 2000000.0,
+    "mean_manipulability": 0.7928773751999152,
+    "min_manipulability": 0.7655342500301587,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.10297989845275879
+  }
+}

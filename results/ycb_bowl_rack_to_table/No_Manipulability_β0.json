@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_bowl_rack_to_table",
+  "config_label": "No Manipulability (\u03b2=0)",
+  "config_id": "No_Manipulability_\u03b20",
+  "planning": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "No Manipulability (\u03b2=0)",
+    "total_cost": 2.179495819325727,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 0.04358991638651455,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.7648223051826786,
+    "min_manipulability": 0.7367450633365662,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.25,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.05748701095581055
+  }
+}

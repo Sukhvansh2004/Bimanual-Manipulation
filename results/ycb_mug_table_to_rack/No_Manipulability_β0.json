@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_mug_table_to_rack",
+  "config_label": "No Manipulability (\u03b2=0)",
+  "config_id": "No_Manipulability_\u03b20",
+  "planning": {
+    "experiment": "ycb_mug_table_to_rack",
+    "config_label": "No Manipulability (\u03b2=0)",
+    "total_cost": 3.484562413404677,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 0.06969124826809353,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8240414880547803,
+    "min_manipulability": 0.7886636919993326,
+    "feasibility_rate_robot0": 0.15,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.06959915161132812
+  }
+}

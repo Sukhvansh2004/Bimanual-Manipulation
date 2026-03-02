@@ -1,0 +1,23 @@
+{
+  "experiment": "dual_handover_plate",
+  "config_label": "Stride=5",
+  "config_id": "Stride5",
+  "planning": {
+    "experiment": "dual_handover_plate",
+    "config_label": "Stride=5",
+    "total_cost": 1000196.9233786216,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      55
+    ],
+    "mean_task_cost": 2.461542232766599,
+    "total_switching_cost": 1000000.0,
+    "mean_manipulability": 0.8252434830884706,
+    "min_manipulability": 0.8160891633766207,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.07293462753295898
+  }
+}

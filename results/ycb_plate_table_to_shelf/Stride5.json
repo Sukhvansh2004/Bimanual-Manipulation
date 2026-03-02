@@ -1,0 +1,23 @@
+{
+  "experiment": "ycb_plate_table_to_shelf",
+  "config_label": "Stride=5",
+  "config_id": "Stride5",
+  "planning": {
+    "experiment": "ycb_plate_table_to_shelf",
+    "config_label": "Stride=5",
+    "total_cost": 1000129.4382211139,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      10
+    ],
+    "mean_task_cost": 2.5887644222767303,
+    "total_switching_cost": 1000000.0,
+    "mean_manipulability": 0.8145449454099254,
+    "min_manipulability": 0.7804535002657744,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.03871583938598633
+  }
+}

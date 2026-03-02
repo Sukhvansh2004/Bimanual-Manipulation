@@ -1,0 +1,23 @@
+{
+  "experiment": "dual_handover_mug",
+  "config_label": "Beam=unlimited",
+  "config_id": "Beamunlimited",
+  "planning": {
+    "experiment": "dual_handover_mug",
+    "config_label": "Beam=unlimited",
+    "total_cost": 1000205.2910318626,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      35
+    ],
+    "mean_task_cost": 2.5661378982832392,
+    "total_switching_cost": 1000000.0,
+    "mean_manipulability": 0.7866751524908617,
+    "min_manipulability": 0.7626242421089602,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 0.10118842124938965
+  }
+}
