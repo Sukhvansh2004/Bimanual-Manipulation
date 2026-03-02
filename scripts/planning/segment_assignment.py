@@ -55,6 +55,7 @@ from robosuite_franka_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
     make_collision_check_fn,
+    make_handover_clearance_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
     save_assignment_result,
@@ -128,6 +129,15 @@ def main() -> None:
         help="Beam width for DP solver (limits surviving states per segment). "
              "Recommended 8–12 when using IK to avoid hour-long solves.",
     )
+    parser.add_argument(
+        "--handover-stride", type=int, default=None,
+        help="Only attempt handovers every K segments (default: 1 = every segment).",
+    )
+    parser.add_argument(
+        "--clearance-radius", type=float, default=None,
+        help="Minimum distance (metres) from object to environment geoms for a "
+             "handover to be attempted.  Disabled when omitted.",
+    )
 
     args = parser.parse_args()
 
@@ -165,17 +175,27 @@ def main() -> None:
     initial_robot = asgn_cfg.initial_robot
     transfer_feasibility = _parse_transfer_feasibility(asgn_cfg.transfer_feasibility)
     beam_width = args.beam_width if args.beam_width is not None else asgn_cfg.beam_width
+    handover_stride = (
+        args.handover_stride if args.handover_stride is not None else asgn_cfg.handover_stride
+    )
+    clearance_radius = (
+        args.clearance_radius if args.clearance_radius is not None
+        else asgn_cfg.handover_clearance_radius
+    )
 
     logger.info(
-        "Assignment parameters: α=%.2f, β=%.2f, ε=%.1e, beam=%s",
+        "Assignment parameters: α=%.2f, β=%.2f, ε=%.1e, beam=%s, stride=%d, clearance=%s",
         alpha, beta, epsilon,
         beam_width if beam_width is not None else "unlimited",
+        handover_stride,
+        f"{clearance_radius:.3f}m" if clearance_radius is not None else "off",
     )
 
     # --- Build IK / Jacobian / collision closures from the simulation environment ---
     ik_solver_fn = None
     jacobian_fns = None
     collision_check_fn = None
+    handover_clearance_fn = None
 
     if not args.no_env:
         logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
@@ -206,6 +226,18 @@ def main() -> None:
         jacobian_fns = make_jacobian_fns(env, env_lock)
         collision_check_fn = make_collision_check_fn(env, env_lock)
         logger.info("IK solver, Jacobian functions, and collision checker ready.")
+
+        if clearance_radius is not None:
+            handover_clearance_fn = make_handover_clearance_fn(
+                env,
+                clearance_radius=clearance_radius,
+                manipulated_object=exp_cfg.task.manipulated_object,
+                env_lock=env_lock,
+            )
+            logger.info(
+                "Handover clearance filter active (radius=%.3fm).",
+                clearance_radius,
+            )
     else:
         logger.warning(
             "Environment creation skipped (--no-env).  Handover costs will use "
@@ -224,7 +256,9 @@ def main() -> None:
         ik_solver_fn=ik_solver_fn,
         jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
+        handover_clearance_fn=handover_clearance_fn,
         beam_width=beam_width,
+        handover_stride=handover_stride,
     )
 
     # --- Print summary ---

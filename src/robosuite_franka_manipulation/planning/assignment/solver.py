@@ -60,8 +60,10 @@ def _solve_optimal_assignment(
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
+    handover_clearance_fn: Optional[Callable] = None,
     initial_robot: Optional[int] = None,
     beam_width: Optional[int] = None,
+    handover_stride: int = 1,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
 
@@ -80,6 +82,11 @@ def _solve_optimal_assignment(
       IK evaluations in subsequent segments.
     * **Feasibility pre-filter** — blocked handovers are rejected before
       the costly IK + handover-primitive computation.
+    * **Handover stride** — when *handover_stride* > 1, cross-robot
+      transitions are only evaluated every K-th segment, dramatically
+      reducing the number of IK evaluations.
+    * **Handover clearance** — when *handover_clearance_fn* is set,
+      handover locations near environment obstacles are skipped.
     """
     n_segments, n_states = cost_matrix.shape
 
@@ -88,9 +95,11 @@ def _solve_optimal_assignment(
     switch_cost_cache = np.zeros((n_segments, n_states))
 
     logger.info(
-        "DP solver: %d segments × %d states, beam_width=%s",
+        "DP solver: %d segments × %d states, beam_width=%s, "
+        "handover_stride=%d",
         n_segments, n_states,
         beam_width if beam_width is not None else "unlimited",
+        handover_stride,
     )
 
     # Initialise first segment
@@ -149,6 +158,14 @@ def _solve_optimal_assignment(
             # Iterate in ascending accumulated-cost order; since
             # switching cost >= 0, we can prune as soon as the
             # accumulated cost alone exceeds our current best.
+            # Skip entirely at non-stride segments.
+            if i % handover_stride != 0:
+                if best_prev != -1:
+                    J_star[i, cs] = best_cost + cost_matrix[i, cs]
+                    prev_state[i, cs] = best_prev
+                    switch_cost_cache[i, cs] = best_sw
+                continue
+
             for acc_cost, ps in alive_prev:
                 if acc_cost >= best_cost:
                     # All subsequent have equal or higher acc_cost;
@@ -167,6 +184,7 @@ def _solve_optimal_assignment(
                     alpha=alpha, beta=beta, epsilon=epsilon,
                     ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
                     collision_check_fn=collision_check_fn,
+                    handover_clearance_fn=handover_clearance_fn,
                 )
                 if np.isinf(sw):
                     continue
@@ -286,7 +304,9 @@ def compute_optimal_robot_assignment(
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
+    handover_clearance_fn: Optional[Callable] = None,
     beam_width: Optional[int] = None,
+    handover_stride: int = 1,
 ) -> AssignmentResult:
     """Compute the globally optimal robot-to-segment assignment.
 
@@ -303,11 +323,19 @@ def compute_optimal_robot_assignment(
             for Yoshikawa manipulability.
         collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
             for verifying inter-arm clearance at handover meeting points.
+        handover_clearance_fn: Optional ``(object_pose: StampedPose) -> bool``
+            that returns *True* when the object's environment is clear enough
+            for a handover (no nearby shelves, racks, etc.).  When *False*,
+            the handover is skipped without invoking IK.
         beam_width: Optional maximum number of surviving DP states per
             segment.  Limits the search space at the expense of global
             optimality.  Recommended when *ik_solver_fn* is provided:
             ``beam_width=10`` typically cuts IK evaluations by >90 %
             while preserving near-optimal solutions.
+        handover_stride: Evaluate cross-robot handover transitions every
+            *handover_stride* segments (default 1 = every segment).
+            Setting to 3 means handovers can only occur at segments
+            0, 3, 6, …, reducing IK evaluations proportionally.
 
     Returns:
         :class:`AssignmentResult` with the optimal sequence and cost breakdown.
@@ -321,9 +349,10 @@ def compute_optimal_robot_assignment(
 
     logger.info(
         "Computing assignment for %d segments (%d R0 + %d R1 trajectories, "
-        "α=%.2f, β=%.2f, beam=%s)",
+        "α=%.2f, β=%.2f, beam=%s, stride=%d)",
         n_segments, len(r0), len(r1), alpha, beta,
         beam_width if beam_width is not None else "unlimited",
+        handover_stride,
     )
 
     cost_matrix, traj_info = compute_cost_matrix(
@@ -338,8 +367,10 @@ def compute_optimal_robot_assignment(
         alpha=alpha, beta=beta, epsilon=epsilon,
         ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
+        handover_clearance_fn=handover_clearance_fn,
         initial_robot=initial_robot,
         beam_width=beam_width,
+        handover_stride=handover_stride,
     )
 
     logger.info(

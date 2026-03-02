@@ -108,6 +108,8 @@ class AssignmentConfig:
     initial_robot: Optional[int] = None
     transfer_feasibility: Optional[Dict[str, bool]] = None  # JSON keys are strings; decoded at use-time
     beam_width: Optional[int] = None  # DP beam width; None = unlimited (exact)
+    handover_stride: int = 1  # only attempt handovers every K segments
+    handover_clearance_radius: Optional[float] = None  # metres; None = disabled
 
 
 @dataclass
@@ -299,6 +301,8 @@ def load_experiment(path: str) -> ExperimentConfig:
         initial_robot=asgn_raw.get("initial_robot", None),
         transfer_feasibility=tf_feas_raw,
         beam_width=asgn_raw.get("beam_width", None),
+        handover_stride=asgn_raw.get("handover_stride", 1),
+        handover_clearance_radius=asgn_raw.get("handover_clearance_radius", None),
     )
 
     return ExperimentConfig(

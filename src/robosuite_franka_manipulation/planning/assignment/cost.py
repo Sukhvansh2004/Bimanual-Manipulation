@@ -320,12 +320,13 @@ def compute_switching_cost(
     ik_solver_fn: Optional[Callable] = None,
     jacobian_fns: Optional[Dict[int, Callable]] = None,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
+    handover_clearance_fn: Optional[Callable] = None,
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
     Returns 0 when ``prev_robot == curr_robot``, ``inf`` when the transfer is
-    blocked by *transfer_feasibility* or an inter-arm collision is detected,
-    or the handover primitive cost otherwise.
+    blocked by *transfer_feasibility*, environment clearance, or an inter-arm
+    collision, or the handover primitive cost otherwise.
     """
     if prev_robot == curr_robot:
         return 0.0
@@ -356,6 +357,14 @@ def compute_switching_cost(
         quaternion=obj_traj.quaternions[segment_idx],
         frame_id=_frame_id_at(obj_traj, segment_idx),
     )
+
+    # Early-out: skip handover if environment obstacles are too close
+    if handover_clearance_fn is not None and not handover_clearance_fn(obj_pose):
+        logger.debug(
+            "Handover blocked at seg %d: environment clearance check failed",
+            segment_idx,
+        )
+        return np.inf
 
     prev_traj = trajectories.get_trajectory(prev_robot_id, prev_traj_idx)
     curr_traj = trajectories.get_trajectory(curr_robot_id, curr_traj_idx)

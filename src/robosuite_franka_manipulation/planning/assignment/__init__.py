@@ -45,6 +45,7 @@ from robosuite_franka_manipulation.planning.assignment.factories import (
     make_ik_solver_fn,
     make_jacobian_fns,
     make_collision_check_fn,
+    make_handover_clearance_fn,
 )
 from robosuite_franka_manipulation.planning.assignment.trajectory_io import (
     load_all_trajectories,
@@ -64,5 +65,6 @@ __all__ = [
     "make_ik_solver_fn",
     "make_jacobian_fns",
     "make_collision_check_fn",
+    "make_handover_clearance_fn",
     "load_all_trajectories",
 ]

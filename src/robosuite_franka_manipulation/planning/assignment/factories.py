@@ -131,3 +131,63 @@ def make_collision_check_fn(
                 )
 
     return _check
+
+
+def make_handover_clearance_fn(
+    env: DualArmEnvironment,
+    clearance_radius: float,
+    manipulated_object: Optional[str] = None,
+    env_lock: Optional[threading.RLock] = None,
+) -> Callable[[StampedPose], bool]:
+    """Create an environment-clearance closure for handover evaluation.
+
+    The returned function has signature ``(obj_pose: StampedPose) -> bool``
+    and returns ``True`` when the object position is at least
+    *clearance_radius* away from every static environment geom centre.
+    This is a fast heuristic used to skip handovers at locations where
+    environment obstacles would prevent a second arm from reaching in
+    (e.g. inside a shelf or rack).
+
+    Args:
+        env: The dual-arm simulation environment.
+        clearance_radius: Minimum distance (metres) from object centre to
+            each environment geom centre for the location to be considered
+            *clear* for handover.
+        manipulated_object: Name of the manipulated object (excluded from
+            the environment geom list).
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    import mujoco
+    from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+        get_environment_collision_geoms,
+        get_native_mj_object,
+    )
+
+    native_model = get_native_mj_object(env.sim.model)
+    native_data = get_native_mj_object(env.sim.data)
+
+    env_geom_names = get_environment_collision_geoms(
+        native_model, robot_ids=[0, 1], object_name=manipulated_object,
+    )
+
+    # Pre-compute geom ids
+    env_geom_ids = [native_model.geom(name).id for name in env_geom_names]
+
+    # Snapshot static environment geom world positions (they never move)
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        mujoco.mj_forward(native_model, native_data)
+        env_geom_positions = (
+            np.array([native_data.geom_xpos[gid].copy() for gid in env_geom_ids])
+            if env_geom_ids
+            else np.empty((0, 3))
+        )
+
+    def _clearance_ok(obj_pose: StampedPose) -> bool:
+        """Return ``True`` when the object has sufficient clearance."""
+        if env_geom_positions.shape[0] == 0:
+            return True
+        dists = np.linalg.norm(env_geom_positions - obj_pose.position, axis=1)
+        return float(dists.min()) > clearance_radius
+
+    return _clearance_ok
