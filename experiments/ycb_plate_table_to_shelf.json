@@ -57,9 +57,7 @@
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
-        "smoothen": true,
-        "traj0": "data/ycb_plate_table_to_shelf/robot0_trajectory_5.npz",
-        "traj1": "data/ycb_plate_table_to_shelf/robot1_trajectory_1.npz"
+        "smoothen": true
     },
     "assignment": {
         "alpha": 10.0,

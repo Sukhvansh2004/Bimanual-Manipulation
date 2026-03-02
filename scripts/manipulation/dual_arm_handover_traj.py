@@ -2,17 +2,19 @@
 """
 Dual-Arm Handover Demo using Trajectory Files and Experiment JSON Configs.
 
-Can load trajectories explicitly (--traj0 / --traj1 in the experiment JSON),
-or use an optimal assignment produced by ``segment_assignment.py``.
+By default, loads the optimal assignment result (``assignment_results.npz``)
+from the experiment's data directory.  Use ``--traj0`` and ``--traj1`` to
+bypass the assignment and specify trajectory files explicitly.
 
 Usage::
 
-    # Explicit trajectories (original mode)
+    # Default — uses the assignment result in data/<experiment_name>/
     python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
 
-    # Using a pre-computed assignment result
+    # Explicit trajectories (bypasses assignment)
     python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \\
-        --assignment data/flatPlate_table_to_shelf/assignment_results.npz
+        --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_5.npz \\
+        --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_1.npz
 """
 
 import os
@@ -79,9 +81,10 @@ def main():
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config (e.g. experiments/flatPlate_table_to_shelf.json)")
-    parser.add_argument("--assignment", type=str, default=None,
-                        help="Path to assignment_results.npz (from segment_assignment.py). "
-                             "When provided, trajectory selection is driven by the optimal assignment.")
+    parser.add_argument("--traj0", type=str, default=None,
+                        help="Path to robot-0 trajectory NPZ (bypasses assignment).")
+    parser.add_argument("--traj1", type=str, default=None,
+                        help="Path to robot-1 trajectory NPZ (bypasses assignment).")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     args = parser.parse_args()
 
@@ -128,27 +131,43 @@ def main():
         # 2. Load Trajectories
         # -------------------------------------------------------------------
         # Two modes:
-        #   a) --assignment  → load trajectories from the assignment result
-        #   b) Explicit traj0/traj1 in the experiment JSON execution section
+        #   a) Default — load assignment result from the data directory
+        #   b) --traj0 / --traj1 — explicit trajectory files (no assignment)
         # -------------------------------------------------------------------
         assignment: Optional[AssignmentResult] = None
 
-        if args.assignment:
-            logger.info("Loading assignment result from %s ...", args.assignment)
-            assignment = load_assignment_result(args.assignment)
+        if args.traj0 and args.traj1:
+            # ---- Explicit trajectory mode --------------------------------
+            traj_path0 = args.traj0
+            traj_path1 = args.traj1
+            logger.info("Explicit trajectory mode (--traj0 / --traj1).")
+        else:
+            # ---- Assignment mode (default) -------------------------------
+            # Resolve assignment path: CLI > JSON > auto-discover
+            data_dir = (
+                exp_cfg.output.output_dir
+                if exp_cfg.output.output_dir is not None
+                else os.path.join(constants.DATA_DIR, exp_cfg.name)
+            )
+            assignment_file = (
+                exec_cfg.assignment_path
+                if exec_cfg.assignment_path is not None
+                else os.path.join(data_dir, "assignment_results.npz")
+            )
 
-            # Resolve data directory from assignment path
-            assignment_dir = os.path.dirname(os.path.abspath(args.assignment))
+            if not os.path.isfile(assignment_file):
+                logger.error(
+                    "Assignment result not found at %s.  Run segment_assignment.py "
+                    "first, or use --traj0 / --traj1 for explicit trajectories.",
+                    assignment_file,
+                )
+                return
+
+            logger.info("Loading assignment result from %s ...", assignment_file)
+            assignment = load_assignment_result(assignment_file)
+
+            assignment_dir = os.path.dirname(os.path.abspath(assignment_file))
             all_traj_data = load_all_trajectories(assignment_dir)
-
-            # Pick the trajectory files for the first segment's robot & traj idx
-            start_robot = assignment.sequence[0]
-            start_traj_idx = assignment.trajectory_indices[0]
-            end_robot = assignment.sequence[-1]
-            end_traj_idx = assignment.trajectory_indices[-1]
-
-            traj_path0 = os.path.join(assignment_dir, f"robot0_trajectory_{start_traj_idx if start_robot == 0 else assignment.trajectory_indices[assignment.sequence.index(0)] if 0 in assignment.sequence else 0}.npz")
-            traj_path1 = os.path.join(assignment_dir, f"robot1_trajectory_{start_traj_idx if start_robot == 1 else assignment.trajectory_indices[assignment.sequence.index(1)] if 1 in assignment.sequence else 0}.npz")
 
             # Build paths from actual trajectory indices used
             r0_traj_idx = None
@@ -162,7 +181,6 @@ def main():
             if r0_traj_idx is not None:
                 traj_path0 = os.path.join(assignment_dir, f"robot0_trajectory_{r0_traj_idx}.npz")
             else:
-                # Robot 0 not used — load first available as placeholder
                 traj_path0 = os.path.join(assignment_dir, "robot0_trajectory_0.npz")
 
             if r1_traj_idx is not None:
@@ -172,16 +190,6 @@ def main():
 
             logger.info("Assignment selected: R0 traj %s, R1 traj %s", r0_traj_idx, r1_traj_idx)
             logger.info("Handover points: %s", assignment.handover_points)
-
-        elif exec_cfg.traj0 and exec_cfg.traj1:
-            traj_path0 = exec_cfg.traj0
-            traj_path1 = exec_cfg.traj1
-        else:
-            logger.error(
-                "No trajectory source specified. Provide --assignment or set "
-                "traj0/traj1 in the experiment JSON execution section."
-            )
-            return
 
         logger.info("Loading trajectories: %s, %s", traj_path0, traj_path1)
         eef_traj0, obj_traj0, joints0, res0 = load_trajectory(traj_path0)

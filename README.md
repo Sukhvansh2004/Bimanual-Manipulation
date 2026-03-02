@@ -311,11 +311,15 @@ system.right_gripper.close()
 
 #### `scripts/manipulation/dual_arm_handover_traj.py`
 
-Execute a dual-arm handover using pre-computed trajectory files. Loads trajectory paths from the experiment config's `execution.traj0`/`traj1` fields, extracts grasp transforms, and orchestrates: approach → grasp → follow trajectory → handover → release & retreat.
+Execute a dual-arm handover using pre-computed trajectory files. By default, loads the optimal assignment result (`assignment_results.npz`) from the experiment's data directory. Use `--traj0` / `--traj1` to specify trajectory files explicitly (bypasses assignment).
 
 ```bash
 python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
 python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/ycb_mug_rack_to_table.json --debug
+# Explicit trajectories (no assignment):
+python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \
+    --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_5.npz \
+    --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_1.npz
 ```
 
 | Argument | Default | Description |

@@ -88,8 +88,7 @@ class ExecutionConfig:
     visualize: bool = True
     meshcat_tf: bool = True
     smoothen: bool = False
-    traj0: Optional[str] = None  # path to robot0 trajectory NPZ
-    traj1: Optional[str] = None  # path to robot1 trajectory NPZ
+    assignment_path: Optional[str] = None  # path to assignment_results.npz; None → auto-discover in data dir
 
 
 @dataclass
@@ -280,8 +279,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         visualize=exec_raw.get("visualize", True),
         meshcat_tf=exec_raw.get("meshcat_tf", True),
         smoothen=exec_raw.get("smoothen", False),
-        traj0=exec_raw.get("traj0", None),
-        traj1=exec_raw.get("traj1", None),
+        assignment_path=exec_raw.get("assignment_path", None),
     )
 
     # --- runtime ---

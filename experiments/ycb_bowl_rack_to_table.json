@@ -57,9 +57,7 @@
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
-        "smoothen": false,
-        "traj0": null,
-        "traj1": null
+        "smoothen": false
     },
     "assignment": {
         "alpha": 10.0,

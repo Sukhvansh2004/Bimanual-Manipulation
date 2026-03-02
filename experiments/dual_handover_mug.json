@@ -77,9 +77,7 @@
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
-        "smoothen": false,
-        "traj0": "data/dual_handover_mug/robot0_trajectory_10.npz",
-        "traj1": "data/dual_handover_mug/robot1_trajectory_14.npz"
+        "smoothen": false
     },
     "assignment": {
         "alpha": 10.0,

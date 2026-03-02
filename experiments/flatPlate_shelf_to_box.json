@@ -113,9 +113,7 @@
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
-        "smoothen": false,
-        "traj0": "data/flatPlate_shelf_to_box/robot0_trajectory_5.npz",
-        "traj1": "data/flatPlate_shelf_to_box/robot1_trajectory_10.npz"
+        "smoothen": false
     },
     "assignment": {
         "alpha": 10.0,
