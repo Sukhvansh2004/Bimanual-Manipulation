@@ -16,7 +16,6 @@ import numpy as np
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.utils.se3 import interpolate_pose
 
 from robosuite_franka_manipulation.planning.rrt.se3 import rrt_connect_se3
 from robosuite_franka_manipulation.planning.rrt.se3 import smooth_path, densify_path
@@ -70,8 +69,9 @@ def plan_object_trajectory(
 
     Returns:
         Tuple of (trajectory as list of StampedPose, planning_success bool).
-        If planning fails, returns the simple interpolated trajectory as
-        fallback with ``success=False``.
+
+    Raises:
+        RuntimeError: If RRT planning fails to find a collision-free path.
     """
     logger.debug(
         "Planning trajectory for object '%s' from %s to %s in %d steps.",
@@ -145,14 +145,7 @@ def plan_object_trajectory(
         )
         return trajectory, True
     else:
-        logger.warning("RRT planning failed — falling back to direct interpolation.")
-        trajectory = []
-        for i in range(num_steps + 1):
-            t = i / float(num_steps)
-            pos, quat = interpolate_pose(start_pos, start_quat, goal_pos, goal_quat, t)
-            trajectory.append(StampedPose(position=pos, quaternion=quat, frame_id=frame_id))
-        logger.debug(
-            "Final trajectory has %d waypoints after fallback interpolation.",
-            len(trajectory),
+        raise RuntimeError(
+            "RRT planning failed — no collision-free object path found "
+            f"(tried {max_iterations} iterations)."
         )
-        return trajectory, False

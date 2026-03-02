@@ -6,7 +6,8 @@ Orchestrates the joint-space RRT-Connect planner
 smoothing (shortcutting + per-segment Bézier), and densification to
 produce a collision-free arm trajectory.
 
-Falls back to linear interpolation if RRT fails.
+Raises :class:`RuntimeError` if the RRT planner fails to find a
+collision-free path.
 """
 
 from __future__ import annotations
@@ -165,10 +166,7 @@ def plan_arm_trajectory(
         traj = densify_joint_path(bezier, num_steps)
         return traj, True
 
-    logger.warning(
-        "Joint RRT failed — falling back to linear interpolation."
+    raise RuntimeError(
+        "Joint RRT failed — no collision-free path found "
+        f"(tried {max_iterations} iterations)."
     )
-    # Fallback: linear interpolation (no collision guarantee)
-    t = np.linspace(0.0, 1.0, num_steps).reshape(-1, 1)
-    traj = start_q + t * (goal_q - start_q)
-    return traj, False

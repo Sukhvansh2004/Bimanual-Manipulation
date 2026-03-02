@@ -373,26 +373,28 @@ def main():
 
         if pregrasp_goal_q is not None:
             logger.info(f"Robot {current_robot} planning RRT to pre-grasp pose...")
-            rrt_traj, rrt_ok = plan_arm_trajectory(
-                env=system.env,
-                robot_id_b=current_robot,
-                start_q=start_q,
-                goal_q=pregrasp_goal_q,
-                q_other_arm=q_other,
-                robot_id_a=other_robot,
-                num_steps=100,
-                env_lock=system.env_lock,
-                rrt_vis=rrt_vis,
-            )
-            if rrt_ok:
+            try:
+                rrt_traj, rrt_ok = plan_arm_trajectory(
+                    env=system.env,
+                    robot_id_b=current_robot,
+                    start_q=start_q,
+                    goal_q=pregrasp_goal_q,
+                    q_other_arm=q_other,
+                    robot_id_a=other_robot,
+                    num_steps=100,
+                    env_lock=system.env_lock,
+                    rrt_vis=rrt_vis,
+                )
                 logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
                 current_arm.follow_joint_trajectory(
                     list(rrt_traj), gripper_action=-1.0,
                     smoothen=exec_cfg.smoothen, num_steps=200,
                 )
-            else:
-                logger.warning("RRT to pre-grasp failed — falling back to move_to_pose")
-                current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    f"Robot {current_robot}: RRT to pre-grasp failed — "
+                    "no collision-free approach path found."
+                ) from exc
         else:
             logger.warning("IK failed for pre-grasp — falling back to move_to_pose")
             current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)

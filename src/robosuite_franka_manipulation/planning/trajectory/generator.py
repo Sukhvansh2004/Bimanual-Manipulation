@@ -39,8 +39,11 @@ def generate_object_trajectory(
 
     When *env* and *object_name* are provided, an RRT-Connect planner is used
     to find a collision-free path (ignoring contacts with robot arms/grippers).
-    If the planner fails, or if *env* is not provided, falls back to simple
-    SE(3) interpolation.
+
+    If *env* is not provided, falls back to simple SE(3) interpolation.
+
+    Raises:
+        RuntimeError: If the RRT planner fails to find a collision-free path.
 
     Args:
         start_pose: Start pose as StampedPose
@@ -83,13 +86,7 @@ def generate_object_trajectory(
             env_lock=env_lock,
             pos_bounds=pos_bounds,
         )
-        if success:
-            return trajectory
-        else:
-            logger.warning(
-                "RRT planner failed — returned trajectory is a direct interpolation fallback."
-            )
-            return trajectory
+        return trajectory
 
     # ---- Fallback: simple SE(3) interpolation ----
     logger.info("No environment provided — using direct SE(3) interpolation for object trajectory.")

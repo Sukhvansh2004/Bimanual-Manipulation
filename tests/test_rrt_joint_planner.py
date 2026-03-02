@@ -448,27 +448,23 @@ class TestPlanArmTrajectoryMocked:
     @patch(
         "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
-    def test_rrt_failure_falls_back(self, mock_rrt):
-        """When RRT fails, should fall back to linear interpolation."""
+    def test_rrt_failure_raises(self, mock_rrt):
+        """When RRT fails, should raise RuntimeError (no unsafe fallback)."""
         mock_rrt.return_value = JointRRTResult(
             success=False,
             iterations=3000,
         )
 
-        traj, success = plan_arm_trajectory(
-            env=MagicMock(),
-            robot_id_b=1,
-            start_q=np.zeros(7),
-            goal_q=np.ones(7),
-            q_other_arm=np.zeros(7),
-            robot_id_a=0,
-            num_steps=20,
-        )
-
-        assert success is False
-        assert traj.shape == (20, 7)
-        np.testing.assert_array_almost_equal(traj[0], np.zeros(7))
-        np.testing.assert_array_almost_equal(traj[-1], np.ones(7))
+        with pytest.raises(RuntimeError, match="Joint RRT failed"):
+            plan_arm_trajectory(
+                env=MagicMock(),
+                robot_id_b=1,
+                start_q=np.zeros(7),
+                goal_q=np.ones(7),
+                q_other_arm=np.zeros(7),
+                robot_id_a=0,
+                num_steps=20,
+            )
 
 
 # ============================================================================
@@ -574,8 +570,8 @@ class TestDualArmPlannerRRTIntegration:
             assert result is not None
             assert result.shape == (50, 7)
 
-    def test_resolve_trajectory_b_rrt_failure_uses_quintic(self):
-        """When RRT fails, should return the quintic fallback trajectory."""
+    def test_resolve_trajectory_b_rrt_failure_returns_none(self):
+        """When RRT fails (raises), should return None (no unsafe fallback)."""
         from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
@@ -612,16 +608,15 @@ class TestDualArmPlannerRRTIntegration:
         with patch(
             "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
-            mock_plan.return_value = (np.zeros((50, 7)), False)  # RRT failed
+            mock_plan.side_effect = RuntimeError("Joint RRT failed")
 
             result = planner._resolve_trajectory_b(
                 target_pose, 50, None, traj_a
             )
 
             assert mock_plan.called
-            # Should return quintic fallback since RRT failed
-            assert result is not None
-            assert result.shape == (50, 7)
+            # Should return None — no unsafe quintic fallback
+            assert result is None
 
 
 # ============================================================================

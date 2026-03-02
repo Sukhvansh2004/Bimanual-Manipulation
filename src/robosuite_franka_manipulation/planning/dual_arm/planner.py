@@ -529,7 +529,7 @@ class DualArmParallelPlanner:
     ) -> Optional[np.ndarray]:
         """Plan arm B's reference trajectory using RRT when possible.
 
-        Falls back to quintic interpolation if RRT fails or is inapplicable.
+        Returns ``None`` if RRT fails or IK cannot be solved.
         """
         quintic_traj, goal_q = plan_pose_to_joint_trajectory(
             self.arm_b, target_pose, desired_length,
@@ -561,15 +561,16 @@ class DualArmParallelPlanner:
                         "collision-free joint RRT."
                     )
                     return rrt_traj
-                logger.warning(
-                    "Joint RRT failed — using quintic fallback for "
-                    "arm B reference."
-                )
             except Exception as exc:
                 logger.warning(
-                    "Joint RRT planning error — using quintic fallback: %s",
-                    exc,
+                    "Joint RRT planning failed for arm B: %s", exc,
                 )
+
+            logger.warning(
+                "No collision-free trajectory found for arm B — "
+                "returning None (no unsafe fallback)."
+            )
+            return None
 
         return quintic_traj
 
