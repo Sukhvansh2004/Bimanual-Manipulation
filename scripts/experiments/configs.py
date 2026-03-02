@@ -113,6 +113,32 @@ BEAM_20 = _cfg("Beam=20", beam_width=20)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 8. Method Comparisons (for Paper Table 1)
+# ═══════════════════════════════════════════════════════════════════════════
+# These correspond to the four methods compared in the paper:
+#   Greedy         — beam_width=1 (locally optimal, no look-ahead)
+#   Single Robot   — force all segments onto one robot (infinite switch cost)
+#   No-Diversity   — disable grasp-pair feasibility filtering
+#   Proposed       — full method (= BASELINE)
+
+GREEDY = _cfg("Greedy (beam=1)", beam_width=1)
+
+SINGLE_ROBOT = _cfg(
+    "Single Robot",
+    switch_cost_override=1e12,   # effectively prohibit switches
+    beam_width=10,
+)
+
+NO_DIVERSITY = _cfg(
+    "No Diversity",
+    disable_feasibility_filter=True,
+    beam_width=10,
+)
+
+PROPOSED = _cfg("Proposed", beam_width=10)   # same as BASELINE
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Grouped collections for the batch runner
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -124,6 +150,11 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "handover_stride": [STRIDE_1, STRIDE_3, STRIDE_5],
     "clearance_radius": [CLEARANCE_NONE, CLEARANCE_005, CLEARANCE_010, CLEARANCE_015],
     "beam_width": [BEAM_UNLIMITED, BEAM_1, BEAM_5, BEAM_10, BEAM_20],
+    "method_comparison": [GREEDY, SINGLE_ROBOT, NO_DIVERSITY, PROPOSED],
+    # Minimal set for the paper tables (6 unique configs, no duplicates)
+    # Table 1: Greedy, Single Robot, No Diversity, Proposed
+    # Table 2: Proposed (=Baseline), No Switching Penalty, No Manipulability, No Diversity (=No Feas. Filter)
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
 # Flat list of all unique configs for running everything
@@ -144,6 +175,10 @@ ALL_CONFIGS: List[AblationConfig] = [
     BEAM_5,
     BEAM_10,  # Same as BASELINE for beam
     BEAM_20,
+    GREEDY,
+    SINGLE_ROBOT,
+    NO_DIVERSITY,
+    PROPOSED,
 ]
 
 # Remove duplicates by label

@@ -71,6 +71,11 @@ class ExecutionMetrics:
     transport_success: bool = False
     place_success: bool = False
 
+    # Additional metrics from ExecutionTracker
+    n_switches: int = 0                     # total arm switches (from assignment)
+    mean_manipulability: float = 0.0        # mean manipulability along executed path
+    parallel_collision_free: bool = True    # all parallel segments collision-free
+
     error_message: str = ""
 
     def to_dict(self) -> dict:

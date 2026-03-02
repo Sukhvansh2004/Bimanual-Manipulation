@@ -3,6 +3,9 @@
 Batch orchestrator for all planning experiments and ablation studies.
 
 Runs assignment planning for every (experiment, ablation_config) combination.
+Optionally also runs headless execution for each config to collect execution
+metrics (task success, handover rate, manipulability, collisions).
+
 For each experiment the simulation environment is created once and reused
 across all configs, saving significant setup time.
 
@@ -23,6 +26,9 @@ Usage::
     # Run with 4 parallel workers (each gets its own MuJoCo env):
     python scripts/experiments/run_all.py --workers 4
 
+    # Planning + headless execution (collects execution metrics):
+    python scripts/experiments/run_all.py --execute
+
     # Generate analysis report after running:
     python scripts/experiments/run_all.py --analyze
 """
@@ -31,9 +37,11 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import logging
 import multiprocessing as mp
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -75,6 +83,7 @@ from scripts.experiments.configs import (
 )
 from scripts.experiments.metrics import (
     ExperimentResult,
+    ExecutionMetrics,
     PlanningMetrics,
     extract_planning_metrics,
 )
@@ -315,6 +324,91 @@ def run_single_assignment(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Execution runner (headless simulation)
+# ═══════════════════════════════════════════════════════════════════════════
+
+_EXEC_SCRIPT = str(_PROJECT_ROOT / "scripts" / "manipulation" / "dual_arm_handover_traj.py")
+
+
+def run_execution(
+    exp_json_path: str,
+    assignment_file: str,
+    experiment_name: str,
+    config_label: str,
+    results_dir: Path,
+    config_id_str: str,
+    timeout: int = 600,
+) -> Optional[ExecutionMetrics]:
+    """Run the dual-arm execution script headlessly for a single config.
+
+    Returns ExecutionMetrics loaded from the JSON output, or None on failure.
+    """
+    metrics_file = str(results_dir / experiment_name / f"{config_id_str}_exec.json")
+    os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
+
+    cmd = [
+        sys.executable, _EXEC_SCRIPT,
+        "--experiment", exp_json_path,
+        "--assignment", assignment_file,
+        "--output-metrics", metrics_file,
+        "--headless",
+        "--smoothen",
+    ]
+
+    logger.info("    Running execution: %s × %s", experiment_name, config_label)
+    logger.info("    Command: %s", " ".join(cmd))
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+
+        if proc.returncode != 0:
+            logger.error(
+                "    Execution FAILED (exit %d): %s",
+                proc.returncode,
+                proc.stderr[-500:] if proc.stderr else "(no stderr)",
+            )
+
+        # Load metrics from the JSON file (script writes it even on partial failure)
+        if os.path.isfile(metrics_file):
+            with open(metrics_file) as f:
+                d = json.load(f)
+            d["experiment"] = experiment_name
+            d["config_label"] = config_label
+            metrics = ExecutionMetrics(**{
+                k: v for k, v in d.items()
+                if k in ExecutionMetrics.__dataclass_fields__
+            })
+            logger.info(
+                "    Execution result: task=%s, handover_rate=%.0f%%, collisions=%d, time=%.1fs",
+                metrics.task_success,
+                metrics.handover_success_rate * 100,
+                metrics.n_collision_incidents,
+                metrics.execution_time_s,
+            )
+            return metrics
+        else:
+            logger.error("    Metrics file not created: %s", metrics_file)
+            return None
+
+    except subprocess.TimeoutExpired:
+        logger.error("    Execution TIMED OUT (%ds)", timeout)
+        return ExecutionMetrics(
+            experiment=experiment_name,
+            config_label=config_label,
+            error_message=f"Execution timed out after {timeout}s",
+        )
+    except Exception as exc:
+        logger.error("    Execution error: %s", exc)
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Experiment-level runner
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -323,10 +417,12 @@ def run_experiment(
     configs: List[AblationConfig],
     no_env: bool = False,
     results_dir: Optional[Path] = None,
+    execute: bool = False,
 ) -> List[ExperimentResult]:
     """Run all ablation configs for a single experiment.
 
     Creates the environment once (if not --no-env) and runs all configs.
+    If ``execute=True``, also runs headless execution for each config.
     """
     exp_cfg = load_experiment(exp_json_path)
     exp_name = exp_cfg.name
@@ -372,6 +468,7 @@ def run_experiment(
     results: List[ExperimentResult] = []
     for i, cfg in enumerate(configs, 1):
         logger.info("[%d/%d] %s × %s", i, len(configs), exp_name, cfg["label"])
+        cid = config_id(cfg)
         exp_result = run_single_assignment(
             exp_cfg, data_dir, cfg,
             ik_solver_fn=ik_solver_fn,
@@ -380,6 +477,26 @@ def run_experiment(
             env=env,
             env_lock=env_lock,
         )
+
+        # Optionally run headless execution
+        if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
+            # Find the assignment NPZ that was saved by run_single_assignment
+            config_data_dir = Path(data_dir) / "configs" / cid
+            asgn_file = str(config_data_dir / "assignment_results.npz")
+            if os.path.isfile(asgn_file):
+                exec_metrics = run_execution(
+                    exp_json_path=exp_json_path,
+                    assignment_file=asgn_file,
+                    experiment_name=exp_name,
+                    config_label=cfg["label"],
+                    results_dir=results_dir or RESULTS_ROOT,
+                    config_id_str=cid,
+                )
+                if exec_metrics is not None:
+                    exp_result.execution = exec_metrics
+            else:
+                logger.warning("    Assignment NPZ not found at %s — skipping execution", asgn_file)
+
         # Save immediately (so we don't lose progress on crash)
         save_result(exp_result, results_dir)
         results.append(exp_result)
@@ -450,6 +567,7 @@ def _experiment_worker(
     configs: List[AblationConfig],
     no_env: bool,
     results_dir_str: str,
+    execute: bool = False,
 ) -> List[dict]:
     """Run a single experiment in a worker process.
 
@@ -468,6 +586,7 @@ def _experiment_worker(
     results_dir = Path(results_dir_str)
     results = run_experiment(
         exp_json_path, configs, no_env=no_env, results_dir=results_dir,
+        execute=execute,
     )
     return [r.to_dict() for r in results]
 
@@ -567,6 +686,20 @@ def main():
         help="Run analysis and generate plots after experiments finish.",
     )
     parser.add_argument(
+        "--execute", action="store_true",
+        help="After planning each config, run headless execution to collect "
+             "execution metrics (task success, handover rate, collisions, etc.).",
+    )
+    parser.add_argument(
+        "--execute-only", action="store_true",
+        help="Skip planning; run execution only for configs that already have "
+             "assignment NPZs from a previous planning run.",
+    )
+    parser.add_argument(
+        "--exec-timeout", type=int, default=600,
+        help="Timeout in seconds for each execution run (default: 600).",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be run without executing.",
     )
@@ -597,14 +730,75 @@ def main():
     logger.info("Results dir: %s", results_dir)
 
     if args.dry_run:
-        print("\nDRY RUN — would execute:")
+        mode = "execute-only" if args.execute_only else ("plan+execute" if args.execute else "plan-only")
+        print(f"\nDRY RUN ({mode}) — would execute:")
         for ep in exp_paths:
             for cfg in configs:
                 print(f"  {Path(ep).stem} × {cfg['label']}")
         print(f"\nTotal: {len(exp_paths) * len(configs)} runs")
         return
 
-    # Run all
+    # --execute-only: skip planning, run execution on existing assignment NPZs
+    if args.execute_only:
+        logger.info("EXECUTE-ONLY mode — skipping planning, running execution on existing assignments")
+        total_t0 = time.time()
+        all_results: List[ExperimentResult] = []
+
+        for ep in exp_paths:
+            exp_name = Path(ep).stem
+            exp_cfg = load_experiment(ep)
+            data_dir = exp_cfg.output.output_dir or str(DATA_DIR / exp_name)
+
+            for cfg in configs:
+                cid = config_id(cfg)
+                asgn_file = str(Path(data_dir) / "configs" / cid / "assignment_results.npz")
+
+                if not os.path.isfile(asgn_file):
+                    logger.warning("  %s × %s — no assignment NPZ found, skipping", exp_name, cfg["label"])
+                    continue
+
+                exec_metrics = run_execution(
+                    exp_json_path=ep,
+                    assignment_file=asgn_file,
+                    experiment_name=exp_name,
+                    config_label=cfg["label"],
+                    results_dir=results_dir,
+                    config_id_str=cid,
+                    timeout=args.exec_timeout,
+                )
+
+                # Load existing planning result if available
+                planning = None
+                result_json = results_dir / exp_name / f"{cid}.json"
+                if result_json.is_file():
+                    from scripts.experiments.results_store import load_result
+                    existing = load_result(result_json)
+                    planning = existing.planning
+
+                exp_result = ExperimentResult(
+                    experiment=exp_name,
+                    config_label=cfg["label"],
+                    config_id=cid,
+                    planning=planning,
+                    execution=exec_metrics,
+                )
+                save_result(exp_result, results_dir)
+                all_results.append(exp_result)
+
+        total_elapsed = time.time() - total_t0
+        print_batch_summary(all_results, total_elapsed)
+
+        from scripts.experiments.results_store import build_summary
+        build_summary(results_dir)
+
+        if args.analyze:
+            logger.info("Running analysis ...")
+            from scripts.experiments.analyze import main as analyze_main
+            sys.argv = ["analyze.py", "--results-dir", str(results_dir), "--no-show"]
+            analyze_main()
+        return
+
+    # Run all (planning, optionally followed by execution)
     num_workers = max(1, args.workers)
     total_t0 = time.time()
     all_results: List[ExperimentResult] = []
@@ -616,6 +810,7 @@ def main():
                 exp_path, configs,
                 no_env=args.no_env,
                 results_dir=results_dir,
+                execute=args.execute,
             )
             all_results.extend(results)
     else:
@@ -636,6 +831,7 @@ def main():
                     configs,
                     args.no_env,
                     str(results_dir),
+                    args.execute,
                 ): Path(ep).stem
                 for ep in exp_paths
             }

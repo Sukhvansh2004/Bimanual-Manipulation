@@ -182,6 +182,173 @@ def export_latex(results: List[ExperimentResult], out_path: Path):
     logger.info("LaTeX table exported: %s", out_path)
 
 
+def export_paper_table1(results: List[ExperimentResult], out_path: Path):
+    """Export Table 1: Method Comparison (Greedy, Single Robot, No-Diversity, Proposed).
+
+    Averages metrics across all experiments for each method.
+    """
+    methods = [
+        ("Greedy (beam=1)", "Greedy"),
+        ("Single Robot", "Single Robot"),
+        ("No Diversity", "No Diversity"),
+        ("Proposed", "Proposed"),
+    ]
+
+    lines = [
+        r"\begin{table}[ht]",
+        r"\centering",
+        r"\caption{Method Comparison on Dual-Arm Manipulation Tasks}",
+        r"\label{tab:method_comparison}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{l c c c c c c c}",
+        r"\toprule",
+        r"Method & Task Succ. (\%) & HO Succ. (\%) & Avg Switches & Exec Time (s) & Plan Time (s) & Manipulability & Collisions \\",
+        r"\midrule",
+    ]
+
+    for config_label, display_name in methods:
+        matching = [r for r in results if r.config_label == config_label]
+        if not matching:
+            lines.append(f"  {display_name} & -- & -- & -- & -- & -- & -- & -- \\\\")
+            continue
+
+        # Planning metrics (always available)
+        plan_results = [r for r in matching if r.planning is not None]
+        avg_switches = np.mean([r.planning.n_handovers for r in plan_results]) if plan_results else 0
+        avg_plan_time = np.mean([r.planning.planning_time_s for r in plan_results]) if plan_results else 0
+        avg_manip = np.mean([r.planning.mean_manipulability for r in plan_results]) if plan_results else 0
+
+        # Execution metrics (may not be available)
+        exec_results = [r for r in matching if r.execution is not None]
+        if exec_results:
+            task_succ = np.mean([r.execution.task_success for r in exec_results]) * 100
+            ho_succ = np.mean([r.execution.handover_success_rate for r in exec_results]) * 100
+            avg_exec_time = np.mean([r.execution.execution_time_s for r in exec_results])
+            avg_collisions = np.mean([r.execution.n_collision_incidents for r in exec_results])
+        else:
+            task_succ = ho_succ = avg_exec_time = avg_collisions = float("nan")
+
+        lines.append(
+            f"  {display_name} & {task_succ:.0f} & {ho_succ:.0f} & {avg_switches:.1f} "
+            f"& {avg_exec_time:.1f} & {avg_plan_time:.1f} & {avg_manip:.4f} & {avg_collisions:.1f} \\\\"
+        )
+
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}}",
+        r"\end{table}",
+    ])
+
+    out_path.write_text("\n".join(lines))
+    logger.info("Paper Table 1 (Method Comparison) exported: %s", out_path)
+
+
+def export_paper_table2(results: List[ExperimentResult], out_path: Path):
+    """Export Table 2: Ablation Studies.
+
+    Shows effect of removing C_switch, β, and feasibility filter.
+    """
+    ablations = [
+        ("Baseline (α=10, β=1)", "Full Method (Proposed)"),
+        ("No Switching Penalty (Cswitch=0)", r"$C_\text{switch}=0$"),
+        ("No Manipulability (β=0)", r"$\beta=0$"),
+        ("No Feasibility Filter", "No Feasibility Filter"),
+    ]
+
+    lines = [
+        r"\begin{table}[ht]",
+        r"\centering",
+        r"\caption{Ablation Study: Effect of Individual Components}",
+        r"\label{tab:ablation}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{l c c c c c c}",
+        r"\toprule",
+        r"Configuration & Total Cost & Handovers & Manipulability & Switch Cost & Feasibility (\%) & Plan Time (s) \\",
+        r"\midrule",
+    ]
+
+    for config_label, display_name in ablations:
+        matching = [r for r in results if r.config_label == config_label and r.planning is not None]
+        if not matching:
+            lines.append(f"  {display_name} & -- & -- & -- & -- & -- & -- \\\\")
+            continue
+
+        avg_cost = np.mean([r.planning.total_cost for r in matching])
+        avg_ho = np.mean([r.planning.n_handovers for r in matching])
+        avg_manip = np.mean([r.planning.mean_manipulability for r in matching])
+        avg_switch_cost = np.mean([r.planning.total_switching_cost for r in matching])
+        avg_feas = np.mean([r.planning.assigned_feasibility_rate for r in matching]) * 100
+        avg_plan_time = np.mean([r.planning.planning_time_s for r in matching])
+
+        lines.append(
+            f"  {display_name} & {avg_cost:.1f} & {avg_ho:.1f} & {avg_manip:.4f} "
+            f"& {avg_switch_cost:.1f} & {avg_feas:.0f} & {avg_plan_time:.1f} \\\\"
+        )
+
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}}",
+        r"\end{table}",
+    ])
+
+    out_path.write_text("\n".join(lines))
+    logger.info("Paper Table 2 (Ablation Study) exported: %s", out_path)
+
+
+def export_paper_per_experiment(results: List[ExperimentResult], out_path: Path):
+    """Export a per-experiment breakdown table for the Proposed method.
+
+    Shows planning + execution metrics for each experiment individually.
+    """
+    # Use "Proposed" config; fall back to "Baseline (α=10, β=1)"
+    proposed = [r for r in results if r.config_label in ("Proposed", "Baseline (α=10, β=1)")]
+    # Deduplicate by experiment, preferring "Proposed" label
+    by_exp: Dict[str, ExperimentResult] = {}
+    for r in proposed:
+        if r.experiment not in by_exp or r.config_label == "Proposed":
+            by_exp[r.experiment] = r
+
+    lines = [
+        r"\begin{table}[ht]",
+        r"\centering",
+        r"\caption{Per-Experiment Results (Proposed Method)}",
+        r"\label{tab:per_experiment}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{l c c c c c c c}",
+        r"\toprule",
+        r"Experiment & Cost & Handovers & Manip. & Plan (s) & Task OK & HO Rate (\%) & Collisions \\",
+        r"\midrule",
+    ]
+
+    for exp_name in sorted(by_exp):
+        r = by_exp[exp_name]
+        exp_disp = exp_name.replace("_", r"\_")
+        p = r.planning
+        e = r.execution
+
+        cost = f"{p.total_cost:.1f}" if p else "--"
+        ho = str(p.n_handovers) if p else "--"
+        manip = f"{p.mean_manipulability:.4f}" if p else "--"
+        plan_t = f"{p.planning_time_s:.1f}" if p else "--"
+        task_ok = r"\checkmark" if (e and e.task_success) else (r"\texttimes" if e else "--")
+        ho_rate = f"{e.handover_success_rate * 100:.0f}" if e else "--"
+        collisions = str(e.n_collision_incidents) if e else "--"
+
+        lines.append(
+            f"  {exp_disp} & {cost} & {ho} & {manip} & {plan_t} "
+            f"& {task_ok} & {ho_rate} & {collisions} \\\\"
+        )
+
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}}",
+        r"\end{table}",
+    ])
+
+    out_path.write_text("\n".join(lines))
+    logger.info("Per-experiment table exported: %s", out_path)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Plotting
 # ═══════════════════════════════════════════════════════════════════════════
@@ -453,6 +620,9 @@ def main():
     # Exports
     export_csv(results, out_dir / "results.csv")
     export_latex(results, out_dir / "planning_table.tex")
+    export_paper_table1(results, out_dir / "paper_table1_methods.tex")
+    export_paper_table2(results, out_dir / "paper_table2_ablation.tex")
+    export_paper_per_experiment(results, out_dir / "paper_per_experiment.tex")
 
     # Plots
     plot_baseline_overview(results, out_dir, show)

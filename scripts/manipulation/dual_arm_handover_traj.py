@@ -26,6 +26,7 @@ Usage::
 
 import os
 import time
+import json
 import logging
 import numpy as np
 import argparse
@@ -56,9 +57,73 @@ from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
 from robosuite_franka_manipulation.planning.assignment import (
     load_assignment_result,
     AssignmentResult,
-)    
+)
+from robosuite_franka_manipulation.planning.utils.manipulability import (
+    compute_trajectory_manipulability,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Execution metrics tracker
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ExecutionTracker:
+    """Tracks metrics during task execution for later reporting."""
+
+    def __init__(self):
+        self.task_success = False
+        self.grasp_success = False
+        self.transport_success = False
+        self.place_success = False
+        self.n_handovers_attempted = 0
+        self.n_handovers_succeeded = 0
+        self.n_collision_incidents = 0
+        self.execution_start_time = 0.0
+        self.execution_time_s = 0.0
+        self.executed_joint_configs: List[np.ndarray] = []  # for manipulability
+        self.parallel_collision_free = True
+        self.error_message = ""
+        self.n_switches = 0  # total arm switches (= handovers from assignment)
+
+    @property
+    def handover_success_rate(self) -> float:
+        if self.n_handovers_attempted == 0:
+            return 1.0  # no handovers needed → vacuously successful
+        return self.n_handovers_succeeded / self.n_handovers_attempted
+
+    @property
+    def mean_manipulability(self) -> float:
+        if not self.executed_joint_configs:
+            return 0.0
+        q = np.array(self.executed_joint_configs)
+        m = compute_trajectory_manipulability(q)
+        return float(np.mean(m))
+
+    def to_dict(self) -> dict:
+        return {
+            "task_success": self.task_success,
+            "grasp_success": self.grasp_success,
+            "transport_success": self.transport_success,
+            "place_success": self.place_success,
+            "n_handovers_attempted": self.n_handovers_attempted,
+            "n_handovers_succeeded": self.n_handovers_succeeded,
+            "handover_success_rate": self.handover_success_rate,
+            "n_collision_incidents": self.n_collision_incidents,
+            "n_switches": self.n_switches,
+            "execution_time_s": self.execution_time_s,
+            "mean_manipulability": self.mean_manipulability,
+            "parallel_collision_free": self.parallel_collision_free,
+            "error_message": self.error_message,
+        }
+
+    def save(self, path: str):
+        """Save metrics to a JSON file."""
+        with open(path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2)
+        logger.info("Execution metrics saved to %s", path)
+
 
 def setup_logging(level: int = logging.INFO):
     """Configure logging."""
@@ -182,7 +247,10 @@ def main():
                             help="Max robot-1 trajectories (overrides assignment.num_trajectories_robot1)")
     asgn_group.add_argument("--assignment", type=str, default=None,
                             help="Path to assignment NPZ file (overrides default lookup)")
-
+    parser.add_argument("--output-metrics", type=str, default=None,
+                        help="Path to write execution metrics JSON (for batch evaluation)")
+    parser.add_argument("--headless", action="store_true",
+                        help="Disable rendering & meshcat (for batch runs)")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -219,6 +287,15 @@ def main():
         exec_cfg.smoothen = args.smoothen
         logger.info("Smoothen override: %s (was %s)", args.smoothen, old_val)
 
+    # Headless mode — disable rendering and meshcat for batch runs
+    if args.headless:
+        exec_cfg.visualize = False
+        vis_cfg.enable_meshcat = False
+
+    # Execution metrics tracker
+    tracker = ExecutionTracker()
+    tracker.execution_start_time = time.time()
+
     debug = args.debug or rt_cfg.debug
     if debug:
         setup_logging(logging.DEBUG)
@@ -236,13 +313,13 @@ def main():
         vis.delete()  # Clear MeshCat
 
     system = DualArmManipulationSystem(
-        visualize=exec_cfg.visualize, 
+        visualize=exec_cfg.visualize,
         meshcat_tf=exec_cfg.meshcat_tf and enable_meshcat,
         ycb_objects=ycb_objects,
         custom_objects=custom_objects,
-        use_fastsam=False, 
+        use_fastsam=False,
         use_grasp_service=False,
-        has_renderer=True,
+        has_renderer=not args.headless,
         table_full_size=exp_cfg.table_full_size,
     )
     system.start(start_teleop_thread=False)
@@ -467,6 +544,13 @@ def main():
         current_gripper.grasp()
         stabilise(system.env, system.env_lock)
 
+        # Record grasp success
+        tracker.grasp_success = True
+
+        # Record number of arm switches from assignment
+        if assignment is not None:
+            tracker.n_switches = len(assignment.handover_points)
+
         # Total number of segments — bounded by the assignment length
         # (trajectory files may have more waypoints than the assignment covers)
         n_segments = len(res_cur)
@@ -584,6 +668,11 @@ def main():
                     logger.info("Parallel execution completed collision-free.")
                 else:
                     logger.warning("Parallel execution had QP solver fallbacks — check collision avoidance.")
+                    tracker.n_collision_incidents += 1
+                    tracker.parallel_collision_free = False
+
+                # Record joint configs for manipulability
+                tracker.executed_joint_configs.append(current_arm.get_joint_positions())
 
                 current_idx = next_handover_idx
 
@@ -592,6 +681,7 @@ def main():
                 # Arm B is already at the handover pre-pose from parallel
                 # execution above.
                 # -------------------------------------------------------
+                tracker.n_handovers_attempted += 1
                 logger.info(f"Executing handover at {current_idx}...")
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
@@ -608,6 +698,7 @@ def main():
 
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
+                tracker.n_handovers_succeeded += 1
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
@@ -627,6 +718,9 @@ def main():
                         smoothen=exec_cfg.smoothen, num_steps=n_steps,
                     )
                     current_idx = last_idx
+                    # Record joint configs for manipulability
+                    tracker.executed_joint_configs.append(current_arm.get_joint_positions())
+                tracker.transport_success = True
                 break
 
         # 6. Release and Retreat
@@ -644,12 +738,22 @@ def main():
         current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
         stabilise(system.env, system.env_lock)
 
-        time.sleep(5)  # Pause to observe final state
+        tracker.place_success = True
+        tracker.task_success = True
+        tracker.execution_time_s = time.time() - tracker.execution_start_time
+
+        if not args.headless:
+            time.sleep(5)  # Pause to observe final state
         logger.info("Done!")
 
     except Exception as e:
         logger.exception(f"An error occurred: {e}")
+        tracker.error_message = str(e)
+        tracker.execution_time_s = time.time() - tracker.execution_start_time
     finally:
+        # Save execution metrics if requested
+        if args.output_metrics:
+            tracker.save(args.output_metrics)
         system.stop()
 
 if __name__ == "__main__":
