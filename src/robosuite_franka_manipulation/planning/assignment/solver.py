@@ -121,6 +121,11 @@ def _solve_optimal_assignment(
         )
 
         for cs in range(n_states):
+            # Skip infeasible destination states — no point evaluating
+            # transitions into a state whose task cost is already inf.
+            if np.isinf(cost_matrix[i, cs]):
+                continue
+
             cr, ct = trajectory_info[cs]
             best_cost = np.inf
             best_prev = -1
