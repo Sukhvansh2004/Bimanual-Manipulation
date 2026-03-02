@@ -1,0 +1,24 @@
+{
+  "experiment": "flatPlate_shelf_to_shelf",
+  "config_label": "No Manipulability (\u03b2=0)",
+  "config_id": "No_Manipulability_\u03b20",
+  "planning": {
+    "experiment": "flatPlate_shelf_to_shelf",
+    "config_label": "No Manipulability (\u03b2=0)",
+    "total_cost": 17.093137259032204,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      21,
+      56
+    ],
+    "mean_task_cost": 0.18968743411151862,
+    "total_switching_cost": 1.918142530110711,
+    "mean_manipulability": 0.7700595554762734,
+    "min_manipulability": 0.6662910706155333,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1052.7320799827576
+  }
+}

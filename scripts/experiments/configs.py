@@ -102,7 +102,7 @@ CLEARANCE_010 = _cfg("Clearance=0.10m", clearance_radius=0.10, beam_width=10)
 CLEARANCE_015 = _cfg("Clearance=0.15m", clearance_radius=0.15, beam_width=10)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 7. Ablation: Beam Pruning  (unlimited, 5, 10, 20)
+# 7. Ablation: Beam Pruning  (unlimited, 1, 5, 10, 20)
 # ═══════════════════════════════════════════════════════════════════════════
 
 BEAM_UNLIMITED = _cfg("Beam=unlimited", beam_width=None)

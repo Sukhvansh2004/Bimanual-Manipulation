@@ -6,6 +6,9 @@ By default, loads the optimal assignment result (``assignment_results.npz``)
 from the experiment's data directory.  Use ``--traj0`` and ``--traj1`` to
 bypass the assignment and specify trajectory files explicitly.
 
+Assignment parameters from the experiment JSON can be overridden via CLI
+flags (e.g. ``--alpha``, ``--beta``, ``--initial-robot``).
+
 Usage::
 
     # Default — uses the assignment result in data/<experiment_name>/
@@ -15,6 +18,10 @@ Usage::
     python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \\
         --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_5.npz \\
         --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_1.npz
+
+    # Override assignment parameters
+    python dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \\
+        --alpha 5.0 --beta 2.0 --initial-robot 0
 """
 
 import os
@@ -147,6 +154,31 @@ def main():
     parser.add_argument("--traj1", type=str, default=None,
                         help="Path to robot-1 trajectory NPZ (bypasses assignment).")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
+
+    # --- Assignment overrides (override values from experiment JSON) ---
+    asgn_group = parser.add_argument_group("assignment overrides",
+                                           "Override assignment parameters from the experiment JSON")
+    asgn_group.add_argument("--alpha", type=float, default=None,
+                            help="Task-cost weight (overrides assignment.alpha)")
+    asgn_group.add_argument("--beta", type=float, default=None,
+                            help="Switching-cost weight (overrides assignment.beta)")
+    asgn_group.add_argument("--epsilon", type=float, default=None,
+                            help="Numerical tolerance (overrides assignment.epsilon)")
+    asgn_group.add_argument("--initial-robot", type=int, default=None, choices=[0, 1],
+                            help="Force which robot starts (overrides assignment.initial_robot)")
+    asgn_group.add_argument("--beam-width", type=int, default=None,
+                            help="DP beam width; omit for exact search (overrides assignment.beam_width)")
+    asgn_group.add_argument("--handover-stride", type=int, default=None,
+                            help="Attempt handovers every K segments (overrides assignment.handover_stride)")
+    asgn_group.add_argument("--handover-clearance-radius", type=float, default=None,
+                            help="Clearance radius in metres (overrides assignment.handover_clearance_radius)")
+    asgn_group.add_argument("--num-trajectories-robot0", type=int, default=None,
+                            help="Max robot-0 trajectories (overrides assignment.num_trajectories_robot0)")
+    asgn_group.add_argument("--num-trajectories-robot1", type=int, default=None,
+                            help="Max robot-1 trajectories (overrides assignment.num_trajectories_robot1)")
+    asgn_group.add_argument("--assignment", type=str, default=None,
+                            help="Path to assignment NPZ file (overrides default lookup)")
+
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -154,6 +186,24 @@ def main():
     # ---------------------------------------------------------------
     exp_cfg = load_experiment(args.experiment)
     logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
+
+    # Apply CLI assignment overrides onto exp_cfg.assignment
+    _assignment_overrides = {
+        "alpha": args.alpha,
+        "beta": args.beta,
+        "epsilon": args.epsilon,
+        "initial_robot": args.initial_robot,
+        "beam_width": args.beam_width,
+        "handover_stride": args.handover_stride,
+        "handover_clearance_radius": args.handover_clearance_radius,
+        "num_trajectories_robot0": args.num_trajectories_robot0,
+        "num_trajectories_robot1": args.num_trajectories_robot1,
+    }
+    for field, value in _assignment_overrides.items():
+        if value is not None:
+            old_val = getattr(exp_cfg.assignment, field)
+            setattr(exp_cfg.assignment, field, value)
+            logger.info("Assignment override: %s = %s (was %s)", field, value, old_val)
 
     exec_cfg = exp_cfg.execution
     vis_cfg = exp_cfg.visualization
@@ -227,11 +277,12 @@ def main():
                 if exp_cfg.output.output_dir is not None
                 else os.path.join(constants.DATA_DIR, exp_cfg.name)
             )
-            assignment_file = (
-                exec_cfg.assignment_path
-                if exec_cfg.assignment_path is not None
-                else os.path.join(data_dir, "assignment_results.npz")
-            )
+            if args.assignment is not None:
+                assignment_file = args.assignment
+            elif exec_cfg.assignment_path is not None:
+                assignment_file = exec_cfg.assignment_path
+            else:
+                assignment_file = os.path.join(data_dir, "assignment_results.npz")
 
             if not os.path.isfile(assignment_file):
                 logger.error(
