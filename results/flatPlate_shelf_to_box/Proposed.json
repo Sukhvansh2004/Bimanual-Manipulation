@@ -18,23 +18,23 @@
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 1226.7453186511993
+    "planning_time_s": 1499.424012184143
   },
   "execution": {
     "experiment": "flatPlate_shelf_to_box",
     "config_label": "Proposed",
-    "task_success": false,
+    "task_success": true,
     "handover_success_rate": 1.0,
-    "n_handovers_attempted": 0,
-    "n_handovers_succeeded": 0,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 1,
     "n_collision_incidents": 0,
-    "execution_time_s": 10.46075963973999,
-    "grasp_success": false,
-    "transport_success": false,
-    "place_success": false,
-    "n_switches": 0,
-    "mean_manipulability": 0.0,
+    "execution_time_s": 137.74670600891113,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 1,
+    "mean_manipulability": 0.8218273799482975,
     "parallel_collision_free": true,
-    "error_message": "Trajectory file not found: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_box/configs/Proposed/robot0_trajectory_1.npz"
+    "error_message": ""
   }
 }

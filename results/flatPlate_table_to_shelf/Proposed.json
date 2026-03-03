@@ -18,7 +18,7 @@
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 1167.7995810508728
+    "planning_time_s": 1271.8163888454437
   },
   "execution": {
     "experiment": "flatPlate_table_to_shelf",
@@ -28,7 +28,7 @@
     "n_handovers_attempted": 1,
     "n_handovers_succeeded": 1,
     "n_collision_incidents": 1,
-    "execution_time_s": 121.14325046539307,
+    "execution_time_s": 129.66585779190063,
     "grasp_success": true,
     "transport_success": true,
     "place_success": true,

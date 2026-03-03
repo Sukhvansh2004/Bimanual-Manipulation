@@ -1,0 +1,38 @@
+{
+  "experiment": "ycb_bowl_rack_to_table",
+  "config_label": "Greedy (beam=1)",
+  "config_id": "Greedy_beam1",
+  "planning": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "Greedy (beam=1)",
+    "total_cost": 1451.736157038292,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 29.034723140765855,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.75587026959072,
+    "min_manipulability": 0.7295650189756548,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.25,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 2442.907872438431
+  },
+  "execution": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "Greedy (beam=1)",
+    "task_success": true,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "n_collision_incidents": 0,
+    "execution_time_s": 62.709802865982056,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 0,
+    "mean_manipulability": 0.7555333366102086,
+    "parallel_collision_free": true,
+    "error_message": ""
+  }
+}

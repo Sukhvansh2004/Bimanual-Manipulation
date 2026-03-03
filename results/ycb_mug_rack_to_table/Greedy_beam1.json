@@ -1,0 +1,21 @@
+{
+  "experiment": "ycb_mug_rack_to_table",
+  "config_label": "Greedy (beam=1)",
+  "config_id": "Greedy_beam1",
+  "planning": {
+    "experiment": "ycb_mug_rack_to_table",
+    "config_label": "Greedy (beam=1)",
+    "total_cost": Infinity,
+    "n_segments": 0,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 0.0,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.0,
+    "min_manipulability": 0.0,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 0.0,
+    "planning_time_s": 43.85992932319641
+  }
+}

@@ -14,7 +14,7 @@ Each configuration is a dict with:
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-
+import numpy as np
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Configuration definition
@@ -125,7 +125,7 @@ GREEDY = _cfg("Greedy (beam=1)", beam_width=1)
 
 SINGLE_ROBOT = _cfg(
     "Single Robot",
-    switch_cost_override=1e12,   # effectively prohibit switches
+    switch_cost_override=np.inf,   # effectively prohibit switches
     beam_width=10,
 )
 
@@ -154,7 +154,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     # Minimal set for the paper tables (6 unique configs, no duplicates)
     # Table 1: Greedy, Single Robot, No Diversity, Proposed
     # Table 2: Proposed (=Baseline), No Switching Penalty, No Manipulability, No Diversity (=No Feas. Filter)
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
 # Flat list of all unique configs for running everything
