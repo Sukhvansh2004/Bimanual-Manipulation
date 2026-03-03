@@ -1,0 +1,317 @@
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-03 20:04:46,531 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-03 20:04:46,559 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-03 20:04:53,842 - robosuite_franka_manipulation.experiment_config - INFO - Loading experiment 'ycb_plate_table_to_shelf' from /tmp/overnight_configs_PmrS/ycb_plate_table_to_shelf.json
+2026-03-03 20:04:53,843 - __main__ - INFO - Loaded experiment: ycb_plate_table_to_shelf – Move a YCB plate from the table into a tabletop shelf slot (stored on edge).
+2026-03-03 20:04:53,843 - __main__ - INFO - Initializing Trajectory Generation...
+2026-03-03 20:04:53,843 - __main__ - INFO - Creating planning environment with 2 YCB + 0 custom objects...
+2026-03-03 20:04:53,843 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 20:04:58,075 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:04:58,076 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:04:59,683 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:04:59,684 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:05:00,180 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-03 20:05:00,182 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 20:05:00,182 - __main__ - INFO - Meshcat visualization disabled.
+2026-03-03 20:05:00,182 - __main__ - INFO - No start pose specified. Auto-detecting from simulation...
+2026-03-03 20:05:01,185 - __main__ - INFO - Detected object pose: pos=[   0.099976  0.00034013     0.90764]
+2026-03-03 20:05:01,185 - __main__ - INFO - Planning from [   0.099976  0.00034013     0.90764] to [       -0.2       -0.05        1.04]
+2026-03-03 20:05:01,185 - __main__ - INFO - Using experiment RRT bounds: [       -0.5        -0.4         0.9] to [        0.5         0.4         1.4]
+2026-03-03 20:05:01,185 - robosuite_franka_manipulation.planning.trajectory.generator - INFO - Using RRT-Connect planner for collision-aware object trajectory.
+2026-03-03 20:05:01,185 - robosuite_franka_manipulation.planning.trajectory.object_planner - INFO - Planning object trajectory: [   0.099976  0.00034013     0.90764] -> [       -0.2       -0.05        1.04]
+2026-03-03 20:05:01,185 - robosuite_franka_manipulation.planning.trajectory.object_planner - INFO -   Workspace bounds: [       -0.5        -0.4         0.9] to [        0.5         0.4         1.4]
+2026-03-03 20:05:01,202 - robosuite_franka_manipulation.planning.rrt.se3.planner - INFO - Direct path has collisions. Running RRT-Connect (max_iter=5000)...
+2026-03-03 20:05:01,401 - robosuite_franka_manipulation.planning.rrt.se3.planner - INFO - RRT-Connect found path in 149 iterations (tree sizes: 38, 18)
+2026-03-03 20:05:01,401 - robosuite_franka_manipulation.planning.trajectory.object_planner - INFO - RRT planning succeeded (149 iterations, raw path length: 27 waypoints)
+2026-03-03 20:05:01,492 - robosuite_franka_manipulation.planning.rrt.se3.smoothing - INFO - Phase 1 shortcutting: 27 -> 4 waypoints
+2026-03-03 20:05:01,518 - robosuite_franka_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 1/3 segments smoothed, 2 fell back to linear (40 total dense waypoints)
+2026-03-03 20:05:01,525 - __main__ - INFO - Object trajectory generated.
+2026-03-03 20:05:01,525 - __main__ - INFO - Initializing Service Architecture...
+2026-03-03 20:05:01,535 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-03 20:05:01,535 - robosuite_franka_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-03 20:05:01,535 - robosuite_franka_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-03 20:05:01,536 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-03 20:05:02,099 - grasp_gen.models.discriminator - INFO - Pose representation is mlp
+2026-03-03 20:05:02,102 - grasp_gen.models.discriminator - INFO - Object encoder checkpoints not found at location graspgen_franka_panda_gen.pth
+2026-03-03 20:05:02,103 - grasp_gen.models.grasp_gen - INFO - Loading generator checkpoint from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGenModels/checkpoints/graspgen_franka_panda_gen.pth
+2026-03-03 20:05:03,451 - grasp_gen.models.grasp_gen - INFO - Loading discriminator checkpoint from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGenModels/checkpoints/graspgen_franka_panda_dis.pth
+2026-03-03 20:05:04,320 - robosuite_franka_manipulation.services.grasp_service - INFO - Loaded GraspPredictor for franka_panda
+2026-03-03 20:05:05,164 - grasp_gen.models.discriminator - INFO - Pose representation is mlp
+2026-03-03 20:05:05,169 - grasp_gen.models.grasp_gen - INFO - Loading generator checkpoint from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGenModels/checkpoints/graspgen_single_suction_cup_30mm_gen.pth
+2026-03-03 20:05:06,326 - grasp_gen.models.grasp_gen - INFO - Loading discriminator checkpoint from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGenModels/checkpoints/graspgen_single_suction_cup_30mm_dis.pth
+2026-03-03 20:05:07,120 - robosuite_franka_manipulation.services.grasp_service - INFO - Loaded GraspPredictor for single_suction_cup_30mm
+2026-03-03 20:05:07,129 - robosuite_franka_manipulation.services.grasp_service - INFO - Grasp Service initialized on localhost:5552
+2026-03-03 20:05:07,129 - robosuite_franka_manipulation.services.grasp_service - INFO - Starting Grasp Service...
+2026-03-03 20:05:07,135 - robosuite_franka_manipulation.services.services_core - INFO - Registered service: grasp_service (grasp_prediction) at localhost:5552
+2026-03-03 20:05:07,136 - robosuite_franka_manipulation.services.grasp_service - INFO - Starting ZMQ server on tcp://localhost:5552
+2026-03-03 20:05:07,149 - robosuite_franka_manipulation.services.grasp_service - INFO - Grasp Service started successfully
+2026-03-03 20:05:07,149 - __main__ - INFO - Generating grasps for plate_0 (types: ['finger', 'suction'])...
+2026-03-03 20:05:07,150 - robosuite_franka_manipulation.planning.grasp_generator - INFO - Requesting 400 grasps for plate_0 (['finger', 'suction']) from Grasp Service...
+2026-03-03 20:05:07,159 - robosuite_franka_manipulation.services.grasp_service - INFO - Predicting grasps for finger (Index 0)...
+/home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGen/grasp_gen/models/generator.py:547: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  torch.sqrt(torch.tensor(var_pos, device=device)),
+/home/sukhvansh/Dual-Arm-Franka-Control-MTP/deps/GraspGen/grasp_gen/models/generator.py:559: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  torch.sqrt(torch.tensor(var_rot, device=device)),
+2026-03-03 20:05:08,290 - grasp_gen.grasp_server - INFO - Confidences min: 0.00018, max: 0.98872
+2026-03-03 20:05:08,290 - grasp_gen.grasp_server - INFO - Thresholding grasps @ 0.8. Only 1425/2000 grasps remaining
+2026-03-03 20:05:08,291 - grasp_gen.grasp_server - INFO - Found 1425 grasps in iteration 1, total grasps: 1425
+2026-03-03 20:05:08,291 - grasp_gen.grasp_server - INFO - Time taken for inference: 1.0624513626098633 seconds
+2026-03-03 20:05:41,660 - robosuite_franka_manipulation.services.grasp_service - INFO - Kept 400/400 grasps for finger #0
+2026-03-03 20:05:41,661 - robosuite_franka_manipulation.services.grasp_service - INFO - Predicting grasps for suction (Index 1)...
+2026-03-03 20:05:42,271 - grasp_gen.grasp_server - INFO - Confidences min: 0.00001, max: 0.99597
+2026-03-03 20:05:42,271 - grasp_gen.grasp_server - INFO - Thresholding grasps @ 0.8. Only 891/2000 grasps remaining
+2026-03-03 20:05:42,272 - grasp_gen.grasp_server - INFO - Found 891 grasps in iteration 1, total grasps: 891
+2026-03-03 20:05:42,272 - grasp_gen.grasp_server - INFO - Time taken for inference: 0.564857006072998 seconds
+2026-03-03 20:07:20,302 - robosuite_franka_manipulation.services.grasp_service - INFO - Kept 400/400 grasps for suction #1
+2026-03-03 20:07:20,336 - robosuite_franka_manipulation.planning.grasp_generator - INFO - Received 800 grasps.
+2026-03-03 20:07:20,450 - __main__ - INFO - Received 25 grasps for Finger and 25 for Suction.
+2026-03-03 20:07:20,451 - __main__ - INFO - Evaluating grasps using 4 processes...
+2026-03-03 20:07:20,504 - __main__ - INFO - Processing Robot 0 (Finger) grasps...
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-03 20:07:23,750 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-03 20:07:23,750 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-03 20:07:23,750 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-03 20:07:23,751 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-03 20:07:23,754 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-03 20:07:23,754 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-03 20:07:23,754 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-03 20:07:23,755 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-03 20:07:29,768 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 20:07:29,768 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 20:07:29,769 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 20:07:29,770 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 20:07:32,761 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:32,761 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:32,761 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:32,762 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:32,762 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:32,762 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:32,771 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:32,772 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:38,728 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:38,731 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:38,735 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:38,737 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:38,819 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:38,820 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:39,071 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 20:07:39,072 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-03 20:07:40,659 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-03 20:07:40,665 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-03 20:07:40,672 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 20:07:40,672 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 20:07:40,672 - root - INFO - Worker initialized: Environment and Visualizer created.
+2026-03-03 20:07:40,673 - root - INFO - Worker initialized: Environment and Visualizer created.
+2026-03-03 20:07:40,677 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 2 (Gripper: franka_panda, Score: 0.937)
+2026-03-03 20:07:40,677 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 0 (Gripper: franka_panda, Score: 0.989)
+2026-03-03 20:07:40,734 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-03 20:07:40,739 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 20:07:40,740 - root - INFO - Worker initialized: Environment and Visualizer created.
+2026-03-03 20:07:40,742 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 4 (Gripper: franka_panda, Score: 0.895)
+2026-03-03 20:07:40,761 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-03 20:07:40,769 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 20:07:40,769 - root - INFO - Worker initialized: Environment and Visualizer created.
+2026-03-03 20:07:40,772 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 6 (Gripper: franka_panda, Score: 0.968)
+2026-03-03 20:07:42,577 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 7 (Gripper: franka_panda, Score: 0.861)
+2026-03-03 20:07:47,514 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 1 (Gripper: franka_panda, Score: 0.962)
+2026-03-03 20:07:57,817 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 8 (Gripper: franka_panda, Score: 0.986)
+2026-03-03 20:08:06,888 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 9 (Gripper: franka_panda, Score: 0.979)
+2026-03-03 20:08:08,073 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 10 (Gripper: franka_panda, Score: 0.869)
+2026-03-03 20:08:17,385 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 3 (Gripper: franka_panda, Score: 0.978)
+2026-03-03 20:08:18,772 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 5 (Gripper: franka_panda, Score: 0.920)
+2026-03-03 20:08:24,928 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 12 (Gripper: franka_panda, Score: 0.969)
+2026-03-03 20:08:33,260 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 13 (Gripper: franka_panda, Score: 0.964)
+2026-03-03 20:08:33,972 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 14 (Gripper: franka_panda, Score: 0.883)
+2026-03-03 20:08:36,409 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 16 (Gripper: franka_panda, Score: 0.929)
+2026-03-03 20:08:37,133 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 17 (Gripper: franka_panda, Score: 0.984)
+2026-03-03 20:08:41,784 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 11 (Gripper: franka_panda, Score: 0.977)
+2026-03-03 20:08:45,709 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 18 (Gripper: franka_panda, Score: 0.910)
+2026-03-03 20:08:48,102 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 20 (Gripper: franka_panda, Score: 0.977)
+2026-03-03 20:08:49,455 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 15 (Gripper: franka_panda, Score: 0.801)
+2026-03-03 20:08:52,850 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 22 (Gripper: franka_panda, Score: 0.927)
+2026-03-03 20:09:10,098 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 23 (Gripper: franka_panda, Score: 0.960)
+2026-03-03 20:09:10,700 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 19 (Gripper: franka_panda, Score: 0.901)
+2026-03-03 20:09:11,539 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 24 (Gripper: franka_panda, Score: 0.959)
+2026-03-03 20:09:23,043 - __mp_main__ - INFO - WORKER: Evaluating Robot 0 Grasp 21 (Gripper: franka_panda, Score: 0.971)
+2026-03-03 20:09:27,154 - __main__ - INFO - Processing Robot 1 (Suction) grasps...
+2026-03-03 20:09:27,159 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 0 (Gripper: single_suction_cup_30mm, Score: 0.996)
+2026-03-03 20:09:27,160 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 2 (Gripper: single_suction_cup_30mm, Score: 0.966)
+2026-03-03 20:09:27,160 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 4 (Gripper: single_suction_cup_30mm, Score: 0.920)
+2026-03-03 20:09:27,161 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 6 (Gripper: single_suction_cup_30mm, Score: 0.968)
+2026-03-03 20:10:10,482 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 3 (Gripper: single_suction_cup_30mm, Score: 0.991)
+2026-03-03 20:10:11,279 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 7 (Gripper: single_suction_cup_30mm, Score: 0.925)
+2026-03-03 20:10:12,779 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 5 (Gripper: single_suction_cup_30mm, Score: 0.908)
+2026-03-03 20:10:13,781 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 1 (Gripper: single_suction_cup_30mm, Score: 0.976)
+2026-03-03 20:10:45,685 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 8 (Gripper: single_suction_cup_30mm, Score: 0.916)
+2026-03-03 20:10:46,247 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 10 (Gripper: single_suction_cup_30mm, Score: 0.995)
+2026-03-03 20:10:47,470 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 12 (Gripper: single_suction_cup_30mm, Score: 0.822)
+2026-03-03 20:10:52,243 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 14 (Gripper: single_suction_cup_30mm, Score: 0.890)
+2026-03-03 20:11:23,729 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 15 (Gripper: single_suction_cup_30mm, Score: 0.960)
+2026-03-03 20:11:29,703 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 9 (Gripper: single_suction_cup_30mm, Score: 0.990)
+2026-03-03 20:11:31,209 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 11 (Gripper: single_suction_cup_30mm, Score: 0.990)
+2026-03-03 20:11:32,049 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 13 (Gripper: single_suction_cup_30mm, Score: 0.948)
+2026-03-03 20:11:58,841 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 16 (Gripper: single_suction_cup_30mm, Score: 0.995)
+2026-03-03 20:12:10,418 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 18 (Gripper: single_suction_cup_30mm, Score: 0.826)
+2026-03-03 20:12:15,535 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 20 (Gripper: single_suction_cup_30mm, Score: 0.936)
+2026-03-03 20:12:15,765 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 22 (Gripper: single_suction_cup_30mm, Score: 0.863)
+2026-03-03 20:12:44,115 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 17 (Gripper: single_suction_cup_30mm, Score: 0.879)
+2026-03-03 20:12:52,364 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 19 (Gripper: single_suction_cup_30mm, Score: 0.927)
+2026-03-03 20:12:57,976 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 23 (Gripper: single_suction_cup_30mm, Score: 0.977)
+2026-03-03 20:12:58,415 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 21 (Gripper: single_suction_cup_30mm, Score: 0.991)
+2026-03-03 20:13:14,052 - __mp_main__ - INFO - WORKER: Evaluating Robot 1 Grasp 24 (Gripper: single_suction_cup_30mm, Score: 0.907)
+2026-03-03 20:13:46,206 - __main__ - INFO - Evaluation complete in 385.75s.
+2026-03-03 20:13:46,206 - __main__ - INFO - Analyzing collective feasibility for 51 object waypoints...
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  0: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  1: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  2: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  3: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  4: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  5: FEASIBLE (ROBOT 1 ONLY)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  6: FEASIBLE (BOTH)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  7: FEASIBLE (BOTH)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  8: FEASIBLE (BOTH)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint  9: FEASIBLE (BOTH)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint 10: FEASIBLE (BOTH)
+2026-03-03 20:13:46,206 - __main__ - INFO -   Waypoint 11: FEASIBLE (BOTH)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 12: FEASIBLE (BOTH)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 13: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 14: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 15: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 16: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 17: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 18: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 19: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 20: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 21: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 22: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 23: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 24: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,207 - __main__ - INFO -   Waypoint 25: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 26: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 27: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 28: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 29: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 30: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 31: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 32: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 33: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 34: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 35: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 36: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 37: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 38: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 39: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 40: FEASIBLE (BOTH)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 41: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 42: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 43: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 44: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 45: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 46: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 47: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 48: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 49: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO -   Waypoint 50: FEASIBLE (ROBOT 0 ONLY)
+2026-03-03 20:13:46,208 - __main__ - INFO - Collective analysis: 51/51 waypoints can be reached by AT LEAST one grasp from BOTH robots.
+2026-03-03 20:13:46,218 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/object_trajectory.npz
+2026-03-03 20:13:46,220 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_0.npz
+2026-03-03 20:13:46,221 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_1.npz
+2026-03-03 20:13:46,221 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_2.npz
+2026-03-03 20:13:46,222 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_3.npz
+2026-03-03 20:13:46,222 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_4.npz
+2026-03-03 20:13:46,223 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_5.npz
+2026-03-03 20:13:46,223 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_6.npz
+2026-03-03 20:13:46,224 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_7.npz
+2026-03-03 20:13:46,224 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_8.npz
+2026-03-03 20:13:46,225 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_9.npz
+2026-03-03 20:13:46,225 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_10.npz
+2026-03-03 20:13:46,226 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_11.npz
+2026-03-03 20:13:46,227 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_12.npz
+2026-03-03 20:13:46,227 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_13.npz
+2026-03-03 20:13:46,228 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_14.npz
+2026-03-03 20:13:46,228 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_15.npz
+2026-03-03 20:13:46,229 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_16.npz
+2026-03-03 20:13:46,229 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_17.npz
+2026-03-03 20:13:46,230 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_18.npz
+2026-03-03 20:13:46,230 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_19.npz
+2026-03-03 20:13:46,231 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_20.npz
+2026-03-03 20:13:46,231 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_21.npz
+2026-03-03 20:13:46,232 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_22.npz
+2026-03-03 20:13:46,232 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_23.npz
+2026-03-03 20:13:46,233 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot0_trajectory_24.npz
+2026-03-03 20:13:46,234 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_0.npz
+2026-03-03 20:13:46,234 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_1.npz
+2026-03-03 20:13:46,235 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_2.npz
+2026-03-03 20:13:46,235 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_3.npz
+2026-03-03 20:13:46,236 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_4.npz
+2026-03-03 20:13:46,236 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_5.npz
+2026-03-03 20:13:46,237 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_6.npz
+2026-03-03 20:13:46,237 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_7.npz
+2026-03-03 20:13:46,238 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_8.npz
+2026-03-03 20:13:46,238 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_9.npz
+2026-03-03 20:13:46,239 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_10.npz
+2026-03-03 20:13:46,239 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_11.npz
+2026-03-03 20:13:46,240 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_12.npz
+2026-03-03 20:13:46,240 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_13.npz
+2026-03-03 20:13:46,241 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_14.npz
+2026-03-03 20:13:46,241 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_15.npz
+2026-03-03 20:13:46,242 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_16.npz
+2026-03-03 20:13:46,243 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_17.npz
+2026-03-03 20:13:46,243 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_18.npz
+2026-03-03 20:13:46,244 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_19.npz
+2026-03-03 20:13:46,244 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_20.npz
+2026-03-03 20:13:46,245 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_21.npz
+2026-03-03 20:13:46,245 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_22.npz
+2026-03-03 20:13:46,246 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_23.npz
+2026-03-03 20:13:46,246 - robosuite_franka_manipulation.planning.utils.trajectory_utils - INFO - Trajectory saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/robot1_trajectory_24.npz
+2026-03-03 20:13:46,246 - __main__ - INFO - Saved 25 Robot 0 and 25 Robot 1 trajectories to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf
+2026-03-03 20:13:46,246 - __main__ - INFO - Closing simulation...
+2026-03-03 20:13:46,247 - robosuite_franka_manipulation.services.grasp_service - INFO - Stopping Grasp Service...
+2026-03-03 20:13:47,025 - robosuite_franka_manipulation.services.grasp_service - INFO - Server loop stopped
+2026-03-03 20:13:47,035 - robosuite_franka_manipulation.services.grasp_service - INFO - Grasp Service stopped
+2026-03-03 20:13:47,035 - robosuite_franka_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-03 20:13:47,302 - robosuite_franka_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-03 20:13:47,306 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager stopped
