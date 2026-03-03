@@ -198,16 +198,17 @@ def run_execution_phase(
     return all_results
 
 
-def print_paper_metrics(results_dir: Path):
+def print_paper_metrics(results_dir: Path, experiments: list[str] | None = None):
     """Print paper-ready metrics tables."""
     from scripts.experiments.paper_metrics import (
-        load_all_results, group_by_config, group_by_experiment,
+        load_all_results as load_all_dicts, group_by_config, group_by_experiment,
         is_valid_planning, compute_method_metrics,
     )
 
-    results = load_all_results(results_dir)
+    filter_exps = experiments or PAPER_EXPERIMENTS
+    results = load_all_dicts(results_dir)
     # Filter to paper experiments only
-    results = [r for r in results if r["experiment"] in PAPER_EXPERIMENTS]
+    results = [r for r in results if r["experiment"] in filter_exps]
     print(f"\nLoaded {len(results)} paper-experiment results\n")
 
     by_config = group_by_config(results)
@@ -297,7 +298,7 @@ def main():
     logger.info("Configs: %s", [c["label"] for c in PAPER_CONFIGS])
 
     if args.metrics_only:
-        print_paper_metrics(results_dir)
+        print_paper_metrics(results_dir, experiments)
         return
 
     total_t0 = time.time()
@@ -328,7 +329,7 @@ def main():
     build_summary(results_dir)
 
     # Print final metrics
-    print_paper_metrics(results_dir)
+    print_paper_metrics(results_dir, experiments)
 
 
 if __name__ == "__main__":
