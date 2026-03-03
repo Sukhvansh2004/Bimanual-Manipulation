@@ -1,0 +1,38 @@
+{
+  "experiment": "ycb_mug_table_to_rack",
+  "config_label": "Proposed",
+  "config_id": "Proposed",
+  "planning": {
+    "experiment": "ycb_mug_table_to_rack",
+    "config_label": "Proposed",
+    "total_cost": 2889.0210052497373,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 57.780420104994754,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.8240414880547803,
+    "min_manipulability": 0.7886636919993326,
+    "feasibility_rate_robot0": 0.15,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 5627.397751331329
+  },
+  "execution": {
+    "experiment": "ycb_mug_table_to_rack",
+    "config_label": "Proposed",
+    "task_success": true,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "n_collision_incidents": 0,
+    "execution_time_s": 64.82087683677673,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 0,
+    "mean_manipulability": 0.8299111336723759,
+    "parallel_collision_free": true,
+    "error_message": ""
+  }
+}

@@ -4776,3 +4776,595 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-03 08:32:03,200 [W-189136 ycb_mug_table_to_rack] INFO  Segment 36/49: 290.0s (IK=120, pruned=15, alive=15) ETA 1431s
 2026-03-03 08:32:08,185 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 31/49: 100.4s (IK=48, pruned=2, alive=2) ETA 1943s
 2026-03-03 08:32:19,725 [W-189133 ycb_can_table_to_rack] INFO  Segment 29/49: 157.4s (IK=56, pruned=4, alive=4) ETA 1662s
+2026-03-03 08:33:17,757 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 32/49: 69.6s (IK=32, pruned=2, alive=2) ETA 1815s
+2026-03-03 08:34:10,282 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 15/49: 186.1s (IK=90, pruned=5, alive=5) ETA 2460s
+2026-03-03 08:34:29,092 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 33/49: 71.3s (IK=32, pruned=2, alive=2) ETA 1691s
+2026-03-03 08:34:29,282 [W-189133 ycb_can_table_to_rack] INFO  Segment 30/49: 129.6s (IK=44, pruned=4, alive=4) ETA 1609s
+2026-03-03 08:35:32,145 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 34/49: 63.1s (IK=30, pruned=2, alive=2) ETA 1566s
+2026-03-03 08:36:32,701 [W-189133 ycb_can_table_to_rack] INFO  Segment 31/49: 123.4s (IK=44, pruned=4, alive=4) ETA 1547s
+2026-03-03 08:36:40,056 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 35/49: 67.9s (IK=32, pruned=2, alive=2) ETA 1447s
+2026-03-03 08:37:14,459 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 16/49: 184.2s (IK=90, pruned=5, alive=5) ETA 2618s
+2026-03-03 08:37:47,222 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 36/49: 67.2s (IK=32, pruned=2, alive=2) ETA 1331s
+2026-03-03 08:38:08,989 [W-189136 ycb_mug_table_to_rack] INFO  Segment 37/49: 365.8s (IK=210, pruned=15, alive=15) ETA 1404s
+2026-03-03 08:38:43,670 [W-189133 ycb_can_table_to_rack] INFO  Segment 32/49: 131.0s (IK=44, pruned=4, alive=4) ETA 1485s
+2026-03-03 08:39:28,116 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 37/49: 100.9s (IK=32, pruned=2, alive=2) ETA 1228s
+2026-03-03 08:39:49,520 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 38/49: 21.4s (IK=30, pruned=2, alive=2) ETA 1102s
+2026-03-03 08:39:50,723 [W-189133 ycb_can_table_to_rack] INFO  Segment 33/49: 67.1s (IK=36, pruned=4, alive=4) ETA 1387s
+2026-03-03 08:40:06,244 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 39/49: 16.7s (IK=26, pruned=2, alive=2) ETA 981s
+2026-03-03 08:40:13,926 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 40/49: 7.7s (IK=12, pruned=2, alive=2) ETA 862s
+2026-03-03 08:40:20,418 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 41/49: 6.5s (IK=10, pruned=2, alive=2) ETA 749s
+2026-03-03 08:40:21,979 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 17/49: 187.5s (IK=90, pruned=5, alive=5) ETA 2742s
+2026-03-03 08:40:26,555 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 42/49: 6.1s (IK=10, pruned=2, alive=2) ETA 641s
+2026-03-03 08:40:32,698 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 43/49: 6.1s (IK=10, pruned=2, alive=2) ETA 537s
+2026-03-03 08:40:39,125 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 44/49: 6.4s (IK=10, pruned=2, alive=2) ETA 438s
+2026-03-03 08:40:43,318 [W-189133 ycb_can_table_to_rack] INFO  Segment 34/49: 52.6s (IK=28, pruned=4, alive=4) ETA 1286s
+2026-03-03 08:40:45,832 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 45/49: 6.7s (IK=10, pruned=1, alive=1) ETA 343s
+2026-03-03 08:40:49,245 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 46/49: 3.4s (IK=5, pruned=1, alive=1) ETA 252s
+2026-03-03 08:40:50,660 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 47/49: 1.4s (IK=2, pruned=1, alive=1) ETA 165s
+2026-03-03 08:40:51,280 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 48/49: 0.6s (IK=1, pruned=1, alive=1) ETA 81s
+2026-03-03 08:40:51,280 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:40:51,280 [W-189138 ycb_bowl_table_to_rack] INFO  Forward pass complete: total IK evals=4723, pruned=299, elapsed=3869.8s
+2026-03-03 08:40:51,280 [W-189138 ycb_bowl_table_to_rack] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:40:51,281 [W-189138 ycb_bowl_table_to_rack] ERROR      ✗ FAILED after 3872.5s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:40:51,292 [W-189138 ycb_bowl_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/No_Switching_Penalty_Cswitch0.json
+2026-03-03 08:40:51,293 [W-189138 ycb_bowl_table_to_rack] INFO  [5/5] ycb_bowl_table_to_rack × No Manipulability (β=0)
+2026-03-03 08:40:51,293 [W-189138 ycb_bowl_table_to_rack] INFO    Config: No Manipulability (β=0)
+2026-03-03 08:40:51,300 [W-189138 ycb_bowl_table_to_rack] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:40:51,320 [W-189138 ycb_bowl_table_to_rack] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:40:51,337 [W-189138 ycb_bowl_table_to_rack] INFO  Loaded 20 robot1 trajectories (1 fully feasible)
+2026-03-03 08:40:51,338 [W-189138 ycb_bowl_table_to_rack] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:40:51,338 [W-189138 ycb_bowl_table_to_rack] INFO      Parameters: α=10.00, β=0.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 08:40:51,338 [W-189138 ycb_bowl_table_to_rack] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=0.00, beam=10, stride=1)
+2026-03-03 08:40:54,699 [W-189138 ycb_bowl_table_to_rack] INFO  Cost matrix built: 50 segments x 40 states, 1204/2000 finite entries
+2026-03-03 08:40:54,699 [W-189138 ycb_bowl_table_to_rack] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:40:54,699 [W-189138 ycb_bowl_table_to_rack] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 08:40:57,040 [W-189133 ycb_can_table_to_rack] INFO  Segment 35/49: 13.7s (IK=20, pruned=3, alive=3) ETA 1171s
+2026-03-03 08:41:03,271 [W-189133 ycb_can_table_to_rack] INFO  Segment 36/49: 6.2s (IK=9, pruned=1, alive=1) ETA 1060s
+2026-03-03 08:41:05,489 [W-189133 ycb_can_table_to_rack] INFO  Segment 37/49: 2.2s (IK=3, pruned=1, alive=1) ETA 952s
+2026-03-03 08:41:06,829 [W-189133 ycb_can_table_to_rack] INFO  Segment 38/49: 1.3s (IK=2, pruned=1, alive=1) ETA 850s
+2026-03-03 08:41:08,380 [W-189133 ycb_can_table_to_rack] INFO  Segment 39/49: 1.6s (IK=2, pruned=1, alive=1) ETA 754s
+2026-03-03 08:41:09,500 [W-189133 ycb_can_table_to_rack] INFO  Segment 40/49: 1.1s (IK=2, pruned=1, alive=1) ETA 662s
+2026-03-03 08:41:10,109 [W-189133 ycb_can_table_to_rack] INFO  Segment 41/49: 0.6s (IK=1, pruned=1, alive=1) ETA 574s
+2026-03-03 08:41:10,775 [W-189133 ycb_can_table_to_rack] INFO  Segment 42/49: 0.7s (IK=1, pruned=1, alive=1) ETA 490s
+2026-03-03 08:41:11,444 [W-189133 ycb_can_table_to_rack] INFO  Segment 43/49: 0.7s (IK=1, pruned=1, alive=1) ETA 411s
+2026-03-03 08:41:12,080 [W-189133 ycb_can_table_to_rack] INFO  Segment 44/49: 0.6s (IK=1, pruned=1, alive=1) ETA 334s
+2026-03-03 08:41:12,692 [W-189133 ycb_can_table_to_rack] INFO  Segment 45/49: 0.6s (IK=1, pruned=1, alive=1) ETA 262s
+2026-03-03 08:41:13,328 [W-189133 ycb_can_table_to_rack] INFO  Segment 46/49: 0.6s (IK=1, pruned=1, alive=1) ETA 192s
+2026-03-03 08:41:14,058 [W-189133 ycb_can_table_to_rack] INFO  Segment 47/49: 0.7s (IK=1, pruned=1, alive=1) ETA 125s
+2026-03-03 08:41:14,741 [W-189133 ycb_can_table_to_rack] INFO  Segment 48/49: 0.7s (IK=1, pruned=1, alive=1) ETA 61s
+2026-03-03 08:41:15,394 [W-189133 ycb_can_table_to_rack] INFO  Segment 49/49: 0.7s (IK=1, pruned=1, alive=1) ETA 0s
+2026-03-03 08:41:15,395 [W-189133 ycb_can_table_to_rack] INFO  Forward pass complete: total IK evals=2437, pruned=253, elapsed=2946.3s
+2026-03-03 08:41:15,395 [W-189133 ycb_can_table_to_rack] INFO  Best terminal cost=3.4563 at state 24
+2026-03-03 08:41:15,400 [W-189133 ycb_can_table_to_rack] INFO  Assignment solved: total_cost=3.4563, handovers=0
+2026-03-03 08:41:15,411 [W-189133 ycb_can_table_to_rack] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_can_table_to_rack/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-03 08:41:15,465 [W-189133 ycb_can_table_to_rack] INFO      ✓ cost=3.46, handovers=0, manip=0.8042, time=2948.8s
+2026-03-03 08:41:15,471 [W-189133 ycb_can_table_to_rack] INFO      Running execution: ycb_can_table_to_rack × No Manipulability (β=0)
+2026-03-03 08:41:15,472 [W-189133 ycb_can_table_to_rack] INFO      Command: /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/bin/python /home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/manipulation/dual_arm_handover_traj.py --experiment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_can_table_to_rack.json --assignment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_can_table_to_rack/configs/No_Manipulability_β0/assignment_results.npz --output-metrics /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/No_Manipulability_β0_exec.json --headless --smoothen
+2026-03-03 08:41:22,750 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 1/49: 28.0s (IK=40, pruned=10, alive=10) ETA 1346s
+2026-03-03 08:42:19,793 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 2/49: 57.0s (IK=80, pruned=10, alive=10) ETA 2000s
+2026-03-03 08:43:25,239 [W-189133 ycb_can_table_to_rack] INFO      Execution result: task=True, handover_rate=100%, collisions=0, time=105.6s
+2026-03-03 08:43:25,241 [W-189133 ycb_can_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/No_Manipulability_β0.json
+2026-03-03 08:43:26,595 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 3/49: 66.8s (IK=100, pruned=10, alive=10) ETA 2329s
+2026-03-03 08:43:29,010 [W-189133 ycb_plate_shelf_to_table] INFO  Loading experiment 'ycb_plate_shelf_to_table' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_plate_shelf_to_table.json
+2026-03-03 08:43:29,012 [W-189133 ycb_plate_shelf_to_table] INFO  ======================================================================
+2026-03-03 08:43:29,012 [W-189133 ycb_plate_shelf_to_table] INFO  EXPERIMENT: ycb_plate_shelf_to_table  (5 configs, 20+20 trajectories)
+2026-03-03 08:43:29,012 [W-189133 ycb_plate_shelf_to_table] INFO  ======================================================================
+2026-03-03 08:43:29,012 [W-189133 ycb_plate_shelf_to_table] INFO  Creating simulation environment for IK / Jacobian evaluation ...
+2026-03-03 08:43:29,017 [W-189133 ycb_plate_shelf_to_table] INFO  Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 08:43:29,044 [BATCH] INFO  ✓ ycb_can_table_to_rack finished — 5 results
+2026-03-03 08:43:33,642 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 18/49: 191.7s (IK=90, pruned=5, alive=5) ETA 2839s
+2026-03-03 08:43:39,685 [W-189133 ycb_plate_shelf_to_table] INFO  Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 08:43:39,686 [W-189133 ycb_plate_shelf_to_table] INFO  Added YCB object: plate_0 (plate)
+2026-03-03 08:43:44,294 [W-189133 ycb_plate_shelf_to_table] INFO  Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 08:43:44,296 [W-189133 ycb_plate_shelf_to_table] INFO  Added YCB object: plate_0 (plate)
+2026-03-03 08:43:44,949 [W-189133 ycb_plate_shelf_to_table] INFO  Discovering frames from environment...
+2026-03-03 08:43:44,956 [W-189133 ycb_plate_shelf_to_table] INFO  Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 08:43:44,957 [W-189133 ycb_plate_shelf_to_table] INFO  Environment ready (IK solver, Jacobian functions, collision checker).
+2026-03-03 08:43:44,957 [W-189133 ycb_plate_shelf_to_table] INFO  [1/5] ycb_plate_shelf_to_table × Proposed
+2026-03-03 08:43:44,957 [W-189133 ycb_plate_shelf_to_table] INFO    Config: Proposed
+2026-03-03 08:43:44,958 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:44,980 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:45,003 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:45,003 [W-189133 ycb_plate_shelf_to_table] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:45,003 [W-189133 ycb_plate_shelf_to_table] INFO      Parameters: α=10.00, β=1.00, beam=unlimited, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 08:43:45,003 [W-189133 ycb_plate_shelf_to_table] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=unlimited, stride=1)
+2026-03-03 08:43:46,107 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix built: 50 segments x 40 states, 326/2000 finite entries
+2026-03-03 08:43:46,107 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:46,107 [W-189133 ycb_plate_shelf_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=unlimited, handover_stride=1
+2026-03-03 08:43:46,107 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 1/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 2/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 6/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,108 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 7/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,109 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 8/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,109 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 9/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,109 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 10/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,109 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 11/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,110 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 12/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:46,110 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 13/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:46,110 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:46,111 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:46,111 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:46,111 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,112 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,112 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,112 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,112 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,113 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,113 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,113 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,114 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,114 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,114 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,115 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,115 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,115 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,116 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,116 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,116 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,117 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,117 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,117 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,118 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,118 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,119 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,119 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,119 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:46,120 [W-189133 ycb_plate_shelf_to_table] INFO  Forward pass complete: total IK evals=0, pruned=58, elapsed=0.0s
+2026-03-03 08:43:46,121 [W-189133 ycb_plate_shelf_to_table] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:43:46,121 [W-189133 ycb_plate_shelf_to_table] ERROR      ✗ FAILED after 1.1s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:43:46,124 [W-189133 ycb_plate_shelf_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_shelf_to_table/Proposed.json
+2026-03-03 08:43:46,124 [W-189133 ycb_plate_shelf_to_table] INFO  [2/5] ycb_plate_shelf_to_table × Greedy (beam=1)
+2026-03-03 08:43:46,124 [W-189133 ycb_plate_shelf_to_table] INFO    Config: Greedy (beam=1)
+2026-03-03 08:43:46,125 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:46,143 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:46,168 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:46,168 [W-189133 ycb_plate_shelf_to_table] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:46,168 [W-189133 ycb_plate_shelf_to_table] INFO      Parameters: α=10.00, β=1.00, beam=1, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 08:43:46,169 [W-189133 ycb_plate_shelf_to_table] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=1, stride=1)
+2026-03-03 08:43:47,178 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix built: 50 segments x 40 states, 326/2000 finite entries
+2026-03-03 08:43:47,178 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:47,178 [W-189133 ycb_plate_shelf_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=1, handover_stride=1
+2026-03-03 08:43:47,180 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 1/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,180 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 2/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,180 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,180 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 6/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 7/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 8/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 9/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 10/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,181 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 11/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 12/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 13/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,182 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,183 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,184 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,185 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:47,186 [W-189133 ycb_plate_shelf_to_table] INFO  Forward pass complete: total IK evals=0, pruned=15, elapsed=0.0s
+2026-03-03 08:43:47,186 [W-189133 ycb_plate_shelf_to_table] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:43:47,186 [W-189133 ycb_plate_shelf_to_table] ERROR      ✗ FAILED after 1.0s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:43:47,187 [W-189133 ycb_plate_shelf_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_shelf_to_table/Greedy_beam1.json
+2026-03-03 08:43:47,187 [W-189133 ycb_plate_shelf_to_table] INFO  [3/5] ycb_plate_shelf_to_table × Single Robot
+2026-03-03 08:43:47,187 [W-189133 ycb_plate_shelf_to_table] INFO    Config: Single Robot
+2026-03-03 08:43:47,188 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:47,210 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:47,234 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:47,234 [W-189133 ycb_plate_shelf_to_table] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:47,234 [W-189133 ycb_plate_shelf_to_table] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=inf
+2026-03-03 08:43:47,234 [W-189133 ycb_plate_shelf_to_table] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-03 08:43:48,154 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix built: 50 segments x 40 states, 326/2000 finite entries
+2026-03-03 08:43:48,154 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:48,154 [W-189133 ycb_plate_shelf_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 08:43:48,154 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 1/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,154 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 2/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,155 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,155 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,155 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,155 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 6/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,155 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 7/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,156 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 8/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,156 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 9/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,156 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 10/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,156 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 11/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,157 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 12/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:48,157 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 13/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,158 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,159 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,159 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,160 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,160 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,160 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,160 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,161 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,162 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] INFO  Forward pass complete: total IK evals=0, pruned=58, elapsed=0.0s
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:43:48,163 [W-189133 ycb_plate_shelf_to_table] ERROR      ✗ FAILED after 0.9s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:43:48,165 [W-189133 ycb_plate_shelf_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_shelf_to_table/Single_Robot.json
+2026-03-03 08:43:48,165 [W-189133 ycb_plate_shelf_to_table] INFO  [4/5] ycb_plate_shelf_to_table × No Switching Penalty (Cswitch=0)
+2026-03-03 08:43:48,165 [W-189133 ycb_plate_shelf_to_table] INFO    Config: No Switching Penalty (Cswitch=0)
+2026-03-03 08:43:48,166 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:48,184 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:48,204 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:48,205 [W-189133 ycb_plate_shelf_to_table] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:48,205 [W-189133 ycb_plate_shelf_to_table] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=0.0
+2026-03-03 08:43:48,205 [W-189133 ycb_plate_shelf_to_table] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-03 08:43:49,134 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix built: 50 segments x 40 states, 326/2000 finite entries
+2026-03-03 08:43:49,135 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:49,135 [W-189133 ycb_plate_shelf_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 08:43:49,135 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 1/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,136 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 2/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,136 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,137 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,137 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,137 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 6/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,138 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 7/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,138 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 8/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,138 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 9/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,139 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 10/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,139 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 11/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,140 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 12/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:49,140 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 13/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:49,140 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:49,141 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:49,141 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:49,141 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,142 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,142 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,142 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,142 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,142 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,143 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,144 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,145 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,146 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,146 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:49,146 [W-189133 ycb_plate_shelf_to_table] INFO  Forward pass complete: total IK evals=0, pruned=58, elapsed=0.0s
+2026-03-03 08:43:49,146 [W-189133 ycb_plate_shelf_to_table] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:43:49,146 [W-189133 ycb_plate_shelf_to_table] ERROR      ✗ FAILED after 0.9s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:43:49,149 [W-189133 ycb_plate_shelf_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_shelf_to_table/No_Switching_Penalty_Cswitch0.json
+2026-03-03 08:43:49,149 [W-189133 ycb_plate_shelf_to_table] INFO  [5/5] ycb_plate_shelf_to_table × No Manipulability (β=0)
+2026-03-03 08:43:49,149 [W-189133 ycb_plate_shelf_to_table] INFO    Config: No Manipulability (β=0)
+2026-03-03 08:43:49,150 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:49,171 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:49,188 [W-189133 ycb_plate_shelf_to_table] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:49,188 [W-189133 ycb_plate_shelf_to_table] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:49,188 [W-189133 ycb_plate_shelf_to_table] INFO      Parameters: α=10.00, β=0.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 08:43:49,188 [W-189133 ycb_plate_shelf_to_table] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=0.00, beam=10, stride=1)
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix built: 50 segments x 40 states, 326/2000 finite entries
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 1/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 2/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 3/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 4/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,120 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 5/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,121 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 6/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,121 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 7/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,121 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 8/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,121 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 9/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,121 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 10/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,122 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 11/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,122 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 12/49: 0.0s (IK=0, pruned=4, alive=4) ETA 0s
+2026-03-03 08:43:50,122 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 13/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:50,122 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 14/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:50,122 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 15/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-03 08:43:50,123 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 16/49: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-03 08:43:50,123 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 17/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,123 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 18/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 19/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 20/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,124 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,125 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,126 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] INFO  Forward pass complete: total IK evals=0, pruned=58, elapsed=0.0s
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] ERROR  No feasible assignment found across 40 states
+2026-03-03 08:43:50,127 [W-189133 ycb_plate_shelf_to_table] ERROR      ✗ FAILED after 0.9s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 08:43:50,128 [W-189133 ycb_plate_shelf_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_shelf_to_table/No_Manipulability_β0.json
+2026-03-03 08:43:50,349 [BATCH] INFO  ✓ ycb_plate_shelf_to_table finished — 5 results
+2026-03-03 08:43:50,351 [W-189133 ycb_plate_table_to_shelf] INFO  Loading experiment 'ycb_plate_table_to_shelf' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_plate_table_to_shelf.json
+2026-03-03 08:43:50,352 [W-189133 ycb_plate_table_to_shelf] INFO  ======================================================================
+2026-03-03 08:43:50,352 [W-189133 ycb_plate_table_to_shelf] INFO  EXPERIMENT: ycb_plate_table_to_shelf  (5 configs, 20+20 trajectories)
+2026-03-03 08:43:50,352 [W-189133 ycb_plate_table_to_shelf] INFO  ======================================================================
+2026-03-03 08:43:50,352 [W-189133 ycb_plate_table_to_shelf] INFO  Creating simulation environment for IK / Jacobian evaluation ...
+2026-03-03 08:43:50,352 [W-189133 ycb_plate_table_to_shelf] INFO  Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-03 08:43:50,603 [W-189133 ycb_plate_table_to_shelf] INFO  Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 08:43:50,603 [W-189133 ycb_plate_table_to_shelf] INFO  Added YCB object: plate_0 (plate)
+2026-03-03 08:43:51,124 [W-189133 ycb_plate_table_to_shelf] INFO  Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-03 08:43:51,124 [W-189133 ycb_plate_table_to_shelf] INFO  Added YCB object: plate_0 (plate)
+2026-03-03 08:43:51,635 [W-189133 ycb_plate_table_to_shelf] INFO  Discovering frames from environment...
+2026-03-03 08:43:51,638 [W-189133 ycb_plate_table_to_shelf] INFO  Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-03 08:43:51,639 [W-189133 ycb_plate_table_to_shelf] INFO  Environment ready (IK solver, Jacobian functions, collision checker).
+2026-03-03 08:43:51,640 [W-189133 ycb_plate_table_to_shelf] INFO  [1/5] ycb_plate_table_to_shelf × Proposed
+2026-03-03 08:43:51,640 [W-189133 ycb_plate_table_to_shelf] INFO    Config: Proposed
+2026-03-03 08:43:51,641 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 08:43:51,671 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 08:43:51,694 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 08:43:51,694 [W-189133 ycb_plate_table_to_shelf] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 08:43:51,694 [W-189133 ycb_plate_table_to_shelf] INFO      Parameters: α=10.00, β=1.00, beam=unlimited, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 08:43:51,694 [W-189133 ycb_plate_table_to_shelf] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=unlimited, stride=1)
+2026-03-03 08:43:53,666 [W-189133 ycb_plate_table_to_shelf] INFO  Cost matrix built: 50 segments x 40 states, 622/2000 finite entries
+2026-03-03 08:43:53,666 [W-189133 ycb_plate_table_to_shelf] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 08:43:53,666 [W-189133 ycb_plate_table_to_shelf] INFO  DP solver: 50 segments × 40 states, beam_width=unlimited, handover_stride=1
+2026-03-03 08:43:53,666 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 1/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 08:43:53,667 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 2/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 08:43:53,667 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 3/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 08:44:02,407 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 4/49: 8.7s (IK=7, pruned=7, alive=7) ETA 98s
+2026-03-03 08:44:11,337 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 5/49: 8.9s (IK=7, pruned=7, alive=7) ETA 156s
+2026-03-03 08:44:25,818 [W-189136 ycb_mug_table_to_rack] INFO  Segment 38/49: 376.8s (IK=225, pruned=14, alive=14) ETA 1362s
+2026-03-03 08:44:40,658 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 4/49: 74.1s (IK=120, pruned=10, alive=10) ETA 2542s
+2026-03-03 08:46:04,611 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 5/49: 84.0s (IK=120, pruned=10, alive=10) ETA 2727s
+2026-03-03 08:46:42,167 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 19/49: 188.5s (IK=90, pruned=5, alive=5) ETA 2901s
+2026-03-03 08:47:21,033 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 6/49: 189.7s (IK=77, pruned=7, alive=7) ETA 1486s
+2026-03-03 08:47:21,485 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 6/49: 76.9s (IK=130, pruned=10, alive=10) ETA 2772s
+2026-03-03 08:48:31,430 [W-189136 ycb_mug_table_to_rack] INFO  Segment 39/49: 245.6s (IK=210, pruned=14, alive=14) ETA 1269s
+2026-03-03 08:48:33,723 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 7/49: 72.2s (IK=130, pruned=10, alive=10) ETA 2754s
+2026-03-03 08:49:26,282 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 20/49: 164.1s (IK=90, pruned=5, alive=5) ETA 2902s
+2026-03-03 08:50:00,423 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 8/49: 86.7s (IK=150, pruned=10, alive=10) ETA 2797s
+2026-03-03 08:50:04,231 [W-189136 ycb_mug_table_to_rack] INFO  Segment 40/49: 92.8s (IK=182, pruned=14, alive=14) ETA 1135s
+2026-03-03 08:50:17,395 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 7/49: 176.4s (IK=84, pruned=7, alive=7) ETA 2302s
+2026-03-03 08:51:33,857 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 9/49: 93.4s (IK=160, pruned=10, alive=10) ETA 2841s
+2026-03-03 08:51:36,027 [W-189136 ycb_mug_table_to_rack] INFO  Segment 41/49: 91.8s (IK=182, pruned=14, alive=14) ETA 1002s
+2026-03-03 08:51:57,841 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 21/49: 151.6s (IK=90, pruned=5, alive=5) ETA 2870s
+2026-03-03 08:52:58,139 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 8/49: 160.7s (IK=84, pruned=7, alive=7) ETA 2790s
+2026-03-03 08:53:08,736 [W-189136 ycb_mug_table_to_rack] INFO  Segment 42/49: 92.7s (IK=182, pruned=11, alive=11) ETA 871s
+2026-03-03 08:53:22,797 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 10/49: 108.9s (IK=180, pruned=10, alive=10) ETA 2918s
+2026-03-03 08:54:21,771 [W-189136 ycb_mug_table_to_rack] INFO  Segment 43/49: 73.0s (IK=143, pruned=10, alive=10) ETA 740s
+2026-03-03 08:54:28,164 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 22/49: 150.3s (IK=90, pruned=5, alive=5) ETA 2826s
+2026-03-03 08:55:10,004 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 11/49: 107.2s (IK=180, pruned=10, alive=10) ETA 2955s
+2026-03-03 08:55:32,321 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 9/49: 154.2s (IK=84, pruned=7, alive=7) ETA 3105s
+2026-03-03 08:55:52,759 [W-189136 ycb_mug_table_to_rack] INFO  Segment 44/49: 91.0s (IK=160, pruned=8, alive=8) ETA 613s
+2026-03-03 08:56:56,944 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 12/49: 106.9s (IK=180, pruned=10, alive=10) ETA 2967s
+2026-03-03 08:56:59,364 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 23/49: 151.2s (IK=90, pruned=5, alive=5) ETA 2774s
+2026-03-03 08:57:06,551 [W-189136 ycb_mug_table_to_rack] INFO  Segment 45/49: 73.8s (IK=128, pruned=6, alive=6) ETA 486s
+2026-03-03 08:58:08,820 [W-189136 ycb_mug_table_to_rack] INFO  Segment 46/49: 62.3s (IK=108, pruned=5, alive=5) ETA 360s
+2026-03-03 08:58:45,118 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 10/49: 192.8s (IK=91, pruned=7, alive=7) ETA 3477s
+2026-03-03 08:58:54,391 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 13/49: 117.4s (IK=180, pruned=10, alive=10) ETA 2990s
+2026-03-03 08:58:57,172 [W-189136 ycb_mug_table_to_rack] INFO  Segment 47/49: 48.4s (IK=80, pruned=4, alive=4) ETA 237s
+2026-03-03 08:59:29,101 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 24/49: 149.7s (IK=90, pruned=5, alive=5) ETA 2712s
+2026-03-03 08:59:31,594 [W-189136 ycb_mug_table_to_rack] INFO  Segment 48/49: 34.4s (IK=56, pruned=3, alive=3) ETA 117s
+2026-03-03 08:59:45,682 [W-189136 ycb_mug_table_to_rack] INFO  Segment 49/49: 14.1s (IK=21, pruned=3, alive=3) ETA 0s
+2026-03-03 08:59:45,682 [W-189136 ycb_mug_table_to_rack] INFO  Forward pass complete: total IK evals=5808, pruned=814, elapsed=5624.4s
+2026-03-03 08:59:45,683 [W-189136 ycb_mug_table_to_rack] INFO  Best terminal cost=2889.0210 at state 16
+2026-03-03 08:59:45,693 [W-189136 ycb_mug_table_to_rack] INFO  Assignment solved: total_cost=2889.0210, handovers=0
+2026-03-03 08:59:45,724 [W-189136 ycb_mug_table_to_rack] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_mug_table_to_rack/configs/Proposed/assignment_results.npz
+2026-03-03 08:59:45,789 [W-189136 ycb_mug_table_to_rack] INFO      ✓ cost=2889.02, handovers=0, manip=0.8240, time=5627.4s
+2026-03-03 08:59:45,817 [W-189136 ycb_mug_table_to_rack] INFO      Running execution: ycb_mug_table_to_rack × Proposed
+2026-03-03 08:59:45,818 [W-189136 ycb_mug_table_to_rack] INFO      Command: /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/bin/python /home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/manipulation/dual_arm_handover_traj.py --experiment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_mug_table_to_rack.json --assignment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_mug_table_to_rack/configs/Proposed/assignment_results.npz --output-metrics /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Proposed_exec.json --headless --smoothen
+2026-03-03 09:00:39,580 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 14/49: 105.2s (IK=180, pruned=10, alive=10) ETA 2962s
+2026-03-03 09:01:08,649 [W-189136 ycb_mug_table_to_rack] INFO      Execution result: task=True, handover_rate=100%, collisions=0, time=64.8s
+2026-03-03 09:01:08,657 [W-189136 ycb_mug_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Proposed.json
+2026-03-03 09:01:08,658 [W-189136 ycb_mug_table_to_rack] INFO  [2/5] ycb_mug_table_to_rack × Greedy (beam=1)
+2026-03-03 09:01:08,659 [W-189136 ycb_mug_table_to_rack] INFO    Config: Greedy (beam=1)
+2026-03-03 09:01:08,662 [W-189136 ycb_mug_table_to_rack] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 09:01:08,681 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot0 trajectories (3 fully feasible)
+2026-03-03 09:01:08,707 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 09:01:08,708 [W-189136 ycb_mug_table_to_rack] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 09:01:08,708 [W-189136 ycb_mug_table_to_rack] INFO      Parameters: α=10.00, β=1.00, beam=1, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 09:01:08,709 [W-189136 ycb_mug_table_to_rack] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=1, stride=1)
+2026-03-03 09:01:11,782 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix built: 50 segments x 40 states, 1277/2000 finite entries
+2026-03-03 09:01:11,782 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 09:01:11,783 [W-189136 ycb_mug_table_to_rack] INFO  DP solver: 50 segments × 40 states, beam_width=1, handover_stride=1
+2026-03-03 09:01:22,745 [W-189136 ycb_mug_table_to_rack] INFO  Segment 1/49: 11.0s (IK=20, pruned=1, alive=1) ETA 526s
+2026-03-03 09:01:33,015 [W-189136 ycb_mug_table_to_rack] INFO  Segment 2/49: 10.3s (IK=20, pruned=1, alive=1) ETA 499s
+2026-03-03 09:01:36,485 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 25/49: 127.4s (IK=90, pruned=5, alive=5) ETA 2622s
+2026-03-03 09:01:43,032 [W-189136 ycb_mug_table_to_rack] INFO  Segment 3/49: 10.0s (IK=20, pruned=1, alive=1) ETA 479s
+2026-03-03 09:01:51,521 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 11/49: 186.4s (IK=91, pruned=7, alive=7) ETA 3723s
+2026-03-03 09:01:53,245 [W-189136 ycb_mug_table_to_rack] INFO  Segment 4/49: 10.2s (IK=20, pruned=1, alive=1) ETA 466s
+2026-03-03 09:02:02,680 [W-189136 ycb_mug_table_to_rack] INFO  Segment 5/49: 9.4s (IK=20, pruned=1, alive=1) ETA 448s
+2026-03-03 09:02:12,315 [W-189136 ycb_mug_table_to_rack] INFO  Segment 6/49: 9.6s (IK=20, pruned=1, alive=1) ETA 434s
+2026-03-03 09:02:24,574 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 15/49: 105.0s (IK=180, pruned=10, alive=10) ETA 2924s
+2026-03-03 09:02:24,861 [W-189136 ycb_mug_table_to_rack] INFO  Segment 7/49: 12.5s (IK=20, pruned=1, alive=1) ETA 438s
+2026-03-03 09:02:38,391 [W-189136 ycb_mug_table_to_rack] INFO  Segment 8/49: 13.5s (IK=20, pruned=1, alive=1) ETA 444s
+2026-03-03 09:02:53,698 [W-189136 ycb_mug_table_to_rack] INFO  Segment 9/49: 15.3s (IK=17, pruned=1, alive=1) ETA 453s
+2026-03-03 09:03:07,482 [W-189136 ycb_mug_table_to_rack] INFO  Segment 10/49: 13.8s (IK=12, pruned=1, alive=1) ETA 451s
+2026-03-03 09:03:16,615 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 26/49: 100.1s (IK=90, pruned=5, alive=5) ETA 2505s
+2026-03-03 09:03:17,351 [W-189136 ycb_mug_table_to_rack] INFO  Segment 11/49: 9.9s (IK=4, pruned=1, alive=1) ETA 434s
+2026-03-03 09:03:20,224 [W-189136 ycb_mug_table_to_rack] INFO  Segment 12/49: 2.9s (IK=1, pruned=1, alive=1) ETA 396s
+2026-03-03 09:03:20,224 [W-189136 ycb_mug_table_to_rack] INFO  Segment 13/49: 0.0s (IK=0, pruned=1, alive=1) ETA 356s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 14/49: 0.0s (IK=0, pruned=1, alive=1) ETA 321s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 15/49: 0.0s (IK=0, pruned=1, alive=1) ETA 291s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 16/49: 0.0s (IK=0, pruned=1, alive=1) ETA 265s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 17/49: 0.0s (IK=0, pruned=1, alive=1) ETA 242s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 18/49: 0.0s (IK=0, pruned=1, alive=1) ETA 221s
+2026-03-03 09:03:20,225 [W-189136 ycb_mug_table_to_rack] INFO  Segment 19/49: 0.0s (IK=0, pruned=1, alive=1) ETA 203s
+2026-03-03 09:03:20,226 [W-189136 ycb_mug_table_to_rack] INFO  Segment 20/49: 0.0s (IK=0, pruned=1, alive=1) ETA 186s
+2026-03-03 09:03:20,226 [W-189136 ycb_mug_table_to_rack] INFO  Segment 21/49: 0.0s (IK=0, pruned=1, alive=1) ETA 171s
+2026-03-03 09:03:20,226 [W-189136 ycb_mug_table_to_rack] INFO  Segment 22/49: 0.0s (IK=0, pruned=1, alive=1) ETA 158s
+2026-03-03 09:03:20,226 [W-189136 ycb_mug_table_to_rack] INFO  Segment 23/49: 0.0s (IK=0, pruned=1, alive=1) ETA 145s
+2026-03-03 09:03:20,227 [W-189136 ycb_mug_table_to_rack] INFO  Segment 24/49: 0.0s (IK=0, pruned=1, alive=1) ETA 134s
+2026-03-03 09:03:20,227 [W-189136 ycb_mug_table_to_rack] INFO  Segment 25/49: 0.0s (IK=0, pruned=1, alive=1) ETA 123s
+2026-03-03 09:03:20,228 [W-189136 ycb_mug_table_to_rack] INFO  Segment 26/49: 0.0s (IK=0, pruned=1, alive=1) ETA 114s
+2026-03-03 09:03:20,228 [W-189136 ycb_mug_table_to_rack] INFO  Segment 27/49: 0.0s (IK=0, pruned=1, alive=1) ETA 105s
+2026-03-03 09:03:20,228 [W-189136 ycb_mug_table_to_rack] INFO  Segment 28/49: 0.0s (IK=0, pruned=1, alive=1) ETA 96s
+2026-03-03 09:03:23,002 [W-189136 ycb_mug_table_to_rack] INFO  Segment 29/49: 2.8s (IK=1, pruned=1, alive=1) ETA 90s
+2026-03-03 09:03:25,888 [W-189136 ycb_mug_table_to_rack] INFO  Segment 30/49: 2.9s (IK=1, pruned=1, alive=1) ETA 85s
+2026-03-03 09:03:28,786 [W-189136 ycb_mug_table_to_rack] INFO  Segment 31/49: 2.9s (IK=1, pruned=1, alive=1) ETA 80s
+2026-03-03 09:03:31,758 [W-189136 ycb_mug_table_to_rack] INFO  Segment 32/49: 3.0s (IK=1, pruned=1, alive=1) ETA 74s
+2026-03-03 09:03:37,432 [W-189136 ycb_mug_table_to_rack] INFO  Segment 33/49: 5.7s (IK=2, pruned=1, alive=1) ETA 71s
+2026-03-03 09:03:48,238 [W-189136 ycb_mug_table_to_rack] INFO  Segment 34/49: 10.8s (IK=4, pruned=1, alive=1) ETA 69s
+2026-03-03 09:04:01,372 [W-189136 ycb_mug_table_to_rack] INFO  Segment 35/49: 13.1s (IK=7, pruned=1, alive=1) ETA 68s
+2026-03-03 09:04:02,768 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 16/49: 98.2s (IK=180, pruned=10, alive=10) ETA 2863s
+2026-03-03 09:04:17,137 [W-189136 ycb_mug_table_to_rack] INFO  Segment 36/49: 15.8s (IK=8, pruned=1, alive=1) ETA 67s
+2026-03-03 09:04:37,583 [W-189136 ycb_mug_table_to_rack] INFO  Segment 37/49: 20.4s (IK=14, pruned=1, alive=1) ETA 67s
+2026-03-03 09:04:54,809 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 27/49: 98.2s (IK=90, pruned=5, alive=5) ETA 2387s
+2026-03-03 09:04:58,201 [W-189136 ycb_mug_table_to_rack] INFO  Segment 38/49: 20.6s (IK=15, pruned=1, alive=1) ETA 66s
+2026-03-03 09:05:01,548 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 12/49: 190.0s (IK=91, pruned=7, alive=7) ETA 3909s
+2026-03-03 09:05:13,099 [W-189136 ycb_mug_table_to_rack] INFO  Segment 39/49: 14.9s (IK=15, pruned=1, alive=1) ETA 62s
+2026-03-03 09:05:19,514 [W-189136 ycb_mug_table_to_rack] INFO  Segment 40/49: 6.4s (IK=13, pruned=1, alive=1) ETA 56s
+2026-03-03 09:05:25,483 [W-189136 ycb_mug_table_to_rack] INFO  Segment 41/49: 6.0s (IK=13, pruned=1, alive=1) ETA 50s
+2026-03-03 09:05:31,383 [W-189136 ycb_mug_table_to_rack] INFO  Segment 42/49: 5.9s (IK=13, pruned=1, alive=1) ETA 43s
+2026-03-03 09:05:37,152 [W-189136 ycb_mug_table_to_rack] INFO  Segment 43/49: 5.8s (IK=13, pruned=1, alive=1) ETA 37s
+2026-03-03 09:05:42,205 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 17/49: 99.4s (IK=180, pruned=10, alive=10) ETA 2800s
+2026-03-03 09:05:45,292 [W-189136 ycb_mug_table_to_rack] INFO  Segment 44/49: 8.1s (IK=16, pruned=0, alive=0) ETA 31s
+2026-03-03 09:05:45,292 [W-189136 ycb_mug_table_to_rack] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 24s
+2026-03-03 09:05:45,292 [W-189136 ycb_mug_table_to_rack] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 18s
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 12s
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 6s
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] INFO  Forward pass complete: total IK evals=331, pruned=43, elapsed=273.5s
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] ERROR  No feasible assignment found across 40 states
+2026-03-03 09:05:45,293 [W-189136 ycb_mug_table_to_rack] ERROR      ✗ FAILED after 276.6s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 09:05:45,294 [W-189136 ycb_mug_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Greedy_beam1.json
+2026-03-03 09:05:45,295 [W-189136 ycb_mug_table_to_rack] INFO  [3/5] ycb_mug_table_to_rack × Single Robot
+2026-03-03 09:05:45,295 [W-189136 ycb_mug_table_to_rack] INFO    Config: Single Robot
+2026-03-03 09:05:45,295 [W-189136 ycb_mug_table_to_rack] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 09:05:45,317 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot0 trajectories (3 fully feasible)
+2026-03-03 09:05:45,346 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 09:05:45,346 [W-189136 ycb_mug_table_to_rack] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 09:05:45,346 [W-189136 ycb_mug_table_to_rack] INFO      Parameters: α=10.00, β=1.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=inf
+2026-03-03 09:05:45,349 [W-189136 ycb_mug_table_to_rack] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=10, stride=1)
+2026-03-03 09:05:48,571 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix built: 50 segments x 40 states, 1277/2000 finite entries
+2026-03-03 09:05:48,571 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 09:05:48,571 [W-189136 ycb_mug_table_to_rack] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 09:06:33,196 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 28/49: 98.4s (IK=90, pruned=5, alive=5) ETA 2271s
+2026-03-03 09:07:27,737 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 18/49: 105.5s (IK=190, pruned=10, alive=10) ETA 2744s
+2026-03-03 09:08:10,566 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 29/49: 97.4s (IK=90, pruned=5, alive=5) ETA 2155s
+2026-03-03 09:08:22,136 [W-189136 ycb_mug_table_to_rack] INFO  Segment 1/49: 153.6s (IK=146, pruned=10, alive=10) ETA 7371s
+2026-03-03 09:08:24,568 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 13/49: 203.0s (IK=91, pruned=7, alive=7) ETA 4073s
+2026-03-03 09:09:09,997 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 19/49: 102.3s (IK=190, pruned=10, alive=10) ETA 2677s
+2026-03-03 09:09:45,923 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 30/49: 95.4s (IK=90, pruned=5, alive=5) ETA 2040s
+2026-03-03 09:10:55,473 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 20/49: 105.5s (IK=190, pruned=10, alive=10) ETA 2611s
+2026-03-03 09:10:56,040 [W-189136 ycb_mug_table_to_rack] INFO  Segment 2/49: 153.9s (IK=152, pruned=10, alive=10) ETA 7226s
+2026-03-03 09:11:24,679 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 31/49: 98.8s (IK=90, pruned=5, alive=5) ETA 1927s
+2026-03-03 09:11:39,261 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 14/49: 194.7s (IK=91, pruned=6, alive=6) ETA 4164s
+2026-03-03 09:12:40,934 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 21/49: 105.5s (IK=190, pruned=10, alive=10) ETA 2542s
+2026-03-03 09:13:02,757 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 32/49: 98.1s (IK=90, pruned=5, alive=5) ETA 1816s
+2026-03-03 09:13:38,522 [W-189136 ycb_mug_table_to_rack] INFO  Segment 3/49: 162.5s (IK=158, pruned=10, alive=10) ETA 7206s
+2026-03-03 09:14:26,594 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 22/49: 105.7s (IK=190, pruned=10, alive=10) ETA 2469s
+2026-03-03 09:14:42,128 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 33/49: 99.4s (IK=90, pruned=5, alive=5) ETA 1705s
+2026-03-03 09:14:47,733 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 15/49: 188.5s (IK=78, pruned=4, alive=4) ETA 4203s
+2026-03-03 09:16:02,023 [W-189136 ycb_mug_table_to_rack] INFO  Segment 4/49: 143.5s (IK=158, pruned=10, alive=10) ETA 6901s
+2026-03-03 09:16:06,818 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 23/49: 100.2s (IK=180, pruned=9, alive=9) ETA 2388s
+2026-03-03 09:16:25,506 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 34/49: 103.4s (IK=90, pruned=5, alive=5) ETA 1597s
+2026-03-03 09:17:20,590 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 16/49: 152.9s (IK=52, pruned=4, alive=4) ETA 4139s
+2026-03-03 09:17:36,951 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 24/49: 90.1s (IK=162, pruned=7, alive=7) ETA 2294s
+2026-03-03 09:18:07,369 [W-189136 ycb_mug_table_to_rack] INFO  Segment 5/49: 125.3s (IK=164, pruned=10, alive=10) ETA 6501s
+2026-03-03 09:18:23,061 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 35/49: 117.6s (IK=90, pruned=5, alive=5) ETA 1495s
+2026-03-03 09:19:47,272 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 17/49: 146.7s (IK=52, pruned=4, alive=4) ETA 4054s
+2026-03-03 09:20:13,125 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 25/49: 156.2s (IK=126, pruned=6, alive=6) ETA 2264s
+2026-03-03 09:20:33,990 [W-189136 ycb_mug_table_to_rack] INFO  Segment 6/49: 146.6s (IK=164, pruned=10, alive=10) ETA 6345s
+2026-03-03 09:21:12,175 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 36/49: 169.1s (IK=90, pruned=5, alive=5) ETA 1411s
+2026-03-03 09:22:22,917 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 18/49: 155.6s (IK=52, pruned=4, alive=4) ETA 3977s
+2026-03-03 09:23:17,944 [W-189136 ycb_mug_table_to_rack] INFO  Segment 7/49: 164.0s (IK=170, pruned=10, alive=10) ETA 6296s
+2026-03-03 09:23:48,736 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 26/49: 215.6s (IK=108, pruned=6, alive=6) ETA 2277s
+2026-03-03 09:23:59,290 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 37/49: 167.1s (IK=85, pruned=5, alive=5) ETA 1321s
