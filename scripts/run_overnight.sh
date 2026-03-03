@@ -84,9 +84,6 @@ log_step "Python: $(which python) ($(python --version 2>&1))"
 
 # Set headless environment
 export PYTHONUNBUFFERED=1
-export MUJOCO_GL=egl       # GPU-accelerated headless rendering (fallback: osmesa)
-# Unset DISPLAY to avoid any X11 rendering attempts
-unset DISPLAY 2>/dev/null || true
 
 cd "${PROJECT_ROOT}"
 
