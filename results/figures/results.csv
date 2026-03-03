@@ -1,0 +1,120 @@
+experiment,config_label,total_cost,n_handovers,mean_task_cost,total_switching_cost,mean_manipulability,min_manipulability,feasibility_rate_robot0,feasibility_rate_robot1,assigned_feasibility_rate,planning_time_s,task_success,handover_success_rate,n_collision_incidents,execution_time_s
+dual_handover_mug,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,342.3404984474182,,,,
+dual_handover_mug,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,560.4956636428833,,,,
+dual_handover_mug,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,563.0767102241516,,,,
+dual_handover_mug,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,563.1219398975372,,,,
+dual_handover_mug,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,559.1638469696045,,,,
+dual_handover_plate,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,252.31883430480957,,,,
+dual_handover_plate,No Manipulability (β=0),233.53805958847204,3,0.04457272361671445,229.9722416991349,0.8136819174515282,0.7593755770030473,0.0,0.0,1.0,1640.7847051620483,False,1.0,2,107.68004155158997
+dual_handover_plate,No Switching Penalty (Cswitch=0),1728.0272394759413,3,21.600340493449266,0.0,0.8137319115260967,0.7593755770030473,0.0,0.0,1.0,1628.713544845581,True,1.0,3,208.32253289222717
+dual_handover_plate,Proposed,2816.072692177291,1,28.237303313645093,557.0884270856841,0.8151137260345152,0.7589665820936786,0.0,0.0,1.0,1653.0419969558716,True,1.0,1,95.51993417739868
+dual_handover_plate,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1607.353051662445,,,,
+flatPlate_box_to_box,"Baseline (α=10, β=1)",inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,11.697262048721313,,,,
+flatPlate_box_to_box,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,11.661258220672607,,,,
+flatPlate_box_to_box,No Feasibility Filter,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,11.373690605163574,,,,
+flatPlate_box_to_box,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,11.603948593139648,,,,
+flatPlate_box_to_box,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,12.3581223487854,,,,
+flatPlate_box_to_box,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,10.931434154510498,,,,
+flatPlate_box_to_box,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,12.361010551452637,,,,
+flatPlate_shelf_to_box,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,60.502432107925415,,,,
+flatPlate_shelf_to_box,No Manipulability (β=0),5.1352536511242395,1,0.09641069007352597,0.3147191474479406,0.8249556717123545,0.8133012944706883,0.0,0.0,1.0,1476.0072038173676,True,1.0,0,168.3292315006256
+flatPlate_shelf_to_box,No Switching Penalty (Cswitch=0),1090.550916472356,3,21.811018329447116,0.0,0.8206272080717616,0.7981437815196399,0.0,0.0,1.0,1477.9940357208252,True,1.0,1,259.2047612667084
+flatPlate_shelf_to_box,Proposed,1737.1067287344183,1,23.797305066969248,547.2414753859559,0.8150615010136216,0.7937470815836098,0.0,0.0,1.0,1499.424012184143,True,1.0,0,137.74670600891113
+flatPlate_shelf_to_box,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1280.1808352470398,,,,
+flatPlate_shelf_to_shelf,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,66.14029049873352,,,,
+flatPlate_shelf_to_shelf,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,316.79833245277405,,,,
+flatPlate_shelf_to_shelf,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,318.3677477836609,,,,
+flatPlate_shelf_to_shelf,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,322.9237549304962,,,,
+flatPlate_shelf_to_shelf,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,316.98819279670715,,,,
+flatPlate_shelf_to_table,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,168.23349928855896,,,,
+flatPlate_shelf_to_table,No Manipulability (β=0),7.702793302582467,1,0.14224240513018901,0.5906730460730159,0.8172310077544513,0.8039917210085543,0.0,0.0,1.0,2814.0378007888794,True,1.0,0,112.6609992980957
+flatPlate_shelf_to_table,No Switching Penalty (Cswitch=0),1128.0341576146238,3,22.560683152292473,0.0,0.807356433001171,0.729299988326704,0.0,0.0,1.0,2778.6626110076904,True,1.0,2,243.8743133544922
+flatPlate_shelf_to_table,Proposed,2586.1426966337326,1,34.79359517769899,846.4629377487834,0.8098887465645384,0.7738009644418007,0.0,0.0,1.0,2978.283445119858,True,1.0,0,111.3298065662384
+flatPlate_shelf_to_table,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2610.1126136779785,,,,
+flatPlate_table_to_shelf,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,22.1834659576416,,,,
+flatPlate_table_to_shelf,No Manipulability (β=0),12.217398748402818,1,0.2298742915160885,0.7236841725983949,0.7669711458520965,0.7391713702587421,0.0,0.0,1.0,1269.7247116565704,True,1.0,1,93.74530267715454
+flatPlate_table_to_shelf,No Switching Penalty (Cswitch=0),1149.3261187655107,5,22.986522375310216,0.0,0.8071648911970651,0.7601549498984288,0.0,0.0,1.0,1284.5633692741394,True,1.0,4,298.7148039340973
+flatPlate_table_to_shelf,Proposed,1591.076305485939,1,23.988749267672123,391.63884210233175,0.8127358659298441,0.7458338002906952,0.0,0.0,1.0,1271.8163888454437,True,1.0,1,129.66585779190063
+flatPlate_table_to_shelf,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,537.558093547821,,,,
+mug_inversion,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.455080270767212,,,,
+mug_inversion,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.181760787963867,,,,
+mug_inversion,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.1545820236206055,,,,
+mug_inversion,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.5382635593414307,,,,
+mug_inversion,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.220871925354004,,,,
+ycb_bowl_rack_to_table,Greedy (beam=1),1451.736157038292,0,29.034723140765855,0.0,0.75587026959072,0.7295650189756548,0.0,0.25,1.0,2442.907872438431,True,1.0,0,62.709802865982056
+ycb_bowl_rack_to_table,No Manipulability (β=0),2.179495819325727,0,0.04358991638651455,0.0,0.7648223051826786,0.7367450633365662,0.0,0.25,1.0,5250.562654733658,True,1.0,0,57.11309266090393
+ycb_bowl_rack_to_table,No Switching Penalty (Cswitch=0),978.4298505367318,0,19.568597010734642,0.0,0.7979886638192153,0.7759839609277543,0.0,0.25,1.0,5806.4950041770935,True,1.0,0,64.4358901977539
+ycb_bowl_rack_to_table,Proposed,978.4298505367318,0,19.568597010734642,0.0,0.7979886638192153,0.7759839609277543,0.0,0.25,1.0,5068.342472553253,True,1.0,0,60.031689405441284
+ycb_bowl_rack_to_table,Single Robot,978.4298505367318,0,19.568597010734642,0.0,0.7979886638192153,0.7759839609277543,0.0,0.25,1.0,5192.368325471878,True,1.0,0,77.65841913223267
+ycb_bowl_table_to_rack,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,203.64795780181885,,,,
+ycb_bowl_table_to_rack,No Manipulability (β=0),3.322006208770497,0,0.06644012417540993,0.0,0.8053292918271724,0.7852667076552369,0.0,0.05,1.0,4014.5342359542847,True,1.0,0,76.0063853263855
+ycb_bowl_table_to_rack,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3872.4606227874756,,,,
+ycb_bowl_table_to_rack,Proposed,1243.5269823916722,0,24.870539647833446,0.0,0.8053292918271724,0.7852667076552369,0.0,0.05,1.0,5864.316274404526,True,1.0,0,53.96528434753418
+ycb_bowl_table_to_rack,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3614.877138853073,,,,
+ycb_can_table_to_rack,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,601.8046615123749,,,,
+ycb_can_table_to_rack,No Manipulability (β=0),3.4563300003393675,0,0.06912660000678737,0.0,0.8042287809462038,0.7841541644745218,0.05,0.05,1.0,2948.8367779254913,True,1.0,0,105.64120578765869
+ycb_can_table_to_rack,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2295.4281334877014,,,,
+ycb_can_table_to_rack,Proposed,1208.3761482397122,0,24.167522964794237,0.0,0.7773188509746035,0.758161336270261,0.05,0.05,1.0,5157.928178071976,True,1.0,0,57.699363470077515
+ycb_can_table_to_rack,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2286.41619348526,,,,
+ycb_mug_rack_to_table,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,43.85992932319641,,,,
+ycb_mug_rack_to_table,No Manipulability (β=0),4.126014339442744,0,0.08252028678885487,0.0,0.8294478811649484,0.8176610243606854,0.2,0.0,1.0,990.6487007141113,True,1.0,0,58.77649784088135
+ycb_mug_rack_to_table,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,423.3069055080414,,,,
+ycb_mug_rack_to_table,Proposed,2647.1537379093074,0,52.94307475818614,0.0,0.8294478811649484,0.8176610243606854,0.2,0.0,1.0,1105.8781073093414,True,1.0,0,58.12034845352173
+ycb_mug_rack_to_table,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,415.73926043510437,,,,
+ycb_mug_table_to_rack,"Baseline (α=10, β=1)",inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2241.708910226822,,,,
+ycb_mug_table_to_rack,Beam=1 (greedy),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,271.2256338596344,,,,
+ycb_mug_table_to_rack,Beam=10,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2060.9664237499237,,,,
+ycb_mug_table_to_rack,Beam=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1757.5212082862854,,,,
+ycb_mug_table_to_rack,Beam=unlimited,2889.0210052497373,0,57.780420104994754,0.0,0.8240414880547803,0.7886636919993326,0.15,0.0,1.0,5851.251139163971,True,1.0,0,54.10134673118591
+ycb_mug_table_to_rack,Clearance=0.05m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2186.3795671463013,,,,
+ycb_mug_table_to_rack,Clearance=0.10m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2145.5408968925476,,,,
+ycb_mug_table_to_rack,Clearance=0.15m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1895.1254534721375,,,,
+ycb_mug_table_to_rack,Clearance=off,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2189.8371250629425,,,,
+ycb_mug_table_to_rack,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,276.5844371318817,,,,
+ycb_mug_table_to_rack,No Feasibility Filter,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2152.352231025696,,,,
+ycb_mug_table_to_rack,No Manipulability (β=0),3.484562413404677,0,0.06969124826809353,0.0,0.8240414880547803,0.7886636919993326,0.15,0.0,1.0,2974.1196699142456,True,1.0,0,59.0071861743927
+ycb_mug_table_to_rack,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2272.073687314987,,,,
+ycb_mug_table_to_rack,Proposed,2889.0210052497373,0,57.780420104994754,0.0,0.8240414880547803,0.7886636919993326,0.15,0.0,1.0,5627.397751331329,True,1.0,0,64.82087683677673
+ycb_mug_table_to_rack,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2479.9661791324615,,,,
+ycb_mug_table_to_rack,Stride=1,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2114.718944787979,,,,
+ycb_mug_table_to_rack,Stride=3,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,686.775637626648,,,,
+ycb_mug_table_to_rack,Stride=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,345.79164385795593,,,,
+ycb_plate_shelf_to_table,"Baseline (α=10, β=1)",inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.8238382339477539,,,,
+ycb_plate_shelf_to_table,Beam=1 (greedy),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.6535615921020508,,,,
+ycb_plate_shelf_to_table,Beam=10,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5798380374908447,,,,
+ycb_plate_shelf_to_table,Beam=20,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5725247859954834,,,,
+ycb_plate_shelf_to_table,Beam=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5626740455627441,,,,
+ycb_plate_shelf_to_table,Beam=unlimited,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.6700658798217773,,,,
+ycb_plate_shelf_to_table,Clearance=0.05m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5632407665252686,,,,
+ycb_plate_shelf_to_table,Clearance=0.10m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.579106330871582,,,,
+ycb_plate_shelf_to_table,Clearance=0.15m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.6104030609130859,,,,
+ycb_plate_shelf_to_table,Clearance=off,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.571929931640625,,,,
+ycb_plate_shelf_to_table,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0170252323150635,,,,
+ycb_plate_shelf_to_table,No Diversity,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5682823657989502,,,,
+ycb_plate_shelf_to_table,No Feasibility Filter,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.6394731998443604,,,,
+ycb_plate_shelf_to_table,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.9389581680297852,,,,
+ycb_plate_shelf_to_table,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.9409873485565186,,,,
+ycb_plate_shelf_to_table,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.1178123950958252,,,,
+ycb_plate_shelf_to_table,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.9290182590484619,,,,
+ycb_plate_shelf_to_table,Stride=1,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.6069149971008301,,,,
+ycb_plate_shelf_to_table,Stride=3,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.615234375,,,,
+ycb_plate_shelf_to_table,Stride=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.5746102333068848,,,,
+ycb_plate_table_to_shelf,"Baseline (α=10, β=1)",inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2365.997681617737,,,,
+ycb_plate_table_to_shelf,Beam=1 (greedy),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,502.3422405719757,,,,
+ycb_plate_table_to_shelf,Beam=10,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2411.42613697052,,,,
+ycb_plate_table_to_shelf,Beam=20,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2044.7788572311401,,,,
+ycb_plate_table_to_shelf,Beam=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1726.2668495178223,,,,
+ycb_plate_table_to_shelf,Beam=unlimited,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2586.7462985515594,,,,
+ycb_plate_table_to_shelf,Clearance=0.05m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2309.1127412319183,,,,
+ycb_plate_table_to_shelf,Clearance=0.10m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2343.779988527298,,,,
+ycb_plate_table_to_shelf,Clearance=0.15m,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2619.648778438568,,,,
+ycb_plate_table_to_shelf,Clearance=off,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2306.145704984665,,,,
+ycb_plate_table_to_shelf,Greedy (beam=1),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,570.1609144210815,,,,
+ycb_plate_table_to_shelf,No Feasibility Filter,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2287.9013981819153,,,,
+ycb_plate_table_to_shelf,No Manipulability (β=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2109.0664446353912,,,,
+ycb_plate_table_to_shelf,No Switching Penalty (Cswitch=0),inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2485.9620711803436,,,,
+ycb_plate_table_to_shelf,Proposed,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2530.0273888111115,,,,
+ycb_plate_table_to_shelf,Single Robot,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2578.1569669246674,,,,
+ycb_plate_table_to_shelf,Stride=1,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2253.40327000618,,,,
+ycb_plate_table_to_shelf,Stride=3,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,766.6478178501129,,,,
+ycb_plate_table_to_shelf,Stride=5,inf,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,385.40256214141846,,,,

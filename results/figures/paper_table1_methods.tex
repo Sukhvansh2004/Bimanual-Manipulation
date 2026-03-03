@@ -1,0 +1,16 @@
+\begin{table}[ht]
+\centering
+\caption{Method Comparison on Dual-Arm Manipulation Tasks}
+\label{tab:method_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l c c c c c c c}
+\toprule
+Method & Task Succ. (\%) & HO Succ. (\%) & Avg Switches & Exec Time (s) & Plan Time (s) & Manipulability & Collisions \\
+\midrule
+  Greedy & 100 & 100 & 0.0 & 62.7 & 337.7 & 0.0504 & 0.0 \\
+  Single Robot & 100 & 100 & 0.0 & 77.7 & 1566.3 & 0.0532 & 0.0 \\
+  No Diversity & nan & nan & 0.0 & nan & 0.6 & 0.0000 & nan \\
+  Proposed & 100 & 100 & 0.3 & 85.4 & 2243.8 & 0.4858 & 0.2 \\
+\bottomrule
+\end{tabular}}
+\end{table}

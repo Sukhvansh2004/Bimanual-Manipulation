@@ -16,7 +16,7 @@
     "feasibility_rate_robot0": 0.15,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 2907.699898481369
+    "planning_time_s": 2974.1196699142456
   },
   "execution": {
     "experiment": "ycb_mug_table_to_rack",
@@ -26,7 +26,7 @@
     "n_handovers_attempted": 0,
     "n_handovers_succeeded": 0,
     "n_collision_incidents": 0,
-    "execution_time_s": 56.02957367897034,
+    "execution_time_s": 59.0071861743927,
     "grasp_success": true,
     "transport_success": true,
     "place_success": true,

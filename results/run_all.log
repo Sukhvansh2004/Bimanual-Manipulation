@@ -5734,3 +5734,538 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-03 10:23:57,644 [W-189136 ycb_mug_table_to_rack] INFO  Segment 42/49: 31.6s (IK=52, pruned=3, alive=3) ETA 368s
 2026-03-03 10:24:18,512 [W-189136 ycb_mug_table_to_rack] INFO  Segment 43/49: 20.9s (IK=39, pruned=3, alive=3) ETA 311s
 2026-03-03 10:24:24,405 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 7/49: 178.8s (IK=84, pruned=7, alive=7) ETA 2116s
+2026-03-03 10:24:48,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 44/49: 29.8s (IK=48, pruned=1, alive=1) ETA 257s
+2026-03-03 10:24:57,467 [W-189136 ycb_mug_table_to_rack] INFO  Segment 45/49: 9.2s (IK=16, pruned=0, alive=0) ETA 202s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 148s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 97s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 47s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] INFO  Forward pass complete: total IK evals=2171, pruned=227, elapsed=2268.5s
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] ERROR  No feasible assignment found across 40 states
+2026-03-03 10:24:57,468 [W-189136 ycb_mug_table_to_rack] ERROR      ✗ FAILED after 2272.1s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 10:24:57,473 [W-189136 ycb_mug_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Switching_Penalty_Cswitch0.json
+2026-03-03 10:24:57,473 [W-189136 ycb_mug_table_to_rack] INFO  [5/5] ycb_mug_table_to_rack × No Manipulability (β=0)
+2026-03-03 10:24:57,473 [W-189136 ycb_mug_table_to_rack] INFO    Config: No Manipulability (β=0)
+2026-03-03 10:24:57,475 [W-189136 ycb_mug_table_to_rack] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 10:24:57,497 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot0 trajectories (3 fully feasible)
+2026-03-03 10:24:57,521 [W-189136 ycb_mug_table_to_rack] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 10:24:57,521 [W-189136 ycb_mug_table_to_rack] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 10:24:57,522 [W-189136 ycb_mug_table_to_rack] INFO      Parameters: α=10.00, β=0.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 10:24:57,522 [W-189136 ycb_mug_table_to_rack] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=0.00, beam=10, stride=1)
+2026-03-03 10:25:00,697 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix built: 50 segments x 40 states, 1277/2000 finite entries
+2026-03-03 10:25:00,698 [W-189136 ycb_mug_table_to_rack] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 10:25:00,698 [W-189136 ycb_mug_table_to_rack] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 10:26:12,804 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 21/49: 166.0s (IK=90, pruned=5, alive=5) ETA 2567s
+2026-03-03 10:27:10,331 [W-189136 ycb_mug_table_to_rack] INFO  Segment 1/49: 129.6s (IK=164, pruned=10, alive=10) ETA 6222s
+2026-03-03 10:27:12,963 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 8/49: 168.6s (IK=84, pruned=7, alive=7) ETA 2671s
+2026-03-03 10:28:49,103 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 22/49: 156.3s (IK=90, pruned=5, alive=5) ETA 2554s
+2026-03-03 10:29:23,262 [W-189136 ycb_mug_table_to_rack] INFO  Segment 2/49: 132.9s (IK=167, pruned=10, alive=10) ETA 6170s
+2026-03-03 10:29:54,107 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 9/49: 161.1s (IK=84, pruned=7, alive=7) ETA 3032s
+2026-03-03 10:31:26,341 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 23/49: 157.2s (IK=90, pruned=5, alive=5) ETA 2531s
+2026-03-03 10:31:34,503 [W-189136 ycb_mug_table_to_rack] INFO  Segment 3/49: 131.2s (IK=170, pruned=10, alive=10) ETA 6038s
+2026-03-03 10:33:14,370 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 10/49: 200.3s (IK=91, pruned=7, alive=7) ETA 3442s
+2026-03-03 10:33:43,654 [W-189136 ycb_mug_table_to_rack] INFO  Segment 4/49: 129.2s (IK=170, pruned=10, alive=10) ETA 5883s
+2026-03-03 10:34:04,174 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 24/49: 157.8s (IK=90, pruned=5, alive=5) ETA 2496s
+2026-03-03 10:35:56,112 [W-189136 ycb_mug_table_to_rack] INFO  Segment 5/49: 132.5s (IK=173, pruned=10, alive=10) ETA 5768s
+2026-03-03 10:36:14,979 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 25/49: 130.8s (IK=90, pruned=5, alive=5) ETA 2426s
+2026-03-03 10:36:25,697 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 11/49: 191.3s (IK=91, pruned=7, alive=7) ETA 3710s
+2026-03-03 10:38:01,467 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 26/49: 106.5s (IK=90, pruned=5, alive=5) ETA 2330s
+2026-03-03 10:38:08,748 [W-189136 ycb_mug_table_to_rack] INFO  Segment 6/49: 132.6s (IK=173, pruned=10, alive=10) ETA 5648s
+2026-03-03 10:39:43,339 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 12/49: 197.6s (IK=91, pruned=7, alive=7) ETA 3921s
+2026-03-03 10:39:44,257 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 27/49: 102.8s (IK=90, pruned=5, alive=5) ETA 2230s
+2026-03-03 10:40:44,004 [W-189136 ycb_mug_table_to_rack] INFO  Segment 7/49: 155.3s (IK=176, pruned=10, alive=10) ETA 5660s
+2026-03-03 10:41:27,278 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 28/49: 103.0s (IK=90, pruned=5, alive=5) ETA 2130s
+2026-03-03 10:43:09,869 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 29/49: 102.6s (IK=90, pruned=5, alive=5) ETA 2029s
+2026-03-03 10:43:14,733 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 13/49: 211.4s (IK=91, pruned=7, alive=7) ETA 4107s
+2026-03-03 10:43:30,913 [W-189136 ycb_mug_table_to_rack] INFO  Segment 8/49: 166.9s (IK=176, pruned=10, alive=10) ETA 5690s
+2026-03-03 10:44:53,643 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 30/49: 103.8s (IK=90, pruned=5, alive=5) ETA 1929s
+2026-03-03 10:46:24,491 [W-189136 ycb_mug_table_to_rack] INFO  Segment 9/49: 173.6s (IK=155, pruned=10, alive=10) ETA 5706s
+2026-03-03 10:46:33,930 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 31/49: 100.3s (IK=90, pruned=5, alive=5) ETA 1827s
+2026-03-03 10:46:35,817 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 14/49: 201.1s (IK=91, pruned=6, alive=6) ETA 4210s
+2026-03-03 10:48:14,192 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 32/49: 100.3s (IK=90, pruned=5, alive=5) ETA 1725s
+2026-03-03 10:49:01,474 [W-189136 ycb_mug_table_to_rack] INFO  Segment 10/49: 157.0s (IK=123, pruned=10, alive=10) ETA 5619s
+2026-03-03 10:49:42,602 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 15/49: 186.8s (IK=78, pruned=4, alive=4) ETA 4240s
+2026-03-03 10:49:54,149 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 33/49: 100.0s (IK=90, pruned=5, alive=5) ETA 1622s
+2026-03-03 10:51:16,309 [W-189136 ycb_mug_table_to_rack] INFO  Segment 11/49: 134.8s (IK=67, pruned=9, alive=9) ETA 5443s
+2026-03-03 10:51:36,481 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 34/49: 102.3s (IK=90, pruned=5, alive=5) ETA 1521s
+2026-03-03 10:52:14,112 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 16/49: 151.5s (IK=52, pruned=4, alive=4) ETA 4171s
+2026-03-03 10:52:48,452 [W-189136 ycb_mug_table_to_rack] INFO  Segment 12/49: 92.1s (IK=33, pruned=8, alive=8) ETA 5142s
+2026-03-03 10:53:20,261 [W-189136 ycb_mug_table_to_rack] INFO  Segment 13/49: 31.8s (IK=13, pruned=7, alive=7) ETA 4706s
+2026-03-03 10:53:20,261 [W-189136 ycb_mug_table_to_rack] INFO  Segment 14/49: 0.0s (IK=0, pruned=7, alive=7) ETA 4249s
+2026-03-03 10:53:20,261 [W-189136 ycb_mug_table_to_rack] INFO  Segment 15/49: 0.0s (IK=0, pruned=7, alive=7) ETA 3852s
+2026-03-03 10:53:20,261 [W-189136 ycb_mug_table_to_rack] INFO  Segment 16/49: 0.0s (IK=0, pruned=7, alive=7) ETA 3505s
+2026-03-03 10:53:20,262 [W-189136 ycb_mug_table_to_rack] INFO  Segment 17/49: 0.0s (IK=0, pruned=7, alive=7) ETA 3199s
+2026-03-03 10:53:20,262 [W-189136 ycb_mug_table_to_rack] INFO  Segment 18/49: 0.0s (IK=0, pruned=7, alive=7) ETA 2927s
+2026-03-03 10:53:20,262 [W-189136 ycb_mug_table_to_rack] INFO  Segment 19/49: 0.0s (IK=0, pruned=7, alive=7) ETA 2684s
+2026-03-03 10:53:20,263 [W-189136 ycb_mug_table_to_rack] INFO  Segment 20/49: 0.0s (IK=0, pruned=7, alive=7) ETA 2464s
+2026-03-03 10:53:20,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 21/49: 0.0s (IK=0, pruned=7, alive=7) ETA 2266s
+2026-03-03 10:53:20,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 22/49: 0.0s (IK=0, pruned=7, alive=7) ETA 2086s
+2026-03-03 10:53:20,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 23/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1921s
+2026-03-03 10:53:20,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 24/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1770s
+2026-03-03 10:53:20,264 [W-189136 ycb_mug_table_to_rack] INFO  Segment 25/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1632s
+2026-03-03 10:53:20,265 [W-189136 ycb_mug_table_to_rack] INFO  Segment 26/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1503s
+2026-03-03 10:53:20,265 [W-189136 ycb_mug_table_to_rack] INFO  Segment 27/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1385s
+2026-03-03 10:53:20,265 [W-189136 ycb_mug_table_to_rack] INFO  Segment 28/49: 0.0s (IK=0, pruned=7, alive=7) ETA 1275s
+2026-03-03 10:53:32,102 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 35/49: 115.6s (IK=90, pruned=5, alive=5) ETA 1426s
+2026-03-03 10:53:40,858 [W-189136 ycb_mug_table_to_rack] INFO  Segment 29/49: 20.6s (IK=7, pruned=7, alive=7) ETA 1186s
+2026-03-03 10:54:03,112 [W-189136 ycb_mug_table_to_rack] INFO  Segment 30/49: 22.3s (IK=7, pruned=7, alive=7) ETA 1104s
+2026-03-03 10:54:25,355 [W-189136 ycb_mug_table_to_rack] INFO  Segment 31/49: 22.2s (IK=7, pruned=7, alive=7) ETA 1025s
+2026-03-03 10:54:30,460 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 17/49: 136.3s (IK=52, pruned=4, alive=4) ETA 4063s
+2026-03-03 10:54:46,349 [W-189136 ycb_mug_table_to_rack] INFO  Segment 32/49: 21.0s (IK=7, pruned=7, alive=7) ETA 949s
+2026-03-03 10:55:27,430 [W-189136 ycb_mug_table_to_rack] INFO  Segment 33/49: 41.1s (IK=14, pruned=7, alive=7) ETA 886s
+2026-03-03 10:56:06,972 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 36/49: 154.9s (IK=90, pruned=5, alive=5) ETA 1343s
+2026-03-03 10:56:43,297 [W-189136 ycb_mug_table_to_rack] INFO  Segment 34/49: 75.9s (IK=28, pruned=7, alive=7) ETA 839s
+2026-03-03 10:56:44,559 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 18/49: 134.1s (IK=52, pruned=4, alive=4) ETA 3949s
+2026-03-03 10:58:24,618 [W-189136 ycb_mug_table_to_rack] INFO  Segment 35/49: 101.3s (IK=49, pruned=7, alive=7) ETA 802s
+2026-03-03 10:58:34,846 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 37/49: 147.9s (IK=85, pruned=5, alive=5) ETA 1254s
+2026-03-03 10:59:26,403 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 19/49: 161.8s (IK=56, pruned=1, alive=1) ETA 3876s
+2026-03-03 10:59:56,199 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 20/49: 29.8s (IK=15, pruned=0, alive=0) ETA 3602s
+2026-03-03 10:59:56,199 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 3313s
+2026-03-03 10:59:56,199 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 3049s
+2026-03-03 10:59:56,199 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2808s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2588s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2385s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2198s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2024s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1863s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1713s
+2026-03-03 10:59:56,200 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1573s
+2026-03-03 10:59:56,201 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1443s
+2026-03-03 10:59:56,201 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1320s
+2026-03-03 10:59:56,201 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1205s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1096s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 994s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 897s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 806s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 719s
+2026-03-03 10:59:56,202 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 637s
+2026-03-03 10:59:56,203 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 559s
+2026-03-03 10:59:56,203 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 485s
+2026-03-03 10:59:56,203 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 414s
+2026-03-03 10:59:56,203 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 347s
+2026-03-03 10:59:56,204 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 282s
+2026-03-03 10:59:56,204 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 221s
+2026-03-03 10:59:56,204 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 162s
+2026-03-03 10:59:56,204 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 106s
+2026-03-03 10:59:56,204 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 52s
+2026-03-03 10:59:56,205 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 10:59:56,205 [W-189133 ycb_plate_table_to_shelf] INFO  Forward pass complete: total IK evals=1103, pruned=114, elapsed=2484.4s
+2026-03-03 10:59:56,205 [W-189133 ycb_plate_table_to_shelf] ERROR  No feasible assignment found across 40 states
+2026-03-03 10:59:56,205 [W-189133 ycb_plate_table_to_shelf] ERROR      ✗ FAILED after 2486.0s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 10:59:56,206 [W-189133 ycb_plate_table_to_shelf] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/No_Switching_Penalty_Cswitch0.json
+2026-03-03 10:59:56,206 [W-189133 ycb_plate_table_to_shelf] INFO  [5/5] ycb_plate_table_to_shelf × No Manipulability (β=0)
+2026-03-03 10:59:56,206 [W-189133 ycb_plate_table_to_shelf] INFO    Config: No Manipulability (β=0)
+2026-03-03 10:59:56,207 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded object trajectory: 51 waypoints, shape (51, 3)
+2026-03-03 10:59:56,221 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-03 10:59:56,236 [W-189133 ycb_plate_table_to_shelf] INFO  Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-03 10:59:56,236 [W-189133 ycb_plate_table_to_shelf] INFO  TrajectoryBundle ready: 50 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-03 10:59:56,236 [W-189133 ycb_plate_table_to_shelf] INFO      Parameters: α=10.00, β=0.00, beam=10, stride=1, clearance=off, feas_filter=on, switch_override=off
+2026-03-03 10:59:56,236 [W-189133 ycb_plate_table_to_shelf] INFO  Computing assignment for 50 segments (20 R0 + 20 R1 trajectories, α=10.00, β=0.00, beam=10, stride=1)
+2026-03-03 10:59:57,657 [W-189133 ycb_plate_table_to_shelf] INFO  Cost matrix built: 50 segments x 40 states, 622/2000 finite entries
+2026-03-03 10:59:57,658 [W-189133 ycb_plate_table_to_shelf] INFO  Cost matrix: 50 segments × 40 states
+2026-03-03 10:59:57,658 [W-189133 ycb_plate_table_to_shelf] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
+2026-03-03 10:59:57,658 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 1/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 10:59:57,658 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 2/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 10:59:57,658 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 3/49: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-03 11:00:05,250 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 4/49: 7.6s (IK=7, pruned=7, alive=7) ETA 85s
+2026-03-03 11:00:13,218 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 5/49: 8.0s (IK=7, pruned=7, alive=7) ETA 137s
+2026-03-03 11:00:21,267 [W-189136 ycb_mug_table_to_rack] INFO  Segment 36/49: 116.6s (IK=56, pruned=7, alive=7) ETA 766s
+2026-03-03 11:00:59,230 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 38/49: 144.4s (IK=85, pruned=5, alive=5) ETA 1161s
+2026-03-03 11:02:43,537 [W-189136 ycb_mug_table_to_rack] INFO  Segment 37/49: 142.3s (IK=98, pruned=7, alive=7) ETA 734s
+2026-03-03 11:02:45,019 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 6/49: 151.8s (IK=77, pruned=7, alive=7) ETA 1199s
+2026-03-03 11:03:15,446 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 39/49: 136.2s (IK=85, pruned=5, alive=5) ETA 1064s
+2026-03-03 11:05:13,456 [W-189136 ycb_mug_table_to_rack] INFO  Segment 38/49: 149.9s (IK=105, pruned=7, alive=7) ETA 698s
+2026-03-03 11:05:28,176 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 40/49: 132.7s (IK=80, pruned=5, alive=5) ETA 963s
+2026-03-03 11:05:32,970 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 7/49: 168.0s (IK=84, pruned=7, alive=7) ETA 2012s
+2026-03-03 11:06:59,268 [W-189136 ycb_mug_table_to_rack] INFO  Segment 39/49: 105.8s (IK=105, pruned=7, alive=7) ETA 646s
+2026-03-03 11:07:34,632 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 41/49: 126.5s (IK=80, pruned=5, alive=5) ETA 860s
+2026-03-03 11:07:47,300 [W-189136 ycb_mug_table_to_rack] INFO  Segment 40/49: 48.0s (IK=91, pruned=7, alive=7) ETA 577s
+2026-03-03 11:08:01,816 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 8/49: 148.8s (IK=84, pruned=7, alive=7) ETA 2481s
+2026-03-03 11:08:35,245 [W-189136 ycb_mug_table_to_rack] INFO  Segment 41/49: 47.9s (IK=91, pruned=7, alive=7) ETA 510s
+2026-03-03 11:09:23,681 [W-189136 ycb_mug_table_to_rack] INFO  Segment 42/49: 48.4s (IK=91, pruned=6, alive=6) ETA 444s
+2026-03-03 11:09:31,089 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 42/49: 116.5s (IK=70, pruned=5, alive=5) ETA 754s
+2026-03-03 11:10:04,393 [W-189136 ycb_mug_table_to_rack] INFO  Segment 43/49: 40.7s (IK=78, pruned=6, alive=6) ETA 377s
+2026-03-03 11:10:30,164 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 9/49: 148.3s (IK=84, pruned=7, alive=7) ETA 2811s
+2026-03-03 11:10:59,909 [W-189136 ycb_mug_table_to_rack] INFO  Segment 44/49: 55.5s (IK=96, pruned=6, alive=6) ETA 314s
+2026-03-03 11:11:37,940 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 43/49: 126.9s (IK=70, pruned=5, alive=5) ETA 649s
+2026-03-03 11:11:55,534 [W-189136 ycb_mug_table_to_rack] INFO  Segment 45/49: 55.6s (IK=96, pruned=6, alive=6) ETA 250s
+2026-03-03 11:12:56,802 [W-189136 ycb_mug_table_to_rack] INFO  Segment 46/49: 61.3s (IK=108, pruned=5, alive=5) ETA 188s
+2026-03-03 11:13:36,262 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 10/49: 186.1s (IK=91, pruned=7, alive=7) ETA 3193s
+2026-03-03 11:13:43,971 [W-189136 ycb_mug_table_to_rack] INFO  Segment 47/49: 47.2s (IK=80, pruned=4, alive=4) ETA 124s
+2026-03-03 11:13:45,708 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 44/49: 127.8s (IK=70, pruned=5, alive=5) ETA 543s
+2026-03-03 11:14:17,755 [W-189136 ycb_mug_table_to_rack] INFO  Segment 48/49: 33.8s (IK=56, pruned=3, alive=3) ETA 62s
+2026-03-03 11:14:31,640 [W-189136 ycb_mug_table_to_rack] INFO  Segment 49/49: 13.9s (IK=21, pruned=3, alive=3) ETA 0s
+2026-03-03 11:14:31,641 [W-189136 ycb_mug_table_to_rack] INFO  Forward pass complete: total IK evals=3051, pruned=359, elapsed=2970.9s
+2026-03-03 11:14:31,641 [W-189136 ycb_mug_table_to_rack] INFO  Best terminal cost=3.4846 at state 16
+2026-03-03 11:14:31,641 [W-189136 ycb_mug_table_to_rack] INFO  Assignment solved: total_cost=3.4846, handovers=0
+2026-03-03 11:14:31,646 [W-189136 ycb_mug_table_to_rack] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_mug_table_to_rack/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-03 11:14:31,674 [W-189136 ycb_mug_table_to_rack] INFO      ✓ cost=3.48, handovers=0, manip=0.8240, time=2974.1s
+2026-03-03 11:14:31,677 [W-189136 ycb_mug_table_to_rack] INFO      Running execution: ycb_mug_table_to_rack × No Manipulability (β=0)
+2026-03-03 11:14:31,677 [W-189136 ycb_mug_table_to_rack] INFO      Command: /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/bin/python /home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/manipulation/dual_arm_handover_traj.py --experiment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_mug_table_to_rack.json --assignment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_mug_table_to_rack/configs/No_Manipulability_β0/assignment_results.npz --output-metrics /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Manipulability_β0_exec.json --headless --smoothen
+2026-03-03 11:15:41,529 [W-189136 ycb_mug_table_to_rack] INFO      Execution result: task=True, handover_rate=100%, collisions=0, time=59.0s
+2026-03-03 11:15:41,531 [W-189136 ycb_mug_table_to_rack] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Manipulability_β0.json
+2026-03-03 11:15:48,317 [BATCH] INFO  ✓ ycb_mug_table_to_rack finished — 5 results
+2026-03-03 11:15:55,829 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 45/49: 130.1s (IK=70, pruned=5, alive=5) ETA 436s
+2026-03-03 11:16:31,355 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 11/49: 175.1s (IK=91, pruned=7, alive=7) ETA 3433s
+2026-03-03 11:17:27,026 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 46/49: 91.2s (IK=60, pruned=5, alive=5) ETA 326s
+2026-03-03 11:18:57,946 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 47/49: 90.9s (IK=60, pruned=5, alive=5) ETA 217s
+2026-03-03 11:19:16,782 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 12/49: 165.4s (IK=91, pruned=7, alive=7) ETA 3574s
+2026-03-03 11:20:21,749 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 48/49: 83.8s (IK=55, pruned=5, alive=5) ETA 108s
+2026-03-03 11:21:35,582 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 49/49: 73.8s (IK=50, pruned=5, alive=5) ETA 0s
+2026-03-03 11:21:35,582 [W-189137 ycb_bowl_rack_to_table] INFO  Forward pass complete: total IK evals=3640, pruned=245, elapsed=5247.8s
+2026-03-03 11:21:35,582 [W-189137 ycb_bowl_rack_to_table] INFO  Best terminal cost=2.1795 at state 34
+2026-03-03 11:21:35,583 [W-189137 ycb_bowl_rack_to_table] INFO  Assignment solved: total_cost=2.1795, handovers=0
+2026-03-03 11:21:35,585 [W-189137 ycb_bowl_rack_to_table] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_bowl_rack_to_table/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-03 11:21:35,615 [W-189137 ycb_bowl_rack_to_table] INFO      ✓ cost=2.18, handovers=0, manip=0.7648, time=5250.6s
+2026-03-03 11:21:35,617 [W-189137 ycb_bowl_rack_to_table] INFO      Running execution: ycb_bowl_rack_to_table × No Manipulability (β=0)
+2026-03-03 11:21:35,617 [W-189137 ycb_bowl_rack_to_table] INFO      Command: /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/bin/python /home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/manipulation/dual_arm_handover_traj.py --experiment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_bowl_rack_to_table.json --assignment /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_bowl_rack_to_table/configs/No_Manipulability_β0/assignment_results.npz --output-metrics /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Manipulability_β0_exec.json --headless --smoothen
+2026-03-03 11:22:12,237 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 13/49: 175.5s (IK=91, pruned=7, alive=7) ETA 3696s
+2026-03-03 11:22:42,416 [W-189137 ycb_bowl_rack_to_table] INFO      Execution result: task=True, handover_rate=100%, collisions=0, time=57.1s
+2026-03-03 11:22:42,420 [W-189137 ycb_bowl_rack_to_table] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Manipulability_β0.json
+2026-03-03 11:22:48,932 [BATCH] INFO  ✓ ycb_bowl_rack_to_table finished — 5 results
+2026-03-03 11:24:47,742 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 14/49: 155.5s (IK=91, pruned=6, alive=6) ETA 3725s
+2026-03-03 11:27:13,274 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 15/49: 145.5s (IK=78, pruned=4, alive=4) ETA 3707s
+2026-03-03 11:29:10,098 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 16/49: 116.8s (IK=52, pruned=4, alive=4) ETA 3614s
+2026-03-03 11:30:56,029 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 17/49: 105.9s (IK=52, pruned=4, alive=4) ETA 3498s
+2026-03-03 11:32:40,489 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 18/49: 104.5s (IK=52, pruned=4, alive=4) ETA 3380s
+2026-03-03 11:34:41,788 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 19/49: 121.3s (IK=56, pruned=1, alive=1) ETA 3291s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 20/49: 23.5s (IK=15, pruned=0, alive=0) ETA 3056s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 21/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2810s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 22/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2587s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 23/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2383s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 24/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2195s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 25/49: 0.0s (IK=0, pruned=0, alive=0) ETA 2023s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 26/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1864s
+2026-03-03 11:35:05,299 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 27/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1717s
+2026-03-03 11:35:05,300 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 28/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1581s
+2026-03-03 11:35:05,300 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 29/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1454s
+2026-03-03 11:35:05,300 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 30/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1335s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 31/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1224s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 32/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1120s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 33/49: 0.0s (IK=0, pruned=0, alive=0) ETA 1022s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 34/49: 0.0s (IK=0, pruned=0, alive=0) ETA 930s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 35/49: 0.0s (IK=0, pruned=0, alive=0) ETA 843s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 36/49: 0.0s (IK=0, pruned=0, alive=0) ETA 761s
+2026-03-03 11:35:05,301 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 37/49: 0.0s (IK=0, pruned=0, alive=0) ETA 684s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 38/49: 0.0s (IK=0, pruned=0, alive=0) ETA 610s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 39/49: 0.0s (IK=0, pruned=0, alive=0) ETA 540s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 40/49: 0.0s (IK=0, pruned=0, alive=0) ETA 474s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 41/49: 0.0s (IK=0, pruned=0, alive=0) ETA 411s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 42/49: 0.0s (IK=0, pruned=0, alive=0) ETA 351s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 43/49: 0.0s (IK=0, pruned=0, alive=0) ETA 294s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 44/49: 0.0s (IK=0, pruned=0, alive=0) ETA 240s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 45/49: 0.0s (IK=0, pruned=0, alive=0) ETA 187s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 46/49: 0.0s (IK=0, pruned=0, alive=0) ETA 137s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 47/49: 0.0s (IK=0, pruned=0, alive=0) ETA 90s
+2026-03-03 11:35:05,302 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 48/49: 0.0s (IK=0, pruned=0, alive=0) ETA 44s
+2026-03-03 11:35:05,303 [W-189133 ycb_plate_table_to_shelf] INFO  Segment 49/49: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-03 11:35:05,303 [W-189133 ycb_plate_table_to_shelf] INFO  Forward pass complete: total IK evals=1103, pruned=114, elapsed=2107.6s
+2026-03-03 11:35:05,303 [W-189133 ycb_plate_table_to_shelf] ERROR  No feasible assignment found across 40 states
+2026-03-03 11:35:05,303 [W-189133 ycb_plate_table_to_shelf] ERROR      ✗ FAILED after 2109.1s: No feasible assignment found — check trajectory feasibility.
+2026-03-03 11:35:05,305 [W-189133 ycb_plate_table_to_shelf] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/No_Manipulability_β0.json
+2026-03-03 11:35:10,381 [BATCH] INFO  ✓ ycb_plate_table_to_shelf finished — 5 results
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-03 11:35:16,312 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,314 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,314 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,317 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,318 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,319 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,321 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,322 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,326 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,328 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,328 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,329 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,331 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Greedy_beam1_exec.json: 'experiment'
+2026-03-03 11:35:16,331 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,331 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,332 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,332 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Single_Robot_exec.json: 'experiment'
+2026-03-03 11:35:16,332 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,333 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,334 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,335 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,337 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,337 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,339 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Beamunlimited_exec.json: 'experiment'
+2026-03-03 11:35:16,341 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,341 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,415 [BATCH] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (119 results)
+2026-03-03 11:35:16,417 [BATCH] INFO  Running analysis ...
+2026-03-03 11:35:16,689 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,690 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,690 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,691 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,691 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,691 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,692 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Greedy_beam1_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Single_Robot_exec.json: 'experiment'
+2026-03-03 11:35:16,693 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,695 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,696 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,697 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,698 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,698 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,699 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Beamunlimited_exec.json: 'experiment'
+2026-03-03 11:35:16,700 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-03 11:35:16,701 [BATCH] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-03 11:35:16,707 [BATCH] INFO  Loaded 119 results
+
+════════════════════════════════════════════════════════════════════════════════
+  BATCH RUN COMPLETE  (31553.0s total, 75 results)
+════════════════════════════════════════════════════════════════════════════════
+
+Experiment                                Configs     BestCost  BestHandovers
+────────────────────────────────────────────────────────────────────────────────
+dual_handover_mug                               5       FAILED              —
+dual_handover_plate                             5       233.54              3
+flatPlate_box_to_box                            5       FAILED              —
+flatPlate_shelf_to_box                          5         5.14              1
+flatPlate_shelf_to_shelf                        5       FAILED              —
+flatPlate_shelf_to_table                        5         7.70              1
+flatPlate_table_to_shelf                        5        12.22              1
+mug_inversion                                   5       FAILED              —
+ycb_bowl_rack_to_table                          5         2.18              0
+ycb_bowl_table_to_rack                          5         3.32              0
+ycb_can_table_to_rack                           5         3.46              0
+ycb_mug_rack_to_table                           5         4.13              0
+ycb_mug_table_to_rack                           5         3.48              0
+ycb_plate_shelf_to_table                        5       FAILED              —
+ycb_plate_table_to_shelf                        5       FAILED              —
+
+  Successful: 25/75
+  Failed:     50
+
+
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  Planning Metrics
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+Experiment                               Config                               Cost  Handovers   MeanTask   SwitchCost    Manip  FeasR0  FeasR1  Time(s)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+dual_handover_mug                        Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    342.3
+dual_handover_mug                        No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%    560.5
+dual_handover_mug                        No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%    563.1
+dual_handover_mug                        Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%    563.1
+dual_handover_mug                        Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%    559.2
+dual_handover_plate                      Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    252.3
+dual_handover_plate                      No Manipulability (β=0)             233.5          3       0.04        230.0   0.8137      0%      0%   1640.8
+dual_handover_plate                      No Switching Penalty (Cswitch=0)     1728.0          3      21.60          0.0   0.8137      0%      0%   1628.7
+dual_handover_plate                      Proposed                           2816.1          1      28.24        557.1   0.8151      0%      0%   1653.0
+dual_handover_plate                      Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   1607.4
+flatPlate_box_to_box                     Baseline (α=10, β=1)                    ∞          0       0.00          0.0   0.0000      0%      0%     11.7
+flatPlate_box_to_box                     Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%     11.7
+flatPlate_box_to_box                     No Feasibility Filter                   ∞          0       0.00          0.0   0.0000      0%      0%     11.4
+flatPlate_box_to_box                     No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%     11.6
+flatPlate_box_to_box                     No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%     12.4
+flatPlate_box_to_box                     Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%     10.9
+flatPlate_box_to_box                     Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%     12.4
+flatPlate_shelf_to_box                   Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%     60.5
+flatPlate_shelf_to_box                   No Manipulability (β=0)               5.1          1       0.10          0.3   0.8250      0%      0%   1476.0
+flatPlate_shelf_to_box                   No Switching Penalty (Cswitch=0)     1090.6          3      21.81          0.0   0.8206      0%      0%   1478.0
+flatPlate_shelf_to_box                   Proposed                           1737.1          1      23.80        547.2   0.8151      0%      0%   1499.4
+flatPlate_shelf_to_box                   Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   1280.2
+flatPlate_shelf_to_shelf                 Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%     66.1
+flatPlate_shelf_to_shelf                 No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%    316.8
+flatPlate_shelf_to_shelf                 No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%    318.4
+flatPlate_shelf_to_shelf                 Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%    322.9
+flatPlate_shelf_to_shelf                 Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%    317.0
+flatPlate_shelf_to_table                 Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    168.2
+flatPlate_shelf_to_table                 No Manipulability (β=0)               7.7          1       0.14          0.6   0.8172      0%      0%   2814.0
+flatPlate_shelf_to_table                 No Switching Penalty (Cswitch=0)     1128.0          3      22.56          0.0   0.8074      0%      0%   2778.7
+flatPlate_shelf_to_table                 Proposed                           2586.1          1      34.79        846.5   0.8099      0%      0%   2978.3
+flatPlate_shelf_to_table                 Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   2610.1
+flatPlate_table_to_shelf                 Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%     22.2
+flatPlate_table_to_shelf                 No Manipulability (β=0)              12.2          1       0.23          0.7   0.7670      0%      0%   1269.7
+flatPlate_table_to_shelf                 No Switching Penalty (Cswitch=0)     1149.3          5      22.99          0.0   0.8072      0%      0%   1284.6
+flatPlate_table_to_shelf                 Proposed                           1591.1          1      23.99        391.6   0.8127      0%      0%   1271.8
+flatPlate_table_to_shelf                 Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%    537.6
+mug_inversion                            Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%      2.5
+mug_inversion                            No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%      2.2
+mug_inversion                            No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%      2.2
+mug_inversion                            Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%      2.5
+mug_inversion                            Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%      2.2
+ycb_bowl_rack_to_table                   Greedy (beam=1)                    1451.7          0      29.03          0.0   0.7559      0%     25%   2442.9
+ycb_bowl_rack_to_table                   No Manipulability (β=0)               2.2          0       0.04          0.0   0.7648      0%     25%   5250.6
+ycb_bowl_rack_to_table                   No Switching Penalty (Cswitch=0)      978.4          0      19.57          0.0   0.7980      0%     25%   5806.5
+ycb_bowl_rack_to_table                   Proposed                            978.4          0      19.57          0.0   0.7980      0%     25%   5068.3
+ycb_bowl_rack_to_table                   Single Robot                        978.4          0      19.57          0.0   0.7980      0%     25%   5192.4
+ycb_bowl_table_to_rack                   Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    203.6
+ycb_bowl_table_to_rack                   No Manipulability (β=0)               3.3          0       0.07          0.0   0.8053      0%      5%   4014.5
+ycb_bowl_table_to_rack                   No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%   3872.5
+ycb_bowl_table_to_rack                   Proposed                           1243.5          0      24.87          0.0   0.8053      0%      5%   5864.3
+ycb_bowl_table_to_rack                   Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   3614.9
+ycb_can_table_to_rack                    Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    601.8
+ycb_can_table_to_rack                    No Manipulability (β=0)               3.5          0       0.07          0.0   0.8042      5%      5%   2948.8
+ycb_can_table_to_rack                    No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%   2295.4
+ycb_can_table_to_rack                    Proposed                           1208.4          0      24.17          0.0   0.7773      5%      5%   5157.9
+ycb_can_table_to_rack                    Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   2286.4
+ycb_mug_rack_to_table                    Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%     43.9
+ycb_mug_rack_to_table                    No Manipulability (β=0)               4.1          0       0.08          0.0   0.8294     20%      0%    990.6
+ycb_mug_rack_to_table                    No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%    423.3
+ycb_mug_rack_to_table                    Proposed                           2647.2          0      52.94          0.0   0.8294     20%      0%   1105.9
+ycb_mug_rack_to_table                    Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%    415.7
+ycb_mug_table_to_rack                    Baseline (α=10, β=1)                    ∞          0       0.00          0.0   0.0000      0%      0%   2241.7
+ycb_mug_table_to_rack                    Beam=1 (greedy)                         ∞          0       0.00          0.0   0.0000      0%      0%    271.2
+ycb_mug_table_to_rack                    Beam=10                                 ∞          0       0.00          0.0   0.0000      0%      0%   2061.0
+ycb_mug_table_to_rack                    Beam=5                                  ∞          0       0.00          0.0   0.0000      0%      0%   1757.5
+ycb_mug_table_to_rack                    Beam=unlimited                     2889.0          0      57.78          0.0   0.8240     15%      0%   5851.3
+ycb_mug_table_to_rack                    Clearance=0.05m                         ∞          0       0.00          0.0   0.0000      0%      0%   2186.4
+ycb_mug_table_to_rack                    Clearance=0.10m                         ∞          0       0.00          0.0   0.0000      0%      0%   2145.5
+ycb_mug_table_to_rack                    Clearance=0.15m                         ∞          0       0.00          0.0   0.0000      0%      0%   1895.1
+ycb_mug_table_to_rack                    Clearance=off                           ∞          0       0.00          0.0   0.0000      0%      0%   2189.8
+ycb_mug_table_to_rack                    Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    276.6
+ycb_mug_table_to_rack                    No Feasibility Filter                   ∞          0       0.00          0.0   0.0000      0%      0%   2152.4
+ycb_mug_table_to_rack                    No Manipulability (β=0)               3.5          0       0.07          0.0   0.8240     15%      0%   2974.1
+ycb_mug_table_to_rack                    No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%   2272.1
+ycb_mug_table_to_rack                    Proposed                           2889.0          0      57.78          0.0   0.8240     15%      0%   5627.4
+ycb_mug_table_to_rack                    Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   2480.0
+ycb_mug_table_to_rack                    Stride=1                                ∞          0       0.00          0.0   0.0000      0%      0%   2114.7
+ycb_mug_table_to_rack                    Stride=3                                ∞          0       0.00          0.0   0.0000      0%      0%    686.8
+ycb_mug_table_to_rack                    Stride=5                                ∞          0       0.00          0.0   0.0000      0%      0%    345.8
+ycb_plate_shelf_to_table                 Baseline (α=10, β=1)                    ∞          0       0.00          0.0   0.0000      0%      0%      0.8
+ycb_plate_shelf_to_table                 Beam=1 (greedy)                         ∞          0       0.00          0.0   0.0000      0%      0%      0.7
+ycb_plate_shelf_to_table                 Beam=10                                 ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Beam=20                                 ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Beam=5                                  ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Beam=unlimited                          ∞          0       0.00          0.0   0.0000      0%      0%      0.7
+ycb_plate_shelf_to_table                 Clearance=0.05m                         ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Clearance=0.10m                         ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Clearance=0.15m                         ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Clearance=off                           ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%      1.0
+ycb_plate_shelf_to_table                 No Diversity                            ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 No Feasibility Filter                   ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%      0.9
+ycb_plate_shelf_to_table                 No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%      0.9
+ycb_plate_shelf_to_table                 Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%      1.1
+ycb_plate_shelf_to_table                 Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%      0.9
+ycb_plate_shelf_to_table                 Stride=1                                ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Stride=3                                ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_shelf_to_table                 Stride=5                                ∞          0       0.00          0.0   0.0000      0%      0%      0.6
+ycb_plate_table_to_shelf                 Baseline (α=10, β=1)                    ∞          0       0.00          0.0   0.0000      0%      0%   2366.0
+ycb_plate_table_to_shelf                 Beam=1 (greedy)                         ∞          0       0.00          0.0   0.0000      0%      0%    502.3
+ycb_plate_table_to_shelf                 Beam=10                                 ∞          0       0.00          0.0   0.0000      0%      0%   2411.4
+ycb_plate_table_to_shelf                 Beam=20                                 ∞          0       0.00          0.0   0.0000      0%      0%   2044.8
+ycb_plate_table_to_shelf                 Beam=5                                  ∞          0       0.00          0.0   0.0000      0%      0%   1726.3
+ycb_plate_table_to_shelf                 Beam=unlimited                          ∞          0       0.00          0.0   0.0000      0%      0%   2586.7
+ycb_plate_table_to_shelf                 Clearance=0.05m                         ∞          0       0.00          0.0   0.0000      0%      0%   2309.1
+ycb_plate_table_to_shelf                 Clearance=0.10m                         ∞          0       0.00          0.0   0.0000      0%      0%   2343.8
+ycb_plate_table_to_shelf                 Clearance=0.15m                         ∞          0       0.00          0.0   0.0000      0%      0%   2619.6
+ycb_plate_table_to_shelf                 Clearance=off                           ∞          0       0.00          0.0   0.0000      0%      0%   2306.1
+ycb_plate_table_to_shelf                 Greedy (beam=1)                         ∞          0       0.00          0.0   0.0000      0%      0%    570.2
+ycb_plate_table_to_shelf                 No Feasibility Filter                   ∞          0       0.00          0.0   0.0000      0%      0%   2287.9
+ycb_plate_table_to_shelf                 No Manipulability (β=0)                 ∞          0       0.00          0.0   0.0000      0%      0%   2109.1
+ycb_plate_table_to_shelf                 No Switching Penalty (Cswitch=0)          ∞          0       0.00          0.0   0.0000      0%      0%   2486.0
+ycb_plate_table_to_shelf                 Proposed                                ∞          0       0.00          0.0   0.0000      0%      0%   2530.0
+ycb_plate_table_to_shelf                 Single Robot                            ∞          0       0.00          0.0   0.0000      0%      0%   2578.2
+ycb_plate_table_to_shelf                 Stride=1                                ∞          0       0.00          0.0   0.0000      0%      0%   2253.4
+ycb_plate_table_to_shelf                 Stride=3                                ∞          0       0.00          0.0   0.0000      0%      0%    766.6
+ycb_plate_table_to_shelf                 Stride=5                                ∞          0       0.00          0.0   0.0000      0%      0%    385.4
+
+
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  Execution Metrics
+══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+Experiment                               Config                          TaskOK   HORate  Collisions  Time(s)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+dual_handover_plate                      No Manipulability (β=0)              ✗     100%           2    107.7
+dual_handover_plate                      No Switching Penalty (Cswitch=0)       ✓     100%           3    208.3
+dual_handover_plate                      Proposed                             ✓     100%           1     95.5
+flatPlate_shelf_to_box                   No Manipulability (β=0)              ✓     100%           0    168.3
+flatPlate_shelf_to_box                   No Switching Penalty (Cswitch=0)       ✓     100%           1    259.2
+flatPlate_shelf_to_box                   Proposed                             ✓     100%           0    137.7
+flatPlate_shelf_to_table                 No Manipulability (β=0)              ✓     100%           0    112.7
+flatPlate_shelf_to_table                 No Switching Penalty (Cswitch=0)       ✓     100%           2    243.9
+flatPlate_shelf_to_table                 Proposed                             ✓     100%           0    111.3
+flatPlate_table_to_shelf                 No Manipulability (β=0)              ✓     100%           1     93.7
+flatPlate_table_to_shelf                 No Switching Penalty (Cswitch=0)       ✓     100%           4    298.7
+flatPlate_table_to_shelf                 Proposed                             ✓     100%           1    129.7
+ycb_bowl_rack_to_table                   Greedy (beam=1)                      ✓     100%           0     62.7
+ycb_bowl_rack_to_table                   No Manipulability (β=0)              ✓     100%           0     57.1
+2026-03-03 11:35:16,857 [BATCH] INFO  CSV exported: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures/results.csv
+2026-03-03 11:35:16,859 [BATCH] INFO  LaTeX table exported: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures/planning_table.tex
+2026-03-03 11:35:16,893 [BATCH] INFO  Paper Table 1 (Method Comparison) exported: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures/paper_table1_methods.tex
+2026-03-03 11:35:16,896 [BATCH] INFO  Paper Table 2 (Ablation Study) exported: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures/paper_table2_ablation.tex
+2026-03-03 11:35:16,896 [BATCH] INFO  Per-experiment table exported: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures/paper_per_experiment.tex
+2026-03-03 11:35:22,101 [BATCH] INFO  Saved baseline_overview.png
+2026-03-03 11:35:36,617 [BATCH] INFO  Saved ablation_switch_penalty_total_cost.png
+2026-03-03 11:35:37,022 [BATCH] INFO  Saved ablation_switch_penalty_n_handovers.png
+2026-03-03 11:35:37,506 [BATCH] INFO  Saved ablation_switch_penalty_mean_manipulability.png
+2026-03-03 11:35:38,151 [BATCH] INFO  Saved ablation_switch_penalty_planning_time_s.png
+2026-03-03 11:35:38,651 [BATCH] INFO  Saved ablation_manipulability_total_cost.png
+2026-03-03 11:35:39,101 [BATCH] INFO  Saved ablation_manipulability_n_handovers.png
+2026-03-03 11:35:39,541 [BATCH] INFO  Saved ablation_manipulability_mean_manipulability.png
+2026-03-03 11:35:39,904 [BATCH] INFO  Saved ablation_manipulability_planning_time_s.png
+2026-03-03 11:35:40,059 [BATCH] INFO  Saved ablation_feasibility_filter_total_cost.png
+2026-03-03 11:35:40,219 [BATCH] INFO  Saved ablation_feasibility_filter_n_handovers.png
+2026-03-03 11:35:40,512 [BATCH] INFO  Saved ablation_feasibility_filter_mean_manipulability.png
+2026-03-03 11:35:40,666 [BATCH] INFO  Saved ablation_feasibility_filter_planning_time_s.png
+2026-03-03 11:35:40,956 [BATCH] INFO  Saved ablation_handover_stride_total_cost.png
+2026-03-03 11:35:41,114 [BATCH] INFO  Saved ablation_handover_stride_n_handovers.png
+2026-03-03 11:35:41,388 [BATCH] INFO  Saved ablation_handover_stride_mean_manipulability.png
+2026-03-03 11:35:41,624 [BATCH] INFO  Saved ablation_handover_stride_planning_time_s.png
+2026-03-03 11:35:41,778 [BATCH] INFO  Saved ablation_clearance_radius_total_cost.png
+2026-03-03 11:35:41,978 [BATCH] INFO  Saved ablation_clearance_radius_n_handovers.png
+2026-03-03 11:35:42,149 [BATCH] INFO  Saved ablation_clearance_radius_mean_manipulability.png
+2026-03-03 11:35:42,318 [BATCH] INFO  Saved ablation_clearance_radius_planning_time_s.png
+2026-03-03 11:35:42,489 [BATCH] INFO  Saved ablation_beam_width_total_cost.png
+2026-03-03 11:35:42,643 [BATCH] INFO  Saved ablation_beam_width_n_handovers.png
+2026-03-03 11:35:42,838 [BATCH] INFO  Saved ablation_beam_width_mean_manipulability.png
+2026-03-03 11:35:43,004 [BATCH] INFO  Saved ablation_beam_width_planning_time_s.png
+2026-03-03 11:35:43,486 [BATCH] INFO  Saved ablation_method_comparison_total_cost.png
+2026-03-03 11:35:43,822 [BATCH] INFO  Saved ablation_method_comparison_n_handovers.png
+2026-03-03 11:35:44,183 [BATCH] INFO  Saved ablation_method_comparison_mean_manipulability.png
+2026-03-03 11:35:44,614 [BATCH] INFO  Saved ablation_method_comparison_planning_time_s.png
+2026-03-03 11:35:44,977 [BATCH] INFO  Saved ablation_paper_total_cost.png
+2026-03-03 11:35:45,283 [BATCH] INFO  Saved ablation_paper_n_handovers.png
+2026-03-03 11:35:45,617 [BATCH] INFO  Saved ablation_paper_mean_manipulability.png
+2026-03-03 11:35:46,311 [BATCH] INFO  Saved ablation_paper_planning_time_s.png
+2026-03-03 11:35:47,392 [BATCH] INFO  Saved trajectory_generation_overview.png
+2026-03-03 11:35:48,353 [BATCH] INFO  Saved handover_vs_cost.png
+2026-03-03 11:35:48,353 [BATCH] INFO  Analysis complete. Outputs saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/figures
+ycb_bowl_rack_to_table                   No Switching Penalty (Cswitch=0)       ✓     100%           0     64.4
+ycb_bowl_rack_to_table                   Proposed                             ✓     100%           0     60.0
+ycb_bowl_rack_to_table                   Single Robot                         ✓     100%           0     77.7
+ycb_bowl_table_to_rack                   No Manipulability (β=0)              ✓     100%           0     76.0
+ycb_bowl_table_to_rack                   Proposed                             ✓     100%           0     54.0
+ycb_can_table_to_rack                    No Manipulability (β=0)              ✓     100%           0    105.6
+ycb_can_table_to_rack                    Proposed                             ✓     100%           0     57.7
+ycb_mug_rack_to_table                    No Manipulability (β=0)              ✓     100%           0     58.8
+ycb_mug_rack_to_table                    Proposed                             ✓     100%           0     58.1
+ycb_mug_table_to_rack                    Beam=unlimited                       ✓     100%           0     54.1
+ycb_mug_table_to_rack                    No Manipulability (β=0)              ✓     100%           0     59.0
+ycb_mug_table_to_rack                    Proposed                             ✓     100%           0     64.8
+

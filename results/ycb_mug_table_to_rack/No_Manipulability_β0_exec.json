@@ -8,7 +8,7 @@
   "handover_success_rate": 1.0,
   "n_collision_incidents": 0,
   "n_switches": 0,
-  "execution_time_s": 56.02957367897034,
+  "execution_time_s": 59.0071861743927,
   "mean_manipulability": 0.8299111336723759,
   "parallel_collision_free": true,
   "error_message": ""
