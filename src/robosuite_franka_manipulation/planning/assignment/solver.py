@@ -109,6 +109,17 @@ def _solve_optimal_assignment(
             continue
         J_star[0, si] = cost_matrix[0, si]
 
+    n_init_alive = int(np.sum(~np.isinf(J_star[0])))
+    logger.info(
+        "Segment 0 initialised: %d/%d alive states", n_init_alive, n_states,
+    )
+    if n_init_alive == 0:
+        logger.error(
+            "No feasible states at segment 0!  All trajectories have "
+            "infeasible waypoints 0→1.  Cannot start DP."
+        )
+        raise ValueError("No feasible assignment found — all trajectories infeasible at segment 0.")
+
     if beam_width is not None and beam_width > 0:
         _apply_beam_pruning(J_star, 0, beam_width)
 
@@ -187,7 +198,16 @@ def _solve_optimal_assignment(
                     handover_clearance_fn=handover_clearance_fn,
                 )
                 if np.isinf(sw):
+                    logger.debug(
+                        "Seg %d: handover robot%d→robot%d traj(%d→%d) rejected (inf)",
+                        i, pr, cr, pt, ct,
+                    )
                     continue
+                else:
+                    logger.debug(
+                        "Seg %d: handover robot%d→robot%d traj(%d→%d) sw=%.2f",
+                        i, pr, cr, pt, ct, sw,
+                    )
 
                 total = acc_cost + sw
                 if total < best_cost:
@@ -219,6 +239,13 @@ def _solve_optimal_assignment(
             i, n_segments - 1, t_seg, seg_ik_calls, seg_pruned,
             n_alive, eta,
         )
+
+        if n_alive == 0:
+            logger.error(
+                "All states died at segment %d/%d. No feasible path "
+                "can reach beyond this point.", i, n_segments - 1,
+            )
+            break
 
     logger.info(
         "Forward pass complete: total IK evals=%d, pruned=%d, elapsed=%.1fs",

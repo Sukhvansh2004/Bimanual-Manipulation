@@ -684,7 +684,10 @@ def main():
                 # execution above.
                 # -------------------------------------------------------
                 tracker.n_handovers_attempted += 1
-                logger.info(f"Executing handover at {current_idx}...")
+                logger.info(f"Executing handover at waypoint {current_idx} (robot {current_robot} → robot {1-current_robot})...")
+                logger.debug(f"  Transfer grasp: pos={grasp_transfer.position}, quat={grasp_transfer.quaternion}")
+                logger.debug(f"  Receiver grasp: pos={grasp_receiver.position}, quat={grasp_receiver.quaternion}")
+                logger.debug(f"  Object pose:    pos={obj_pose_h.position}, quat={obj_pose_h.quaternion}")
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)
@@ -701,6 +704,11 @@ def main():
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
                 tracker.n_handovers_succeeded += 1
+                logger.info(
+                    f"Handover at waypoint {current_idx} SUCCEEDED "
+                    f"(robot {current_robot} → robot {1-current_robot}). "
+                    f"Total handovers: {tracker.n_handovers_succeeded}/{tracker.n_handovers_attempted}"
+                )
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
