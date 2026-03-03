@@ -4744,3 +4744,13 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-03 08:16:05,140 [W-189137 ycb_bowl_rack_to_table] INFO  Cost matrix: 50 segments × 40 states
 2026-03-03 08:16:05,140 [W-189137 ycb_bowl_rack_to_table] INFO  DP solver: 50 segments × 40 states, beam_width=10, handover_stride=1
 2026-03-03 08:16:23,083 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 1/49: 17.9s (IK=10, pruned=5, alive=5) ETA 861s
+2026-03-03 08:16:32,262 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 25/49: 197.6s (IK=126, pruned=6, alive=6) ETA 2314s
+2026-03-03 08:16:55,635 [W-189136 ycb_mug_table_to_rack] INFO  Segment 30/49: 59.5s (IK=15, pruned=15, alive=15) ETA 1934s
+2026-03-03 08:17:12,762 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 2/49: 49.7s (IK=25, pruned=5, alive=5) ETA 1589s
+2026-03-03 08:17:52,739 [W-189136 ycb_mug_table_to_rack] INFO  Segment 31/49: 57.1s (IK=15, pruned=15, alive=15) ETA 1807s
+2026-03-03 08:17:56,090 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 3/49: 43.3s (IK=30, pruned=5, alive=5) ETA 1701s
+2026-03-03 08:18:33,463 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 4/49: 37.4s (IK=40, pruned=5, alive=5) ETA 1669s
+2026-03-03 08:18:41,526 [W-189136 ycb_mug_table_to_rack] INFO  Segment 32/49: 48.8s (IK=15, pruned=15, alive=15) ETA 1679s
+2026-03-03 08:19:10,997 [W-189137 ycb_bowl_rack_to_table] INFO  Segment 5/49: 37.5s (IK=40, pruned=5, alive=5) ETA 1636s
+2026-03-03 08:19:45,225 [W-189133 ycb_can_table_to_rack] INFO  Segment 25/49: 248.9s (IK=84, pruned=6, alive=6) ETA 1590s
+2026-03-03 08:19:59,598 [W-189138 ycb_bowl_table_to_rack] INFO  Segment 26/49: 207.3s (IK=108, pruned=6, alive=6) ETA 2316s
