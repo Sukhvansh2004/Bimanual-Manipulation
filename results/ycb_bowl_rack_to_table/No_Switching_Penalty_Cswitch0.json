@@ -1,0 +1,38 @@
+{
+  "experiment": "ycb_bowl_rack_to_table",
+  "config_label": "No Switching Penalty (Cswitch=0)",
+  "config_id": "No_Switching_Penalty_Cswitch0",
+  "planning": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "No Switching Penalty (Cswitch=0)",
+    "total_cost": 978.4298505367318,
+    "n_segments": 50,
+    "n_handovers": 0,
+    "handover_points": [],
+    "mean_task_cost": 19.568597010734642,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.7979886638192153,
+    "min_manipulability": 0.7759839609277543,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.25,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 5806.4950041770935
+  },
+  "execution": {
+    "experiment": "ycb_bowl_rack_to_table",
+    "config_label": "No Switching Penalty (Cswitch=0)",
+    "task_success": true,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "n_collision_incidents": 0,
+    "execution_time_s": 64.4358901977539,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 0,
+    "mean_manipulability": 0.7759855210808515,
+    "parallel_collision_free": true,
+    "error_message": ""
+  }
+}
