@@ -91,6 +91,12 @@ def setup_logging(debug: bool = False):
     fh.setLevel(level)
     fh.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s  %(message)s"))
     logging.getLogger().addHandler(fh)
+
+    # Suppress extremely verbose loggers even in debug mode
+    for noisy in ("mink", "robosuite", "OpenGL", "PIL",
+                  "robosuite_franka_manipulation.planning.utils.ik_utils"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     logger.info("Logging to %s (level=%s)", log_file, logging.getLevelName(level))
 
 
