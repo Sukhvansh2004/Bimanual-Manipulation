@@ -20,6 +20,7 @@ def make_ik_solver_fn(
     env: DualArmEnvironment,
     tf_manager: TransformManager,
     env_lock: Optional[threading.RLock] = None,
+    relaxed: bool = False,
 ) -> Callable[[StampedPose, int], Optional[np.ndarray]]:
     """Create an IK-solver closure compatible with :func:`~solver.compute_optimal_robot_assignment`.
 
@@ -31,11 +32,17 @@ def make_ik_solver_fn(
         env: The dual-arm simulation environment.
         tf_manager: Transform manager for frame conversions.
         env_lock: Optional reentrant lock guarding the environment.
+        relaxed: If True, use relaxed IK tolerances suited for handover
+            cost estimation (faster, higher acceptance rate).
     """
+    from robosuite_franka_manipulation import constants as C
     from robosuite_franka_manipulation.planning.utils.ik_utils import (
         enumerate_ik_solutions_for_arm,
         apply_ik_orientation_correction,
     )
+
+    pos_tol = C.HANDOVER_IK_POS_TOLERANCE if relaxed else C.IK_POS_TOLERANCE
+    ori_tol = C.HANDOVER_IK_ORI_TOLERANCE if relaxed else C.IK_ORI_TOLERANCE
 
     def _ik_solver(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]:
         corrected = apply_ik_orientation_correction(pose)
@@ -46,6 +53,8 @@ def make_ik_solver_fn(
             tf_manager=tf_manager,
             env_lock=env_lock,
             max_solutions=1,
+            pos_tol=pos_tol,
+            ori_tol=ori_tol,
         )
         return solutions[0] if solutions else None
 

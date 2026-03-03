@@ -190,6 +190,7 @@ class DualArmHandoverPlanner:
         approach_steps: int = 50,
         ramp_steps: int = 60,
         transfer_retreat_axis: str = '-z',
+        retreat_steps: int = 30,
     ):
 
         self.G1 = grasp_transfer
@@ -204,6 +205,7 @@ class DualArmHandoverPlanner:
         self.ramp_steps = ramp_steps
 
         self.transfer_retreat_axis = transfer_retreat_axis
+        self.retreat_steps = retreat_steps
 
     def plan_pre_alignment(self) -> Tuple[StampedPose, StampedPose]:
         """
@@ -330,7 +332,7 @@ class DualArmHandoverPlanner:
         return interpolate_pose(
             transfer_pose,
             retreat_pose,
-            30
+            self.retreat_steps,
         )
 
     # ---------------------------------

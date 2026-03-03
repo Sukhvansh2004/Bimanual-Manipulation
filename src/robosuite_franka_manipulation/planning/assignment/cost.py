@@ -391,6 +391,7 @@ def compute_switching_cost(
         handover_object_pose=obj_pose,
         approach_steps=constants.COST_EVAL_APPROACH_STEPS,
         ramp_steps=constants.COST_EVAL_RAMP_STEPS,
+        retreat_steps=constants.COST_EVAL_RETREAT_STEPS,
     )
     h_traj = h_planner.generate_trajectory()
 
@@ -400,11 +401,58 @@ def compute_switching_cost(
         transfer_robot_id=prev_robot_id,
         receiver_robot_id=curr_robot_id,
     )
+
+    if ok:
+        logger.debug(
+            "Switching cost at seg %d (robot %d→%d): %.4f",
+            segment_idx, prev_robot, curr_robot, cost,
+        )
+        return cost
+
+    # ── Fallback: check only the two critical poses ──────────────────
+    # (transfer hold + receiver final).  If both solve, emit a high
+    # penalty so the DP can still route through this handover.
     logger.debug(
-        "Switching cost at seg %d (robot %d→%d): %.4f (ok=%s)",
-        segment_idx, prev_robot, curr_robot, cost, ok,
+        "Full handover IK failed at seg %d (robot %d→%d), trying critical-pose fallback",
+        segment_idx, prev_robot, curr_robot,
     )
-    return cost if ok else np.inf
+
+    try:
+        transfer_hold_pose = h_traj.get("transfer_hold", [None])[0]
+        receiver_approach = h_traj.get("receiver_approach", [])
+        receiver_final_pose = receiver_approach[-1] if receiver_approach else h_traj.get("receiver_pre", [None])[0]
+
+        if transfer_hold_pose is None or receiver_final_pose is None:
+            return np.inf
+
+        q_transfer = ik_solver_fn(transfer_hold_pose, prev_robot_id)
+        if q_transfer is None:
+            logger.debug("Critical IK failure: transfer hold (robot%d)", prev_robot_id)
+            return np.inf
+
+        q_receiver = ik_solver_fn(receiver_final_pose, curr_robot_id)
+        if q_receiver is None:
+            logger.debug("Critical IK failure: receiver final (robot%d)", curr_robot_id)
+            return np.inf
+
+        # Check inter-arm collision at the critical meeting point
+        if collision_check_fn is not None:
+            if prev_robot_id == 0:
+                collision_free = collision_check_fn(q_transfer, q_receiver)
+            else:
+                collision_free = collision_check_fn(q_receiver, q_transfer)
+            if not collision_free:
+                logger.debug("Critical-pose handover rejected: inter-arm collision")
+                return np.inf
+
+        logger.debug(
+            "Critical-pose fallback accepted at seg %d (robot %d→%d), penalty=%.0f",
+            segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_SOFT_PENALTY,
+        )
+        return constants.HANDOVER_IK_SOFT_PENALTY
+
+    except Exception:
+        return np.inf
 
 
 # ---------------------------------------------------------------------------

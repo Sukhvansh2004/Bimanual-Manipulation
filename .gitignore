@@ -5,3 +5,4 @@ models/**
 scratch/**
 MUJOCO_LOG.TXT
 pytest_output.log
+_IROS_2026__Heterogenous_Bimanual.pdf

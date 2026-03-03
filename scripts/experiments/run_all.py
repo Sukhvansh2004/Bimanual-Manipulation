@@ -135,7 +135,7 @@ def _setup_environment(exp_cfg):
     env_lock = threading.RLock()
     tf_manager = TransformManager(env, env_lock=env_lock)
 
-    ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock)
+    ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock, relaxed=True)
     jacobian_fns = make_jacobian_fns(env, env_lock)
     collision_check_fn = make_collision_check_fn(env, env_lock)
 

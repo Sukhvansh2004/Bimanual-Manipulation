@@ -133,6 +133,11 @@ IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below th
 TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
 TRAJ_IK_MAX_SOLUTIONS = 2  # Just need 1 collision-free + 1 backup
 
+# Relaxed IK tolerances for handover cost evaluation (we only need a rough
+# feasibility check, not a high-precision solution).
+HANDOVER_IK_POS_TOLERANCE = 0.01   # 10 mm (vs. 5 mm for grasp IK)
+HANDOVER_IK_ORI_TOLERANCE = 0.05   # ~3° (vs. 0.29° for grasp IK)
+
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 
@@ -220,8 +225,16 @@ ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
 # Coarse handover resolution for cost evaluation (fewer IK calls)
-COST_EVAL_APPROACH_STEPS = 5     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_APPROACH_STEPS = 3     # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
+COST_EVAL_RETREAT_STEPS = 2      # vs 30 default — only check start/end of retreat
+
+# Fallback penalty when IK-based handover evaluation fails but handover is
+# geometrically plausible (both endpoints have pre-computed IK in trajectories).
+# Set high enough to be disfavoured vs. verified handovers, but finite so the
+# DP can still find a path.  Only used when the critical-pose IK (hold +
+# receiver final) succeeds but non-critical poses (retreat waypoints, etc.) fail.
+HANDOVER_IK_SOFT_PENALTY = 5e4
 
 # =============================================================================
 # Control and Trajectory Configuration
