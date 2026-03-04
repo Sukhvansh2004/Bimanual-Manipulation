@@ -55,7 +55,7 @@ def _cfg(
 # 1. Baseline  (default experiment JSON values — α=10, β=1, beam=10)
 # ═══════════════════════════════════════════════════════════════════════════
 
-BASELINE = _cfg("Baseline (α=10, β=1)", beam_width=10, clearance_radius=0.01)
+BASELINE = _cfg("Baseline (α=10, β=1)", clearance_radius=0.01)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. Ablation: Without Switching Penalty  (C_switch = 0)
