@@ -26,7 +26,7 @@ cd "$PROJECT_ROOT"
 
 # ── Defaults ──────────────────────────────────────────────────────────────
 WORKERS=2
-TIMEOUT=600
+TIMEOUT=1200
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
