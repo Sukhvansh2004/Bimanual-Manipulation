@@ -392,6 +392,7 @@ class DualArmParallelPlanner:
                 consecutive_qp_fails = 0
 
             # ── Build and send actions ────────────────────────────────
+            # Construct per-robot actions.
             action_a = self.arm_a.construct_joint_action(
                 target_q_a, gripper_action=gripper_a,
             ) if self.arm_a.is_joint_position_controller else (
@@ -407,14 +408,30 @@ class DualArmParallelPlanner:
                 )
             )
 
+            # Send BOTH arms in a single env.step() to avoid double-
+            # stepping the simulator (which caused stale-action replay
+            # and jittery dynamics).
             with ctx:
-                if action_a is not None:
+                if action_a is not None and action_b is not None:
+                    full_action = np.zeros(self.env.action_dim)
+                    offset_a = sum(
+                        r.action_dim for r in self.env.robots[:self.arm_a.robot_id]
+                    )
+                    offset_b = sum(
+                        r.action_dim for r in self.env.robots[:self.arm_b.robot_id]
+                    )
+                    dim_a = self.env.robots[self.arm_a.robot_id].action_dim
+                    dim_b = self.env.robots[self.arm_b.robot_id].action_dim
+                    full_action[offset_a:offset_a + dim_a] = action_a
+                    full_action[offset_b:offset_b + dim_b] = action_b
+                    env_step(self.env, full_action)
+                elif action_a is not None:
                     env_step(
                         self.env, action_a,
                         robot_id=self.arm_a.robot_id,
                         arm=self.arm_a.arm_id,
                     )
-                if action_b is not None:
+                elif action_b is not None:
                     env_step(
                         self.env, action_b,
                         robot_id=self.arm_b.robot_id,
