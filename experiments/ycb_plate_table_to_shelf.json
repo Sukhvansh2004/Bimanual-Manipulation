@@ -7,7 +7,7 @@
             {
                 "ycb_name": "table_shelf",
                 "position": [-0.25, 0.0, 0.9],
-                "quaternion": [0, 0, 0, 1],
+                "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             },
             {
@@ -22,8 +22,8 @@
         "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.2, -0.05, 1.04],
-            "quaternion": [0, 0.70710678, 0, 0.70710678]
+            "position": [-0.20, 0.05, 1.04],
+            "quaternion": [-0.5, 0.5, 0.5, 0.5]
         }
     },
     "planning": {

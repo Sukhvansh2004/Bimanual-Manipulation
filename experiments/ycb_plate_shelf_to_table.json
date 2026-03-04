@@ -7,13 +7,13 @@
             {
                 "ycb_name": "table_shelf",
                 "position": [-0.25, 0.0, 0.9],
-                "quaternion": [0, 0, 0, 1],
+                "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             },
             {
                 "ycb_name": "plate",
-                "position": [-0.2, -0.05, 1.04],
-                "quaternion": [0, 0.70710678, 0, 0.70710678]
+                "position": [-0.20, 0.05, 1.04],
+                "quaternion": [-0.5, 0.5, 0.5, 0.5]
             }
         ],
         "custom_objects": []
@@ -43,7 +43,7 @@
         "exclude_patterns": ["plate", "tshelf", "table_shelf"]
     },
     "visualization": {
-        "visualize_mesh": false,
+        "visualize_mesh": true,
         "mesh_step_interval": 10,
         "mesh_opacity": 0.4,
         "mesh_sample_ratio": 0.5,
