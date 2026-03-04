@@ -9,7 +9,7 @@ This script orchestrates:
 
 The 4 paper experiments are:
   A) ycb_plate_table_to_shelf   — Table-to-Shelf
-  B) flatPlate_shelf_to_box     — Shelf-to-Box
+  B) ycb_plate_shelf_to_table   — Shelf-to-Table
   C) mug_inversion             — Mug Inversion (orientation change)
   D) flatPlate_box_to_box       — Box-to-Box (dual handover)
 
@@ -17,6 +17,7 @@ Paper configs correspond to Table 1 (method comparison) + Table 2 (ablation):
   - Proposed (our full method)
   - Greedy (beam=1)
   - Single Robot (switch cost = inf)
+  - No Feasibility Filter (disable grasp-pair feasibility filtering)
   - No Switching Penalty (C_switch=0)
   - No Manipulability (β=0)
 

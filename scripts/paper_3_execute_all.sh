@@ -86,9 +86,9 @@ for task in "${TASKS[@]}"; do
     done
 
     # No Diversity (no-DPP data)
-    asgn_file="data/${task}_no_dpp/configs/No_Feasibility_Filter/assignment_results.npz"
+    asgn_file="data/${task}_no_dpp/configs/No_Diversity/assignment_results.npz"
     if [[ -f "$asgn_file" ]]; then
-        JOBS+=("${task}|No_Feasibility_Filter|${asgn_file}|${exp_json}|no_dpp")
+        JOBS+=("${task}|No_Diversity|${asgn_file}|${exp_json}|no_dpp")
     fi
 done
 

@@ -6,11 +6,12 @@
 #   1. Proposed        (α=10, β=1, beam=unlimited)
 #   2. Greedy          (beam=1)
 #   3. Single Robot    (switch_cost=inf)
-#   4. No Switch Pen.  (switch_cost=0)
-#   5. No Manipulability (β=0)
-#   -- These 5 run on DPP trajectory data (data/<task>/)
+#   4. No Feasibility Filter (disable feasibility filtering)
+#   5. No Switch Pen.  (switch_cost=0)
+#   6. No Manipulability (β=0)
+#   -- These 6 run on DPP trajectory data (data/<task>/)
 #
-#   6. No Diversity    (use_dpp=false → separate trajectory data)
+#   7. No Diversity    (use_dpp=false → separate trajectory data)
 #   -- Runs on non-DPP trajectory data (data/<task>_no_dpp/)
 #
 # Each assignment writes to data/<task>[_no_dpp]/configs/<config_id>/assignment_results.npz
@@ -64,7 +65,7 @@ mkdir -p results
 echo ""
 echo "================================================================"
 echo "  A) Assignment for DPP configs (Proposed, Greedy, Single,"
-echo "     No Switch Penalty, No Manipulability)"
+echo "     No Switch Penalty, No Manipulability, No Feasibility Filter)"
 echo "================================================================"
 
 python scripts/evaluation/run_paper_evaluation.py \
@@ -147,8 +148,8 @@ for task in "${TASKS[@]}"; do
         fi
     done 2>/dev/null
     # No Diversity (no-DPP)
-    if [[ -f "data/${task}_no_dpp/configs/No_Feasibility_Filter/assignment_results.npz" ]]; then
-        echo "    ✓ No_Feasibility_Filter (no-DPP)"
+    if [[ -f "data/${task}_no_dpp/configs/No_Diversity/assignment_results.npz" ]]; then
+        echo "    ✓ No_Diversity (no-DPP)"
     fi
 done
 
