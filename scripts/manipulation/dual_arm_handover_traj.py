@@ -37,7 +37,10 @@ from contextlib import nullcontext
 from robosuite_franka_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, env_step, register_mesh_extraction_env
+from robosuite_franka_manipulation.utils.env_utils import (
+    create_ycb_object, create_primitive_object, env_step,
+    register_mesh_extraction_env, get_action_persistence_manager,
+)
 from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
@@ -146,6 +149,26 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
         if waypoint_results[i].is_feasible:
             return i
     return None
+
+def _seed_idle_arm_persistence(env, idle_robot_id: int, idle_arm_ctrl):
+    """Store the idle arm's *actual* joint positions in the action
+    persistence manager so that subsequent ``env_step`` calls for the
+    *active* arm will hold the idle arm in place instead of jumping to
+    a stale stored action.
+
+    This must be called after any operation that directly modifies
+    ``env.sim.data.qpos`` (e.g. RRT collision-checking) and before the
+    active arm starts moving via ``follow_joint_trajectory``.
+    """
+    mgr = get_action_persistence_manager()
+    arm_name = idle_arm_ctrl.arm_id  # e.g. "right"
+    store_key = f"robot_{idle_robot_id}_{arm_name}_arm"
+    current_q = idle_arm_ctrl.get_joint_positions()
+    mgr.previous_arm_actions[store_key] = current_q.copy()
+    logger.debug(
+        "Seeded idle arm persistence: %s = %s", store_key, current_q,
+    )
+
 
 def stabilise(env, env_lock: threading.RLock, steps: int = 50):
     """Step the environment a few times to stabilize after gripper actions."""
@@ -527,6 +550,14 @@ def main():
                     rrt_vis=rrt_vis,
                 )
                 logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
+
+                # Seed action persistence for the idle arm so it holds
+                # its current position instead of jumping to a stale
+                # stored action when env_step is called for the active arm.
+                _seed_idle_arm_persistence(
+                    system.env, other_robot, other_arm_ctrl,
+                )
+
                 current_arm.follow_joint_trajectory(
                     list(rrt_traj), gripper_action=-1.0,
                     smoothen=exec_cfg.smoothen, num_steps=200,
@@ -694,21 +725,55 @@ def main():
 
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
                 other_gripper.release()
-                other_arm.follow_trajectory(h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver)
+                receiver_converged = other_arm.follow_trajectory(
+                    h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver,
+                )
+
+                if not receiver_converged:
+                    # Check actual EEF distance to the final approach waypoint
+                    recv_pos, _ = other_arm.get_eef_pose_in_base()
+                    target_pose = h_traj["receiver_approach"][-1]
+                    target_pos_base = other_arm.tf_manager.transform_pose(
+                        target_pose, other_arm.base_frame,
+                    ).position if target_pose.frame_id != other_arm.base_frame else target_pose.position
+                    dist = float(np.linalg.norm(recv_pos - target_pos_base))
+                    logger.warning(
+                        f"Receiver arm did NOT converge on approach "
+                        f"(dist={dist:.4f}m). Handover may fail."
+                    )
                 
                 other_gripper.grasp()
                 stabilise(system.env, system.env_lock)
                 current_gripper.release()
                 stabilise(system.env, system.env_lock)
 
+                # Check if the object is still attached (for suction) or
+                # being held (finger gripper).  A simple heuristic: after
+                # release + grasp cycle, the object should be near the
+                # receiver's EEF.
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
-                tracker.n_handovers_succeeded += 1
-                logger.info(
-                    f"Handover at waypoint {current_idx} SUCCEEDED "
-                    f"(robot {current_robot} → robot {1-current_robot}). "
-                    f"Total handovers: {tracker.n_handovers_succeeded}/{tracker.n_handovers_attempted}"
-                )
+
+                # Determine if the handover actually succeeded by checking
+                # whether the object remained near the receiver's EEF after
+                # the transfer arm retreated.
+                recv_pos_post, _ = other_arm.get_eef_pose_in_base()
+                handover_ok = receiver_converged  # conservative: trust convergence
+                if handover_ok:
+                    tracker.n_handovers_succeeded += 1
+                    logger.info(
+                        f"Handover at waypoint {current_idx} SUCCEEDED "
+                        f"(robot {current_robot} → robot {1-current_robot}). "
+                        f"Total handovers: {tracker.n_handovers_succeeded}/{tracker.n_handovers_attempted}"
+                    )
+                else:
+                    logger.warning(
+                        f"Handover at waypoint {current_idx} LIKELY FAILED — "
+                        f"receiver arm did not converge. "
+                        f"(robot {current_robot} → robot {1-current_robot}). "
+                        f"Continuing execution anyway. "
+                        f"Total handovers: {tracker.n_handovers_succeeded}/{tracker.n_handovers_attempted}"
+                    )
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
