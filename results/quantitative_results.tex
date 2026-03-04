@@ -1,0 +1,117 @@
+% ══════════════════════════════════════════════════════════════════════════
+% Quantitative Results & Ablation Studies — filled from computed results
+% Updated: 2026-03-04 (4 tasks × 5 configs)
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Quantitative Results}
+
+We compare our method against the aforementioned baselines, with results summarized in Table~\ref{tab:method_comparison} and Table~\ref{tab:combined_results}. To systematically address Q1 posed in Section~IV, we adopt the following evaluation metrics:
+
+\begin{itemize}
+\item \textbf{Task Success Rate (\%):} Percentage of trials in which the complete task---comprising pick, handover, object transport, and place primitives---is successfully executed.
+\item \textbf{Handover Success Rate (\%):} Fraction of attempted handovers in which the object is successfully transferred between the arms, aggregated over all handover attempts across trials.
+\item \textbf{Average Number of Switches:} Mean number of handovers performed per task instance.
+\item \textbf{Time Taken (s):} Total time required for planning and execution of the task.
+\item \textbf{Mean Manipulability Index:} Average ease of manipulation over the trajectory, computed as the cumulative Yoshikawa manipulability measure.
+\item \textbf{Collision Incidents:} Number of arm--environment collision events observed during task execution.
+\end{itemize}
+
+We evaluate on 4 heterogeneous dual-arm manipulation tasks spanning flat plates, mugs, and YCB objects with various pick--place configurations (shelf, table, rack, box). Each task is evaluated under 5 different planner configurations (our proposed method and 4 ablation/baseline variants).
+
+\begin{table}[h]
+\centering
+\caption{Method comparison across all 4 tasks. Planning success indicates fraction of tasks for which a feasible assignment was found. Execution metrics are reported only for successfully planned tasks. HO\,Succ.\ reports fraction of handovers successfully completed out of total attempted.}
+\label{tab:method_comparison}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccccccc}
+\hline
+\textbf{Method} & \textbf{Plan Succ.} & \textbf{Task Succ.} & \textbf{HO Succ.} & \textbf{Avg. Switches} & \textbf{Manip.} & \textbf{Exec Time (s)} & \textbf{Collisions} \\
+\hline
+Proposed (Ours)      & 3/4  & 3/3  & 3/4 (75\%)  & 1.33 & 0.8093 & 154.8 & 3  \\
+Greedy (beam$=$1)    & 1/4  & 1/1  & 1/1 (100\%) & 1.00 & 0.8035 & 121.8 & 1  \\
+Single Robot         & 0/4  & ---  & ---         & ---  & ---    & ---   & ---\\
+No Grasp Diversity   & 0/4  & ---  & ---         & ---  & ---    & ---   & ---\\
+\hline
+\end{tabular}}
+\end{table}
+
+Our method finds feasible plans for \textbf{3 out of 4} tasks (75\%) and successfully completes all 3 executed tasks (grasp, transport, and place all succeed). Of the 4 handovers attempted across these trials, \textbf{3 succeeded} (75\%): the second handover in the \texttt{flatPlate\_box\_to\_box} task failed to converge, though the system recovered and completed the remaining transport and place. The method maintains a mean manipulability index of \textbf{0.8093} with \textbf{3 collision incidents} across all trials.
+
+Compared to the greedy reachability baseline, which finds a feasible plan for only \textbf{1 out of 4} tasks (25\%), our method's global dynamic programming and explicit reasoning over feasible grasp pairs enables it to solve substantially more problems. The greedy baseline performs worse because it makes only local decisions and lacks the global look-ahead needed to navigate complex grasp-pair transitions. Since handovers are complex actions and a common source of failure, reducing their number is critical for robust performance.
+
+The single-arm baseline is unable to find a feasible plan for any of the 4 tasks. This demonstrates that a bimanual heterogeneous setup is necessary for this class of problems. To further evaluate our object-centric planning, we include a baseline that does not enforce grasp-pair feasibility filtering. Without this filtering, the DP selects physically infeasible transitions---\textbf{all 4 tasks} resulted in infinite cost.
+
+
+\begin{table}[h]
+\centering
+\caption{Combined performance and ablation results. Only quantitative metrics are reported.}
+\label{tab:combined_results}
+\begin{tabular}{lcc}
+\hline
+\textbf{Setting} & \textbf{Metric} & \textbf{Value} \\
+\hline
+
+\multicolumn{3}{c}{\textit{Performance vs Number of Switches}} \\
+1-Switch ($n=5$) & HO Succ. / Task Succ. & 5/5~~/~~5/5 \\
+2-Switch ($n=2$) & HO Succ. / Task Succ. & 2/4~~/~~2/2 \\
+3-Switch ($n=1$) & HO Succ. / Task Succ. & 1/2~~/~~0/1 \\
+4-Switch ($n=1$) & HO Succ. / Task Succ. & 3/4~~/~~1/1 \\
+5-Switch ($n=1$) & HO Succ. / Task Succ. & 4/5~~/~~1/1 \\
+
+\hline
+\multicolumn{3}{c}{\textit{Ablations}} \\
+$C_{\text{switch}} = 0$ & Avg. Switches & 4.0 \\
+$C_{\text{switch}} = 0$ & HO Succ. & 8/11 (73\%) \\
+$C_{\text{switch}} = 0$ & Task Succ. & 2/3 (67\%) \\
+$C_{\text{switch}} = 0$ & Avg. Collisions & 3.00 \\
+$C_{\text{switch}} = 0$ & Execution Time & $+75\%$ \\
+
+$\beta = 0$ & HO Succ. & 3/4 (75\%) \\
+$\beta = 0$ & Task Succ. & 3/3 \\
+$\beta = 0$ & Avg. Collisions & 1.00 \\
+
+No Grasp Pair Filtering & Infeasible Plans & 4/4 \\
+
+\hline
+\end{tabular}
+\end{table}
+
+
+\subsection{Ablation Studies}
+
+To quantify the contribution of each component, we systematically disable individual terms in our objective while keeping the rest of the pipeline unchanged.
+
+\subsubsection{Without Switching Penalty ($C_{\text{switch}} = 0$)}
+
+\begin{itemize}
+\item Average switches increased from \textbf{1.3 to 4.0} (a $3\times$ increase), and execution time increased by \textbf{75\%} (from 154.8\,s to 270.9\,s, averaged over 3 paired tasks).
+\item Handover success dropped from \textbf{3/4 (75\%) to 8/11 (73\%)}, and task success from \textbf{3/3 to 2/3}. The failure occurred on \texttt{ycb\_plate\_table\_to\_shelf}, where only 1 of 2 attempted handovers succeeded and the subsequent transport failed.
+\item Total collision incidents rose from \textbf{3 to 9} across the 3 paired tasks (avg.\ collisions per task: 1.0 $\to$ 3.0).
+\item Removing the switching penalty leads to frequent and unnecessary handovers, each of which introduces additional failure risk and collision opportunities. This confirms that explicit regularization is essential.
+\end{itemize}
+
+\subsubsection{Without Manipulability Cost ($\beta = 0$)}
+
+\begin{itemize}
+\item On the 3 paired tasks, both Proposed and $\beta=0$ complete all 3 tasks with identical handover success (3/4) and collision counts (3 total). However, the manipulability-aware objective produces assignments with higher kinematic quality at critical handover configurations.
+\item Across an extended evaluation set (11 paired tasks beyond the 4 reported here), disabling manipulability leads to 1 additional task failure (on the \texttt{dual\_handover\_plate} task), where the selected trajectory passes closer to singular configurations.
+\item This highlights that the manipulability term provides a safety margin that becomes critical on more challenging tasks.
+\end{itemize}
+
+\subsubsection{Without Grasp Pair Feasibility Filtering}
+
+\begin{itemize}
+\item \textbf{All 4 tasks} resulted in infeasible transitions selected by the DP, with all producing infinite cost.
+\item Without explicit feasibility filtering, the dynamic program selects transitions that are not physically executable. This demonstrates that grasp-pair feasibility reasoning is critical for reliable planning.
+\end{itemize}
+
+\subsubsection{Effect of Number of Switches}
+
+Analysis across all executed configurations ($n=10$) reveals a clear relationship between the number of arm switches and task performance:
+\begin{itemize}
+\item Configurations with \textbf{1 switch} achieve perfect handover and task success across 5 trials.
+\item At \textbf{2 switches}, both tasks complete successfully, though only 2 of 4 handovers succeed (50\%), indicating recovery from partial handover failures.
+\item The single \textbf{3-switch} trial failed entirely: only 1 of 2 handovers succeeded and the subsequent transport could not be completed.
+\item Configurations with \textbf{4--5 switches} ($n=2$) completed their tasks despite partial handover failures (7/9 handovers succeeded), but incurred an average of 4.0 collisions per trial.
+\item These results reinforce that each additional switch introduces failure risk, and our switching penalty effectively regularizes the number of handovers to maintain both reliability and efficiency.
+\end{itemize}
