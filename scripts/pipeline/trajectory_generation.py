@@ -207,6 +207,8 @@ def main() -> None:
     # Minimal CLI overrides – everything else lives in the experiment JSON
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (overrides JSON)")
     parser.add_argument("--save-traj", action="store_true", help="Force-save trajectories (overrides JSON)")
+    parser.add_argument("--reuse-object-traj", action="store_true",
+                        help="Reuse existing object_trajectory.npz from data dir instead of regenerating")
     parser.add_argument("--no-meshcat", action="store_true",
                         help="Disable all Meshcat visualization (useful for batch / headless runs)")
     
@@ -330,16 +332,38 @@ def main() -> None:
     if rrt_bounds is not None:
         logger.info(f"Using experiment RRT bounds: {rrt_bounds[0]} to {rrt_bounds[1]}")
 
-    object_trajectory = generate_object_trajectory(
-        start_pose_stamped, 
-        target_pose_stamped, 
-        num_steps=traj_num_steps,
-        tf_manager=tf_manager,
-        env=env,
-        object_name=object_name,
-        env_lock=env_lock,
-        pos_bounds=rrt_bounds,
-    )
+    # Determine output directory early (needed for --reuse-object-traj)
+    if out_cfg.output_dir is not None:
+        output_dir = out_cfg.output_dir
+    else:
+        output_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
+
+    object_trajectory = None
+    if args.reuse_object_traj:
+        obj_traj_path = os.path.join(output_dir, "object_trajectory.npz")
+        if os.path.exists(obj_traj_path):
+            from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory as _load_traj
+            _, loaded_obj_traj, _, _ = _load_traj(obj_traj_path)
+            if loaded_obj_traj:
+                object_trajectory = loaded_obj_traj
+                logger.info("Reusing existing object trajectory from %s (%d waypoints)",
+                            obj_traj_path, len(object_trajectory))
+            else:
+                logger.warning("Object trajectory file exists but contains no object data: %s", obj_traj_path)
+        else:
+            logger.warning("--reuse-object-traj set but file not found: %s. Generating new trajectory.", obj_traj_path)
+
+    if object_trajectory is None:
+        object_trajectory = generate_object_trajectory(
+            start_pose_stamped, 
+            target_pose_stamped, 
+            num_steps=traj_num_steps,
+            tf_manager=tf_manager,
+            env=env,
+            object_name=object_name,
+            env_lock=env_lock,
+            pos_bounds=rrt_bounds,
+        )
     if vis is not None:
         visualize_trajectory(vis, object_trajectory, name="object_path", color=0x00ff00)
     
@@ -483,11 +507,7 @@ def main() -> None:
 
     # 9. Save Trajectories
     # ---------------------------------------------
-    # Determine output directory: JSON output_dir > data/<experiment_name>
-    if out_cfg.output_dir is not None:
-        output_dir = out_cfg.output_dir
-    else:
-        output_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
+    # output_dir already determined above (for --reuse-object-traj)
     
     should_save = args.save_traj or out_cfg.save_trajectories
     

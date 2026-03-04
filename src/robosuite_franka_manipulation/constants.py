@@ -225,9 +225,9 @@ ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
 # Coarse handover resolution for cost evaluation (fewer IK calls)
-COST_EVAL_APPROACH_STEPS = 3     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_APPROACH_STEPS = 10     # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
-COST_EVAL_RETREAT_STEPS = 2      # vs 30 default — only check start/end of retreat
+COST_EVAL_RETREAT_STEPS = 5      # vs 30 default — only check start/end of retreat
 
 # Fallback penalty when IK-based handover evaluation fails but handover is
 # geometrically plausible (both endpoints have pre-computed IK in trajectories).
@@ -267,6 +267,12 @@ TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movemen
 
 # Joint-space convergence (used by arm controller & dual-arm planner)
 JOINT_CONVERGENCE_THRESHOLD = 0.05  # L-inf joint error (rad) for declaring convergence
+
+# Maximum per-step joint displacement (rad) — clamps commands to prevent
+# violent jerky movements near singularities or with large RRT waypoint gaps.
+# Franka real-world limits are ~2.175 rad/s for joints 1-4 and ~2.61 rad/s
+# for joints 5-7.  At 20 Hz control rate → ~0.1 rad/step is conservative.
+MAX_JOINT_DELTA_PER_STEP = 0.15  # rad (~8.6° per step)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

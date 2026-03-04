@@ -319,6 +319,10 @@ class RobosuiteArmController:
     ) -> np.ndarray:
         """
         Construct a robot action for JOINT_POSITION controller.
+
+        Applies per-joint velocity clamping to prevent violent movements
+        caused by large waypoint gaps (e.g. from RRT) or near-singularity
+        configurations.
         
         Args:
             target_joints: Target joint positions [j1, ..., j7]
@@ -334,17 +338,21 @@ class RobosuiteArmController:
                 f"Current controller is: {self._controller_name}"
             )
         
+        if current_joints is None:
+            current_joints = self.get_joint_positions()
+
+        # Clamp joint deltas to prevent violent movements
+        joint_delta = target_joints - current_joints
+        max_delta = constants.MAX_JOINT_DELTA_PER_STEP
+        clamped_delta = np.clip(joint_delta, -max_delta, max_delta)
+        clamped_target = current_joints + clamped_delta
+
         robot_action = np.zeros(self.action_dim_per_robot)
         
         if self.is_absolute_mode:
-            # Absolute mode: send target joints directly
-            robot_action[:7] = target_joints
+            robot_action[:7] = clamped_target
         else:
-            # Delta mode: compute difference from current to target
-            if current_joints is None:
-                current_joints = self.get_joint_positions()
-            joint_delta = target_joints - current_joints
-            robot_action[:7] = joint_delta
+            robot_action[:7] = clamped_delta
         
         robot_action[-1] = gripper_action
         return robot_action
