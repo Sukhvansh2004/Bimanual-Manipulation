@@ -126,7 +126,7 @@ IK_ELBOW_DISCRETIZATION = 4  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
 IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
 IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_UNIQUE_TOLERANCE = 0.25  # Tolerance for unique solution filtering (~5.7°)
+IK_UNIQUE_TOLERANCE = 0.25  # Tolerance for unique solution filtering (~14.3°)
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
 # Trajectory Feasibility Check Parameters (warm-start driven — needs speed)

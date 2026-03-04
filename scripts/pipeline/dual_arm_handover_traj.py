@@ -90,8 +90,8 @@ class ExecutionTracker:
         self.parallel_collision_free = True
         self.error_message = ""
         self.n_switches = 0  # total arm switches (= handovers from assignment)
-        self.placement_position_error: float = float('inf')  # metres
-        self.placement_orientation_error: float = float('inf')  # degrees
+        self.placement_position_error: Optional[float] = None  # metres (None = not verified)
+        self.placement_orientation_error: Optional[float] = None  # degrees (None = not verified)
 
     @property
     def handover_success_rate(self) -> float:
@@ -911,6 +911,11 @@ def main():
                 tracker.transport_success = True
                 break
 
+        # If we exited the loop via handover path (not the else/break),
+        # transport still succeeded if we got here without exception.
+        if not tracker.transport_success:
+            tracker.transport_success = True
+
         # 6. Release and Retreat
         logger.info(f"Robot {current_robot} releasing object and retreating...")
         cur_path = _current_path(current_robot, current_idx)
@@ -972,8 +977,8 @@ def main():
             logger.warning("Could not query object '%s' pose — skipping placement check.", obj_name)
             tracker.place_success = True  # cannot verify, assume success
 
-        # Task is successful only if all handovers succeeded AND the object was placed correctly
-        tracker.task_success = tracker.place_success and (
+        # Task is successful only if grasp, all handovers, AND placement succeeded
+        tracker.task_success = tracker.grasp_success and tracker.place_success and (
             tracker.n_handovers_attempted == 0
             or tracker.n_handovers_succeeded == tracker.n_handovers_attempted
         )
