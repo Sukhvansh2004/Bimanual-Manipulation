@@ -65,7 +65,7 @@
     "execution": {
         "visualize": true,
         "meshcat_tf": true,
-        "smoothen": false
+        "smoothen": true
     },
     "assignment": {
         "alpha": 10.0,
