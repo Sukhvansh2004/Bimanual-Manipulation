@@ -64,6 +64,7 @@ from robosuite_franka_manipulation.planning.assignment import (
 from robosuite_franka_manipulation.planning.utils.manipulability import (
     compute_trajectory_manipulability,
 )
+from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ class ExecutionTracker:
         self.parallel_collision_free = True
         self.error_message = ""
         self.n_switches = 0  # total arm switches (= handovers from assignment)
+        self.placement_position_error: float = float('inf')  # metres
+        self.placement_orientation_error: float = float('inf')  # degrees
 
     @property
     def handover_success_rate(self) -> float:
@@ -118,6 +121,8 @@ class ExecutionTracker:
             "execution_time_s": self.execution_time_s,
             "mean_manipulability": self.mean_manipulability,
             "parallel_collision_free": self.parallel_collision_free,
+            "placement_position_error": self.placement_position_error,
+            "placement_orientation_error": self.placement_orientation_error,
             "error_message": self.error_message,
         }
 
@@ -928,9 +933,47 @@ def main():
         current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
         stabilise(system.env, system.env_lock)
 
-        tracker.place_success = True
-        # Task is successful only if all handovers succeeded AND the object was placed
-        tracker.task_success = (
+        # ------------------------------------------------------------------
+        # 7. Verify object reached target pose
+        # ------------------------------------------------------------------
+        PLACE_POS_THRESHOLD = 0.05   # 5 cm
+        PLACE_ORI_THRESHOLD = 30.0   # 30 degrees
+
+        obj_name = exp_cfg.task.manipulated_object
+        target_pos = np.asarray(exp_cfg.task.target_pose.position)
+        target_quat_xyzw = np.asarray(exp_cfg.task.target_pose.quaternion)  # [x, y, z, w]
+
+        actual_pose_4x4 = system.env.get_object_pose(obj_name)
+        if actual_pose_4x4 is not None:
+            actual_pos = actual_pose_4x4[:3, 3]
+            actual_rot = R.from_matrix(actual_pose_4x4[:3, :3])
+            target_rot = R.from_quat(target_quat_xyzw)  # scipy expects [x,y,z,w]
+
+            pos_err = float(np.linalg.norm(actual_pos - target_pos))
+            ori_err = float((actual_rot.inv() * target_rot).magnitude() * 180.0 / np.pi)
+
+            tracker.placement_position_error = pos_err
+            tracker.placement_orientation_error = ori_err
+
+            logger.info(
+                "Placement verification — position error: %.4f m, orientation error: %.2f°",
+                pos_err, ori_err,
+            )
+            tracker.place_success = (
+                pos_err < PLACE_POS_THRESHOLD and ori_err < PLACE_ORI_THRESHOLD
+            )
+            if not tracker.place_success:
+                logger.warning(
+                    "Object did NOT reach target! pos_err=%.4f m (thresh %.2f), "
+                    "ori_err=%.2f° (thresh %.1f°)",
+                    pos_err, PLACE_POS_THRESHOLD, ori_err, PLACE_ORI_THRESHOLD,
+                )
+        else:
+            logger.warning("Could not query object '%s' pose — skipping placement check.", obj_name)
+            tracker.place_success = True  # cannot verify, assume success
+
+        # Task is successful only if all handovers succeeded AND the object was placed correctly
+        tracker.task_success = tracker.place_success and (
             tracker.n_handovers_attempted == 0
             or tracker.n_handovers_succeeded == tracker.n_handovers_attempted
         )
