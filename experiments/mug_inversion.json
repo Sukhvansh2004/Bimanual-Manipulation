@@ -7,8 +7,8 @@
             {
                 "ycb_name": "mug",
                 "position": [-0.2, 0.0, 0.927],
-                "quaternion": [1, 0, 0, 0],
-                "_comment": "Mug inverted (180° around X-axis): bottom faces up, rim rests on table"
+                "quaternion": [0, 1, 0, 0],
+                "_comment": "Mug inverted (180° around Y-axis): bottom faces up, handle faces +y"
             }
         ],
         "custom_objects": [
@@ -30,8 +30,8 @@
         "start_pose": null,
         "target_pose": {
             "position": [0.2, 0.0, 0.927],
-            "quaternion": [0, 0, 1, 0],
-            "_comment": "Upright mug on the right side, handle pointing same direction as start (180° Z to preserve handle orientation)"
+            "quaternion": [0, 0, 0, 1],
+            "_comment": "Upright mug on the right side, handle pointing same direction as start (+y)"
         }
     },
     "planning": {
