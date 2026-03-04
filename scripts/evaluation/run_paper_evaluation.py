@@ -55,6 +55,7 @@ sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
 from scripts.evaluation.configs import (
     PROPOSED, GREEDY, SINGLE_ROBOT, NO_SWITCH_PENALTY, NO_MANIPULABILITY,
+    NO_FEASIBILITY_FILTER,
     config_id, AblationConfig,
 )
 from scripts.evaluation.run_all import (
@@ -70,13 +71,13 @@ logger = logging.getLogger(__name__)
 # Paper experiments
 PAPER_EXPERIMENTS = [
     "ycb_plate_table_to_shelf",
-    "flatPlate_shelf_to_box",
+    "ycb_plate_shelf_to_table",
     "mug_inversion",
     "flatPlate_box_to_box",
 ]
 
 # Paper configs (Table 1 + Table 2)
-PAPER_CONFIGS = [PROPOSED, GREEDY, SINGLE_ROBOT, NO_SWITCH_PENALTY, NO_MANIPULABILITY]
+PAPER_CONFIGS = [PROPOSED, GREEDY, SINGLE_ROBOT, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY]
 
 
 def setup_logging(debug: bool = False):
