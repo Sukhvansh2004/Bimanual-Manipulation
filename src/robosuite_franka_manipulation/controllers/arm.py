@@ -1078,6 +1078,14 @@ class RobosuiteArmController:
             self._stop_event.clear()
 
             traj_num_steps = max(2, num_steps)  # Ensure at least start and end points
+            if traj_num_steps == 2:
+                self.construct_joint_action(target_joints, gripper_action=gripper_action)
+                with self.env_lock if self.env_lock else nullcontext():
+                    env_step(self.env, 
+                             self.construct_joint_action(target_joints, gripper_action=gripper_action), 
+                             robot_id=self.robot_id, 
+                             arm=self.arm_id)
+                    return True
 
             current_joints = self.get_joint_positions()
             trajectory = plan_quintic_joint_trajectory(

@@ -54,7 +54,6 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.utils.env_utils import env_step
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     resample_joint_trajectory,
 )
@@ -323,7 +322,7 @@ class DualArmParallelPlanner:
                targets — the QP then tracks them while satisfying
                collision constraints).
             4. ``solve_ik`` -> extract arm B's velocity -> integrate.
-            5. Send both arms' actions via ``env_step``.
+            5. Sends each arm's command via ``move_to_joint_config``.
         """
         ctx = self.env_lock if self.env_lock else nullcontext()
         max_steps = num_steps * 2
@@ -391,52 +390,14 @@ class DualArmParallelPlanner:
             else:
                 consecutive_qp_fails = 0
 
-            # ── Build and send actions ────────────────────────────────
-            # Construct per-robot actions.
-            action_a = self.arm_a.construct_joint_action(
-                target_q_a, gripper_action=gripper_a,
-            ) if self.arm_a.is_joint_position_controller else (
-                self._pose_action_from_joints(
-                    self.arm_a, target_q_a, gripper_a,
-                )
+            # ── Move both arms via controller API ─────────────────────
+            # Action persistence keeps the other arm in place.
+            self.arm_a.move_to_joint_config(
+                target_q_a, gripper_action=gripper_a, num_steps=2,
             )
-            action_b = self.arm_b.construct_joint_action(
-                arm_b_joints, gripper_action=gripper_b,
-            ) if self.arm_b.is_joint_position_controller else (
-                self._pose_action_from_joints(
-                    self.arm_b, arm_b_joints, gripper_b,
-                )
+            self.arm_b.move_to_joint_config(
+                arm_b_joints, gripper_action=gripper_b, num_steps=2,
             )
-
-            # Send BOTH arms in a single env.step() to avoid double-
-            # stepping the simulator (which caused stale-action replay
-            # and jittery dynamics).
-            with ctx:
-                if action_a is not None and action_b is not None:
-                    full_action = np.zeros(self.env.action_dim)
-                    offset_a = sum(
-                        r.action_dim for r in self.env.robots[:self.arm_a.robot_id]
-                    )
-                    offset_b = sum(
-                        r.action_dim for r in self.env.robots[:self.arm_b.robot_id]
-                    )
-                    dim_a = self.env.robots[self.arm_a.robot_id].action_dim
-                    dim_b = self.env.robots[self.arm_b.robot_id].action_dim
-                    full_action[offset_a:offset_a + dim_a] = action_a
-                    full_action[offset_b:offset_b + dim_b] = action_b
-                    env_step(self.env, full_action)
-                elif action_a is not None:
-                    env_step(
-                        self.env, action_a,
-                        robot_id=self.arm_a.robot_id,
-                        arm=self.arm_a.arm_id,
-                    )
-                elif action_b is not None:
-                    env_step(
-                        self.env, action_b,
-                        robot_id=self.arm_b.robot_id,
-                        arm=self.arm_b.arm_id,
-                    )
 
             steps_taken += 1
 
@@ -633,28 +594,3 @@ class DualArmParallelPlanner:
     ) -> float:
         """Max absolute joint error."""
         return float(np.max(np.abs(arm.get_joint_positions() - target_q)))
-
-    @staticmethod
-    def _pose_action_from_joints(
-        arm: RobosuiteArmController,
-        target_joints: np.ndarray,
-        gripper_action: float,
-    ) -> Optional[np.ndarray]:
-        """Fall-back for OSC controllers: FK the joints -> Cartesian action."""
-        try:
-            from robosuite_franka_manipulation.utils.env_utils import (
-                set_robot_config,
-            )
-            qpos_backup = arm.env.sim.data.qpos.copy()
-            set_robot_config(
-                arm.env, arm.robot_id, arm.arm_id, target_joints,
-            )
-            pos, quat = arm.get_eef_pose_in_base()
-            arm.env.sim.data.qpos[:] = qpos_backup
-            arm.env.sim.forward()
-            return arm.construct_robot_action(
-                pos, quat, gripper_action=gripper_action,
-            )
-        except Exception as e:
-            logger.warning("Pose-action fallback failed: %s", e)
-            return None
