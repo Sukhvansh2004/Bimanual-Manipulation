@@ -119,13 +119,21 @@ run_single_execution() {
 
     echo "  [START] ${task} × ${cfg_id}"
 
-    timeout "$TIMEOUT" python "$EXEC_SCRIPT" \
-        --experiment "$exp_json" \
-        --assignment "$asgn_file" \
-        --output-metrics "$metrics_file" \
-        --headless \
-        --smoothen \
-        > "$log_file" 2>&1
+    # Build the command — add --data-dir for no-DPP configs so trajectories
+    # are loaded from the correct directory (data/<task>_no_dpp/).
+    local cmd=(
+        timeout "$TIMEOUT" python "$EXEC_SCRIPT"
+        --experiment "$exp_json"
+        --assignment "$asgn_file"
+        --output-metrics "$metrics_file"
+        --headless
+        --smoothen
+    )
+    if [[ "$data_type" == "no_dpp" ]]; then
+        cmd+=(--data-dir "data/${task}_no_dpp")
+    fi
+
+    "${cmd[@]}" > "$log_file" 2>&1
     local rc=$?
 
     if [[ $rc -eq 0 ]]; then

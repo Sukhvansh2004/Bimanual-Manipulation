@@ -341,8 +341,15 @@ def run_execution(
     results_dir: Path,
     config_id_str: str,
     timeout: int = 600,
+    data_dir: Optional[str] = None,
 ) -> Optional[ExecutionMetrics]:
     """Run the dual-arm execution script headlessly for a single config.
+
+    Args:
+        data_dir: Optional override for the trajectory data directory.
+            When ``None`` the execution script resolves the directory from
+            the experiment JSON.  Pass explicitly for configs that use
+            alternative trajectory data (e.g. No-Diversity / no-DPP).
 
     Returns ExecutionMetrics loaded from the JSON output, or None on failure.
     """
@@ -356,6 +363,7 @@ def run_execution(
         "--output-metrics", metrics_file,
         "--headless",
         "--smoothen",
+        "--data-dir", data_dir
     ]
 
     logger.info("    Running execution: %s × %s", experiment_name, config_label)

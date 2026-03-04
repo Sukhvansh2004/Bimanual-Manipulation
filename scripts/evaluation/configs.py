@@ -64,7 +64,6 @@ BASELINE = _cfg("Baseline (α=10, β=1)", beam_width=10, clearance_radius=0.01)
 NO_SWITCH_PENALTY = _cfg(
     "No Switching Penalty (Cswitch=0)",
     switch_cost_override=0.0,
-    beam_width=10,
     clearance_radius=0.01,
 )
 
@@ -75,7 +74,6 @@ NO_SWITCH_PENALTY = _cfg(
 NO_MANIPULABILITY = _cfg(
     "No Manipulability (β=0)",
     beta=0.0,
-    beam_width=10,
     clearance_radius=0.01,
 )
 
@@ -86,7 +84,6 @@ NO_MANIPULABILITY = _cfg(
 NO_FEASIBILITY_FILTER = _cfg(
     "No Feasibility Filter",
     disable_feasibility_filter=True,
-    beam_width=10,
     clearance_radius=0.01,
 )
 
@@ -124,7 +121,7 @@ BEAM_20 = _cfg("Beam=20", beam_width=20)
 # These correspond to the four methods compared in the paper:
 #   Greedy         — beam_width=1 (locally optimal, no look-ahead)
 #   Single Robot   — force all segments onto one robot (infinite switch cost)
-#   No-Diversity   — disable grasp-pair feasibility filtering
+#   No-Diversity   — disable DPP entropy maximization (use top-N grasps by score)
 #   Proposed       — full method (= BASELINE)
 
 GREEDY = _cfg("Greedy (beam=1)", beam_width=1, clearance_radius=0.01)
@@ -157,10 +154,11 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "clearance_radius": [CLEARANCE_NONE, CLEARANCE_005, CLEARANCE_010, CLEARANCE_015],
     "beam_width": [BEAM_UNLIMITED, BEAM_1, BEAM_5, BEAM_10, BEAM_20],
     "method_comparison": [GREEDY, SINGLE_ROBOT, NO_DIVERSITY, PROPOSED],
-    # Minimal set for the paper tables (6 unique configs, no duplicates)
-    # Table 1: Greedy, Single Robot, No Diversity, Proposed
-    # Table 2: Proposed (=Baseline), No Switching Penalty, No Manipulability, No Diversity (=No Feas. Filter)
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
+    # Minimal set for the paper tables (configs that run on DPP data)
+    # NO_DIVERSITY is excluded because it requires separate no-DPP trajectory data
+    # Table 1: Proposed, Greedy, Single Robot, No Feasibility Filter
+    # Table 2: Proposed, No Switching Penalty, No Manipulability, No Feasibility Filter
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
 # Flat list of all unique configs for running everything

@@ -284,7 +284,7 @@ def print_paper_metrics(results_dir: Path, experiments: list[str] | None = None)
     print(f"{'Method':<35} {'Plan%':>6} {'#HO':>6} {'Cost':>10} {'Manip':>8} {'Feas%':>6} {'Time(s)':>8}")
     print("-" * 100)
 
-    for config_label in ["Proposed", "Greedy (beam=1)", "Single Robot", "No Switching Penalty (Cswitch=0)", "No Manipulability (β=0)"]:
+    for config_label in ["Proposed", "Greedy (beam=1)", "Single Robot", "No Feasibility Filter", "No Switching Penalty (Cswitch=0)", "No Manipulability (β=0)", "No Diversity"]:
         if config_label not in by_config:
             print(f"  {config_label:<35}  NO RESULTS")
             continue
@@ -302,6 +302,18 @@ def print_paper_metrics(results_dir: Path, experiments: list[str] | None = None)
                   f"ho_sr={m.get('avg_ho_success_rate',0):.0f}%, "
                   f"collisions={m.get('avg_collisions',0):.1f}, "
                   f"time={m.get('avg_exec_time',0):.0f}s")
+
+    # Also check for No Diversity results (handled by paper_2 Step B)
+    no_div_label = "No Diversity"
+    if no_div_label in by_config and no_div_label not in ["Proposed", "Greedy (beam=1)", "Single Robot", "No Feasibility Filter", "No Switching Penalty (Cswitch=0)", "No Manipulability (β=0)"]:
+        m = compute_method_metrics(by_config[no_div_label])
+        plan_rate = f"{m['planning_success_rate']:.0f}%"
+        ho = f"{m.get('avg_handovers', 0):.1f}" if m['n_planning_valid'] > 0 else "—"
+        cost = f"{m.get('avg_total_cost', 0):.1f}" if m['n_planning_valid'] > 0 else "—"
+        manip = f"{m.get('avg_manipulability', 0):.4f}" if m['n_planning_valid'] > 0 else "—"
+        feas = f"{m.get('avg_feasibility', 0):.0f}%" if m['n_planning_valid'] > 0 else "—"
+        time_s = f"{m.get('avg_planning_time', 0):.0f}" if m['n_planning_valid'] > 0 else "—"
+        print(f"  {no_div_label:<35} {plan_rate:>6} {ho:>6} {cost:>10} {manip:>8} {feas:>6} {time_s:>8}")
 
     # === Per-experiment breakdown ===
     print("\n" + "=" * 100)

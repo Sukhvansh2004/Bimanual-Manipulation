@@ -257,6 +257,9 @@ def main():
                         help="Path to write execution metrics JSON (for batch evaluation)")
     parser.add_argument("--headless", action="store_true",
                         help="Disable rendering & meshcat (for batch runs)")
+    parser.add_argument("--data-dir", type=str, default=None,
+                        help="Directory containing trajectory NPZ files. "
+                             "Overrides the experiment JSON output_dir / default data/<name>/.")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -365,11 +368,12 @@ def main():
             logger.info("Explicit trajectory mode (--traj0 / --traj1).")
         else:
             # ---- Assignment mode (default) -------------------------------
-            data_dir = (
-                exp_cfg.output.output_dir
-                if exp_cfg.output.output_dir is not None
-                else os.path.join(constants.DATA_DIR, exp_cfg.name)
-            )
+            if args.data_dir is not None:
+                data_dir = args.data_dir
+            elif exp_cfg.output.output_dir is not None:
+                data_dir = exp_cfg.output.output_dir
+            else:
+                data_dir = os.path.join(constants.DATA_DIR, exp_cfg.name)
             if args.assignment is not None:
                 assignment_file = args.assignment
             elif exec_cfg.assignment_path is not None:
