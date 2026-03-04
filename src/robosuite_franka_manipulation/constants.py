@@ -236,6 +236,12 @@ COST_EVAL_RETREAT_STEPS = 2      # vs 30 default — only check start/end of ret
 # receiver final) succeeds but non-critical poses (retreat waypoints, etc.) fail.
 HANDOVER_IK_SOFT_PENALTY = 5e4
 
+# Third-tier penalty: IK solves for both arms but the resulting configs
+# collide with each other.  Still cheaper than inf so the DP can route
+# through this handover; the execution planner may find a collision-free
+# configuration via trajectory optimisation.
+HANDOVER_IK_COLLISION_PENALTY = 1e5
+
 # =============================================================================
 # Control and Trajectory Configuration
 # =============================================================================

@@ -350,7 +350,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 11.661258220672607
+        "planning_time_s": 25.672227382659912
       }
     },
     {
@@ -392,7 +392,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 11.603948593139648
+        "planning_time_s": 25.756648063659668
       }
     },
     {
@@ -413,7 +413,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 12.3581223487854
+        "planning_time_s": 25.581923723220825
       }
     },
     {
@@ -434,7 +434,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 10.931434154510498
+        "planning_time_s": 25.4373300075531
       }
     },
     {
@@ -455,7 +455,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 12.361010551452637
+        "planning_time_s": 24.541118621826172
       }
     },
     {
@@ -476,7 +476,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 60.502432107925415
+        "planning_time_s": 51.58772683143616
       }
     },
     {
@@ -486,20 +486,20 @@
       "planning": {
         "experiment": "flatPlate_shelf_to_box",
         "config_label": "No Manipulability (\u03b2=0)",
-        "total_cost": 5.1352536511242395,
+        "total_cost": 6.044619638418352,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          12
+          14
         ],
-        "mean_task_cost": 0.09641069007352597,
-        "total_switching_cost": 0.3147191474479406,
-        "mean_manipulability": 0.8249556717123545,
-        "min_manipulability": 0.8133012944706883,
+        "mean_task_cost": 0.09976925617905502,
+        "total_switching_cost": 1.056156829465603,
+        "mean_manipulability": 0.8247446682405957,
+        "min_manipulability": 0.8073070099880058,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 1476.0072038173676
+        "planning_time_s": 1368.6120269298553
       },
       "execution": {
         "experiment": "flatPlate_shelf_to_box",
@@ -509,12 +509,12 @@
         "n_handovers_attempted": 1,
         "n_handovers_succeeded": 1,
         "n_collision_incidents": 0,
-        "execution_time_s": 168.3292315006256,
+        "execution_time_s": 135.9277698993683,
         "grasp_success": true,
         "transport_success": true,
         "place_success": true,
         "n_switches": 1,
-        "mean_manipulability": 0.819505174811843,
+        "mean_manipulability": 0.8167507479380136,
         "parallel_collision_free": true,
         "error_message": ""
       }
@@ -541,7 +541,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 1477.9940357208252
+        "planning_time_s": 1375.2912805080414
       },
       "execution": {
         "experiment": "flatPlate_shelf_to_box",
@@ -551,7 +551,7 @@
         "n_handovers_attempted": 3,
         "n_handovers_succeeded": 3,
         "n_collision_incidents": 1,
-        "execution_time_s": 259.2047612667084,
+        "execution_time_s": 174.0421016216278,
         "grasp_success": true,
         "transport_success": true,
         "place_success": true,
@@ -568,20 +568,20 @@
       "planning": {
         "experiment": "flatPlate_shelf_to_box",
         "config_label": "Proposed",
-        "total_cost": 1737.1067287344183,
+        "total_cost": 1212.5121724474945,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          35
+          13
         ],
-        "mean_task_cost": 23.797305066969248,
-        "total_switching_cost": 547.2414753859559,
-        "mean_manipulability": 0.8150615010136216,
-        "min_manipulability": 0.7937470815836098,
+        "mean_task_cost": 22.292586780574883,
+        "total_switching_cost": 97.88283341875082,
+        "mean_manipulability": 0.8248897635660006,
+        "min_manipulability": 0.810081410664899,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 1499.424012184143
+        "planning_time_s": 1385.1926622390747
       },
       "execution": {
         "experiment": "flatPlate_shelf_to_box",
@@ -591,12 +591,12 @@
         "n_handovers_attempted": 1,
         "n_handovers_succeeded": 1,
         "n_collision_incidents": 0,
-        "execution_time_s": 137.74670600891113,
+        "execution_time_s": 114.5591561794281,
         "grasp_success": true,
         "transport_success": true,
         "place_success": true,
         "n_switches": 1,
-        "mean_manipulability": 0.8218273799482975,
+        "mean_manipulability": 0.8181215258196702,
         "parallel_collision_free": true,
         "error_message": ""
       }
@@ -619,7 +619,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 1280.1808352470398
+        "planning_time_s": 1212.8459463119507
       }
     },
     {
@@ -1075,7 +1075,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2.455080270767212
+        "planning_time_s": 2.173112154006958
       }
     },
     {
@@ -1096,7 +1096,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2.181760787963867
+        "planning_time_s": 2.168734073638916
       }
     },
     {
@@ -1117,7 +1117,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2.1545820236206055
+        "planning_time_s": 2.1670572757720947
       }
     },
     {
@@ -1138,7 +1138,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2.5382635593414307
+        "planning_time_s": 2.187502861022949
       }
     },
     {
@@ -1159,7 +1159,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2.220871925354004
+        "planning_time_s": 2.17159104347229
       }
     },
     {
@@ -2846,7 +2846,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 570.1609144210815
+        "planning_time_s": 9.887882947921753
       }
     },
     {
@@ -2888,7 +2888,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2109.0664446353912
+        "planning_time_s": 591.8345680236816
       }
     },
     {
@@ -2909,7 +2909,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2485.9620711803436
+        "planning_time_s": 592.2060604095459
       }
     },
     {
@@ -2930,7 +2930,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2530.0273888111115
+        "planning_time_s": 26942.521281003952
       }
     },
     {
@@ -2951,7 +2951,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 2578.1569669246674
+        "planning_time_s": 581.4395461082458
       }
     },
     {

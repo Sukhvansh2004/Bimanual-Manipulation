@@ -5,17 +5,20 @@
   "planning": {
     "experiment": "flatPlate_box_to_box",
     "config_label": "Proposed",
-    "total_cost": Infinity,
-    "n_segments": 0,
-    "n_handovers": 0,
-    "handover_points": [],
-    "mean_task_cost": 0.0,
-    "total_switching_cost": 0.0,
-    "mean_manipulability": 0.0,
-    "min_manipulability": 0.0,
+    "total_cost": 202823.06581772072,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      10,
+      66
+    ],
+    "mean_task_cost": 35.28832272150955,
+    "total_switching_cost": 200000.0,
+    "mean_manipulability": 0.7994986576737182,
+    "min_manipulability": 0.7689113762320525,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
-    "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 40.59276223182678
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 178.59626984596252
   }
 }

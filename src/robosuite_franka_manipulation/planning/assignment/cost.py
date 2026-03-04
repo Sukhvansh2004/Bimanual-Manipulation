@@ -436,20 +436,28 @@ def compute_switching_cost(
             return np.inf
 
         # Check inter-arm collision at the critical meeting point
+        collision_free = True
         if collision_check_fn is not None:
             if prev_robot_id == 0:
                 collision_free = collision_check_fn(q_transfer, q_receiver)
             else:
                 collision_free = collision_check_fn(q_receiver, q_transfer)
-            if not collision_free:
-                logger.debug("Critical-pose handover rejected: inter-arm collision")
-                return np.inf
 
+        if collision_free:
+            logger.debug(
+                "Critical-pose fallback accepted at seg %d (robot %d→%d), penalty=%.0f",
+                segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_SOFT_PENALTY,
+            )
+            return constants.HANDOVER_IK_SOFT_PENALTY
+
+        # IK solved for both arms but they collide — accept with a
+        # higher (but finite) penalty.  The execution planner may find
+        # an alternate collision-free configuration.
         logger.debug(
-            "Critical-pose fallback accepted at seg %d (robot %d→%d), penalty=%.0f",
-            segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_SOFT_PENALTY,
+            "Critical-pose collision-penalty at seg %d (robot %d→%d), penalty=%.0f",
+            segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_COLLISION_PENALTY,
         )
-        return constants.HANDOVER_IK_SOFT_PENALTY
+        return constants.HANDOVER_IK_COLLISION_PENALTY
 
     except Exception:
         return np.inf
