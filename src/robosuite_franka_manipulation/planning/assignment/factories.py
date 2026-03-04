@@ -24,7 +24,8 @@ def make_ik_solver_fn(
 ) -> Callable[[StampedPose, int], Optional[np.ndarray]]:
     """Create an IK-solver closure compatible with :func:`~solver.compute_optimal_robot_assignment`.
 
-    The returned function has signature ``(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]``
+    The returned function has signature
+    ``(pose: StampedPose, robot_id: int, q_warm_start: Optional[np.ndarray] = None) -> Optional[np.ndarray]``
     and internally delegates to :func:`~planning.utils.ik_utils.enumerate_ik_solutions_for_arm`,
     applying the orientation correction beforehand.
 
@@ -44,7 +45,11 @@ def make_ik_solver_fn(
     pos_tol = C.HANDOVER_IK_POS_TOLERANCE if relaxed else C.IK_POS_TOLERANCE
     ori_tol = C.HANDOVER_IK_ORI_TOLERANCE if relaxed else C.IK_ORI_TOLERANCE
 
-    def _ik_solver(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]:
+    def _ik_solver(
+        pose: StampedPose,
+        robot_id: int,
+        q_warm_start: Optional[np.ndarray] = None,
+    ) -> Optional[np.ndarray]:
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
             env,
@@ -55,6 +60,7 @@ def make_ik_solver_fn(
             max_solutions=1,
             pos_tol=pos_tol,
             ori_tol=ori_tol,
+            q_warm_start=q_warm_start,
         )
         return solutions[0] if solutions else None
 

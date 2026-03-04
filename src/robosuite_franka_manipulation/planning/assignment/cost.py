@@ -199,6 +199,8 @@ def _compute_handover_primitive_cost(
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
     transfer_robot_id: int = 0,
     receiver_robot_id: int = 1,
+    q_warm_start_transfer: Optional[np.ndarray] = None,
+    q_warm_start_receiver: Optional[np.ndarray] = None,
 ) -> Tuple[float, bool]:
     """Evaluate cost of a handover primitive using the same C1 + C2 model.
 
@@ -209,6 +211,10 @@ def _compute_handover_primitive_cost(
             to verify inter-arm clearance at critical handover configurations.
         transfer_robot_id: Robot ID of the arm performing the transfer (holding).
         receiver_robot_id: Robot ID of the arm receiving the object.
+        q_warm_start_transfer: Joint config of the transfer arm at the
+            handover point in the trajectory, used to warm-start IK.
+        q_warm_start_receiver: Joint config of the receiver arm at the
+            handover point in the trajectory, used to warm-start IK.
     """
     transfer_poses: List[StampedPose] = []
     receiver_poses: List[StampedPose] = []
@@ -221,15 +227,18 @@ def _compute_handover_primitive_cost(
     if not transfer_poses and not receiver_poses:
         return np.inf, False
 
-    # Solve IK for each phase
-    def _solve_all(poses: List[StampedPose], robot_id: int):
+    # Solve IK for each phase, chaining warm starts for consistency
+    def _solve_all(poses: List[StampedPose], robot_id: int,
+                   q_warm_start: Optional[np.ndarray] = None):
         configs = []
+        q_prev = q_warm_start
         for p in poses:
             try:
-                q = ik_solver_fn(p, robot_id)
+                q = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
                 if q is None or len(q) == 0:
                     return None
                 configs.append(q)
+                q_prev = q
             except Exception:
                 return None
         return configs
@@ -237,12 +246,18 @@ def _compute_handover_primitive_cost(
     # Early-out: solve the transfer arm first (fewer poses — typically
     # just hold + retreat) so we can fail fast before spending time on
     # the receiver arm's longer approach trajectory.
-    transfer_configs = _solve_all(transfer_poses, transfer_robot_id) if transfer_poses else []
+    transfer_configs = _solve_all(
+        transfer_poses, transfer_robot_id,
+        q_warm_start=q_warm_start_transfer,
+    ) if transfer_poses else []
     if transfer_configs is None:
         logger.debug("Handover IK failure: transfer arm (robot%d)", transfer_robot_id)
         return np.inf, False
 
-    receiver_configs = _solve_all(receiver_poses, receiver_robot_id) if receiver_poses else []
+    receiver_configs = _solve_all(
+        receiver_poses, receiver_robot_id,
+        q_warm_start=q_warm_start_receiver,
+    ) if receiver_poses else []
     if receiver_configs is None:
         logger.debug("Handover IK failure: receiver arm (robot%d)", receiver_robot_id)
         return np.inf, False
@@ -413,11 +428,24 @@ def compute_switching_cost(
     )
     h_traj = h_planner.generate_trajectory()
 
+    # Extract warm-start joint configs from the trajectories at the
+    # handover segment so IK solutions stay close to the planned path.
+    q_ws_transfer = None
+    q_ws_receiver = None
+    if (segment_idx < prev_traj.n_waypoints
+            and prev_traj.is_feasible[segment_idx]):
+        q_ws_transfer = prev_traj.joint_configs[segment_idx]
+    if (segment_idx < curr_traj.n_waypoints
+            and curr_traj.is_feasible[segment_idx]):
+        q_ws_receiver = curr_traj.joint_configs[segment_idx]
+
     cost, ok = _compute_handover_primitive_cost(
         h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
         collision_check_fn=collision_check_fn,
         transfer_robot_id=prev_robot_id,
         receiver_robot_id=curr_robot_id,
+        q_warm_start_transfer=q_ws_transfer,
+        q_warm_start_receiver=q_ws_receiver,
     )
 
     if ok:
