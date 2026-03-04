@@ -55,7 +55,7 @@ def _cfg(
 # 1. Baseline  (default experiment JSON values — α=10, β=1, beam=10)
 # ═══════════════════════════════════════════════════════════════════════════
 
-BASELINE = _cfg("Baseline (α=10, β=1)", clearance_radius=0.01)
+BASELINE = _cfg("Baseline (α=10, β=1)", clearance_radius=0.03)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. Ablation: Without Switching Penalty  (C_switch = 0)
@@ -64,7 +64,7 @@ BASELINE = _cfg("Baseline (α=10, β=1)", clearance_radius=0.01)
 NO_SWITCH_PENALTY = _cfg(
     "No Switching Penalty (Cswitch=0)",
     switch_cost_override=0.0,
-    clearance_radius=0.01,
+    clearance_radius=0.03,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -74,7 +74,7 @@ NO_SWITCH_PENALTY = _cfg(
 NO_MANIPULABILITY = _cfg(
     "No Manipulability (β=0)",
     beta=0.0,
-    clearance_radius=0.01,
+    clearance_radius=0.03,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -84,7 +84,7 @@ NO_MANIPULABILITY = _cfg(
 NO_FEASIBILITY_FILTER = _cfg(
     "No Feasibility Filter",
     disable_feasibility_filter=True,
-    clearance_radius=0.01,
+    clearance_radius=0.03,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -100,7 +100,7 @@ STRIDE_5 = _cfg("Stride=5", handover_stride=5, beam_width=10)
 # ═══════════════════════════════════════════════════════════════════════════
 
 CLEARANCE_NONE = _cfg("Clearance=off", clearance_radius=None, beam_width=10)
-CLEARANCE_005 = _cfg("Clearance=0.05m", clearance_radius=0.05, beam_width=10)
+CLEARANCE_003 = _cfg("Clearance=0.03m", clearance_radius=0.03, beam_width=10)
 CLEARANCE_010 = _cfg("Clearance=0.10m", clearance_radius=0.10, beam_width=10)
 CLEARANCE_015 = _cfg("Clearance=0.15m", clearance_radius=0.15, beam_width=10)
 
@@ -124,21 +124,21 @@ BEAM_20 = _cfg("Beam=20", beam_width=20)
 #   No-Diversity   — disable DPP entropy maximization (use top-N grasps by score)
 #   Proposed       — full method (= BASELINE)
 
-GREEDY = _cfg("Greedy (beam=1)", beam_width=1, clearance_radius=0.01)
+GREEDY = _cfg("Greedy (beam=1)", beam_width=1, clearance_radius=0.03)
 
 SINGLE_ROBOT = _cfg(
     "Single Robot",
     switch_cost_override=np.inf,   # effectively prohibit switches
-    clearance_radius=0.01,
+    clearance_radius=0.03,
 )
 
 NO_DIVERSITY = _cfg(
     "No Diversity",
     use_dpp=False,
-    clearance_radius=0.01,
+    clearance_radius=0.03,
 )
 
-PROPOSED = _cfg("Proposed", beam_width=None, clearance_radius=0.01)  # full method — no beam pruning
+PROPOSED = _cfg("Proposed", beam_width=None, clearance_radius=0.03)  # full method — no beam pruning
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -151,7 +151,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "manipulability": [BASELINE, NO_MANIPULABILITY],
     "feasibility_filter": [BASELINE, NO_FEASIBILITY_FILTER],
     "handover_stride": [STRIDE_1, STRIDE_3, STRIDE_5],
-    "clearance_radius": [CLEARANCE_NONE, CLEARANCE_005, CLEARANCE_010, CLEARANCE_015],
+    "clearance_radius": [CLEARANCE_NONE, CLEARANCE_003, CLEARANCE_010, CLEARANCE_015],
     "beam_width": [BEAM_UNLIMITED, BEAM_1, BEAM_5, BEAM_10, BEAM_20],
     "method_comparison": [GREEDY, SINGLE_ROBOT, NO_DIVERSITY, PROPOSED],
     # Minimal set for the paper tables
@@ -171,7 +171,7 @@ ALL_CONFIGS: List[AblationConfig] = [
     STRIDE_3,
     STRIDE_5,
     CLEARANCE_NONE,
-    CLEARANCE_005,
+    CLEARANCE_003,
     CLEARANCE_010,
     CLEARANCE_015,
     BEAM_UNLIMITED,

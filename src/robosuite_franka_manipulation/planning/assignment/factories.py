@@ -187,22 +187,29 @@ def make_handover_clearance_fn(
     """Create an environment-clearance closure for handover evaluation.
 
     The returned function has signature ``(obj_pose: StampedPose) -> bool``
-    and returns ``True`` when the object position is at least
-    *clearance_radius* away from every static environment geom centre.
-    This is a fast heuristic used to skip handovers at locations where
-    environment obstacles would prevent a second arm from reaching in
-    (e.g. inside a shelf or rack).
+    and returns ``True`` when every environment-obstacle *surface* is at
+    least *clearance_radius* away from the manipulated-object *surface*.
+
+    Unlike a simple centre-to-centre Euclidean check, this temporarily
+    repositions the object in MuJoCo, inflates its geom margins to
+    *clearance_radius*, runs collision detection, and inspects the
+    resulting contact array for mesh-to-mesh proximity — the same
+    mechanism used by the suction-weld contact logic.
+
+    Falls back to a centre-distance heuristic when the manipulated object
+    has no free joint (cannot be repositioned).
 
     Args:
         env: The dual-arm simulation environment.
-        clearance_radius: Minimum distance (metres) from object centre to
-            each environment geom centre for the location to be considered
+        clearance_radius: Minimum distance (metres) from object surface to
+            each environment geom surface for the location to be considered
             *clear* for handover.
         manipulated_object: Name of the manipulated object (excluded from
             the environment geom list).
         env_lock: Optional reentrant lock guarding the environment.
     """
     import mujoco
+    import robosuite.utils.transform_utils as T
     from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
         get_environment_collision_geoms,
         get_native_mj_object,
@@ -211,28 +218,117 @@ def make_handover_clearance_fn(
     native_model = get_native_mj_object(env.sim.model)
     native_data = get_native_mj_object(env.sim.data)
 
+    # --- Environment geom IDs (static obstacles) ---
     env_geom_names = get_environment_collision_geoms(
         native_model, robot_ids=[0, 1], object_name=manipulated_object,
     )
+    env_geom_id_set = frozenset(
+        native_model.geom(name).id for name in env_geom_names
+    )
 
-    # Pre-compute geom ids
-    env_geom_ids = [native_model.geom(name).id for name in env_geom_names]
+    if not env_geom_id_set or manipulated_object is None:
+        # Nothing to collide with — clearance always passes.
+        def _always_clear(obj_pose: StampedPose) -> bool:
+            return True
+        return _always_clear
 
-    # Snapshot static environment geom world positions (they never move)
-    ctx = env_lock if env_lock is not None else nullcontext()
-    with ctx:
-        mujoco.mj_forward(native_model, native_data)
-        env_geom_positions = (
-            np.array([native_data.geom_xpos[gid].copy() for gid in env_geom_ids])
-            if env_geom_ids
-            else np.empty((0, 3))
-        )
+    # --- Manipulated-object body & geom IDs ---
+    obj_body_id = mujoco.mj_name2id(
+        native_model, mujoco.mjtObj.mjOBJ_BODY, manipulated_object,
+    )
+    obj_geom_id_set: set[int] = set()
+    for gid in range(native_model.ngeom):
+        bid = int(native_model.geom_bodyid[gid])
+        # Walk up the kinematic tree to see if this geom belongs to
+        # the manipulated object (or any of its child bodies).
+        while bid > 0:
+            if bid == obj_body_id:
+                obj_geom_id_set.add(gid)
+                break
+            bid = int(native_model.body_parentid[bid])
+    obj_geom_id_set = frozenset(obj_geom_id_set)
+
+    # --- Find the object's free-joint qpos address ---
+    obj_jnt_qposadr: Optional[int] = None
+    for jid in range(native_model.njnt):
+        if (int(native_model.jnt_bodyid[jid]) == obj_body_id
+                and int(native_model.jnt_type[jid]) == 0):  # mjJNT_FREE
+            obj_jnt_qposadr = int(native_model.jnt_qposadr[jid])
+            break
+
+    if obj_jnt_qposadr is None or not obj_geom_id_set:
+        # Cannot reposition this body — fall back to centre-distance.
+        ctx_init = env_lock if env_lock is not None else nullcontext()
+        with ctx_init:
+            mujoco.mj_forward(native_model, native_data)
+            env_geom_positions = (
+                np.array([native_data.geom_xpos[gid].copy()
+                          for gid in env_geom_id_set])
+                if env_geom_id_set else np.empty((0, 3))
+            )
+
+        def _clearance_ok_fallback(obj_pose: StampedPose) -> bool:
+            if env_geom_positions.shape[0] == 0:
+                return True
+            dists = np.linalg.norm(
+                env_geom_positions - obj_pose.position, axis=1,
+            )
+            return float(dists.min()) > clearance_radius
+
+        return _clearance_ok_fallback
+
+    # Save original geom margins so we can restore after each probe.
+    _orig_margins = {
+        gid: float(native_model.geom_margin[gid]) for gid in obj_geom_id_set
+    }
 
     def _clearance_ok(obj_pose: StampedPose) -> bool:
-        """Return ``True`` when the object has sufficient clearance."""
-        if env_geom_positions.shape[0] == 0:
-            return True
-        dists = np.linalg.norm(env_geom_positions - obj_pose.position, axis=1)
-        return float(dists.min()) > clearance_radius
+        """Return ``True`` when the object has sufficient mesh-to-mesh clearance."""
+        ctx = env_lock if env_lock is not None else nullcontext()
+        with ctx:
+            # Snapshot simulation state
+            qpos_bak = native_data.qpos.copy()
+            qvel_bak = native_data.qvel.copy()
+            try:
+                # Move object to the candidate pose via its free joint.
+                # Free-joint qpos layout: [x, y, z, qw, qx, qy, qz]
+                native_data.qpos[obj_jnt_qposadr:obj_jnt_qposadr + 3] = (
+                    obj_pose.position
+                )
+                # StampedPose quaternion is xyzw (scipy); MuJoCo wants wxyz.
+                native_data.qpos[obj_jnt_qposadr + 3:obj_jnt_qposadr + 7] = (
+                    T.convert_quat(obj_pose.quaternion, to="wxyz")
+                )
+
+                # Inflate object-geom margins so contacts are generated
+                # when surfaces are within clearance_radius.
+                for gid in obj_geom_id_set:
+                    native_model.geom_margin[gid] = clearance_radius
+
+                # Position kinematics + collision detection (cheaper than
+                # full mj_forward — skips velocity / actuation / constraints).
+                mujoco.mj_kinematics(native_model, native_data)
+                mujoco.mj_comPos(native_model, native_data)
+                mujoco.mj_collision(native_model, native_data)
+
+                # Scan contact array for object ↔ environment pairs whose
+                # surface distance is less than clearance_radius.
+                ncon = int(native_data.ncon)
+                for ci in range(ncon):
+                    c = native_data.contact[ci]
+                    g1, g2 = int(c.geom1), int(c.geom2)
+                    is_obj_env = (g1 in obj_geom_id_set and g2 in env_geom_id_set)
+                    is_env_obj = (g1 in env_geom_id_set and g2 in obj_geom_id_set)
+                    if (is_obj_env or is_env_obj) and float(c.dist) < clearance_radius:
+                        return False
+                return True
+            finally:
+                # Restore geom margins
+                for gid, m in _orig_margins.items():
+                    native_model.geom_margin[gid] = m
+                # Restore full simulation state
+                native_data.qpos[:] = qpos_bak
+                native_data.qvel[:] = qvel_bak
+                mujoco.mj_forward(native_model, native_data)
 
     return _clearance_ok
