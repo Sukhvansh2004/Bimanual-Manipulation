@@ -363,8 +363,9 @@ def run_execution(
         "--output-metrics", metrics_file,
         "--headless",
         "--smoothen",
-        "--data-dir", data_dir
     ]
+    if data_dir is not None:
+        cmd.extend(["--data-dir", data_dir])
 
     logger.info("    Running execution: %s × %s", experiment_name, config_label)
     logger.info("    Command: %s", " ".join(cmd))

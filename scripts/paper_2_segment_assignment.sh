@@ -6,13 +6,14 @@
 #   1. Proposed        (α=10, β=1, beam=unlimited)
 #   2. Greedy          (beam=1)
 #   3. Single Robot    (switch_cost=inf)
-#   4. No Feasibility Filter (disable feasibility filtering)
-#   5. No Switch Pen.  (switch_cost=0)
-#   6. No Manipulability (β=0)
-#   -- These 6 run on DPP trajectory data (data/<task>/)
+#   4. No Switch Pen.  (switch_cost=0)
+#   5. No Manipulability (β=0)
+#   6. No Diversity    (use_dpp=false → separate trajectory data)
 #
-#   7. No Diversity    (use_dpp=false → separate trajectory data)
-#   -- Runs on non-DPP trajectory data (data/<task>_no_dpp/)
+# Configs 1–5 run on DPP trajectory data (data/<task>/).
+# Config  6 (No Diversity) uses data/<task>_no_dpp/ and is handled
+#   automatically by run_paper_evaluation.py via auto-switching in
+#   run_experiment().
 #
 # Each assignment writes to data/<task>[_no_dpp]/configs/<config_id>/assignment_results.npz
 # Results (planning metrics) go to results/<task>/<config_id>.json
@@ -60,77 +61,19 @@ echo "============================================================"
 mkdir -p results
 
 # ── Run the paper evaluation script in plan-only mode ─────────────────────
-# This handles Proposed, Greedy, Single Robot, NoSwitch, NoManip automatically
-# using the DPP trajectory data.
+# This handles ALL paper configs: Proposed, Greedy, Single Robot,
+# No Switch Penalty, No Manipulability, and No Diversity.
+# No Diversity is auto-switched to data/<task>_no_dpp/ by run_experiment().
 echo ""
 echo "================================================================"
-echo "  A) Assignment for DPP configs (Proposed, Greedy, Single,"
-echo "     No Switch Penalty, No Manipulability, No Feasibility Filter)"
+echo "  Running assignment for ALL paper configs"
+echo "  (incl. No Diversity → auto-switches to no-DPP data)"
 echo "================================================================"
 
 python scripts/evaluation/run_paper_evaluation.py \
     --plan-only \
     --workers "$WORKERS" \
-    2>&1 | tee results/paper_step2a_assignment.log
-
-# ── Now handle "No Diversity" (no-DPP data) ──────────────────────────────
-# This config needs trajectories from data/<task>_no_dpp/.
-# We run segment_assignment.py directly, pointing --data-dir there.
-echo ""
-echo "================================================================"
-echo "  B) Assignment for No Diversity ablation (no-DPP data)"
-echo "================================================================"
-
-SEGMENT_ASSIGNMENT="scripts/pipeline/segment_assignment.py"
-FAILED=0
-
-run_no_diversity_assignment() {
-    local task="$1"
-    local exp_json="experiments/${task}.json"
-    local data_dir="data/${task}_no_dpp"
-    local config_id="No_Diversity"
-    local out_dir="${data_dir}/configs/${config_id}"
-
-    if [[ ! -d "$data_dir" ]]; then
-        echo "  SKIP $task — no-DPP data dir not found: $data_dir"
-        return 1
-    fi
-
-    # Check that we have robot trajectories
-    local n_trajs
-    n_trajs=$(ls "$data_dir"/robot*_trajectory_*.npz 2>/dev/null | wc -l)
-    if [[ "$n_trajs" -eq 0 ]]; then
-        echo "  SKIP $task — no robot trajectories in $data_dir"
-        return 1
-    fi
-
-    echo "  Running No Diversity assignment for $task ($n_trajs trajectories)..."
-    mkdir -p "$out_dir"
-
-    # No Diversity = use_dpp was False (already done at traj gen),
-    # at assignment level we use default params (same as Proposed).
-    python "$SEGMENT_ASSIGNMENT" \
-        --experiment "$exp_json" \
-        --data-dir "$data_dir" \
-        --no-plot \
-        --clearance-radius 0.01 \
-        2>&1 | tee "results/${task}_no_diversity_assignment.log"
-
-    # Move assignment result into the config subdir
-    if [[ -f "${data_dir}/assignment_results.npz" ]]; then
-        mv "${data_dir}/assignment_results.npz" "${out_dir}/assignment_results.npz"
-        echo "  ✓ $task No Diversity assignment saved to $out_dir"
-    else
-        echo "  ✗ $task No Diversity — no assignment_results.npz produced"
-        return 1
-    fi
-}
-
-for task in "${TASKS[@]}"; do
-    echo ""
-    echo "── $task (No Diversity) ──────────────────────────────────"
-    run_no_diversity_assignment "$task" || FAILED=$((FAILED+1))
-done
+    2>&1 | tee results/paper_step2_assignment.log
 
 # ── Summary ───────────────────────────────────────────────────────────────
 echo ""
@@ -153,10 +96,4 @@ for task in "${TASKS[@]}"; do
     fi
 done
 
-if [[ $FAILED -gt 0 ]]; then
-    echo ""
-    echo "  WARNING: $FAILED No Diversity assignment(s) failed!"
-    exit 1
-else
-    echo "  All assignments succeeded."
-fi
+echo "  Done."

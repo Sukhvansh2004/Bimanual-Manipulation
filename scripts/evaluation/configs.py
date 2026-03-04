@@ -156,9 +156,9 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "method_comparison": [GREEDY, SINGLE_ROBOT, NO_DIVERSITY, PROPOSED],
     # Minimal set for the paper tables
     # Table 1 (Method Comparison): Proposed, Greedy, Single Robot, No Diversity
-    # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability, No Feasibility Filter
+    # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability
     # NOTE: NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
 # Flat list of all unique configs for running everything

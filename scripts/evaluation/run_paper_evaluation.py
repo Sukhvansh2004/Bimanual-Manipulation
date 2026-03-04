@@ -17,7 +17,7 @@ Paper configs correspond to Table 1 (method comparison) + Table 2 (ablation):
   - Proposed (our full method)
   - Greedy (beam=1)
   - Single Robot (switch cost = inf)
-  - No Feasibility Filter (disable grasp-pair feasibility filtering)
+  - No Diversity (use_dpp=False → top-N grasps by score)
   - No Switching Penalty (C_switch=0)
   - No Manipulability (β=0)
 
@@ -56,7 +56,7 @@ sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
 from scripts.evaluation.configs import (
     PROPOSED, GREEDY, SINGLE_ROBOT, NO_SWITCH_PENALTY, NO_MANIPULABILITY,
-    NO_FEASIBILITY_FILTER, NO_DIVERSITY,
+    NO_DIVERSITY,
     config_id, AblationConfig,
 )
 from scripts.evaluation.run_all import (
@@ -79,7 +79,7 @@ PAPER_EXPERIMENTS = [
 
 # Paper configs (Table 1 + Table 2)
 # NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
-PAPER_CONFIGS = [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY]
+PAPER_CONFIGS = [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY]
 
 
 def setup_logging(debug: bool = False):
@@ -218,7 +218,14 @@ def run_execution_phase(
 
         for cfg in configs:
             cid = config_id(cfg)
-            asgn_file = str(Path(data_dir) / "configs" / cid / "assignment_results.npz")
+
+            # Configs with use_dpp=False store data in the _no_dpp directory
+            if not cfg.get("use_dpp", True):
+                cfg_data_dir = data_dir + "_no_dpp"
+            else:
+                cfg_data_dir = data_dir
+
+            asgn_file = str(Path(cfg_data_dir) / "configs" / cid / "assignment_results.npz")
 
             if not os.path.isfile(asgn_file):
                 logger.info("  %s × %s — no assignment NPZ, skip execution", exp_name, cfg["label"])
@@ -236,6 +243,7 @@ def run_execution_phase(
                 results_dir=results_dir,
                 config_id_str=cid,
                 timeout=timeout,
+                data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
             )
 
             # Load existing planning result
@@ -285,7 +293,7 @@ def print_paper_metrics(results_dir: Path, experiments: list[str] | None = None)
     print(f"{'Method':<35} {'Plan%':>6} {'#HO':>6} {'Cost':>10} {'Manip':>8} {'Feas%':>6} {'Time(s)':>8}")
     print("-" * 100)
 
-    for config_label in ["Proposed", "Greedy (beam=1)", "Single Robot", "No Feasibility Filter", "No Switching Penalty (Cswitch=0)", "No Manipulability (β=0)", "No Diversity"]:
+    for config_label in ["Proposed", "Greedy (beam=1)", "Single Robot", "No Diversity", "No Switching Penalty (Cswitch=0)", "No Manipulability (β=0)"]:
         if config_label not in by_config:
             print(f"  {config_label:<35}  NO RESULTS")
             continue

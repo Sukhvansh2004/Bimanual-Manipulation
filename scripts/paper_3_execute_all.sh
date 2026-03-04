@@ -64,14 +64,13 @@ mkdir -p results
 
 JOBS=()        # Each entry: "task|config_id|config_label|assignment_file|experiment_json|data_dir_type"
 
-# DPP configs: Proposed, Greedy, Single Robot, No Switch Penalty, No Manipulability, No Feasibility Filter
+# DPP configs: Proposed, Greedy, Single Robot, No Switch Penalty, No Manipulability
 DPP_CONFIGS=(
     "Proposed"
     "Greedy_beam1"
     "Single_Robot"
     "No_Switching_Penalty_Cswitch0"
     "No_Manipulability_β0"
-    "No_Feasibility_Filter"
 )
 
 for task in "${TASKS[@]}"; do
