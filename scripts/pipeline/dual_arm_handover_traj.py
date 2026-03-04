@@ -39,6 +39,7 @@ from robosuite_franka_manipulation import (
 )
 from robosuite_franka_manipulation.utils.env_utils import (
     env_step, register_mesh_extraction_env,
+    start_collision_monitor, stop_collision_monitor,
 )
 from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
@@ -86,7 +87,6 @@ class ExecutionTracker:
         self.execution_start_time = 0.0
         self.execution_time_s = 0.0
         self.executed_joint_configs: List[np.ndarray] = []  # for manipulability
-        self.parallel_collision_free = True
         self.error_message = ""
         self.n_switches = 0  # total arm switches (= handovers from assignment)
         self.placement_position_error: Optional[float] = None  # metres (None = not verified)
@@ -119,7 +119,6 @@ class ExecutionTracker:
             "n_switches": self.n_switches,
             "execution_time_s": self.execution_time_s,
             "mean_manipulability": self.mean_manipulability,
-            "parallel_collision_free": self.parallel_collision_free,
             "placement_position_error": self.placement_position_error,
             "placement_orientation_error": self.placement_orientation_error,
             "error_message": self.error_message,
@@ -557,6 +556,9 @@ def main():
         # Record grasp success
         tracker.grasp_success = True
 
+        # Enable physics-based collision monitoring for the execution phase
+        start_collision_monitor(exp_cfg.task.manipulated_object)
+
         # Record number of arm switches from assignment
         if assignment is not None:
             tracker.n_switches = len(assignment.handover_points)
@@ -674,12 +676,6 @@ def main():
                     logger.warning(f"Arm A did not fully converge (err={par_result.final_pos_error_a:.4f})")
                 if not par_result.success_b:
                     logger.warning(f"Arm B did not fully converge (err={par_result.final_pos_error_b:.4f})")
-                if par_result.collision_free:
-                    logger.info("Parallel execution completed collision-free.")
-                else:
-                    logger.warning("Parallel execution had QP solver fallbacks — check collision avoidance.")
-                    tracker.parallel_collision_free = False
-
                 # Record joint configs for manipulability
                 tracker.executed_joint_configs.append(current_arm.get_joint_positions())
 
@@ -847,6 +843,16 @@ def main():
         # transport still succeeded if we got here without exception.
         if not tracker.transport_success:
             tracker.transport_success = True
+
+        # Stop collision monitoring and record incidents
+        tracker.n_collision_incidents = stop_collision_monitor()
+        if tracker.n_collision_incidents > 0:
+            logger.warning(
+                "Collision monitor detected %d collision step(s) during execution.",
+                tracker.n_collision_incidents,
+            )
+        else:
+            logger.info("Execution completed with no collisions detected.")
 
         # 6. Release and Retreat
         logger.info(f"Robot {current_robot} releasing object and retreating...")

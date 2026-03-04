@@ -49,6 +49,10 @@ from robosuite_franka_manipulation.utils.env_utils import (
     reset_action_persistence,
     get_action_persistence_manager,
     ActionPersistenceManager,
+    # Collision monitoring
+    start_collision_monitor,
+    stop_collision_monitor,
+    get_collision_count,
     # YCB utilities
     get_available_ycb_objects,
     list_ycb_objects,

@@ -421,6 +421,92 @@ class ActionPersistenceManager:
 _action_manager = ActionPersistenceManager()
 
 
+# =============================================================================
+# Collision Monitor — checks for collisions after every env_step when enabled
+# =============================================================================
+
+class CollisionMonitor:
+    """Counts physics-based collision incidents during execution.
+
+    When enabled, after every ``env_step`` the monitor checks MuJoCo contacts
+    for inter-arm collisions AND arm-environment collisions (ignoring the
+    manipulated object).  Each step with at least one qualifying contact
+    increments the counter by one.
+
+    Usage::
+
+        start_collision_monitor("plate_0")
+        # ... execute trajectory ...
+        n = stop_collision_monitor()
+    """
+
+    def __init__(self):
+        self._enabled = False
+        self._collision_count = 0
+        self._manipulated_object: Optional[str] = None
+
+    # ── public API ──────────────────────────────────────────────────────
+
+    def start(self, manipulated_object: Optional[str] = None):
+        """Enable monitoring and reset the counter."""
+        self._enabled = True
+        self._collision_count = 0
+        self._manipulated_object = manipulated_object
+
+    def stop(self) -> int:
+        """Disable monitoring and return the accumulated count."""
+        self._enabled = False
+        count = self._collision_count
+        return count
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @property
+    def collision_count(self) -> int:
+        return self._collision_count
+
+    # ── internal ────────────────────────────────────────────────────────
+
+    def check(self, env: DualArmEnvironment):
+        """Called by ``env_step`` after each simulation step."""
+        if not self._enabled:
+            return
+        # Deferred import to avoid circular dependencies
+        from robosuite_franka_manipulation.planning.utils.collision_utils import (
+            in_collision,
+        )
+        ignore_names = [self._manipulated_object] if self._manipulated_object else None
+        if in_collision(env, ignore_names=ignore_names):
+            self._collision_count += 1
+
+
+# Global collision monitor instance
+_collision_monitor = CollisionMonitor()
+
+
+def start_collision_monitor(manipulated_object: Optional[str] = None):
+    """Enable collision monitoring in ``env_step``.
+
+    Args:
+        manipulated_object: Geom-name prefix of the grasped object to ignore
+            (e.g. ``"plate_0"``, ``"mug_0"``).  Contacts involving geoms
+            whose name starts with this prefix are excluded.
+    """
+    _collision_monitor.start(manipulated_object)
+
+
+def stop_collision_monitor() -> int:
+    """Disable monitoring and return the number of steps that had collisions."""
+    return _collision_monitor.stop()
+
+
+def get_collision_count() -> int:
+    """Return the current collision count without stopping the monitor."""
+    return _collision_monitor.collision_count
+
+
 def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
     """Handles full action construction with gripper and arm action persistence.
     
@@ -574,6 +660,10 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
 
     obs = env.step(full_action)
     apply_suction_weld(env, full_action)
+
+    # Collision monitoring (no-op when monitor is disabled)
+    _collision_monitor.check(env)
+
     return obs
 
 

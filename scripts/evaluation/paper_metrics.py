@@ -137,8 +137,8 @@ def compute_method_metrics(results_for_config: List[dict]) -> dict:
         metrics["total_collisions"] = sum(e.get("n_collision_incidents", 0) for e in exec_data)
         metrics["avg_exec_switches"] = np.mean([e.get("n_switches", 0) for e in exec_data])
         metrics["avg_exec_manipulability"] = np.mean([e.get("mean_manipulability", 0) for e in exec_data])
-        n_collision_free = sum(1 for e in exec_data if e.get("parallel_collision_free", True))
-        metrics["parallel_collision_free_rate"] = n_collision_free / len(exec_data) * 100
+        n_collision_free = sum(1 for e in exec_data if e.get("n_collision_incidents", 0) == 0)
+        metrics["collision_free_rate"] = n_collision_free / len(exec_data) * 100
     else:
         metrics["n_exec_total"] = 0
         metrics["task_success_rate"] = None
@@ -467,7 +467,7 @@ def main():
         print(f"  Avg Collisions:            {m_prop['avg_collisions']:.2f}")
         print(f"  Total Collisions:          {m_prop.get('total_collisions', 0)}")
         print(f"  Exec Manipulability:       {m_prop.get('avg_exec_manipulability', 0):.4f}")
-        print(f"  Parallel Collision Free:   {m_prop.get('parallel_collision_free_rate', 0):.1f}%")
+        print(f"  Collision Free Rate:       {m_prop.get('collision_free_rate', 0):.1f}%")
 
     # ─────────────────────────────────────────────────────────────────
     # GREEDY DETAILED ANALYSIS
