@@ -55,7 +55,7 @@ def _cfg(
 # 1. Baseline  (default experiment JSON values — α=10, β=1, beam=10)
 # ═══════════════════════════════════════════════════════════════════════════
 
-BASELINE = _cfg("Baseline (α=10, β=1)", beam_width=10)
+BASELINE = _cfg("Baseline (α=10, β=1)", beam_width=10, clearance_radius=0.01)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. Ablation: Without Switching Penalty  (C_switch = 0)
@@ -65,6 +65,7 @@ NO_SWITCH_PENALTY = _cfg(
     "No Switching Penalty (Cswitch=0)",
     switch_cost_override=0.0,
     beam_width=10,
+    clearance_radius=0.01,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -75,6 +76,7 @@ NO_MANIPULABILITY = _cfg(
     "No Manipulability (β=0)",
     beta=0.0,
     beam_width=10,
+    clearance_radius=0.01,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -85,6 +87,7 @@ NO_FEASIBILITY_FILTER = _cfg(
     "No Feasibility Filter",
     disable_feasibility_filter=True,
     beam_width=10,
+    clearance_radius=0.01,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -124,19 +127,21 @@ BEAM_20 = _cfg("Beam=20", beam_width=20)
 #   No-Diversity   — disable grasp-pair feasibility filtering
 #   Proposed       — full method (= BASELINE)
 
-GREEDY = _cfg("Greedy (beam=1)", beam_width=1)
+GREEDY = _cfg("Greedy (beam=1)", beam_width=1, clearance_radius=0.01)
 
 SINGLE_ROBOT = _cfg(
     "Single Robot",
     switch_cost_override=np.inf,   # effectively prohibit switches
+    clearance_radius=0.01,
 )
 
 NO_DIVERSITY = _cfg(
     "No Diversity",
     use_dpp=False,
+    clearance_radius=0.01,
 )
 
-PROPOSED = _cfg("Proposed", beam_width=None)  # full method — no beam pruning
+PROPOSED = _cfg("Proposed", beam_width=None, clearance_radius=0.01)  # full method — no beam pruning
 
 
 # ═══════════════════════════════════════════════════════════════════════════

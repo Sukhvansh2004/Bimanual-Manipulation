@@ -15,13 +15,13 @@
             {
                 "type": "box",
                 "name": "wallObstacle",
-                "size": [0.06, 0.60, 0.35],
-                "position": [0.0, 0.0, 1.075],
+                "size": [0.06, 0.30, 0.25],
+                "position": [0.0, 0.0, 1.025],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall spanning the full table width. x=±0.06, y=±0.40, z=0.725–1.425. Blocks any direct path, forcing the mug through a dual-arm handover."
+                "_comment": "Central wall: x=±0.03, y=±0.15, z=0.90–1.15. Blocks direct transfer, forcing the mug through a dual-arm handover."
             }
         ]
     },
@@ -30,8 +30,8 @@
         "start_pose": null,
         "target_pose": {
             "position": [0.2, 0.0, 0.927],
-            "quaternion": [0, 0, 0, 1],
-            "_comment": "Upright mug on the right side of the table"
+            "quaternion": [0, 0, 1, 0],
+            "_comment": "Upright mug on the right side, handle pointing same direction as start (180° Z to preserve handle orientation)"
         }
     },
     "planning": {

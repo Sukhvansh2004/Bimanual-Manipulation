@@ -929,7 +929,11 @@ def main():
         stabilise(system.env, system.env_lock)
 
         tracker.place_success = True
-        tracker.task_success = True
+        # Task is successful only if all handovers succeeded AND the object was placed
+        tracker.task_success = (
+            tracker.n_handovers_attempted == 0
+            or tracker.n_handovers_succeeded == tracker.n_handovers_attempted
+        )
         tracker.execution_time_s = time.time() - tracker.execution_start_time
 
         if not args.headless:

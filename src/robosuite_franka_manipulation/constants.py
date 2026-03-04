@@ -131,7 +131,7 @@ IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
 # Trajectory Feasibility Check Parameters (warm-start driven — needs speed)
 TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
-TRAJ_IK_MAX_SOLUTIONS = 2  # Just need 1 collision-free + 1 backup
+TRAJ_IK_MAX_SOLUTIONS = 4
 
 # Relaxed IK tolerances for handover cost evaluation (we only need a rough
 # feasibility check, not a high-precision solution).
