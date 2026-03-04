@@ -5,17 +5,19 @@
   "planning": {
     "experiment": "ycb_plate_table_to_shelf",
     "config_label": "No Manipulability (\u03b2=0)",
-    "total_cost": Infinity,
-    "n_segments": 0,
-    "n_handovers": 0,
-    "handover_points": [],
-    "mean_task_cost": 0.0,
-    "total_switching_cost": 0.0,
-    "mean_manipulability": 0.0,
-    "min_manipulability": 0.0,
+    "total_cost": 100005.08361526838,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      11
+    ],
+    "mean_task_cost": 0.10167230536842681,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.8144590705219227,
+    "min_manipulability": 0.7685909575396559,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
-    "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 591.8345680236816
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 776.7536668777466
   }
 }

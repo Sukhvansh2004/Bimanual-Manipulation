@@ -147,7 +147,7 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
             return i
     return None
 
-def stabilise(env, env_lock: threading.RLock, steps: int = 10):
+def stabilise(env, env_lock: threading.RLock, steps: int = 50):
     """Step the environment a few times to stabilize after gripper actions."""
     with env_lock if env_lock else nullcontext():
         for _ in range(steps):
