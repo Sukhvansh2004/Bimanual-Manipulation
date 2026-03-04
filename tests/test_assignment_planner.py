@@ -906,6 +906,9 @@ class TestMakeCollisionCheckFn:
             "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
             return_value=False,
         ) as mock_collision, patch(
+            "robosuite_franka_manipulation.planning.utils.collision_utils.in_collision",
+            return_value=False,
+        ) as mock_in_collision, patch(
             "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
@@ -914,6 +917,7 @@ class TestMakeCollisionCheckFn:
 
             assert result is True  # no collision
             mock_collision.assert_called_once()
+            mock_in_collision.assert_called_once()
 
     @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_detected_returns_false(self, _mock_ctx):
@@ -935,6 +939,9 @@ class TestMakeCollisionCheckFn:
         ), patch(
             "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
             return_value=True,  # collision!
+        ), patch(
+            "robosuite_franka_manipulation.planning.utils.collision_utils.in_collision",
+            return_value=False,
         ), patch(
             "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
             side_effect=lambda x: x,

@@ -137,7 +137,10 @@ def _setup_environment(exp_cfg):
 
     ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock, relaxed=True)
     jacobian_fns = make_jacobian_fns(env, env_lock)
-    collision_check_fn = make_collision_check_fn(env, env_lock)
+    collision_check_fn = make_collision_check_fn(
+        env, env_lock,
+        manipulated_object=exp_cfg.task.manipulated_object,
+    )
 
     logger.info("Environment ready (IK solver, Jacobian functions, collision checker).")
     return ik_solver_fn, jacobian_fns, collision_check_fn, env, env_lock, tf_manager

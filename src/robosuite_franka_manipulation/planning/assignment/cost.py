@@ -247,22 +247,40 @@ def _compute_handover_primitive_cost(
         logger.debug("Handover IK failure: receiver arm (robot%d)", receiver_robot_id)
         return np.inf, False
 
-    # --- Inter-arm collision check at the critical handover meeting point ---
+    # --- Collision check along the full handover trajectory ---
+    # Phase 1: receiver approaches while transfer holds at hold pose.
+    # Phase 2: transfer retreats while receiver stays at final approach.
     if collision_check_fn is not None and transfer_configs and receiver_configs:
-        q_transfer_hold = transfer_configs[0]     # transfer arm at hold pose
-        q_receiver_final = receiver_configs[-1]    # receiver at grasp approach
-        # collision_check_fn expects (q_robot0, q_robot1) ordering
-        if transfer_robot_id == 0:
-            collision_free = collision_check_fn(q_transfer_hold, q_receiver_final)
-        else:
-            collision_free = collision_check_fn(q_receiver_final, q_transfer_hold)
-        if not collision_free:
-            logger.debug(
-                "Handover rejected: inter-arm collision at grasp meeting point "
-                "(transfer=robot%d, receiver=robot%d)",
-                transfer_robot_id, receiver_robot_id,
-            )
-            return np.inf, False
+        n_hold = len(handover_trajectory.get("transfer_hold", []))
+        q_transfer_hold = transfer_configs[0]      # transfer arm during hold
+        q_receiver_final = receiver_configs[-1]     # receiver at grasp approach
+
+        def _col_free(q_trans, q_recv):
+            if transfer_robot_id == 0:
+                return collision_check_fn(q_trans, q_recv)
+            return collision_check_fn(q_recv, q_trans)
+
+        # Phase 1: check each receiver config against transfer hold
+        for j, q_recv in enumerate(receiver_configs):
+            if not _col_free(q_transfer_hold, q_recv):
+                logger.debug(
+                    "Handover rejected: collision during receiver approach "
+                    "(step %d/%d, transfer=robot%d, receiver=robot%d)",
+                    j, len(receiver_configs),
+                    transfer_robot_id, receiver_robot_id,
+                )
+                return np.inf, False
+
+        # Phase 2: check each transfer retreat config against receiver final
+        for i, q_trans in enumerate(transfer_configs[n_hold:], start=n_hold):
+            if not _col_free(q_trans, q_receiver_final):
+                logger.debug(
+                    "Handover rejected: collision during transfer retreat "
+                    "(step %d/%d, transfer=robot%d, receiver=robot%d)",
+                    i, len(transfer_configs),
+                    transfer_robot_id, receiver_robot_id,
+                )
+                return np.inf, False
 
     # Smoothness per arm — use squared diff directly (avoid sqrt)
     smoothness = 0.0

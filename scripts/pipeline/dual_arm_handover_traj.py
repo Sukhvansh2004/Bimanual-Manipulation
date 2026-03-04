@@ -35,11 +35,10 @@ from typing import List, Optional
 import meshcat
 from contextlib import nullcontext
 from robosuite_franka_manipulation import (
-    DualArmManipulationSystem, constants, StampedPose
+    DualArmManipulationSystem, constants
 )
 from robosuite_franka_manipulation.utils.env_utils import (
-    create_ycb_object, create_primitive_object, env_step,
-    register_mesh_extraction_env, get_action_persistence_manager,
+    env_step, register_mesh_extraction_env,
 )
 from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
@@ -154,26 +153,6 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
         if waypoint_results[i].is_feasible:
             return i
     return None
-
-def _seed_idle_arm_persistence(env, idle_robot_id: int, idle_arm_ctrl):
-    """Store the idle arm's *actual* joint positions in the action
-    persistence manager so that subsequent ``env_step`` calls for the
-    *active* arm will hold the idle arm in place instead of jumping to
-    a stale stored action.
-
-    This must be called after any operation that directly modifies
-    ``env.sim.data.qpos`` (e.g. RRT collision-checking) and before the
-    active arm starts moving via ``follow_joint_trajectory``.
-    """
-    mgr = get_action_persistence_manager()
-    arm_name = idle_arm_ctrl.arm_id  # e.g. "right"
-    store_key = f"robot_{idle_robot_id}_{arm_name}_arm"
-    current_q = idle_arm_ctrl.get_joint_positions()
-    mgr.previous_arm_actions[store_key] = current_q.copy()
-    logger.debug(
-        "Seeded idle arm persistence: %s = %s", store_key, current_q,
-    )
-
 
 def stabilise(env, env_lock: threading.RLock, steps: int = 50):
     """Step the environment a few times to stabilize after gripper actions."""
@@ -534,12 +513,6 @@ def main():
         start_q = current_arm.get_joint_positions()
         q_other = other_arm_ctrl.get_joint_positions()
 
-        # Seed persistence for BOTH arms at the very start so that
-        # the first env_step for either arm replays the actual joint
-        # positions instead of jumping to uninitialised zeros.
-        _seed_idle_arm_persistence(system.env, current_robot, current_arm)
-        _seed_idle_arm_persistence(system.env, other_robot, other_arm_ctrl)
-
         # Solve IK for the pre-grasp target
         _, pregrasp_goal_q = plan_pose_to_joint_trajectory(
             current_arm, grasp_traj_data["pregrasp"], num_steps=100,
@@ -561,13 +534,6 @@ def main():
                     rrt_vis=rrt_vis,
                 )
                 logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
-
-                # Seed action persistence for the idle arm so it holds
-                # its current position instead of jumping to a stale
-                # stored action when env_step is called for the active arm.
-                _seed_idle_arm_persistence(
-                    system.env, other_robot, other_arm_ctrl,
-                )
 
                 current_arm.follow_joint_trajectory(
                     list(rrt_traj), gripper_action=-1.0,
@@ -731,11 +697,6 @@ def main():
                         f"receiver pre-pose during parallel execution. "
                         f"Attempting independent recovery..."
                     )
-                    # Seed persistence for arm A (transfer) so it holds still
-                    _seed_idle_arm_persistence(
-                        system.env, current_robot, current_arm,
-                    )
-
                     # Try RRT: solve IK for pre-pose, plan collision-free path
                     arm_b_start_q = other_arm.get_joint_positions()
                     arm_a_current_q = current_arm.get_joint_positions()
@@ -762,10 +723,6 @@ def main():
                                 "RRT recovery for arm B succeeded. "
                                 "Moving to receiver pre-pose..."
                             )
-                            # Re-seed after RRT (it modifies qpos internally)
-                            _seed_idle_arm_persistence(
-                                system.env, current_robot, current_arm,
-                            )
                             other_arm.follow_joint_trajectory(
                                 list(rrt_traj_b), gripper_action=-1.0,
                                 smoothen=exec_cfg.smoothen, num_steps=200,
@@ -785,9 +742,6 @@ def main():
                     if not recovery_ok:
                         logger.info(
                             "Attempting move_to_pose fallback for arm B..."
-                        )
-                        _seed_idle_arm_persistence(
-                            system.env, current_robot, current_arm,
                         )
                         fallback_ok = other_arm.move_to_pose(
                             receiver_pre_pose,
@@ -812,17 +766,9 @@ def main():
                 logger.debug(f"  Receiver grasp: pos={grasp_receiver.position}, quat={grasp_receiver.quaternion}")
                 logger.debug(f"  Object pose:    pos={obj_pose_h.position}, quat={obj_pose_h.quaternion}")
 
-                # Seed persistence: other arm holds while transfer adjusts
-                _seed_idle_arm_persistence(
-                    system.env, 1 - current_robot, other_arm,
-                )
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)
 
-                # Seed persistence: transfer arm holds while receiver approaches
-                _seed_idle_arm_persistence(
-                    system.env, current_robot, current_arm,
-                )
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
                 other_gripper.release()
                 receiver_converged = other_arm.follow_trajectory(
@@ -851,11 +797,6 @@ def main():
                 # being held (finger gripper).  A simple heuristic: after
                 # release + grasp cycle, the object should be near the
                 # receiver's EEF.
-                # Seed persistence: receiver (now holder) holds while
-                # transfer arm retreats.
-                _seed_idle_arm_persistence(
-                    system.env, 1 - current_robot, other_arm,
-                )
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
 
@@ -890,14 +831,6 @@ def main():
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
                     joint_segment = list(joints_cur[current_idx+1 : last_idx+1])
-                    # Seed idle arm persistence so it holds position
-                    other_arm_final = (
-                        system.right_arm if current_robot == 0
-                        else system.left_arm
-                    )
-                    _seed_idle_arm_persistence(
-                        system.env, 1 - current_robot, other_arm_final,
-                    )
                     # Scale num_steps to segment length; at least 100, cap at 300
                     n_raw = len(joint_segment)
                     n_steps = max(100, min(300, n_raw * 5))
@@ -927,13 +860,6 @@ def main():
         current_gripper.release()
         stabilise(system.env, system.env_lock)
 
-        # Seed idle arm persistence so the other arm holds still during retreat
-        other_arm_retreat = (
-            system.right_arm if current_robot == 0 else system.left_arm
-        )
-        _seed_idle_arm_persistence(
-            system.env, 1 - current_robot, other_arm_retreat,
-        )
         logger.info(f"Robot {current_robot} following retreat trajectory...")
         current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
         stabilise(system.env, system.env_lock)

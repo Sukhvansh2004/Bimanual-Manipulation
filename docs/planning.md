@@ -475,7 +475,7 @@ Three factory functions create closures around the simulation environment for IK
 |----------|-----------|---------|
 | `make_ik_solver_fn(env, tf_manager, env_lock)` | `(StampedPose, int) → Optional[np.ndarray]` | Creates an IK solver that applies orientation correction and delegates to `enumerate_ik_solutions_for_arm` |
 | `make_jacobian_fns(env, env_lock)` | `Dict[int, (np.ndarray) → np.ndarray]` | Creates per-robot Jacobian closures mapping joint configs to 6×7 Jacobians via `compute_arm_jacobian` |
-| `make_collision_check_fn(env, env_lock)` | `(np.ndarray, np.ndarray) → bool` | Creates an inter-arm collision checker that sets both arms' joint configs, runs MuJoCo forward, and returns whether they are collision-free |
+| `make_collision_check_fn(env, env_lock, manipulated_object=None)` | `(np.ndarray, np.ndarray) → bool` | Creates a collision checker that sets both arms' joint configs, runs MuJoCo forward, and returns whether they are collision-free (inter-arm + arm-environment, ignoring the manipulated object) |
 
 When `--no-env` is used, all three are `None` and the planner falls back to simpler heuristics (joint-distance manipulability proxy, constant switching cost, no collision checking).
 

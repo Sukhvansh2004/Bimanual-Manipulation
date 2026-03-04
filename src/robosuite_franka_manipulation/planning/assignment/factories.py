@@ -90,17 +90,24 @@ def make_jacobian_fns(
 def make_collision_check_fn(
     env: DualArmEnvironment,
     env_lock: Optional[threading.RLock] = None,
+    manipulated_object: Optional[str] = None,
 ) -> Callable[[np.ndarray, np.ndarray], bool]:
-    """Create an inter-arm collision-check closure for handover evaluation.
+    """Create a collision-check closure for handover evaluation.
 
     The returned function has signature ``(q_arm0, q_arm1) -> collision_free``.
     It temporarily sets both arms' joint configurations in MuJoCo, runs a
-    forward pass, checks for inter-arm contacts, and restores the original
-    simulation state.
+    forward pass, checks for inter-arm **and** arm-environment contacts, and
+    restores the original simulation state.
+
+    Contacts involving the *manipulated_object* are ignored so that the
+    grasped object does not trigger false positives.
 
     Args:
         env: The dual-arm simulation environment.
         env_lock: Optional reentrant lock guarding the environment.
+        manipulated_object: Geom-name prefix of the manipulated object
+            (e.g. ``"plate_0"``, ``"mug_0"``).  Contacts involving geoms
+            whose names start with this prefix are ignored.
     """
     import mujoco
     from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
@@ -110,12 +117,24 @@ def make_collision_check_fn(
     )
     from robosuite_franka_manipulation.planning.utils.collision_utils import (
         check_inter_arm_collision,
+        in_collision,
     )
 
     model = env.sim.model
     data = env.sim.data
     qpos_idx_0 = get_joint_qpos_indices(model, get_arm_joint_ids(model, 0))
     qpos_idx_1 = get_joint_qpos_indices(model, get_arm_joint_ids(model, 1))
+
+    # Pre-compute ignore lists for arm-environment collision checking.
+    # Inter-arm contacts are already detected by check_inter_arm_collision,
+    # so we exclude them from the in_collision call to avoid double-counting.
+    _inter_arm_ignore_pairs = [
+        ("robot0_", "robot1_"),
+        ("robot0_", "gripper1_"),
+        ("gripper0_", "robot1_"),
+        ("gripper0_", "gripper1_"),
+    ]
+    _ignore_names = [manipulated_object] if manipulated_object else None
 
     def _check(q_arm0: np.ndarray, q_arm1: np.ndarray) -> bool:
         """Return True if the dual-arm configuration is collision-free."""
@@ -130,7 +149,18 @@ def make_collision_check_fn(
                     get_native_mj_object(model),
                     get_native_mj_object(data),
                 )
-                return not check_inter_arm_collision(env)
+                # 1. Inter-arm collision (arm0 ↔ arm1)
+                if check_inter_arm_collision(env):
+                    return False
+                # 2. Arm-environment collision (ignore manipulated object
+                #    and inter-arm pairs already handled above)
+                if in_collision(
+                    env,
+                    ignore_names=_ignore_names,
+                    ignore_pairs=_inter_arm_ignore_pairs,
+                ):
+                    return False
+                return True
             finally:
                 data.qpos[:] = qpos_backup
                 data.qvel[:] = qvel_backup
