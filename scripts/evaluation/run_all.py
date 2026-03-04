@@ -480,8 +480,24 @@ def run_experiment(
     for i, cfg in enumerate(configs, 1):
         logger.info("[%d/%d] %s × %s", i, len(configs), exp_name, cfg["label"])
         cid = config_id(cfg)
+
+        # Configs with use_dpp=False need trajectory data from the _no_dpp
+        # directory (generated without DPP entropy maximization).
+        if not cfg.get("use_dpp", True):
+            cfg_data_dir = data_dir + "_no_dpp"
+            cfg_data_path = Path(cfg_data_dir)
+            if not cfg_data_path.exists() or not list(cfg_data_path.glob("robot0_trajectory_*.npz")):
+                logger.warning(
+                    "    No-DPP data dir not found or empty: %s — skipping %s",
+                    cfg_data_dir, cfg["label"],
+                )
+                continue
+            logger.info("    Using no-DPP data: %s", cfg_data_dir)
+        else:
+            cfg_data_dir = data_dir
+
         exp_result = run_single_assignment(
-            exp_cfg, data_dir, cfg,
+            exp_cfg, cfg_data_dir, cfg,
             ik_solver_fn=ik_solver_fn,
             jacobian_fns=jacobian_fns,
             collision_check_fn=collision_check_fn,
@@ -492,7 +508,7 @@ def run_experiment(
         # Optionally run headless execution
         if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
             # Find the assignment NPZ that was saved by run_single_assignment
-            config_data_dir = Path(data_dir) / "configs" / cid
+            config_data_dir = Path(cfg_data_dir) / "configs" / cid
             asgn_file = str(config_data_dir / "assignment_results.npz")
             if os.path.isfile(asgn_file):
                 exec_metrics = run_execution(
@@ -502,6 +518,7 @@ def run_experiment(
                     config_label=cfg["label"],
                     results_dir=results_dir or RESULTS_ROOT,
                     config_id_str=cid,
+                    data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
                 )
                 if exec_metrics is not None:
                     exp_result.execution = exec_metrics

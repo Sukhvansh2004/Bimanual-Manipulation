@@ -154,11 +154,11 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "clearance_radius": [CLEARANCE_NONE, CLEARANCE_005, CLEARANCE_010, CLEARANCE_015],
     "beam_width": [BEAM_UNLIMITED, BEAM_1, BEAM_5, BEAM_10, BEAM_20],
     "method_comparison": [GREEDY, SINGLE_ROBOT, NO_DIVERSITY, PROPOSED],
-    # Minimal set for the paper tables (configs that run on DPP data)
-    # NO_DIVERSITY is excluded because it requires separate no-DPP trajectory data
-    # Table 1: Proposed, Greedy, Single Robot, No Feasibility Filter
-    # Table 2: Proposed, No Switching Penalty, No Manipulability, No Feasibility Filter
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
+    # Minimal set for the paper tables
+    # Table 1 (Method Comparison): Proposed, Greedy, Single Robot, No Diversity
+    # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability, No Feasibility Filter
+    # NOTE: NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_FEASIBILITY_FILTER, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
 # Flat list of all unique configs for running everything

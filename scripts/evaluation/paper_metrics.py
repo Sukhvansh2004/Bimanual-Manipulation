@@ -178,7 +178,7 @@ def main():
         ("Proposed", "Proposed (Ours)"),
         ("Greedy (beam=1)", "Greedy Reachability"),
         ("Single Robot", "Single Arm"),
-        ("No Feasibility Filter", "No Grasp Diversity"),
+        ("No Diversity", "No Grasp Diversity"),
     ]
 
     for config_label, display_name in method_configs:
