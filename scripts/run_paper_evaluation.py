@@ -59,6 +59,7 @@ from scripts.experiments.configs import (
 )
 from scripts.experiments.run_all import (
     run_experiment, run_execution, print_batch_summary,
+    _experiment_worker, _reconstruct_results,
     _PROJECT_ROOT as PROJECT_ROOT, EXPERIMENTS_DIR, DATA_DIR,
 )
 from scripts.experiments.metrics import ExperimentResult, PlanningMetrics
@@ -104,38 +105,92 @@ def run_planning_phase(
     experiments: list[str],
     configs: list[AblationConfig],
     results_dir: Path,
+    workers: int = 1,
 ) -> list[ExperimentResult]:
-    """Run planning for all experiment × config combinations."""
-    all_results = []
+    """Run planning for all experiment × config combinations.
 
+    Args:
+        workers: Number of parallel experiment workers (each gets its own
+                 MuJoCo env).  Set to 1 for sequential execution.
+    """
+    # Filter to experiments that actually exist
+    exp_jsons = []
     for exp_name in experiments:
         exp_json = str(EXPERIMENTS_DIR / f"{exp_name}.json")
         if not os.path.isfile(exp_json):
             logger.error("Experiment config not found: %s", exp_json)
             continue
+        exp_jsons.append((exp_name, exp_json))
 
-        logger.info("=" * 70)
-        logger.info("PLANNING: %s", exp_name)
-        logger.info("=" * 70)
+    all_results: list[ExperimentResult] = []
 
-        results = run_experiment(
-            exp_json, configs,
-            no_env=False,  # Always use IK
-            results_dir=results_dir,
-            execute=False,
-        )
-        all_results.extend(results)
+    if workers > 1 and len(exp_jsons) > 1:
+        # ── Parallel: one process per experiment ──────────────────────
+        from concurrent.futures import ProcessPoolExecutor, as_completed
 
-        # Summary for this experiment
-        valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
+        n_workers = min(workers, len(exp_jsons))
         logger.info(
-            "  %s: %d/%d configs have finite cost",
-            exp_name, len(valid), len(results),
+            "Running %d experiments in parallel (%d workers)",
+            len(exp_jsons), n_workers,
         )
-        for r in results:
-            cost = r.planning.total_cost if r.planning else float("inf")
-            status = "OK" if cost < float("inf") else "FAILED (inf)"
-            logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+
+        futures = {}
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            for exp_name, exp_json in exp_jsons:
+                future = pool.submit(
+                    _experiment_worker,
+                    exp_json, configs,
+                    False,  # no_env = False → use IK
+                    str(results_dir),
+                    False,  # execute = False
+                )
+                futures[future] = exp_name
+
+            for future in as_completed(futures):
+                exp_name = futures[future]
+                try:
+                    result_dicts = future.result()
+                    results = _reconstruct_results(result_dicts)
+                except Exception as exc:
+                    logger.error("Worker for %s failed: %s", exp_name, exc)
+                    results = []
+
+                all_results.extend(results)
+
+                # Summary for this experiment
+                valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
+                logger.info(
+                    "  %s: %d/%d configs have finite cost",
+                    exp_name, len(valid), len(results),
+                )
+                for r in results:
+                    cost = r.planning.total_cost if r.planning else float("inf")
+                    status = "OK" if cost < float("inf") else "FAILED (inf)"
+                    logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+    else:
+        # ── Sequential ────────────────────────────────────────────────
+        for exp_name, exp_json in exp_jsons:
+            logger.info("=" * 70)
+            logger.info("PLANNING: %s", exp_name)
+            logger.info("=" * 70)
+
+            results = run_experiment(
+                exp_json, configs,
+                no_env=False,
+                results_dir=results_dir,
+                execute=False,
+            )
+            all_results.extend(results)
+
+            valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
+            logger.info(
+                "  %s: %d/%d configs have finite cost",
+                exp_name, len(valid), len(results),
+            )
+            for r in results:
+                cost = r.planning.total_cost if r.planning else float("inf")
+                status = "OK" if cost < float("inf") else "FAILED (inf)"
+                logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
 
     return all_results
 
@@ -286,6 +341,9 @@ def main():
                         help="Run only specific experiments (e.g. --only flatPlate_shelf_to_box)")
     parser.add_argument("--results-dir", type=str, default=None, help="Results directory")
     parser.add_argument("--exec-timeout", type=int, default=600, help="Execution timeout (seconds)")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="Number of parallel workers for planning (each gets its own MuJoCo env). "
+                             "Default: 4. Use 1 for sequential.")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir) if args.results_dir else RESULTS_ROOT
@@ -313,7 +371,9 @@ def main():
         logger.info("\n" + "=" * 80)
         logger.info("  PHASE 1: PLANNING")
         logger.info("=" * 80)
-        planning_results = run_planning_phase(experiments, PAPER_CONFIGS, results_dir)
+        planning_results = run_planning_phase(
+            experiments, PAPER_CONFIGS, results_dir, workers=args.workers,
+        )
     else:
         planning_results = []
 
