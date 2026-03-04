@@ -212,8 +212,10 @@ def export_paper_table1(results: List[ExperimentResult], out_path: Path):
             lines.append(f"  {display_name} & -- & -- & -- & -- & -- & -- & -- \\\\")
             continue
 
-        # Planning metrics (always available)
-        plan_results = [r for r in matching if r.planning is not None]
+        # Planning metrics — only include results with finite cost (valid assignments)
+        plan_results = [r for r in matching if r.planning is not None
+                        and np.isfinite(r.planning.total_cost)
+                        and r.planning.n_segments > 0]
         avg_switches = np.mean([r.planning.n_handovers for r in plan_results]) if plan_results else 0
         avg_plan_time = np.mean([r.planning.planning_time_s for r in plan_results]) if plan_results else 0
         avg_manip = np.mean([r.planning.mean_manipulability for r in plan_results]) if plan_results else 0
@@ -268,7 +270,10 @@ def export_paper_table2(results: List[ExperimentResult], out_path: Path):
     ]
 
     for config_label, display_name in ablations:
-        matching = [r for r in results if r.config_label == config_label and r.planning is not None]
+        matching = [r for r in results if r.config_label == config_label
+                    and r.planning is not None
+                    and np.isfinite(r.planning.total_cost)
+                    and r.planning.n_segments > 0]
         if not matching:
             lines.append(f"  {display_name} & -- & -- & -- & -- & -- & -- \\\\")
             continue

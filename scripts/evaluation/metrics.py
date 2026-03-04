@@ -10,7 +10,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -114,6 +114,7 @@ def extract_planning_metrics(
     experiment_name: str,
     config_label: str,
     planning_time_s: float = 0.0,
+    jacobian_fns: Optional[Dict[int, Callable]] = None,
 ) -> PlanningMetrics:
     """Extract planning metrics from pre-computed data files.
 
@@ -123,6 +124,8 @@ def extract_planning_metrics(
         experiment_name: Name of the experiment.
         config_label: Label of the ablation config.
         planning_time_s: Wall-clock time for the assignment solver.
+        jacobian_fns: Optional ``{robot_id: (q) -> J}`` for Yoshikawa
+            manipulability.  When *None*, falls back to the simple proxy.
 
     Returns:
         Populated PlanningMetrics.
@@ -185,7 +188,13 @@ def extract_planning_metrics(
 
         if seg_idx < len(joint_configs) and is_feasible[seg_idx]:
             q = joint_configs[seg_idx].reshape(1, -1)
-            m = compute_trajectory_manipulability(q)
+            robot_id = int(sequence[seg_idx])
+            jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
+            m = compute_trajectory_manipulability(
+                q,
+                use_jacobian=(jac_fn is not None),
+                jacobian_fn=jac_fn,
+            )
             manip_values.append(float(m[0]))
             feasible_count += 1
 

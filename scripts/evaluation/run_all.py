@@ -290,6 +290,7 @@ def run_single_assignment(
             experiment_name=exp_name,
             config_label=label,
             planning_time_s=planning_time,
+            jacobian_fns=_jac,
         )
 
         logger.info(

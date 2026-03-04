@@ -31,7 +31,7 @@ import logging
 import numpy as np
 import argparse
 import threading
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 import meshcat
 from contextlib import nullcontext
 from robosuite_franka_manipulation import (
@@ -63,8 +63,10 @@ from robosuite_franka_manipulation.planning.assignment import (
 )
 from robosuite_franka_manipulation.planning.utils.manipulability import (
     compute_trajectory_manipulability,
+    compute_manipulability_from_jacobian,
 )
 from scipy.spatial.transform import Rotation as R
+from robosuite_franka_manipulation.planning.assignment.factories import make_jacobian_fns
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,8 @@ class ExecutionTracker:
         self.n_collision_incidents = 0
         self.execution_start_time = 0.0
         self.execution_time_s = 0.0
-        self.executed_joint_configs: List[np.ndarray] = []  # for manipulability
+        self.executed_joint_configs: List[Tuple[int, np.ndarray]] = []  # (robot_id, q)
+        self._jacobian_fns: Optional[Dict[int, Callable]] = None
         self.error_message = ""
         self.n_switches = 0  # total arm switches (= handovers from assignment)
         self.placement_position_error: Optional[float] = None  # metres (None = not verified)
@@ -98,13 +101,28 @@ class ExecutionTracker:
             return 1.0  # no handovers needed → vacuously successful
         return self.n_handovers_succeeded / self.n_handovers_attempted
 
+    def set_jacobian_fns(self, jacobian_fns: Dict[int, Callable]):
+        """Set per-robot Jacobian functions for Yoshikawa manipulability."""
+        self._jacobian_fns = jacobian_fns
+
+    def record_joint_config(self, robot_id: int, q: np.ndarray):
+        """Record a joint configuration with its robot ID."""
+        self.executed_joint_configs.append((robot_id, np.array(q, copy=True)))
+
     @property
     def mean_manipulability(self) -> float:
         if not self.executed_joint_configs:
             return 0.0
-        q = np.array(self.executed_joint_configs)
-        m = compute_trajectory_manipulability(q)
-        return float(np.mean(m))
+        values = []
+        for robot_id, q in self.executed_joint_configs:
+            jac_fn = self._jacobian_fns.get(robot_id) if self._jacobian_fns else None
+            if jac_fn is not None:
+                J = jac_fn(q)
+                values.append(compute_manipulability_from_jacobian(J))
+            else:
+                m = compute_trajectory_manipulability(q.reshape(1, -1))
+                values.append(float(m[0]))
+        return float(np.mean(values))
 
     def to_dict(self) -> dict:
         return {
@@ -333,6 +351,11 @@ def main():
     )
     system.start(start_teleop_thread=False)
     register_mesh_extraction_env(system.env)
+
+    # Build per-robot Jacobian functions for Yoshikawa manipulability
+    _jac_fns = make_jacobian_fns(system.env, system.env_lock)
+    tracker.set_jacobian_fns(_jac_fns)
+    logger.info("Jacobian functions ready — using Yoshikawa manipulability.")
 
     try:
         # 2. Load Trajectories
@@ -681,7 +704,7 @@ def main():
                 if not par_result.success_b:
                     logger.warning(f"Arm B did not fully converge (err={par_result.final_pos_error_b:.4f})")
                 # Record joint configs for manipulability
-                tracker.executed_joint_configs.append(current_arm.get_joint_positions())
+                tracker.record_joint_config(current_robot, current_arm.get_joint_positions())
 
                 current_idx = next_handover_idx
 
@@ -839,7 +862,7 @@ def main():
                     )
                     current_idx = last_idx
                     # Record joint configs for manipulability
-                    tracker.executed_joint_configs.append(current_arm.get_joint_positions())
+                    tracker.record_joint_config(current_robot, current_arm.get_joint_positions())
                 tracker.transport_success = True
                 break
 
