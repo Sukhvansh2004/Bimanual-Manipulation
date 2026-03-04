@@ -226,7 +226,7 @@ def main():
             )
 
     # ── Save ────────────────────────────────────────────────────────────
-    if args.save:
+    if args.save or input("Save object trajectory to NPZ? [y/N]: ").lower() == "y":
         if out_cfg.output_dir is not None:
             output_dir = out_cfg.output_dir
         else:

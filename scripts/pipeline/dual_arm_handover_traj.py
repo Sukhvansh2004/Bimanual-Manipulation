@@ -678,7 +678,6 @@ def main():
                     logger.info("Parallel execution completed collision-free.")
                 else:
                     logger.warning("Parallel execution had QP solver fallbacks — check collision avoidance.")
-                    tracker.n_collision_incidents += 1
                     tracker.parallel_collision_free = False
 
                 # Record joint configs for manipulability
