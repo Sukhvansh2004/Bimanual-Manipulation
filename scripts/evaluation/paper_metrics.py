@@ -368,37 +368,45 @@ def main():
             print(f"    Avg exec manipulability change (β=0 - Proposed): {np.mean(manip_diffs):+.4f}")
 
     # ─────────────────────────────────────────────────────────────────
-    # ABLATION 3: Without Grasp Pair Feasibility Filtering
+    # ABLATION 3: Without Grasp Diversity (DPP)
     # ─────────────────────────────────────────────────────────────────
     print("\n\n" + "=" * 100)
-    print("  ABLATION 3: WITHOUT GRASP PAIR FEASIBILITY FILTERING")
+    print("  ABLATION 3: WITHOUT GRASP DIVERSITY (use_dpp=False)")
     print("=" * 100)
 
-    no_feas_label = "No Feasibility Filter"
-    if no_feas_label in by_config:
-        m_nf = compute_method_metrics(by_config[no_feas_label])
+    no_div_label = "No Diversity"
+    if no_div_label in by_config:
+        m_nd = compute_method_metrics(by_config[no_div_label])
+        m_prop = compute_method_metrics(by_config["Proposed"])
 
-        n_total_nf = len(by_config[no_feas_label])
-        n_valid_nf = m_nf["n_planning_valid"]
-        n_infeasible = n_total_nf - n_valid_nf
-        infeasible_pct = n_infeasible / max(n_total_nf, 1) * 100
+        print(f"\n  Proposed method:")
+        print(f"    Avg Manipulability: {m_prop['avg_manipulability']:.4f}")
+        if m_prop.get('task_success_rate') is not None:
+            print(f"    Task Success Rate:  {m_prop['task_success_rate']:.1f}%")
 
-        print(f"\n  No Feasibility Filter:")
-        print(f"    Total experiments: {n_total_nf}")
-        print(f"    Valid planning:    {n_valid_nf}")
-        print(f"    Infeasible (cost=inf): {n_infeasible} ({infeasible_pct:.0f}%)")
-        print(f"    → Infeasible transitions selected by DP: {infeasible_pct:.0f}%")
-        print(f"    → Task success (considering infeasible as failures): {n_valid_nf / max(n_total_nf, 1) * 100:.0f}%")
+        print(f"\n  No Diversity (top-N by score, no DPP):")
+        print(f"    Experiments:       {m_nd['n_experiments']}")
+        print(f"    Planning Valid:    {m_nd['n_planning_valid']} / {m_nd['n_experiments']}  ({m_nd['planning_success_rate']:.1f}%)")
+        if m_nd['n_planning_valid'] > 0:
+            print(f"    Avg Manipulability: {m_nd['avg_manipulability']:.4f}")
+            print(f"    Avg Handovers:     {m_nd['avg_handovers']:.2f}")
+        if m_nd.get('task_success_rate') is not None:
+            print(f"    Task Success Rate:  {m_nd['task_success_rate']:.1f}%")
 
-        # Also check No Diversity config
-        no_div_label = "No Diversity"
-        if no_div_label in by_config:
-            m_nd = compute_method_metrics(by_config[no_div_label])
-            print(f"\n  No Diversity (alternative label):")
-            print(f"    Total experiments: {m_nd['n_experiments']}")
-            print(f"    Valid planning:    {m_nd['n_planning_valid']}")
+        # Per-experiment comparison
+        print("\n  Per-experiment comparison (Proposed vs No Diversity):")
+        by_exp_prop = {r["experiment"]: r for r in by_config.get("Proposed", [])}
+        by_exp_nd = {r["experiment"]: r for r in by_config[no_div_label]}
+
+        for exp in sorted(set(by_exp_prop.keys()) & set(by_exp_nd.keys())):
+            rp = by_exp_prop[exp]
+            rn = by_exp_nd[exp]
+            if is_valid_planning(rp.get("planning")) and is_valid_planning(rn.get("planning")):
+                mp = rp["planning"]["mean_manipulability"]
+                mn = rn["planning"]["mean_manipulability"]
+                print(f"    {exp:<40} Proposed manip={mp:.4f}  NoDiversity manip={mn:.4f}")
     else:
-        print("  No Feasibility Filter results not found.")
+        print("  No Diversity results not found.")
 
     # ─────────────────────────────────────────────────────────────────
     # DETAILED PER-EXPERIMENT RESULTS (Proposed)
@@ -527,7 +535,7 @@ def main():
     m_prop = compute_method_metrics(by_config.get("Proposed", []))
     m_ns = compute_method_metrics(by_config.get(no_switch_label, [])) if no_switch_label in by_config else {}
     m_nm = compute_method_metrics(by_config.get(no_manip_label, [])) if no_manip_label in by_config else {}
-    m_nf = compute_method_metrics(by_config.get(no_feas_label, [])) if no_feas_label in by_config else {}
+    m_nd = compute_method_metrics(by_config.get(no_div_label, [])) if no_div_label in by_config else {}
 
     print("\n  --- Performance vs Number of Switches ---")
     # Calculate from Proposed execution results
@@ -591,14 +599,11 @@ def main():
                 fail_diff = (nm_failures - prop_failures) / total_compared * 100
                 print(f"  $\\beta = 0$ & Execution Failures & +{fail_diff:.0f}\\% (from {total_compared} compared experiments) \\\\")
 
-    # No Feasibility Filter
-    if m_nf:
-        n_total_nf = len(by_config[no_feas_label])
-        n_valid_nf = m_nf["n_planning_valid"]
-        infeasible_pct = (n_total_nf - n_valid_nf) / max(n_total_nf, 1) * 100
-        task_succ_nf = n_valid_nf / max(n_total_nf, 1) * 100
-        print(f"  No Grasp Pair Filtering & Infeasible Transitions & {infeasible_pct:.0f}\\% \\\\")
-        print(f"  No Grasp Pair Filtering & Task Success (\\%) & {task_succ_nf:.0f}\\% \\\\")
+    # No Diversity
+    if m_nd:
+        print(f"  No Diversity & Avg Manip & {m_nd.get('avg_manipulability', 0):.4f} \\\\")
+        if m_nd.get('task_success_rate') is not None:
+            print(f"  No Diversity & Task Success (\\%) & {m_nd['task_success_rate']:.0f}\\% \\\\")
 
     print("\n\nDone.")
 

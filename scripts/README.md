@@ -12,8 +12,7 @@ scripts/
 ├── paper_2_segment_assignment.sh      # Step 2: Run segment assignment for all configs
 ├── paper_3_execute_all.sh             # Step 3: Headless execution & metric collection
 ├── generate_all_trajs.py              # Batch trajectory generation
-├── run_paper_eval.sh                  # Shell wrapper for paper evaluation
-└── run_overnight.sh                   # Unattended full pipeline runner
+└── run_paper_eval.sh                  # Shell wrapper for paper evaluation
 ```
 
 ---
@@ -221,4 +220,4 @@ Scripts for running batch experiments, computing metrics, and generating paper r
 |--------|---------|
 | `generate_all_trajs.py` | Batch runner: invokes `trajectory_generation.py` + `segment_assignment.py` for every experiment JSON |
 | `run_paper_eval.sh` | Shell wrapper: activates conda, calls `run_paper_evaluation.py`, tees to log |
-| `run_overnight.sh` | Full unattended pipeline: backup data → regen trajectories → planning × configs → execution → metrics |
+

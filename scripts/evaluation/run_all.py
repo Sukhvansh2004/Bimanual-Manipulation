@@ -780,7 +780,14 @@ def main():
 
             for cfg in configs:
                 cid = config_id(cfg)
-                asgn_file = str(Path(data_dir) / "configs" / cid / "assignment_results.npz")
+
+                # Configs with use_dpp=False store data in the _no_dpp directory
+                if not cfg.get("use_dpp", True):
+                    cfg_data_dir = data_dir + "_no_dpp"
+                else:
+                    cfg_data_dir = data_dir
+
+                asgn_file = str(Path(cfg_data_dir) / "configs" / cid / "assignment_results.npz")
 
                 if not os.path.isfile(asgn_file):
                     logger.warning("  %s × %s — no assignment NPZ found, skipping", exp_name, cfg["label"])
@@ -794,6 +801,7 @@ def main():
                     results_dir=results_dir,
                     config_id_str=cid,
                     timeout=args.exec_timeout,
+                    data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
                 )
 
                 # Load existing planning result if available

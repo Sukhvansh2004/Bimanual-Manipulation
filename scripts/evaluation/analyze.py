@@ -246,13 +246,13 @@ def export_paper_table1(results: List[ExperimentResult], out_path: Path):
 def export_paper_table2(results: List[ExperimentResult], out_path: Path):
     """Export Table 2: Ablation Studies.
 
-    Shows effect of removing C_switch, β, and feasibility filter.
+    Shows effect of removing C_switch, β, and grasp diversity.
     """
     ablations = [
-        ("Baseline (α=10, β=1)", "Full Method (Proposed)"),
+        ("Proposed", "Proposed (Ours)"),
         ("No Switching Penalty (Cswitch=0)", r"$C_\text{switch}=0$"),
         ("No Manipulability (β=0)", r"$\beta=0$"),
-        ("No Feasibility Filter", "No Feasibility Filter"),
+        ("No Diversity", "No Grasp Diversity"),
     ]
 
     lines = [
