@@ -49,8 +49,8 @@ import sys
 import time
 from pathlib import Path
 
-# Project root
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Project root (evaluation/ → scripts/ → project root)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
