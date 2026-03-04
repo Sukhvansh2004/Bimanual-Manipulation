@@ -239,18 +239,6 @@ def main():
         )
         logger.info("Saved object trajectory to %s/object_trajectory.npz", output_dir)
 
-    # ── Keep alive for visualization ────────────────────────────────────
-    if vis is not None:
-        logger.info("Visualization active. Press Ctrl+C to exit.")
-        try:
-            while True:
-                time.sleep(1.0)
-        except KeyboardInterrupt:
-            pass
-        finally:
-            stop_event.set()
-            if vis_thread is not None:
-                vis_thread.join(timeout=3.0)
 
     logger.info("Done.")
 
