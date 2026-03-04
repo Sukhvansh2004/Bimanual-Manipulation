@@ -283,7 +283,6 @@ else:
 | `_plan_collision_free_trajectory_b(...)` | Runs joint-space RRT-Connect against Arm A's final config, falls back to quintic interpolation on failure. |
 | `_eef_to_joint_trajectory(arm, eef_traj)` | Converts an EEF trajectory to joint space via sequential IK (warm-started). |
 | `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
-| `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
 
 #### Joint-Space RRT for Arm B Reference Trajectory (`rrt/joint/`)
 

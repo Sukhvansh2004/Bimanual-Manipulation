@@ -383,7 +383,7 @@ class TestHandoverPrimitiveCost:
     """Tests for the internal _compute_handover_primitive_cost function."""
 
     @staticmethod
-    def _dummy_ik(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]:
+    def _dummy_ik(pose: StampedPose, robot_id: int, q_warm_start=None) -> Optional[np.ndarray]:
         """Return a deterministic 7-DOF config based on the pose."""
         return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4])
 
@@ -411,7 +411,7 @@ class TestHandoverPrimitiveCost:
         assert cost > 0
 
     def test_ik_failure_returns_inf(self):
-        def _failing_ik(pose, robot_id):
+        def _failing_ik(pose, robot_id, q_warm_start=None):
             return None
 
         poses = [StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="w")]
@@ -426,7 +426,7 @@ class TestHandoverPrimitiveCost:
         """Each arm's manipulability should use its own Jacobian function."""
         call_log: Dict[int, int] = {0: 0, 1: 0}
 
-        def _ik(pose, robot_id):
+        def _ik(pose, robot_id, q_warm_start=None):
             return np.ones(7) * (robot_id + 1)
 
         def _jac_factory(rid):
@@ -454,7 +454,7 @@ class TestHandoverPrimitiveCost:
 
     def test_collision_check_rejects_colliding_handover(self):
         """A collision_check_fn returning False should cause inf cost."""
-        def _ik(pose, robot_id):
+        def _ik(pose, robot_id, q_warm_start=None):
             return np.ones(7) * 0.5
 
         def _always_colliding(q0, q1):
@@ -477,7 +477,7 @@ class TestHandoverPrimitiveCost:
 
     def test_collision_check_passes_when_free(self):
         """A collision_check_fn returning True should not affect cost."""
-        def _ik(pose, robot_id):
+        def _ik(pose, robot_id, q_warm_start=None):
             return np.ones(7) * 0.5
 
         def _always_free(q0, q1):
@@ -502,7 +502,7 @@ class TestHandoverPrimitiveCost:
         """Verify transfer_robot_id and receiver_robot_id are forwarded to IK."""
         ik_calls: List[int] = []
 
-        def _ik(pose, robot_id):
+        def _ik(pose, robot_id, q_warm_start=None):
             ik_calls.append(robot_id)
             return np.ones(7) * robot_id
 
