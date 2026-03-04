@@ -709,10 +709,91 @@ def main():
 
                 current_idx = next_handover_idx
 
+                # ── Post-parallel recovery for arm B ──────────────────
+                # When the parallel planner fails for arm B (IK failure,
+                # QP abort, etc.), arm B is NOT at the receiver pre-pose.
+                # Attempt independent recovery so the handover can still
+                # succeed.
+                if not par_result.success_b:
+                    logger.info(
+                        f"Arm B (Robot {1 - current_robot}) did not reach "
+                        f"receiver pre-pose during parallel execution. "
+                        f"Attempting independent recovery..."
+                    )
+                    # Seed persistence for arm A (transfer) so it holds still
+                    _seed_idle_arm_persistence(
+                        system.env, current_robot, current_arm,
+                    )
+
+                    # Try RRT: solve IK for pre-pose, plan collision-free path
+                    arm_b_start_q = other_arm.get_joint_positions()
+                    arm_a_current_q = current_arm.get_joint_positions()
+                    _, recv_goal_q = plan_pose_to_joint_trajectory(
+                        other_arm, receiver_pre_pose, num_steps=100,
+                        q_warm_start=q_warm_start_receiver,
+                    )
+
+                    recovery_ok = False
+                    if recv_goal_q is not None:
+                        try:
+                            rrt_traj_b, rrt_ok_b = plan_arm_trajectory(
+                                env=system.env,
+                                robot_id_b=1 - current_robot,
+                                start_q=arm_b_start_q,
+                                goal_q=recv_goal_q,
+                                q_other_arm=arm_a_current_q,
+                                robot_id_a=current_robot,
+                                num_steps=100,
+                                env_lock=system.env_lock,
+                                rrt_vis=rrt_vis,
+                            )
+                            logger.info(
+                                "RRT recovery for arm B succeeded. "
+                                "Moving to receiver pre-pose..."
+                            )
+                            # Re-seed after RRT (it modifies qpos internally)
+                            _seed_idle_arm_persistence(
+                                system.env, current_robot, current_arm,
+                            )
+                            other_arm.follow_joint_trajectory(
+                                list(rrt_traj_b), gripper_action=-1.0,
+                                smoothen=exec_cfg.smoothen, num_steps=200,
+                            )
+                            recovery_ok = True
+                        except RuntimeError:
+                            logger.warning(
+                                "RRT recovery for arm B failed — "
+                                "trying move_to_pose fallback."
+                            )
+                    else:
+                        logger.warning(
+                            "IK for receiver pre-pose failed — "
+                            "skipping RRT, trying move_to_pose."
+                        )
+
+                    if not recovery_ok:
+                        logger.info(
+                            "Attempting move_to_pose fallback for arm B..."
+                        )
+                        _seed_idle_arm_persistence(
+                            system.env, current_robot, current_arm,
+                        )
+                        fallback_ok = other_arm.move_to_pose(
+                            receiver_pre_pose,
+                            gripper_action=-1.0,
+                            num_steps=200,
+                            q_warm_start=q_warm_start_receiver,
+                        )
+                        if fallback_ok:
+                            logger.info("move_to_pose recovery succeeded.")
+                        else:
+                            logger.warning(
+                                "move_to_pose recovery also failed — "
+                                "handover likely to fail."
+                            )
+
                 # -------------------------------------------------------
                 # Handover sequence (sequential — physical contact phase)
-                # Arm B is already at the handover pre-pose from parallel
-                # execution above.
                 # -------------------------------------------------------
                 tracker.n_handovers_attempted += 1
                 logger.info(f"Executing handover at waypoint {current_idx} (robot {current_robot} → robot {1-current_robot})...")
@@ -720,9 +801,17 @@ def main():
                 logger.debug(f"  Receiver grasp: pos={grasp_receiver.position}, quat={grasp_receiver.quaternion}")
                 logger.debug(f"  Object pose:    pos={obj_pose_h.position}, quat={obj_pose_h.quaternion}")
 
+                # Seed persistence: other arm holds while transfer adjusts
+                _seed_idle_arm_persistence(
+                    system.env, 1 - current_robot, other_arm,
+                )
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
                 current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)
 
+                # Seed persistence: transfer arm holds while receiver approaches
+                _seed_idle_arm_persistence(
+                    system.env, current_robot, current_arm,
+                )
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
                 other_gripper.release()
                 receiver_converged = other_arm.follow_trajectory(
@@ -751,6 +840,11 @@ def main():
                 # being held (finger gripper).  A simple heuristic: after
                 # release + grasp cycle, the object should be near the
                 # receiver's EEF.
+                # Seed persistence: receiver (now holder) holds while
+                # transfer arm retreats.
+                _seed_idle_arm_persistence(
+                    system.env, 1 - current_robot, other_arm,
+                )
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
                 current_arm.follow_trajectory(h_traj["transfer_retreat"])
 
@@ -785,6 +879,14 @@ def main():
                 if last_idx is not None and last_idx > current_idx:
                     logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
                     joint_segment = list(joints_cur[current_idx+1 : last_idx+1])
+                    # Seed idle arm persistence so it holds position
+                    other_arm_final = (
+                        system.right_arm if current_robot == 0
+                        else system.left_arm
+                    )
+                    _seed_idle_arm_persistence(
+                        system.env, 1 - current_robot, other_arm_final,
+                    )
                     # Scale num_steps to segment length; at least 100, cap at 300
                     n_raw = len(joint_segment)
                     n_steps = max(100, min(300, n_raw * 5))
@@ -809,6 +911,13 @@ def main():
         current_gripper.release()
         stabilise(system.env, system.env_lock)
 
+        # Seed idle arm persistence so the other arm holds still during retreat
+        other_arm_retreat = (
+            system.right_arm if current_robot == 0 else system.left_arm
+        )
+        _seed_idle_arm_persistence(
+            system.env, 1 - current_robot, other_arm_retreat,
+        )
         logger.info(f"Robot {current_robot} following retreat trajectory...")
         current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
         stabilise(system.env, system.env_lock)
