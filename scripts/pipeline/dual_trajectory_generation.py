@@ -321,7 +321,7 @@ def main() -> None:
     logger.info("Initializing Service Architecture...")
     service_manager = ServiceManager()
     service_manager.start()
-    grasp_service = GraspService(tf_manager=tf_manager, visualize=True)
+    grasp_service = GraspService(tf_manager=tf_manager, visualize=True, use_dpp=plan_cfg.use_dpp)
     grasp_service.start()
     grasp_generator = GraspGenerator(env=env)
     
@@ -341,8 +341,12 @@ def main() -> None:
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
-    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=grasp_entropy_n)
-    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=grasp_entropy_n)
+    if plan_cfg.use_dpp:
+        grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=grasp_entropy_n)
+        grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=grasp_entropy_n)
+    else:
+        grasps_0 = grasps_0[:grasp_entropy_n]
+        grasps_1 = grasps_1[:grasp_entropy_n]
 
     logger.info(f"Selection: {len(grasps_0)} Finger grasps, {len(grasps_1)} Suction grasps.")
 

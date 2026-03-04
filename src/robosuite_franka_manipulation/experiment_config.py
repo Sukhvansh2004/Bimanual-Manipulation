@@ -50,6 +50,7 @@ class PlanningConfig:
     """Grasp generation & trajectory planning knobs."""
     num_grasps: int = 200
     num_entropy_grasps: int = 20
+    use_dpp: bool = True  # Use DPP entropy maximization for grasp selection; False → top-N by score
     gripper_types: List[str] = field(default_factory=lambda: ["finger", "suction"])
     collision_check: str = "Inter"
     num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS

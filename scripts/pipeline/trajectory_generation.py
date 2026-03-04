@@ -370,7 +370,8 @@ def main() -> None:
     # Initialize Grasp Service (it registers itself)
     grasp_service = GraspService(
         tf_manager=tf_manager,
-        visualize=False 
+        visualize=False,
+        use_dpp=plan_cfg.use_dpp,
     )
     grasp_service.start()
     
@@ -395,8 +396,12 @@ def main() -> None:
     grasps_0 = sorted([g for g in all_grasps if g.gripper_type in ('finger', constants.GRIPPER_TYPE_MAPPING['finger'])], key=lambda g: g.score, reverse=True)
     grasps_1 = sorted([g for g in all_grasps if g.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction'])], key=lambda g: g.score, reverse=True)
     
-    grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=grasp_entropy_n)
-    grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=grasp_entropy_n)
+    if plan_cfg.use_dpp:
+        grasps_0 = maximize_entropy_grasps(grasps_0, num_grasps=grasp_entropy_n)
+        grasps_1 = maximize_entropy_grasps(grasps_1, num_grasps=grasp_entropy_n)
+    else:
+        grasps_0 = grasps_0[:grasp_entropy_n]
+        grasps_1 = grasps_1[:grasp_entropy_n]
     
     logger.info(f"Received {len(grasps_0)} grasps for Finger and {len(grasps_1)} for Suction.")
 

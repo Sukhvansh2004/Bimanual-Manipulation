@@ -10,6 +10,7 @@ Each configuration is a dict with:
   - use_ik:             Whether to create env for IK/Jacobian/collision
   - disable_feasibility_filter: Skip grasp-pair feasibility filtering
   - switch_cost_override: Override switching cost (0 → free switches)
+  - use_dpp:            Use DPP entropy maximization for grasp selection (False → top-N by score)
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ def _cfg(
     use_ik: bool = True,
     disable_feasibility_filter: bool = False,
     switch_cost_override: Optional[float] = None,
+    use_dpp: bool = True,
 ) -> AblationConfig:
     return {
         "label": label,
@@ -45,6 +47,7 @@ def _cfg(
         "use_ik": use_ik,
         "disable_feasibility_filter": disable_feasibility_filter,
         "switch_cost_override": switch_cost_override,
+        "use_dpp": use_dpp,
     }
 
 
@@ -126,13 +129,11 @@ GREEDY = _cfg("Greedy (beam=1)", beam_width=1)
 SINGLE_ROBOT = _cfg(
     "Single Robot",
     switch_cost_override=np.inf,   # effectively prohibit switches
-    beam_width=10,
 )
 
 NO_DIVERSITY = _cfg(
     "No Diversity",
-    disable_feasibility_filter=True,
-    beam_width=10,
+    use_dpp=False,
 )
 
 PROPOSED = _cfg("Proposed", beam_width=None)  # full method — no beam pruning

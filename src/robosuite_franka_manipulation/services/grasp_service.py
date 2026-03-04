@@ -43,7 +43,8 @@ class GraspService:
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT,
                  debug: bool = False,
-                 visualize: bool = False):
+                 visualize: bool = False,
+                 use_dpp: bool = True):
         """
         Initialize Grasp Service.
         """
@@ -65,7 +66,8 @@ class GraspService:
         for gripper_type in gripper_types:
             try:
                 self.grasp_predictors[gripper_type] = GraspPredictor(
-                    gripper_type=gripper_type, debug=debug, visualize=visualize
+                    gripper_type=gripper_type, debug=debug, visualize=visualize,
+                    use_dpp=use_dpp,
                 )
                 logger.info(f"Loaded GraspPredictor for {gripper_type}")
             except Exception as e:

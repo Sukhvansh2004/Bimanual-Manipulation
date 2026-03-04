@@ -33,10 +33,12 @@ class GraspPredictor:
         model_path: str = "",
         debug: bool = False,
         visualize: bool = False,
+        use_dpp: bool = True,
     ) -> None:
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type
+        self.use_dpp = use_dpp
 
         # Lazy-created MeshCat visualizer (shared across calls)
         self._meshcat_vis: Optional[meshcat.Visualizer] = None
@@ -202,7 +204,11 @@ class GraspPredictor:
 
         logger.debug(f"GraspGen generated {len(grasp_list)} grasps from pointcloud of size {len(pcd_processed)}")
         
-        grasp_list = maximize_entropy_grasps(grasp_list, num_grasps)
+        if self.use_dpp:
+            grasp_list = maximize_entropy_grasps(grasp_list, num_grasps)
+        else:
+            # Select top-N grasps by score (no diversity maximization)
+            grasp_list = sorted(grasp_list, key=lambda g: g.score, reverse=True)[:num_grasps]
 
         if self.visualize and grasp_list:
              # Visualization logic
