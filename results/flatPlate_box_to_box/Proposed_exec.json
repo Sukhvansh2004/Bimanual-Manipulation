@@ -4,12 +4,12 @@
   "transport_success": true,
   "place_success": true,
   "n_handovers_attempted": 2,
-  "n_handovers_succeeded": 2,
-  "handover_success_rate": 1.0,
+  "n_handovers_succeeded": 1,
+  "handover_success_rate": 0.5,
   "n_collision_incidents": 2,
   "n_switches": 2,
-  "execution_time_s": 203.9366955757141,
-  "mean_manipulability": 0.7983558818359905,
+  "execution_time_s": 210.2403199672699,
+  "mean_manipulability": 0.8046765660166537,
   "parallel_collision_free": false,
   "error_message": ""
 }

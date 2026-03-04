@@ -1,21 +1,4 @@
-2026-03-04 12:45:14,803 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
-2026-03-04 12:45:14,803 [__main__] INFO  Paper evaluation: 3 experiments × 5 configs
-2026-03-04 12:45:14,803 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'flatPlate_shelf_to_box', 'flatPlate_box_to_box']
-2026-03-04 12:45:14,804 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
-2026-03-04 12:45:14,804 [__main__] INFO  
-================================================================================
-2026-03-04 12:45:14,804 [__main__] INFO    PHASE 1: PLANNING
-2026-03-04 12:45:14,804 [__main__] INFO  ================================================================================
-2026-03-04 12:45:14,804 [__main__] INFO  Running 3 experiments in parallel (3 workers)
-2026-03-04 13:01:33,142 [__main__] INFO    flatPlate_box_to_box: 3/5 configs have finite cost
-2026-03-04 13:01:33,144 [__main__] INFO      Proposed                                  cost=202823.07  [OK]
-2026-03-04 13:01:33,144 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
-2026-03-04 13:01:33,144 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-04 13:01:33,144 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=2812.30  [OK]
-2026-03-04 13:01:33,144 [__main__] INFO      No Manipulability (β=0)                   cost=200005.86  [OK]
-2026-03-04 13:42:06,924 [__main__] INFO    ycb_plate_table_to_shelf: 4/5 configs have finite cost
-2026-03-04 13:42:06,924 [__main__] INFO      Proposed                                  cost=101878.22  [OK]
-2026-03-04 13:42:06,924 [__main__] INFO      Greedy (beam=1)                           cost=101878.22  [OK]
-2026-03-04 13:42:06,924 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-04 13:42:06,925 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1874.45  [OK]
-2026-03-04 13:42:06,925 [__main__] INFO      No Manipulability (β=0)                   cost=100005.08  [OK]
+2026-03-04 16:22:09,645 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
+2026-03-04 16:22:09,645 [__main__] INFO  Paper evaluation: 4 experiments × 5 configs
+2026-03-04 16:22:09,645 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'flatPlate_shelf_to_box', 'mug_inversion', 'flatPlate_box_to_box']
+2026-03-04 16:22:09,645 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']

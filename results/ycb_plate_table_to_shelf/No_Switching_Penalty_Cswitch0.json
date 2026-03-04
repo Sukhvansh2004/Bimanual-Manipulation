@@ -21,5 +21,22 @@
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
     "planning_time_s": 503.759920835495
+  },
+  "execution": {
+    "experiment": "ycb_plate_table_to_shelf",
+    "config_label": "No Switching Penalty (Cswitch=0)",
+    "task_success": false,
+    "handover_success_rate": 0.5,
+    "n_handovers_attempted": 2,
+    "n_handovers_succeeded": 1,
+    "n_collision_incidents": 1,
+    "execution_time_s": 144.65395975112915,
+    "grasp_success": true,
+    "transport_success": false,
+    "place_success": false,
+    "n_switches": 3,
+    "mean_manipulability": 0.7819516242653228,
+    "parallel_collision_free": false,
+    "error_message": "The number of derivatives at boundaries does not match: expected 2, got 0+0"
   }
 }

@@ -1013,3 +1013,122 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-04 14:56:24,545 [W-53409 flatPlate_shelf_to_box] INFO  Segment 26/49: 69.4s (IK=31, pruned=10, alive=10) ETA 684s
 2026-03-04 14:58:36,938 [W-53409 flatPlate_shelf_to_box] INFO  Segment 27/49: 132.4s (IK=73, pruned=10, alive=10) ETA 737s
 2026-03-04 15:01:16,195 [W-53409 flatPlate_shelf_to_box] INFO  Segment 28/49: 159.3s (IK=101, pruned=10, alive=10) ETA 798s
+2026-03-04 15:04:27,142 [W-53409 flatPlate_shelf_to_box] INFO  Segment 29/49: 190.9s (IK=87, pruned=10, alive=10) ETA 866s
+2026-03-04 15:07:30,948 [W-53409 flatPlate_shelf_to_box] INFO  Segment 30/49: 183.8s (IK=87, pruned=10, alive=10) ETA 911s
+2026-03-04 15:09:36,858 [W-53409 flatPlate_shelf_to_box] INFO  Segment 31/49: 125.9s (IK=87, pruned=10, alive=10) ETA 909s
+2026-03-04 15:11:19,370 [W-53409 flatPlate_shelf_to_box] INFO  Segment 32/49: 102.5s (IK=73, pruned=10, alive=10) ETA 886s
+2026-03-04 15:13:12,487 [W-53409 flatPlate_shelf_to_box] INFO  Segment 33/49: 113.1s (IK=73, pruned=10, alive=10) ETA 863s
+2026-03-04 15:14:38,971 [W-53409 flatPlate_shelf_to_box] INFO  Segment 34/49: 86.5s (IK=55, pruned=12, alive=10) ETA 824s
+2026-03-04 15:15:23,910 [W-53409 flatPlate_shelf_to_box] INFO  Segment 35/49: 44.9s (IK=26, pruned=8, alive=9) ETA 765s
+2026-03-04 15:15:53,568 [W-53409 flatPlate_shelf_to_box] INFO  Segment 36/49: 29.7s (IK=15, pruned=7, alive=7) ETA 701s
+2026-03-04 15:16:19,825 [W-53409 flatPlate_shelf_to_box] INFO  Segment 37/49: 26.3s (IK=10, pruned=7, alive=7) ETA 638s
+2026-03-04 15:16:46,401 [W-53409 flatPlate_shelf_to_box] INFO  Segment 38/49: 26.6s (IK=10, pruned=7, alive=7) ETA 577s
+2026-03-04 15:17:10,147 [W-53409 flatPlate_shelf_to_box] INFO  Segment 39/49: 23.7s (IK=9, pruned=6, alive=6) ETA 518s
+2026-03-04 15:17:22,934 [W-53409 flatPlate_shelf_to_box] INFO  Segment 40/49: 12.8s (IK=5, pruned=6, alive=6) ETA 457s
+2026-03-04 15:17:36,257 [W-53409 flatPlate_shelf_to_box] INFO  Segment 41/49: 13.3s (IK=5, pruned=6, alive=6) ETA 399s
+2026-03-04 15:17:47,720 [W-53409 flatPlate_shelf_to_box] INFO  Segment 42/49: 11.5s (IK=4, pruned=5, alive=5) ETA 343s
+2026-03-04 15:17:47,720 [W-53409 flatPlate_shelf_to_box] INFO  Segment 43/49: 0.0s (IK=0, pruned=5, alive=5) ETA 287s
+2026-03-04 15:17:47,720 [W-53409 flatPlate_shelf_to_box] INFO  Segment 44/49: 0.0s (IK=0, pruned=5, alive=5) ETA 234s
+2026-03-04 15:17:47,720 [W-53409 flatPlate_shelf_to_box] INFO  Segment 45/49: 0.0s (IK=0, pruned=5, alive=5) ETA 183s
+2026-03-04 15:17:47,720 [W-53409 flatPlate_shelf_to_box] INFO  Segment 46/49: 0.0s (IK=0, pruned=5, alive=5) ETA 134s
+2026-03-04 15:17:47,721 [W-53409 flatPlate_shelf_to_box] INFO  Segment 47/49: 0.0s (IK=0, pruned=5, alive=5) ETA 87s
+2026-03-04 15:17:47,721 [W-53409 flatPlate_shelf_to_box] INFO  Segment 48/49: 0.0s (IK=0, pruned=5, alive=5) ETA 43s
+2026-03-04 15:17:47,721 [W-53409 flatPlate_shelf_to_box] INFO  Segment 49/49: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
+2026-03-04 15:17:47,721 [W-53409 flatPlate_shelf_to_box] INFO  Forward pass complete: total IK evals=1113, pruned=354, elapsed=2055.9s
+2026-03-04 15:17:47,721 [W-53409 flatPlate_shelf_to_box] INFO  Best terminal cost=6.0446 at state 22
+2026-03-04 15:17:47,724 [W-53409 flatPlate_shelf_to_box] INFO  Assignment solved: total_cost=6.0446, handovers=1
+2026-03-04 15:17:47,745 [W-53409 flatPlate_shelf_to_box] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_shelf_to_box/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-04 15:17:47,780 [W-53409 flatPlate_shelf_to_box] INFO      ✓ cost=6.04, handovers=1, manip=0.8247, time=2056.6s
+2026-03-04 15:17:47,799 [W-53409 flatPlate_shelf_to_box] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0.json
+2026-03-04 15:17:52,660 [__main__] INFO    flatPlate_shelf_to_box: 3/5 configs have finite cost
+2026-03-04 15:17:52,677 [__main__] INFO      Proposed                                  cost=1212.51  [OK]
+2026-03-04 15:17:52,677 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-04 15:17:52,677 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-04 15:17:52,677 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=986.86  [OK]
+2026-03-04 15:17:52,677 [__main__] INFO      No Manipulability (β=0)                   cost=6.04  [OK]
+2026-03-04 15:17:52,950 [__main__] INFO  
+Total evaluation time: 9158.1 seconds
+2026-03-04 15:17:52,995 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:52,995 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-04 15:17:52,995 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/dual_handover_plate/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:52,997 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_box_to_box/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:52,998 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:52,998 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-04 15:17:52,998 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,000 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,000 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-04 15:17:53,000 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_table/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,001 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,002 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-04 15:17:53,002 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/flatPlate_table_to_shelf/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,003 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Greedy_beam1_exec.json: 'experiment'
+2026-03-04 15:17:53,003 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,003 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-04 15:17:53,003 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,004 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_rack_to_table/Single_Robot_exec.json: 'experiment'
+2026-03-04 15:17:53,004 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,004 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_bowl_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,005 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,005 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_can_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,005 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,006 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_rack_to_table/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,006 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Beamunlimited_exec.json: 'experiment'
+2026-03-04 15:17:53,006 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-04 15:17:53,007 [scripts.experiments.results_store] WARNING  Failed to load /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_mug_table_to_rack/Proposed_exec.json: 'experiment'
+2026-03-04 15:17:53,038 [scripts.experiments.results_store] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (119 results)
+
+Loaded 31 paper-experiment results
+
+====================================================================================================
+  TABLE 1: METHOD COMPARISON (4 paper experiments)
+====================================================================================================
+Method                               Plan%    #HO       Cost    Manip  Feas%  Time(s)
+----------------------------------------------------------------------------------------------------
+  Proposed                              100%    1.3   101971.3   0.8093   100%     1570
+  Greedy (beam=1)                        33%    1.0   101878.2   0.8035   100%       35
+  Single Robot                            0%      —          —        —      —        —
+  No Switching Penalty (Cswitch=0)      100%    4.0     1891.2   0.8043   100%      986
+  No Manipulability (β=0)               100%    1.3   100005.7   0.8157   100%     1049
+
+====================================================================================================
+  PER-EXPERIMENT BREAKDOWN
+====================================================================================================
+
+--- ycb_plate_table_to_shelf ---
+  Baseline (α=10, β=1)                     cost=       INF  ho=0  manip=0.0000  time=2366s
+  Beam=10                                  cost=       INF  ho=0  manip=0.0000  time=2411s
+  Beam=1 (greedy)                          cost=       INF  ho=0  manip=0.0000  time=502s
+  Beam=20                                  cost=       INF  ho=0  manip=0.0000  time=2045s
+  Beam=5                                   cost=       INF  ho=0  manip=0.0000  time=1726s
+  Beam=unlimited                           cost=       INF  ho=0  manip=0.0000  time=2587s
+  Clearance=0.05m                          cost=       INF  ho=0  manip=0.0000  time=2309s
+  Clearance=0.10m                          cost=       INF  ho=0  manip=0.0000  time=2344s
+  Clearance=0.15m                          cost=       INF  ho=0  manip=0.0000  time=2620s
+  Clearance=off                            cost=       INF  ho=0  manip=0.0000  time=2306s
+  Greedy (beam=1)                          cost= 101878.22  ho=1  manip=0.8035  time=35s
+  No Feasibility Filter                    cost=       INF  ho=0  manip=0.0000  time=2288s
+  No Manipulability (β=0)                  cost= 100005.08  ho=1  manip=0.8145  time=777s
+  No Switching Penalty (Cswitch=0)         cost=   1874.45  ho=3  manip=0.8039  time=504s
+  Proposed                                 cost= 101878.22  ho=1  manip=0.8035  time=1092s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=998s
+  Stride=1                                 cost=       INF  ho=0  manip=0.0000  time=2253s
+  Stride=3                                 cost=       INF  ho=0  manip=0.0000  time=767s
+  Stride=5                                 cost=       INF  ho=0  manip=0.0000  time=385s
+
+--- flatPlate_shelf_to_box ---
+  Greedy (beam=1)                          cost=       INF  ho=0  manip=0.0000  time=54s
+  No Manipulability (β=0)                  cost=      6.04  ho=1  manip=0.8247  time=2057s
+  No Switching Penalty (Cswitch=0)         cost=    986.86  ho=5  manip=0.8079  time=2205s
+  Proposed                                 cost=   1212.51  ho=1  manip=0.8249  time=3303s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=1528s
+
+--- mug_inversion: NO RESULTS ---
+
+--- flatPlate_box_to_box ---
+  Baseline (α=10, β=1)                     cost=       INF  ho=0  manip=0.0000  time=12s
+  Greedy (beam=1)                          cost=       INF  ho=0  manip=0.0000  time=45s
+  No Feasibility Filter                    cost=       INF  ho=0  manip=0.0000  time=11s
+  No Manipulability (β=0)                  cost= 200005.86  ho=2  manip=0.8079  time=314s
+  No Switching Penalty (Cswitch=0)         cost=   2812.30  ho=4  manip=0.8009  time=251s
+  Proposed                                 cost= 202823.07  ho=2  manip=0.7995  time=315s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=46s

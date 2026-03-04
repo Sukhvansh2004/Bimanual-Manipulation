@@ -19,5 +19,22 @@
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
     "planning_time_s": 34.90529251098633
+  },
+  "execution": {
+    "experiment": "ycb_plate_table_to_shelf",
+    "config_label": "Greedy (beam=1)",
+    "task_success": true,
+    "handover_success_rate": 1.0,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 1,
+    "n_collision_incidents": 1,
+    "execution_time_s": 121.7673544883728,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_switches": 1,
+    "mean_manipulability": 0.7939398805190676,
+    "parallel_collision_free": false,
+    "error_message": ""
   }
 }

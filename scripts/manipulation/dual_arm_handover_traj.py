@@ -529,6 +529,12 @@ def main():
         start_q = current_arm.get_joint_positions()
         q_other = other_arm_ctrl.get_joint_positions()
 
+        # Seed persistence for BOTH arms at the very start so that
+        # the first env_step for either arm replays the actual joint
+        # positions instead of jumping to uninitialised zeros.
+        _seed_idle_arm_persistence(system.env, current_robot, current_arm)
+        _seed_idle_arm_persistence(system.env, other_robot, other_arm_ctrl)
+
         # Solve IK for the pre-grasp target
         _, pregrasp_goal_q = plan_pose_to_joint_trajectory(
             current_arm, grasp_traj_data["pregrasp"], num_steps=100,

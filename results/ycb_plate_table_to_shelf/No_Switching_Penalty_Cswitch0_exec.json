@@ -1,0 +1,15 @@
+{
+  "task_success": false,
+  "grasp_success": true,
+  "transport_success": false,
+  "place_success": false,
+  "n_handovers_attempted": 2,
+  "n_handovers_succeeded": 1,
+  "handover_success_rate": 0.5,
+  "n_collision_incidents": 1,
+  "n_switches": 3,
+  "execution_time_s": 144.65395975112915,
+  "mean_manipulability": 0.7819516242653228,
+  "parallel_collision_free": false,
+  "error_message": "The number of derivatives at boundaries does not match: expected 2, got 0+0"
+}
