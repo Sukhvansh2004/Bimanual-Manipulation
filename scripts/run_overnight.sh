@@ -164,7 +164,7 @@ for exp in "${REGEN_EXPERIMENTS[@]}"; do
         continue
     fi
 
-    python scripts/planning/trajectory_generation.py \
+    python scripts/pipeline/trajectory_generation.py \
         --experiment "${patched_cfg}" \
         --save-traj \
         --no-meshcat \

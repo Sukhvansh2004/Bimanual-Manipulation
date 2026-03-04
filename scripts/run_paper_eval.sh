@@ -40,7 +40,7 @@ echo "============================================================"
 mkdir -p results
 
 # Run the evaluation, tee output to a log file
-python scripts/run_paper_evaluation.py "$@" 2>&1 | tee results/paper_eval_stdout.log
+python scripts/evaluation/run_paper_evaluation.py "$@" 2>&1 | tee results/paper_eval_stdout.log
 
 echo ""
 echo "============================================================"

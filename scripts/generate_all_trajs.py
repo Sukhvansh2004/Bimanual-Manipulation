@@ -30,8 +30,8 @@ logger = logging.getLogger("batch_runner")
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPERIMENTS_DIR = os.path.join(ROOT_DIR, "experiments")
-TRAJ_GEN_SCRIPT = os.path.join(ROOT_DIR, "scripts", "planning", "trajectory_generation.py")
-ASSIGNMENT_SCRIPT = os.path.join(ROOT_DIR, "scripts", "planning", "segment_assignment.py")
+TRAJ_GEN_SCRIPT = os.path.join(ROOT_DIR, "scripts", "pipeline", "trajectory_generation.py")
+ASSIGNMENT_SCRIPT = os.path.join(ROOT_DIR, "scripts", "pipeline", "segment_assignment.py")
 
 
 def patch_config(cfg: dict, worker_override: int | None = None) -> dict:
