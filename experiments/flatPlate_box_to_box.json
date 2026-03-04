@@ -19,13 +19,13 @@
             {
                 "type": "box",
                 "name": "wallObstacle",
-                "size": [0.1, 0.45, 0.35],
+                "size": [0.1, 0.30, 0.35],
                 "position": [0.0, 0.1, 1.075],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall: x=±0.05, y=−0.125 to +0.325, z=0.90–1.25. Blocks direct transfer, forcing detour around through the other arm's workspace."
+                "_comment": "Central wall: x=±0.05, y=−0.10 to +0.30, z=0.90–1.25. Blocks direct transfer, forcing detour around through the other arm's workspace."
             },
             {
                 "type": "box",
