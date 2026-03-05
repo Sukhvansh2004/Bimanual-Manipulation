@@ -1,9 +1,9 @@
 {
-  "experiment": "flatPlate_shelf_to_box",
+  "experiment": "ycb_plate_shelf_to_table",
   "config_label": "Single Robot",
   "config_id": "Single_Robot",
   "planning": {
-    "experiment": "flatPlate_shelf_to_box",
+    "experiment": "ycb_plate_shelf_to_table",
     "config_label": "Single Robot",
     "total_cost": Infinity,
     "n_segments": 0,
@@ -16,6 +16,6 @@
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 1528.3029317855835
+    "planning_time_s": 733.0637536048889
   }
 }

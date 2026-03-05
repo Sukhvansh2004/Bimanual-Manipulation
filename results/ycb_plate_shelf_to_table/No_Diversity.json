@@ -1,10 +1,10 @@
 {
-  "experiment": "flatPlate_shelf_to_box",
-  "config_label": "Greedy (beam=1)",
-  "config_id": "Greedy_beam1",
+  "experiment": "ycb_plate_shelf_to_table",
+  "config_label": "No Diversity",
+  "config_id": "No_Diversity",
   "planning": {
-    "experiment": "flatPlate_shelf_to_box",
-    "config_label": "Greedy (beam=1)",
+    "experiment": "ycb_plate_shelf_to_table",
+    "config_label": "No Diversity",
     "total_cost": Infinity,
     "n_segments": 0,
     "n_handovers": 0,
@@ -16,6 +16,6 @@
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 54.08846044540405
+    "planning_time_s": 0.9974358081817627
   }
 }

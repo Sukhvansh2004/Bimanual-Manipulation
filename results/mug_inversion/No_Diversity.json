@@ -1,0 +1,23 @@
+{
+  "experiment": "mug_inversion",
+  "config_label": "No Diversity",
+  "config_id": "No_Diversity",
+  "planning": {
+    "experiment": "mug_inversion",
+    "config_label": "No Diversity",
+    "total_cost": 101610.92440840212,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      35
+    ],
+    "mean_task_cost": 20.13655510502637,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.10894048528680496,
+    "min_manipulability": 0.07203564683823768,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 1828.3681449890137
+  }
+}

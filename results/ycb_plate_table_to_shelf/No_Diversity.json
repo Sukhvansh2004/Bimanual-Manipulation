@@ -1,0 +1,23 @@
+{
+  "experiment": "ycb_plate_table_to_shelf",
+  "config_label": "No Diversity",
+  "config_id": "No_Diversity",
+  "planning": {
+    "experiment": "ycb_plate_table_to_shelf",
+    "config_label": "No Diversity",
+    "total_cost": 100997.15810944934,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      13
+    ],
+    "mean_task_cost": 19.94316218898601,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.1075268602028136,
+    "min_manipulability": 0.055502756765758235,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 4556.261130332947
+  }
+}

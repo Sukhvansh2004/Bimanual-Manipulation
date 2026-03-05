@@ -5,17 +5,19 @@
   "planning": {
     "experiment": "mug_inversion",
     "config_label": "No Manipulability (\u03b2=0)",
-    "total_cost": Infinity,
-    "n_segments": 0,
-    "n_handovers": 0,
-    "handover_points": [],
-    "mean_task_cost": 0.0,
-    "total_switching_cost": 0.0,
-    "mean_manipulability": 0.0,
-    "min_manipulability": 0.0,
+    "total_cost": 100211.7709359072,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      36
+    ],
+    "mean_task_cost": 2.6471366988400917,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.08216138250171903,
+    "min_manipulability": 0.029677172211738913,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
-    "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 2.168734073638916
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 744.2465124130249
   }
 }

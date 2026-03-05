@@ -1,0 +1,30 @@
+2026-03-05 04:28:57,970 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
+2026-03-05 04:28:57,970 [__main__] INFO  Paper evaluation: 4 experiments × 6 configs
+2026-03-05 04:28:57,970 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'ycb_plate_shelf_to_table', 'mug_inversion', 'flatPlate_box_to_box']
+2026-03-05 04:28:57,970 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Diversity', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
+2026-03-05 04:28:57,971 [__main__] INFO  
+================================================================================
+2026-03-05 04:28:57,971 [__main__] INFO    PHASE 1: PLANNING
+2026-03-05 04:28:57,971 [__main__] INFO  ================================================================================
+2026-03-05 04:28:57,971 [__main__] INFO  Running 4 experiments in parallel (4 workers)
+2026-03-05 05:39:31,506 [__main__] INFO    mug_inversion: 4/6 configs have finite cost
+2026-03-05 05:39:31,509 [__main__] INFO      Proposed                                  cost=101835.11  [OK]
+2026-03-05 05:39:31,509 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 05:39:31,509 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 05:39:31,509 [__main__] INFO      No Diversity                              cost=101610.92  [OK]
+2026-03-05 05:39:31,509 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1430.36  [OK]
+2026-03-05 05:39:31,509 [__main__] INFO      No Manipulability (β=0)                   cost=100211.77  [OK]
+2026-03-05 06:44:17,742 [__main__] INFO    ycb_plate_shelf_to_table: 4/6 configs have finite cost
+2026-03-05 06:44:17,743 [__main__] INFO      Proposed                                  cost=102253.66  [OK]
+2026-03-05 06:44:17,743 [__main__] INFO      Greedy (beam=1)                           cost=103078.52  [OK]
+2026-03-05 06:44:17,743 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 06:44:17,743 [__main__] INFO      No Diversity                              cost=inf  [FAILED (inf)]
+2026-03-05 06:44:17,743 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=2243.69  [OK]
+2026-03-05 06:44:17,743 [__main__] INFO      No Manipulability (β=0)                   cost=100870.51  [OK]
+2026-03-05 10:55:31,233 [__main__] INFO    flatPlate_box_to_box: 4/6 configs have finite cost
+2026-03-05 10:55:31,234 [__main__] INFO      Proposed                                  cost=54853.91  [OK]
+2026-03-05 10:55:31,234 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 10:55:31,234 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 10:55:31,234 [__main__] INFO      No Diversity                              cost=2646.74  [OK]
+2026-03-05 10:55:31,234 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1537.71  [OK]
+2026-03-05 10:55:31,234 [__main__] INFO      No Manipulability (β=0)                   cost=52689.71  [OK]

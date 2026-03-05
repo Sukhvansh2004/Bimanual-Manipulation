@@ -1,0 +1,24 @@
+{
+  "experiment": "flatPlate_box_to_box",
+  "config_label": "No Diversity",
+  "config_id": "No_Diversity",
+  "planning": {
+    "experiment": "flatPlate_box_to_box",
+    "config_label": "No Diversity",
+    "total_cost": 2646.7410370470175,
+    "n_segments": 80,
+    "n_handovers": 2,
+    "handover_points": [
+      16,
+      62
+    ],
+    "mean_task_cost": 25.0408426048879,
+    "total_switching_cost": 643.473628655985,
+    "mean_manipulability": 0.10440665734204713,
+    "min_manipulability": 0.04554930712881207,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 5372.418958187103
+  }
+}

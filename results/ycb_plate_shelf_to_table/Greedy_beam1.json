@@ -1,0 +1,23 @@
+{
+  "experiment": "ycb_plate_shelf_to_table",
+  "config_label": "Greedy (beam=1)",
+  "config_id": "Greedy_beam1",
+  "planning": {
+    "experiment": "ycb_plate_shelf_to_table",
+    "config_label": "Greedy (beam=1)",
+    "total_cost": 103078.51991705135,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      44
+    ],
+    "mean_task_cost": 61.57039834102732,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.07914409236970192,
+    "min_manipulability": 0.017626973549861782,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 713.3973472118378
+  }
+}

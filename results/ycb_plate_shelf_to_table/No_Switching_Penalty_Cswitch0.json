@@ -1,0 +1,25 @@
+{
+  "experiment": "ycb_plate_shelf_to_table",
+  "config_label": "No Switching Penalty (Cswitch=0)",
+  "config_id": "No_Switching_Penalty_Cswitch0",
+  "planning": {
+    "experiment": "ycb_plate_shelf_to_table",
+    "config_label": "No Switching Penalty (Cswitch=0)",
+    "total_cost": 2243.6922063327215,
+    "n_segments": 50,
+    "n_handovers": 3,
+    "handover_points": [
+      29,
+      41,
+      42
+    ],
+    "mean_task_cost": 44.87384412665443,
+    "total_switching_cost": 0.0,
+    "mean_manipulability": 0.09151773548262186,
+    "min_manipulability": 0.017626973549861782,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 2062.748139858246
+  }
+}
