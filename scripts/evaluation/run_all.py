@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
+from tqdm import tqdm
 
 # Project root
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -869,7 +870,13 @@ def main():
         logger.info("All jobs already completed — nothing to run.")
     elif num_workers == 1:
         # Sequential — simpler output, easier to debug
+        total_jobs = len(jobs)
+        desc = f"Planning [0/{total_jobs} done, {total_jobs} remaining]"
+        pbar = tqdm(total=total_jobs, desc=desc, unit="job", ncols=120)
+        n_done = 0
         for exp_path, cfg in jobs:
+            ename = Path(exp_path).stem
+            pbar.set_postfix_str(f"{ename}×{cfg['label']}")
             result = run_single_config(
                 exp_path, cfg,
                 no_env=args.no_env,
@@ -878,11 +885,21 @@ def main():
             )
             if result:
                 all_results.append(result)
+            n_done += 1
+            pbar.set_description(
+                f"Planning [{n_done}/{total_jobs} done, {total_jobs - n_done} remaining]"
+            )
+            pbar.update(1)
+        pbar.close()
     else:
         logger.info(
             "Launching %d parallel workers for %d jobs …",
             min(num_workers, len(jobs)), len(jobs),
         )
+        total_jobs = len(jobs)
+        desc = f"Planning [0/{total_jobs} done, {total_jobs} remaining]"
+        pbar = tqdm(total=total_jobs, desc=desc, unit="job", ncols=120)
+        n_done = 0
         # Use 'spawn' start method — safest with MuJoCo C libraries
         ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(
@@ -910,6 +927,14 @@ def main():
                     logger.info("✓ %s × %s finished", exp_name, label)
                 except Exception as exc:
                     logger.error("✗ %s × %s FAILED: %s", exp_name, label, exc)
+
+                n_done += 1
+                pbar.set_description(
+                    f"Planning [{n_done}/{total_jobs} done, {total_jobs - n_done} remaining]"
+                )
+                pbar.set_postfix_str(f"{exp_name}×{label}")
+                pbar.update(1)
+        pbar.close()
 
     total_elapsed = time.time() - total_t0
     print_batch_summary(all_results, total_elapsed)

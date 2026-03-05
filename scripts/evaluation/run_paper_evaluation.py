@@ -163,12 +163,9 @@ def run_planning_phase(
             total_jobs, len(exp_jsons), len(configs), n_skipped, n_workers,
         )
 
-        pbar = tqdm(
-            total=total_jobs,
-            desc="Segment assignment",
-            unit="eval",
-            ncols=90,
-        )
+        desc = f"Planning [0/{total_jobs} done, {total_jobs} remaining]"
+        pbar = tqdm(total=total_jobs, desc=desc, unit="job", ncols=120)
+        n_done = 0
 
         futures = {}
         with ProcessPoolExecutor(max_workers=n_workers) as pool:
@@ -196,20 +193,24 @@ def run_planning_phase(
                 except Exception as exc:
                     logger.error("Worker for %s × %s failed: %s", exp_name, label, exc)
 
+                n_done += 1
+                pbar.set_description(
+                    f"Planning [{n_done}/{total_jobs} done, {total_jobs - n_done} remaining]"
+                )
+                pbar.set_postfix_str(f"{exp_name}×{label}")
                 pbar.update(1)
-                pbar.set_postfix_str(f"done: {exp_name}×{label}")
 
         pbar.close()
     else:
         # ── Sequential ────────────────────────────────────────────────
-        pbar = tqdm(
-            total=total_jobs,
-            desc="Segment assignment",
-            unit="eval",
-            ncols=90,
-        )
+        desc = f"Planning [0/{total_jobs} done, {total_jobs} remaining]"
+        pbar = tqdm(total=total_jobs, desc=desc, unit="job", ncols=120)
+        n_done = 0
 
         for exp_name, exp_json, cfg in jobs:
+            pbar.set_description(
+                f"Planning [{n_done}/{total_jobs} done, {total_jobs - n_done} remaining]"
+            )
             pbar.set_postfix_str(f"{exp_name}×{cfg['label']}")
 
             result = run_single_config(
@@ -223,6 +224,10 @@ def run_planning_phase(
                 cost = result.planning.total_cost if result.planning else float("inf")
                 status = "OK" if cost < float("inf") else "FAILED (inf)"
                 logger.info("    %-40s  cost=%.2f  [%s]", result.config_label, cost, status)
+            n_done += 1
+            pbar.set_description(
+                f"Planning [{n_done}/{total_jobs} done, {total_jobs - n_done} remaining]"
+            )
             pbar.update(1)
 
         pbar.close()
