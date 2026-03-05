@@ -36,11 +36,14 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import ctypes
+import ctypes.util
 import glob
 import json
 import logging
 import multiprocessing as mp
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -84,6 +87,20 @@ DATA_DIR = _PROJECT_ROOT / "data"
 _ASSIGNMENT_SCRIPT = str(_PROJECT_ROOT / "scripts" / "pipeline" / "segment_assignment.py")
 
 
+def _child_preexec() -> None:
+    """Ask the kernel to send SIGTERM to this child when its parent dies.
+
+    Uses ``prctl(PR_SET_PDEATHSIG, SIGTERM)`` (Linux-only).  This ensures
+    that subprocesses are automatically terminated when the orchestrating
+    Python process is killed.
+    """
+    _PR_SET_PDEATHSIG = 1
+    libc_name = ctypes.util.find_library("c")
+    if libc_name:
+        libc = ctypes.CDLL(libc_name, use_errno=True)
+        libc.prctl(_PR_SET_PDEATHSIG, signal.SIGTERM)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Assignment runner (subprocess — delegates to segment_assignment.py)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -96,6 +113,7 @@ def run_assignment_subprocess(
     metrics_file: str,
     no_env: bool = False,
     timeout: int = 14400,
+    results_dir: Optional[Path] = None,
 ) -> ExperimentResult:
     """Run assignment planning via subprocess (calls segment_assignment.py).
 
@@ -111,6 +129,7 @@ def run_assignment_subprocess(
         metrics_file: Path to write the planning metrics JSON.
         no_env: Skip environment creation (--no-env).
         timeout: Subprocess timeout in seconds (default: 4 hours).
+        results_dir: Directory for log files (default: RESULTS_ROOT).
 
     Returns:
         ExperimentResult with planning metrics populated.
@@ -151,23 +170,29 @@ def run_assignment_subprocess(
 
     logger.info("    Command: %s", " ".join(cmd))
 
-    # --- Run subprocess ---
+    # --- Run subprocess, redirecting to a log file ---
+    _rdir = results_dir or RESULTS_ROOT
+    log_file = str(_rdir / exp_name / f"{cid}_assignment.log")
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     t0 = time.time()
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
+        with open(log_file, "w") as lf:
+            proc = subprocess.run(
+                cmd,
+                stdout=lf,
+                stderr=lf,
+                text=True,
+                timeout=timeout,
+                preexec_fn=_child_preexec,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
         planning_time = time.time() - t0
 
         if proc.returncode != 0:
             logger.error(
-                "    Assignment FAILED (exit %d)\n    stderr: %s",
-                proc.returncode,
-                proc.stderr[-1000:] if proc.stderr else "(no stderr)",
+                "    Assignment FAILED (exit %d) — see %s",
+                proc.returncode, log_file,
             )
             return ExperimentResult(
                 experiment=exp_name,
@@ -284,20 +309,25 @@ def run_execution(
     logger.info("    Running execution: %s × %s", experiment_name, config_label)
     logger.info("    Command: %s", " ".join(cmd))
 
+    log_file = str(results_dir / experiment_name / f"{config_id_str}_exec.log")
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
+        with open(log_file, "w") as lf:
+            proc = subprocess.run(
+                cmd,
+                stdout=lf,
+                stderr=lf,
+                text=True,
+                timeout=timeout,
+                preexec_fn=_child_preexec,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
 
         if proc.returncode != 0:
             logger.error(
-                "    Execution FAILED (exit %d): %s",
-                proc.returncode,
-                proc.stderr[-500:] if proc.stderr else "(no stderr)",
+                "    Execution FAILED (exit %d) — see %s",
+                proc.returncode, log_file,
             )
 
         # Load metrics from the JSON file (script writes it even on partial failure)
@@ -408,6 +438,7 @@ def run_experiment(
             output_dir=str(config_data_dir),
             metrics_file=metrics_file,
             no_env=no_env,
+            results_dir=results_dir,
         )
 
         # Optionally run headless execution

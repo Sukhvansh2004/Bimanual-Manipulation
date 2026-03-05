@@ -25,6 +25,9 @@
 
 set -euo pipefail
 
+# Kill all child processes on exit/interrupt
+trap 'kill -- -$$ 2>/dev/null; wait' EXIT INT TERM
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
