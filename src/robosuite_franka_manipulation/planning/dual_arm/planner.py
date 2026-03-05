@@ -473,9 +473,15 @@ class DualArmParallelPlanner:
     def _solve_mink_step(self) -> Optional[np.ndarray]:
         """Run one mink solve_ik step and return arm B's target joints.
 
+        If the primary QP solve (with collision avoidance) fails, a
+        *relaxed* retry is attempted without the
+        ``CollisionAvoidanceLimit``.  This prevents the failure cascade
+        where arm B holds position, diverges from its reference, and
+        causes persistent collisions.
+
         Returns:
-            (7,) joint configuration for arm B, or ``None`` if the QP
-            fails.
+            (7,) joint configuration for arm B, or ``None`` if both the
+            primary and relaxed QP solves fail.
         """
         m = self._mink
         assert m is not None
@@ -484,33 +490,56 @@ class DualArmParallelPlanner:
         if m.posture_task is not None:
             tasks.append(m.posture_task)
 
-        limits = []
+        limits_full: list = []
         if m.vel_limit is not None:
-            limits.append(m.vel_limit)
+            limits_full.append(m.vel_limit)
         if m.config_limit is not None:
-            limits.append(m.config_limit)
+            limits_full.append(m.config_limit)
         if m.collision_limit is not None:
-            limits.append(m.collision_limit)
+            limits_full.append(m.collision_limit)
 
         constraints = []
         if m.freeze_task is not None:
             constraints.append(m.freeze_task)
 
+        # --- Primary solve (with collision avoidance) -----------------
         try:
             vel = mink.solve_ik(
                 configuration=m.config,
                 tasks=tasks,
                 dt=constants.MINK_DT,
                 solver=constants.MINK_QP_SOLVER,
-                limits=limits if limits else None,
+                limits=limits_full if limits_full else None,
                 constraints=constraints if constraints else None,
             )
-        except Exception as exc:
-            logger.debug("mink solve_ik failed: %s", exc)
-            return None
+            m.config.integrate_inplace(vel, constants.MINK_DT)
+            return m.config.q[m.qpos_idx_b].copy()
+        except Exception as exc_primary:
+            pass  # fall through to relaxed solve
 
-        m.config.integrate_inplace(vel, constants.MINK_DT)
-        return m.config.q[m.qpos_idx_b].copy()
+        # --- Relaxed fallback (drop collision avoidance) --------------
+        limits_relaxed = [
+            lim for lim in limits_full
+            if lim is not m.collision_limit
+        ]
+        try:
+            vel = mink.solve_ik(
+                configuration=m.config,
+                tasks=tasks,
+                dt=constants.MINK_DT,
+                solver=constants.MINK_QP_SOLVER,
+                limits=limits_relaxed if limits_relaxed else None,
+                constraints=constraints if constraints else None,
+            )
+            logger.debug("Primary QP infeasible — relaxed solve succeeded.")
+            m.config.integrate_inplace(vel, constants.MINK_DT)
+            return m.config.q[m.qpos_idx_b].copy()
+        except Exception as exc_relaxed:
+            logger.debug(
+                "Both primary and relaxed mink solve_ik failed: %s",
+                exc_relaxed,
+            )
+            return None
 
     # ------------------------------------------------------------------
     # Trajectory resolution

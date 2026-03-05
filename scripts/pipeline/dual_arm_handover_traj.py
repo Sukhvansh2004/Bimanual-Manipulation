@@ -67,6 +67,10 @@ from robosuite_franka_manipulation.planning.utils.manipulability import (
 )
 from scipy.spatial.transform import Rotation as R
 from robosuite_franka_manipulation.planning.assignment.factories import make_jacobian_fns
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -583,8 +587,13 @@ def main():
         # Record grasp success
         tracker.grasp_success = True
 
-        # Enable physics-based collision monitoring for the execution phase
-        start_collision_monitor(exp_cfg.task.manipulated_object)
+        # Enable physics-based collision monitoring for the execution phase.
+        # Ignore gripper-gripper contacts — these are expected during
+        # close-proximity handover approach/release phases.
+        start_collision_monitor(
+            exp_cfg.task.manipulated_object,
+            ignore_pairs=[("gripper0", "gripper1")],
+        )
 
         # Record number of arm switches from assignment
         if assignment is not None:
@@ -723,10 +732,6 @@ def main():
                     # The primary IK solution may be in collision with arm A;
                     # alternative joint configurations for the same Cartesian
                     # pose could be collision-free.
-                    from robosuite_franka_manipulation.planning.utils.ik_utils import (
-                        enumerate_ik_solutions_for_arm,
-                        apply_ik_orientation_correction,
-                    )
 
                     arm_b_start_q = other_arm.get_joint_positions()
                     arm_a_current_q = current_arm.get_joint_positions()

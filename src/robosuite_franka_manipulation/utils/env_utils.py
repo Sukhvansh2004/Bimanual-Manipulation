@@ -6,7 +6,7 @@ import atexit
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironment
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.utils.suction_weld import apply_suction_weld
@@ -430,12 +430,17 @@ class CollisionMonitor:
 
     When enabled, after every ``env_step`` the monitor checks MuJoCo contacts
     for inter-arm collisions AND arm-environment collisions (ignoring the
-    manipulated object).  Each step with at least one qualifying contact
-    increments the counter by one.
+    manipulated object and any configured ``ignore_pairs``).
+
+    Contacts with penetration depth shallower than
+    ``min_penetration_depth`` are also excluded — this filters out light
+    touches (e.g. grippers barely touching during handover) that do not
+    represent dangerous collisions.
 
     Usage::
 
-        start_collision_monitor("plate_0")
+        start_collision_monitor("plate_0",
+                                ignore_pairs=[("gripper0", "gripper1")])
         # ... execute trajectory ...
         n = stop_collision_monitor()
     """
@@ -444,14 +449,35 @@ class CollisionMonitor:
         self._enabled = False
         self._collision_count = 0
         self._manipulated_object: Optional[str] = None
+        self._ignore_pairs: Optional[List[Tuple[str, str]]] = None
+        self._min_penetration_depth: float = constants.COLLISION_MONITOR_MIN_DEPTH
 
     # ── public API ──────────────────────────────────────────────────────
 
-    def start(self, manipulated_object: Optional[str] = None):
-        """Enable monitoring and reset the counter."""
+    def start(
+        self,
+        manipulated_object: Optional[str] = None,
+        ignore_pairs: Optional[List[Tuple[str, str]]] = None,
+        min_penetration_depth: Optional[float] = None,
+    ):
+        """Enable monitoring and reset the counter.
+
+        Args:
+            manipulated_object: Geom-name prefix to ignore entirely.
+            ignore_pairs: List of ``(prefix_a, prefix_b)`` geom-prefix
+                pairs whose mutual contacts are ignored.
+            min_penetration_depth: Minimum MuJoCo penetration depth
+                (negative ``contact.dist``) to count.  ``None`` keeps
+                the default from ``constants``.
+        """
         self._enabled = True
         self._collision_count = 0
         self._manipulated_object = manipulated_object
+        self._ignore_pairs = ignore_pairs
+        if min_penetration_depth is not None:
+            self._min_penetration_depth = min_penetration_depth
+        else:
+            self._min_penetration_depth = constants.COLLISION_MONITOR_MIN_DEPTH
 
     def stop(self) -> int:
         """Disable monitoring and return the accumulated count."""
@@ -478,7 +504,12 @@ class CollisionMonitor:
             in_collision,
         )
         ignore_names = [self._manipulated_object] if self._manipulated_object else None
-        if in_collision(env, ignore_names=ignore_names):
+        if in_collision(
+            env,
+            ignore_names=ignore_names,
+            ignore_pairs=self._ignore_pairs,
+            contact_dist_threshold=-self._min_penetration_depth,
+        ):
             self._collision_count += 1
 
 
@@ -486,15 +517,28 @@ class CollisionMonitor:
 _collision_monitor = CollisionMonitor()
 
 
-def start_collision_monitor(manipulated_object: Optional[str] = None):
+def start_collision_monitor(
+    manipulated_object: Optional[str] = None,
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
+    min_penetration_depth: Optional[float] = None,
+):
     """Enable collision monitoring in ``env_step``.
 
     Args:
         manipulated_object: Geom-name prefix of the grasped object to ignore
             (e.g. ``"plate_0"``, ``"mug_0"``).  Contacts involving geoms
             whose name starts with this prefix are excluded.
+        ignore_pairs: List of ``(prefix_a, prefix_b)`` pairs whose 
+            mutual contacts are ignored (e.g. gripper-gripper during
+            handover).
+        min_penetration_depth: Minimum penetration depth (m) to count.
+            Defaults to ``constants.COLLISION_MONITOR_MIN_DEPTH``.
     """
-    _collision_monitor.start(manipulated_object)
+    _collision_monitor.start(
+        manipulated_object,
+        ignore_pairs=ignore_pairs,
+        min_penetration_depth=min_penetration_depth,
+    )
 
 
 def stop_collision_monitor() -> int:

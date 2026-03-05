@@ -141,6 +141,12 @@ HANDOVER_IK_ORI_TOLERANCE = 0.05   # ~3° (vs. 0.29° for grasp IK)
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 
+# Collision Monitor — execution-time severity filter.
+# MuJoCo ``contact.dist`` is negative for penetration; a threshold of
+# 1e-3 m (1 mm) ignores light touches and only counts contacts with
+# meaningful penetration.
+COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
+
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 
