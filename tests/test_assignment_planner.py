@@ -898,9 +898,27 @@ class TestFactoryFunctions:
 
         assert result is None
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.compute_arm_jacobian")
-    def test_make_jacobian_fns_returns_per_robot(self, mock_jac, mock_env):
-        mock_jac.return_value = np.eye(6, 7)
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    def test_make_jacobian_fns_returns_per_robot(
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        mock_env,
+    ):
+        mock_jids.return_value = list(range(7))
+        mock_qidx.return_value = np.arange(7)
+        mock_didx.return_value = np.arange(7)
+        mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
+        mock_native.side_effect = lambda x: x
+
+        mock_config = MagicMock()
+        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
+        mock_mink.Configuration.return_value = mock_config
+
+        mock_env.sim.data.qpos = np.zeros(17)
 
         fns = make_jacobian_fns(mock_env, env_lock=None)
         assert 0 in fns
@@ -912,24 +930,43 @@ class TestFactoryFunctions:
 
         assert J0.shape == (6, 7)
         assert J1.shape == (6, 7)
-        assert mock_jac.call_count == 2
 
-        # Verify correct robot_id was passed in each call
-        calls = mock_jac.call_args_list
-        assert calls[0][1]["robot_id"] == 0
-        assert calls[1][1]["robot_id"] == 1
+        # Verify per-robot site names were resolved
+        site_calls = mock_site.call_args_list
+        assert site_calls[0][0][0] == 0
+        assert site_calls[1][0][0] == 1
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.compute_arm_jacobian")
-    def test_make_jacobian_fns_with_lock(self, mock_jac, mock_env):
-        mock_jac.return_value = np.eye(6, 7)
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    def test_make_jacobian_fns_with_lock(
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        mock_env,
+    ):
+        mock_jids.return_value = list(range(7))
+        mock_qidx.return_value = np.arange(7)
+        mock_didx.return_value = np.arange(7)
+        mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
+        mock_native.side_effect = lambda x: x
+
+        mock_config = MagicMock()
+        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
+        mock_mink.Configuration.return_value = mock_config
+
+        mock_env.sim.data.qpos = np.zeros(17)
+
         import threading
         lock = threading.RLock()
 
         fns = make_jacobian_fns(mock_env, env_lock=lock)
         fns[0](np.zeros(7))
 
-        _, kwargs = mock_jac.call_args
-        assert kwargs["env_lock"] is lock
+        # Verify config.update was called (reuse path)
+        mock_config.update.assert_called()
+        mock_config.get_frame_jacobian.assert_called()
 
 
 class TestMakeCollisionCheckFn:

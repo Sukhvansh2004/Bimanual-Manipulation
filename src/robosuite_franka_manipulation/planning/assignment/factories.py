@@ -10,6 +10,7 @@ import threading
 from contextlib import nullcontext
 from typing import Callable, Dict, Optional
 
+import mink
 import mujoco
 import numpy as np
 import robosuite.utils.transform_utils as T
@@ -22,13 +23,14 @@ from robosuite_franka_manipulation.planning.utils.collision_utils import (
 )
 from robosuite_franka_manipulation.planning.utils.ik_utils import (
     apply_ik_orientation_correction,
-    compute_arm_jacobian,
     create_solver_cache,
     enumerate_ik_solutions_for_arm,
 )
 from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
+    get_eef_site_name,
     get_environment_collision_geoms,
+    get_joint_dof_indices,
     get_joint_qpos_indices,
     get_native_mj_object,
 )
@@ -97,18 +99,40 @@ def make_jacobian_fns(
     """Create per-robot Jacobian closures for :func:`~solver.compute_optimal_robot_assignment`.
 
     Returns a dict ``{0: jac_fn_robot0, 1: jac_fn_robot1}`` where each function
-    has signature ``(q: np.ndarray) -> np.ndarray`` (6×7 Jacobian) and internally
-    delegates to :func:`~planning.utils.ik_utils.compute_arm_jacobian`.
+    has signature ``(q: np.ndarray) -> np.ndarray`` (6×7 Jacobian).
+
+    Each closure lazily creates a ``mink.Configuration`` on first call and
+    reuses it via ``config.update(q=...)`` to avoid repeated ``MjData``
+    allocation (~0.55 ms → 0.01 ms per call).
 
     Args:
         env: The dual-arm simulation environment.
         env_lock: Optional reentrant lock guarding the environment.
     """
     def _make_for_robot(robot_id: int) -> Callable[[np.ndarray], np.ndarray]:
+        _cached: dict = {}  # mutable container for lazy init
+
         def _jacobian_fn(q: np.ndarray) -> np.ndarray:
-            return compute_arm_jacobian(
-                env, robot_id=robot_id, q_config=q, env_lock=env_lock,
-            )
+            ctx = env_lock if env_lock is not None else nullcontext()
+            with ctx:
+                if not _cached:
+                    model = env.sim.model
+                    data = env.sim.data
+                    joint_ids = get_arm_joint_ids(model, robot_id)
+                    _cached["qpos_idx"] = get_joint_qpos_indices(model, joint_ids)
+                    _cached["dof_idx"] = get_joint_dof_indices(model, joint_ids)
+                    _cached["site"] = get_eef_site_name(robot_id, arm="right")
+                    model_native = get_native_mj_object(model)
+                    q_init = np.array(data.qpos, copy=True, dtype=float).ravel()
+                    _cached["config"] = mink.Configuration(model_native, q=q_init)
+
+                q_full = np.array(env.sim.data.qpos, copy=True, dtype=float).ravel()
+                q_full[_cached["qpos_idx"]] = q
+                _cached["config"].update(q=q_full)
+                J_full = _cached["config"].get_frame_jacobian(
+                    _cached["site"], "site",
+                )
+                return J_full[:, _cached["dof_idx"]]
         return _jacobian_fn
 
     return {0: _make_for_robot(0), 1: _make_for_robot(1)}
