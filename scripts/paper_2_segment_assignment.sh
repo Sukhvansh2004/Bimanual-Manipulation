@@ -75,6 +75,7 @@ echo "================================================================"
 
 python scripts/evaluation/run_paper_evaluation.py \
     --plan-only \
+    --resume \
     --workers "$WORKERS" \
     2>&1 | tee results/paper_step2_assignment.log
 

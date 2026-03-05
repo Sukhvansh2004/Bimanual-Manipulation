@@ -62,8 +62,9 @@ from scripts.evaluation.configs import (
     config_id, AblationConfig,
 )
 from scripts.evaluation.run_all import (
-    run_experiment, run_execution, print_batch_summary,
-    _experiment_worker, _reconstruct_results,
+    run_single_config, run_execution,
+    single_config_worker, reconstruct_results,
+    is_completed,
     _PROJECT_ROOT as PROJECT_ROOT, EXPERIMENTS_DIR, DATA_DIR,
 )
 from scripts.evaluation.metrics import ExperimentResult, PlanningMetrics
@@ -111,12 +112,15 @@ def run_planning_phase(
     configs: list[AblationConfig],
     results_dir: Path,
     workers: int = 1,
+    resume: bool = False,
 ) -> list[ExperimentResult]:
     """Run planning for all experiment × config combinations.
 
     Args:
-        workers: Number of parallel experiment workers (each gets its own
-                 MuJoCo env).  Set to 1 for sequential execution.
+        workers: Number of parallel workers.  Individual (experiment, config)
+                 jobs are distributed across workers.
+        resume:  When ``True``, skip jobs that already have a result JSON
+                 in *results_dir*.
     """
     # Filter to experiments that actually exist
     exp_jsons = []
@@ -127,22 +131,40 @@ def run_planning_phase(
             continue
         exp_jsons.append((exp_name, exp_json))
 
-    all_results: list[ExperimentResult] = []
-    total_configs = len(exp_jsons) * len(configs)
+    # Build job list, respecting --resume
+    jobs: list[tuple[str, str, AblationConfig]] = []  # (name, json_path, cfg)
+    n_skipped = 0
+    for exp_name, exp_json in exp_jsons:
+        for cfg in configs:
+            if resume and is_completed(results_dir, exp_name, cfg):
+                logger.info("  SKIP (resume): %s × %s", exp_name, cfg["label"])
+                n_skipped += 1
+                continue
+            jobs.append((exp_name, exp_json, cfg))
 
-    if workers > 1 and len(exp_jsons) > 1:
-        # ── Parallel: one process per experiment ──────────────────────
+    if n_skipped:
+        logger.info("Resume: %d already completed, %d remaining", n_skipped, len(jobs))
+
+    if not jobs:
+        logger.info("All jobs already completed — nothing to run.")
+        return []
+
+    all_results: list[ExperimentResult] = []
+    total_jobs = len(jobs)
+
+    if workers > 1 and total_jobs > 1:
+        # ── Parallel: one job per future ──────────────────────────────
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
-        n_workers = min(workers, len(exp_jsons))
+        n_workers = min(workers, total_jobs)
         logger.info(
-            "Running %d experiments × %d configs = %d evaluations "
-            "(%d parallel workers)",
-            len(exp_jsons), len(configs), total_configs, n_workers,
+            "Running %d jobs (%d experiments × %d configs, %d skipped) "
+            "with %d parallel workers",
+            total_jobs, len(exp_jsons), len(configs), n_skipped, n_workers,
         )
 
         pbar = tqdm(
-            total=total_configs,
+            total=total_jobs,
             desc="Segment assignment",
             unit="eval",
             ncols=90,
@@ -150,75 +172,58 @@ def run_planning_phase(
 
         futures = {}
         with ProcessPoolExecutor(max_workers=n_workers) as pool:
-            for exp_name, exp_json in exp_jsons:
+            for exp_name, exp_json, cfg in jobs:
                 future = pool.submit(
-                    _experiment_worker,
-                    exp_json, configs,
+                    single_config_worker,
+                    exp_json, cfg,
                     False,  # no_env = False → use IK
                     str(results_dir),
                     False,  # execute = False
                 )
-                futures[future] = exp_name
+                futures[future] = (exp_name, cfg["label"])
 
             for future in as_completed(futures):
-                exp_name = futures[future]
+                exp_name, label = futures[future]
                 try:
-                    result_dicts = future.result()
-                    results = _reconstruct_results(result_dicts)
+                    result_dict = future.result()
+                    if result_dict:
+                        results = reconstruct_results([result_dict])
+                        all_results.extend(results)
+                        for r in results:
+                            cost = r.planning.total_cost if r.planning else float("inf")
+                            status = "OK" if cost < float("inf") else "FAILED (inf)"
+                            logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
                 except Exception as exc:
-                    logger.error("Worker for %s failed: %s", exp_name, exc)
-                    results = []
+                    logger.error("Worker for %s × %s failed: %s", exp_name, label, exc)
 
-                all_results.extend(results)
-                # Each experiment completes len(configs) evaluations
-                pbar.update(len(configs))
-                pbar.set_postfix_str(f"done: {exp_name}")
-
-                # Summary for this experiment
-                valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
-                logger.info(
-                    "  %s: %d/%d configs have finite cost",
-                    exp_name, len(valid), len(results),
-                )
-                for r in results:
-                    cost = r.planning.total_cost if r.planning else float("inf")
-                    status = "OK" if cost < float("inf") else "FAILED (inf)"
-                    logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+                pbar.update(1)
+                pbar.set_postfix_str(f"done: {exp_name}×{label}")
 
         pbar.close()
     else:
         # ── Sequential ────────────────────────────────────────────────
         pbar = tqdm(
-            total=total_configs,
+            total=total_jobs,
             desc="Segment assignment",
             unit="eval",
             ncols=90,
         )
 
-        for exp_name, exp_json in exp_jsons:
-            logger.info("=" * 70)
-            logger.info("PLANNING: %s", exp_name)
-            logger.info("=" * 70)
-            pbar.set_postfix_str(exp_name)
+        for exp_name, exp_json, cfg in jobs:
+            pbar.set_postfix_str(f"{exp_name}×{cfg['label']}")
 
-            results = run_experiment(
-                exp_json, configs,
+            result = run_single_config(
+                exp_json, cfg,
                 no_env=False,
                 results_dir=results_dir,
                 execute=False,
             )
-            all_results.extend(results)
-            pbar.update(len(results))
-
-            valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
-            logger.info(
-                "  %s: %d/%d configs have finite cost",
-                exp_name, len(valid), len(results),
-            )
-            for r in results:
-                cost = r.planning.total_cost if r.planning else float("inf")
+            if result:
+                all_results.append(result)
+                cost = result.planning.total_cost if result.planning else float("inf")
                 status = "OK" if cost < float("inf") else "FAILED (inf)"
-                logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+                logger.info("    %-40s  cost=%.2f  [%s]", result.config_label, cost, status)
+            pbar.update(1)
 
         pbar.close()
 
@@ -382,6 +387,9 @@ def main():
     parser.add_argument("--workers", type=int, default=4,
                         help="Number of parallel workers for planning (each gets its own MuJoCo env). "
                              "Default: 4. Use 1 for sequential.")
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip (experiment, config) pairs that already have a valid "
+                             "result (finite cost) in the results directory.")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir) if args.results_dir else RESULTS_ROOT
@@ -410,7 +418,8 @@ def main():
         logger.info("  PHASE 1: PLANNING")
         logger.info("=" * 80)
         planning_results = run_planning_phase(
-            experiments, PAPER_CONFIGS, results_dir, workers=args.workers,
+            experiments, PAPER_CONFIGS, results_dir,
+            workers=args.workers, resume=args.resume,
         )
     else:
         planning_results = []

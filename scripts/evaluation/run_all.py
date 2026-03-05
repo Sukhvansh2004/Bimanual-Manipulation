@@ -466,6 +466,108 @@ def run_experiment(
     return results
 
 
+def run_single_config(
+    exp_json_path: str,
+    cfg: AblationConfig,
+    no_env: bool = False,
+    results_dir: Optional[Path] = None,
+    execute: bool = False,
+) -> Optional[ExperimentResult]:
+    """Run one (experiment, config) pair.
+
+    Per-job equivalent of :func:`run_experiment`; designed for fine-grained
+    parallel distribution where each worker handles a single config rather
+    than an entire experiment.
+    """
+    exp_cfg = load_experiment(exp_json_path)
+    exp_name = exp_cfg.name
+    data_dir = exp_cfg.output.output_dir or str(DATA_DIR / exp_name)
+    data_path = Path(data_dir)
+    if not data_path.exists():
+        logger.error("Data directory not found: %s — skipping", data_dir)
+        return None
+
+    cid = config_id(cfg)
+    label = cfg["label"]
+    logger.info("  %s × %s", exp_name, label)
+
+    # Handle no-DPP configs
+    if not cfg.get("use_dpp", True):
+        cfg_data_dir = data_dir + "_no_dpp"
+        cfg_data_path = Path(cfg_data_dir)
+        if not cfg_data_path.exists() or not list(cfg_data_path.glob("robot0_trajectory_*.npz")):
+            logger.warning(
+                "    No-DPP data dir not found or empty: %s — skipping %s",
+                cfg_data_dir, label,
+            )
+            return None
+        logger.info("    Using no-DPP data: %s", cfg_data_dir)
+    else:
+        cfg_data_dir = data_dir
+
+    config_data_dir = Path(cfg_data_dir) / "configs" / cid
+    metrics_file = str(config_data_dir / "planning_metrics.json")
+
+    exp_result = run_assignment_subprocess(
+        exp_json_path=exp_json_path,
+        data_dir=cfg_data_dir,
+        cfg=cfg,
+        output_dir=str(config_data_dir),
+        metrics_file=metrics_file,
+        no_env=no_env,
+        results_dir=results_dir,
+    )
+
+    if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
+        asgn_file = str(config_data_dir / "assignment_results.npz")
+        if os.path.isfile(asgn_file):
+            exec_metrics = run_execution(
+                exp_json_path=exp_json_path,
+                assignment_file=asgn_file,
+                experiment_name=exp_name,
+                config_label=label,
+                results_dir=results_dir or RESULTS_ROOT,
+                config_id_str=cid,
+                data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
+            )
+            if exec_metrics is not None:
+                exp_result.execution = exec_metrics
+        else:
+            logger.warning("    Assignment NPZ not found — skipping execution")
+
+    save_result(exp_result, results_dir)
+    return exp_result
+
+
+def single_config_worker(
+    exp_json_path: str,
+    cfg: AblationConfig,
+    no_env: bool,
+    results_dir_str: str,
+    execute: bool = False,
+) -> Optional[dict]:
+    """Run a single (experiment, config) job in a worker process.
+
+    Returns a dict (safe for cross-process serialisation), or ``None``.
+    """
+    exp_name = Path(exp_json_path).stem
+    label = cfg["label"]
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(asctime)s [W-{os.getpid()} {exp_name}×{label}] %(levelname)s  %(message)s",
+        force=True,
+    )
+    results_dir = Path(results_dir_str)
+    result = run_single_config(exp_json_path, cfg, no_env, results_dir, execute)
+    return result.to_dict() if result else None
+
+
+def is_completed(results_dir: Path, exp_name: str, cfg: AblationConfig) -> bool:
+    """Check whether an (experiment, config) already has a result JSON."""
+    cid = config_id(cfg)
+    return (results_dir / exp_name / f"{cid}.json").is_file()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Discovery
 # ═══════════════════════════════════════════════════════════════════════════
@@ -517,36 +619,7 @@ def resolve_configs(ablation_names: Optional[List[str]] = None) -> List[Ablation
 # Multiprocessing worker
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _experiment_worker(
-    exp_json_path: str,
-    configs: List[AblationConfig],
-    no_env: bool,
-    results_dir_str: str,
-    execute: bool = False,
-) -> List[dict]:
-    """Run a single experiment in a worker process.
-
-    Re-configures logging for the child process and returns dicts
-    (dataclass instances may not round-trip cleanly across the process
-    boundary, but dicts always do).
-    """
-    # Reconfigure logging for this worker process
-    exp_name = Path(exp_json_path).stem
-    logging.basicConfig(
-        level=logging.INFO,
-        format=f"%(asctime)s [W-{os.getpid()} {exp_name}] %(levelname)s  %(message)s",
-        force=True,
-    )
-
-    results_dir = Path(results_dir_str)
-    results = run_experiment(
-        exp_json_path, configs, no_env=no_env, results_dir=results_dir,
-        execute=execute,
-    )
-    return [r.to_dict() for r in results]
-
-
-def _reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
+def reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
     """Rebuild ExperimentResult objects from worker-returned dicts."""
     results = []
     for d in dicts:
@@ -660,8 +733,13 @@ def main():
     )
     parser.add_argument(
         "--workers", type=int, default=1,
-        help="Number of parallel worker processes. Each worker handles one "
-             "experiment at a time (creates its own env). Default: 1 (sequential).",
+        help="Number of parallel worker processes. Jobs (experiment × config "
+             "pairs) are distributed across workers. Default: 1 (sequential).",
+    )
+    parser.add_argument(
+        "--resume", action="store_true",
+        help="Skip (experiment, config) pairs that already have a valid "
+             "result (finite cost) in the results directory.",
     )
 
     args = parser.parse_args()
@@ -687,10 +765,17 @@ def main():
     if args.dry_run:
         mode = "execute-only" if args.execute_only else ("plan+execute" if args.execute else "plan-only")
         print(f"\nDRY RUN ({mode}) — would execute:")
+        n_skip = 0
         for ep in exp_paths:
             for cfg in configs:
-                print(f"  {Path(ep).stem} × {cfg['label']}")
-        print(f"\nTotal: {len(exp_paths) * len(configs)} runs")
+                ename = Path(ep).stem
+                if args.resume and is_completed(results_dir, ename, cfg):
+                    print(f"  {ename} × {cfg['label']}  [SKIP — already done]")
+                    n_skip += 1
+                else:
+                    print(f"  {ename} × {cfg['label']}")
+        total = len(exp_paths) * len(configs)
+        print(f"\nTotal: {total} runs ({total - n_skip} to run, {n_skip} skipped)")
         return
 
     # --execute-only: skip planning, run execution on existing assignment NPZs
@@ -761,54 +846,70 @@ def main():
             analyze_main()
         return
 
-    # Run all (planning, optionally followed by execution)
+    # Build job list: all (experiment, config) pairs, filtering completed if --resume
     num_workers = max(1, args.workers)
     total_t0 = time.time()
     all_results: List[ExperimentResult] = []
 
-    if num_workers == 1:
+    jobs: list[tuple[str, AblationConfig]] = []
+    n_skipped = 0
+    for ep in exp_paths:
+        exp_name = Path(ep).stem
+        for cfg in configs:
+            if args.resume and is_completed(results_dir, exp_name, cfg):
+                logger.info("  SKIP (resume): %s × %s", exp_name, cfg["label"])
+                n_skipped += 1
+                continue
+            jobs.append((ep, cfg))
+
+    if n_skipped:
+        logger.info("Resume: %d already completed, %d remaining", n_skipped, len(jobs))
+
+    if not jobs:
+        logger.info("All jobs already completed — nothing to run.")
+    elif num_workers == 1:
         # Sequential — simpler output, easier to debug
-        for exp_path in exp_paths:
-            results = run_experiment(
-                exp_path, configs,
+        for exp_path, cfg in jobs:
+            result = run_single_config(
+                exp_path, cfg,
                 no_env=args.no_env,
                 results_dir=results_dir,
                 execute=args.execute,
             )
-            all_results.extend(results)
+            if result:
+                all_results.append(result)
     else:
         logger.info(
-            "Launching %d parallel workers for %d experiments …",
-            min(num_workers, len(exp_paths)), len(exp_paths),
+            "Launching %d parallel workers for %d jobs …",
+            min(num_workers, len(jobs)), len(jobs),
         )
         # Use 'spawn' start method — safest with MuJoCo C libraries
         ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(
-            max_workers=min(num_workers, len(exp_paths)),
+            max_workers=min(num_workers, len(jobs)),
             mp_context=ctx,
         ) as pool:
-            future_to_exp = {
+            future_to_job = {
                 pool.submit(
-                    _experiment_worker,
+                    single_config_worker,
                     ep,
-                    configs,
+                    cfg,
                     args.no_env,
                     str(results_dir),
                     args.execute,
-                ): Path(ep).stem
-                for ep in exp_paths
+                ): (Path(ep).stem, cfg["label"])
+                for ep, cfg in jobs
             }
-            for future in as_completed(future_to_exp):
-                exp_name = future_to_exp[future]
+            for future in as_completed(future_to_job):
+                exp_name, label = future_to_job[future]
                 try:
-                    result_dicts = future.result()
-                    results = _reconstruct_results(result_dicts)
-                    all_results.extend(results)
-                    logger.info(
-                        "✓ %s finished — %d results", exp_name, len(results),
-                    )
+                    result_dict = future.result()
+                    if result_dict:
+                        results = reconstruct_results([result_dict])
+                        all_results.extend(results)
+                    logger.info("✓ %s × %s finished", exp_name, label)
                 except Exception as exc:
-                    logger.error("✗ %s FAILED: %s", exp_name, exc)
+                    logger.error("✗ %s × %s FAILED: %s", exp_name, label, exc)
 
     total_elapsed = time.time() - total_t0
     print_batch_summary(all_results, total_elapsed)
