@@ -28,3 +28,13 @@
 2026-03-05 10:55:31,234 [__main__] INFO      No Diversity                              cost=2646.74  [OK]
 2026-03-05 10:55:31,234 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1537.71  [OK]
 2026-03-05 10:55:31,234 [__main__] INFO      No Manipulability (β=0)                   cost=52689.71  [OK]
+2026-03-05 16:37:16,015 [__main__] INFO    ycb_plate_table_to_shelf: 4/6 configs have finite cost
+2026-03-05 16:37:16,018 [__main__] INFO      Proposed                                  cost=50976.67  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 16:37:16,018 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 16:37:16,018 [__main__] INFO      No Diversity                              cost=100997.16  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=889.37  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      No Manipulability (β=0)                   cost=50021.38  [OK]
+2026-03-05 16:37:16,252 [__main__] INFO  
+Total evaluation time: 43698.3 seconds
+2026-03-05 16:37:16,283 [scripts.evaluation.results_store] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (24 results)

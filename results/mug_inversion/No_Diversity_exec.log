@@ -1,0 +1,142 @@
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-05 16:48:45,090 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-05 16:48:45,093 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.experiment_config - INFO - Loading experiment 'mug_inversion' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/mug_inversion.json
+2026-03-05 16:48:49,360 - __main__ - INFO - Loaded experiment: mug_inversion – Orientation-correction dual-handover: a YCB mug starts inverted (upside-down) on the left side of the table. A central wall blocks direct transfer, forcing the trajectory to detour around the +y corridor. Robot-1 (suction gripper) grasps the exposed bottom surface (facing up), lifts it, and hands off to Robot-0 (finger gripper) around the wall. Robot-0 re-grasps the mug by its rim, reorients it to upright, and places it on the right side of the table. The wall plus the 180° orientation change make the suction-to-finger handover essential.
+2026-03-05 16:48:49,360 - __main__ - INFO - Smoothen override: True (was True)
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.system_manager - INFO - 
+1. Creating dual-arm environment...
+2026-03-05 16:48:49,360 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-05 16:48:50,557 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-05 16:48:50,557 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
+2026-03-05 16:48:52,313 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Environment created
+2026-03-05 16:48:52,313 - robosuite_franka_manipulation.system_manager - INFO - 
+1a. Creating shared TransformManager...
+2026-03-05 16:48:52,313 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-05 16:48:52,315 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-05 16:48:52,315 - robosuite_franka_manipulation.system_manager - INFO -    ✓ TransformManager created
+2026-03-05 16:48:52,315 - robosuite_franka_manipulation.system_manager - INFO - 
+1b. Loading arm and gripper controllers...
+2026-03-05 16:48:52,315 - robosuite_franka_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
+2026-03-05 16:48:52,315 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Controllers loaded
+2026-03-05 16:48:52,316 - robosuite_franka_manipulation.system_manager - INFO - 
+2. Starting services...
+2026-03-05 16:48:52,316 - robosuite_franka_manipulation.system_manager - INFO -    Starting Service Manager...
+2026-03-05 16:48:52,316 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-05 16:48:52,316 - robosuite_franka_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-05 16:48:52,316 - robosuite_franka_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-05 16:48:52,327 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-05 16:48:52,327 - robosuite_franka_manipulation.services.services_core - ERROR - Server loop error: Address already in use (addr='tcp://localhost:5555')
+2026-03-05 16:48:52,327 - robosuite_franka_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-05 16:48:52,828 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Service Manager started
+2026-03-05 16:48:52,828 - robosuite_franka_manipulation.system_manager - INFO -    FastSAM service disabled by flag
+2026-03-05 16:48:52,828 - robosuite_franka_manipulation.system_manager - INFO -    Grasp service disabled by flag
+2026-03-05 16:48:52,828 - robosuite_franka_manipulation.system_manager - INFO -    Starting Move To Pose service...
+2026-03-05 16:48:52,849 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
+2026-03-05 16:48:52,849 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
+2026-03-05 16:48:52,853 - robosuite_franka_manipulation.services.move_to_pose_service - WARNING - Failed to register Move To Pose service: Service move_to_pose_service is already registered
+2026-03-05 16:48:53,354 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Move To Pose service started
+2026-03-05 16:48:53,354 - robosuite_franka_manipulation.system_manager - INFO - 
+3. Preparing teleoperation...
+2026-03-05 16:48:53,358 - robosuite_franka_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
+2026-03-05 16:48:53,358 - robosuite_franka_manipulation.system_manager - INFO - 
+4. Settling environment...
+2026-03-05 16:48:54,011 - robosuite_franka_manipulation.system_manager - INFO -    Registered dynamic TF frame 'wallObstacle'
+2026-03-05 16:48:54,011 - robosuite_franka_manipulation.system_manager - INFO -    Registered dynamic TF frame 'mug_0'
+2026-03-05 16:48:54,011 - robosuite_franka_manipulation.system_manager - INFO - 
+======================================================================
+2026-03-05 16:48:54,011 - robosuite_franka_manipulation.system_manager - INFO - System Ready!
+2026-03-05 16:48:54,011 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 16:48:54,012 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
+2026-03-05 16:48:54,012 - __main__ - INFO - Loading assignment result from data/mug_inversion_no_dpp/configs/No_Diversity/assignment_results.npz ...
+2026-03-05 16:48:54,198 - __main__ - INFO - Loaded 2 unique trajectories for assignment: ['robot0_trajectory_19.npz', 'robot1_trajectory_18.npz']
+2026-03-05 16:48:54,198 - __main__ - INFO - Handover points: [35]
+2026-03-05 16:48:54,199 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
+2026-03-05 16:48:54,199 - __main__ - INFO - Robot 1 starting at waypoint 0
+2026-03-05 16:48:54,211 - __main__ - INFO - Robot 1 planning RRT to pre-grasp pose...
+2026-03-05 16:48:54,217 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-05 16:48:54,218 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-05 16:48:54,218 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-05 16:48:54,219 - __main__ - INFO - RRT to pre-grasp succeeded. Following collision-free joint trajectory...
+2026-03-05 16:48:54,220 - robosuite_franka_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints, max 400 steps)
+2026-03-05 16:49:04,899 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-05 16:49:04,899 - __main__ - INFO - Robot 1 following grasp approach trajectory...
+2026-03-05 16:49:04,899 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (50 waypoints)
+2026-03-05 16:49:10,005 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 35 while Robot 0 moves to handover pre-pose
+2026-03-05 16:49:10,008 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=5 geoms, env=12 geoms)
+2026-03-05 16:49:10,009 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-05 16:49:10,018 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 35.
+2026-03-05 16:49:10,054 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-05 16:49:10,054 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-05 16:49:10,054 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-05 16:49:10,054 - robosuite_franka_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT.
+2026-03-05 16:49:10,055 - robosuite_franka_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-05 16:49:33,064 - robosuite_franka_manipulation.planning.dual_arm.planner - WARNING - QP failed 30 consecutive steps — aborting parallel execution early (arm B stuck).
+2026-03-05 16:49:33,065 - robosuite_franka_manipulation.planning.dual_arm.planner - WARNING - Timed out after 104 steps (err_a=1.8087, err_b=0.9557, qp_fails=30)
+2026-03-05 16:49:33,065 - robosuite_franka_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 23.06s — success_a=False, success_b=False (err_a=1.8087, err_b=0.9557, collision_free=False)
+2026-03-05 16:49:33,065 - __main__ - WARNING - Arm A did not fully converge (err=1.8087)
+2026-03-05 16:49:33,065 - __main__ - WARNING - Arm B did not fully converge (err=0.9557)
+2026-03-05 16:49:33,065 - __main__ - INFO - Arm B (Robot 0) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-05 16:49:33,074 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-05 16:49:33,075 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-05 16:49:33,075 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-05 16:49:33,075 - __main__ - INFO - RRT recovery for arm B succeeded. Moving to receiver pre-pose...
+2026-03-05 16:49:33,077 - robosuite_franka_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints, max 400 steps)
+2026-03-05 16:49:43,893 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-05 16:49:43,893 - __main__ - INFO - Executing handover at waypoint 35 (robot 1 → robot 0)...
+2026-03-05 16:49:43,893 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-05 16:49:43,893 - robosuite_franka_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right:
+2026-03-05 16:49:43,893 - robosuite_franka_manipulation.controllers.arm - INFO -   Current EEF in base: pos=[    0.66724    -0.24881     0.32939]
+2026-03-05 16:49:43,894 - robosuite_franka_manipulation.controllers.arm - INFO -   Target in base: pos=[    0.69243    -0.22422     0.39778]
+2026-03-05 16:49:43,894 - robosuite_franka_manipulation.controllers.arm - INFO -   Distance to target: 0.0769m
+2026-03-05 16:49:47,916 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-05 16:49:47,972 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot0_right (50 waypoints)
+2026-03-05 16:49:53,708 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 0:right - mink trajectory did NOT converge: pos_err=0.0683, ori_err=0.1555
+2026-03-05 16:49:53,708 - __main__ - WARNING - Receiver arm did NOT converge on approach (dist=0.0683m). Handover may fail.
+2026-03-05 16:49:59,044 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-05 16:49:59,044 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (30 waypoints)
+2026-03-05 16:50:00,756 - __main__ - WARNING - Handover at waypoint 35 LIKELY FAILED — receiver arm did not converge. (robot 1 → robot 0). Continuing execution anyway. Total handovers: 0/1
+2026-03-05 16:50:00,757 - __main__ - INFO - Robot 0 following final segment to 79...
+2026-03-05 16:50:00,758 - robosuite_franka_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (220 waypoints, max 440 steps)
+2026-03-05 16:50:13,192 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 0:right - Joint trajectory converged at step 219 (max err=0.0001 rad)
+2026-03-05 16:50:13,192 - __main__ - WARNING - Collision monitor detected 360 collision step(s) during execution.
+2026-03-05 16:50:13,192 - __main__ - INFO - Robot 0 releasing object and retreating...
+2026-03-05 16:50:15,306 - __main__ - INFO - Robot 0 following retreat trajectory...
+2026-03-05 16:50:15,306 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot0_right (30 waypoints)
+2026-03-05 16:50:20,271 - __main__ - INFO - Placement verification — position error: 0.4015 m, orientation error: 179.22°
+2026-03-05 16:50:20,271 - __main__ - WARNING - Object did NOT reach target! pos_err=0.4015 m (thresh 0.05), ori_err=179.22° (thresh 30.0°)
+2026-03-05 16:50:20,271 - __main__ - INFO - Done!
+2026-03-05 16:50:20,273 - __main__ - INFO - Execution metrics saved to results/mug_inversion/No_Diversity_exec.json
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.system_manager - INFO - 
+Stopping system...
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
+2026-03-05 16:50:20,273 - robosuite_franka_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-05 16:50:20,274 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager stopped
+2026-03-05 16:50:20,420 - robosuite_franka_manipulation.system_manager - INFO - System stopped
+
+Keys                          	Command
+Ctrl+q                        	reset simulation
+spacebar                      	toggle gripper (open/close)
+up-right-down-left            	move horizontally in x-y plane
+.-;                           	move vertically
+o-p                           	rotate (yaw)
+y-h                           	rotate (pitch)
+e-r                           	rotate (roll)
+b                             	toggle arm/base mode (if applicable)
+s                             	switch active arm (if multi-armed robot)
+=                             	switch active robot (if multi-robot environment)
+

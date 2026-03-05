@@ -1861,3 +1861,112 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-05 15:17:30,307 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 29/49: 307.3s (IK=112, pruned=19, alive=19) ETA 3327s
 2026-03-05 15:22:43,751 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 30/49: 313.4s (IK=112, pruned=19, alive=19) ETA 3254s
 2026-03-05 15:28:32,813 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 31/49: 349.1s (IK=126, pruned=20, alive=20) ETA 3186s
+2026-03-05 15:34:24,216 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 32/49: 351.4s (IK=126, pruned=20, alive=20) ETA 3102s
+2026-03-05 15:41:10,973 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 33/49: 406.8s (IK=126, pruned=20, alive=20) ETA 3028s
+2026-03-05 15:49:58,311 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 34/49: 527.3s (IK=126, pruned=20, alive=20) ETA 2988s
+2026-03-05 15:57:24,907 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 35/49: 446.6s (IK=112, pruned=19, alive=19) ETA 2888s
+2026-03-05 16:04:36,360 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 36/49: 431.5s (IK=112, pruned=19, alive=19) ETA 2763s
+2026-03-05 16:11:46,341 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 37/49: 430.0s (IK=112, pruned=19, alive=19) ETA 2621s
+2026-03-05 16:18:52,968 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 38/49: 426.6s (IK=112, pruned=19, alive=19) ETA 2463s
+2026-03-05 16:25:06,106 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 39/49: 373.1s (IK=98, pruned=16, alive=16) ETA 2277s
+2026-03-05 16:29:40,560 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 40/49: 274.5s (IK=77, pruned=12, alive=12) ETA 2060s
+2026-03-05 16:32:38,585 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 41/49: 178.0s (IK=49, pruned=11, alive=11) ETA 1821s
+2026-03-05 16:34:48,077 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 42/49: 129.5s (IK=36, pruned=11, alive=11) ETA 1577s
+2026-03-05 16:36:56,238 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 43/49: 128.2s (IK=36, pruned=6, alive=6) ETA 1338s
+2026-03-05 16:37:14,684 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 44/49: 18.4s (IK=5, pruned=5, alive=5) ETA 1092s
+2026-03-05 16:37:14,684 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 45/49: 0.0s (IK=0, pruned=5, alive=5) ETA 854s
+2026-03-05 16:37:14,684 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 46/49: 0.0s (IK=0, pruned=3, alive=3) ETA 627s
+2026-03-05 16:37:14,684 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 47/49: 0.0s (IK=0, pruned=3, alive=3) ETA 409s
+2026-03-05 16:37:14,685 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 48/49: 0.0s (IK=0, pruned=3, alive=3) ETA 200s
+2026-03-05 16:37:14,685 [W-83126 ycb_plate_table_to_shelf] INFO  Segment 49/49: 0.0s (IK=0, pruned=3, alive=3) ETA 0s
+2026-03-05 16:37:14,685 [W-83126 ycb_plate_table_to_shelf] INFO  Forward pass complete: total IK evals=4058, pruned=767, elapsed=9608.9s
+2026-03-05 16:37:14,685 [W-83126 ycb_plate_table_to_shelf] INFO  Best terminal cost=50021.3846 at state 18
+2026-03-05 16:37:14,686 [W-83126 ycb_plate_table_to_shelf] INFO  Assignment solved: total_cost=50021.3846, handovers=1
+2026-03-05 16:37:14,693 [W-83126 ycb_plate_table_to_shelf] INFO  Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/ycb_plate_table_to_shelf/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-05 16:37:14,757 [W-83126 ycb_plate_table_to_shelf] INFO      ✓ cost=50021.38, handovers=1, manip=0.1005, time=9610.2s
+2026-03-05 16:37:14,764 [W-83126 ycb_plate_table_to_shelf] INFO  Saved result: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/No_Manipulability_β0.json
+2026-03-05 16:37:16,015 [__main__] INFO    ycb_plate_table_to_shelf: 4/6 configs have finite cost
+2026-03-05 16:37:16,018 [__main__] INFO      Proposed                                  cost=50976.67  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 16:37:16,018 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 16:37:16,018 [__main__] INFO      No Diversity                              cost=100997.16  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=889.37  [OK]
+2026-03-05 16:37:16,018 [__main__] INFO      No Manipulability (β=0)                   cost=50021.38  [OK]
+2026-03-05 16:37:16,252 [__main__] INFO  
+Total evaluation time: 43698.3 seconds
+2026-03-05 16:37:16,283 [scripts.evaluation.results_store] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (24 results)
+
+Loaded 24 paper-experiment results
+
+====================================================================================================
+  TABLE 1: METHOD COMPARISON (4 paper experiments)
+====================================================================================================
+Method                               Plan%    #HO       Cost    Manip  Feas%  Time(s)
+----------------------------------------------------------------------------------------------------
+  Proposed                              100%    1.2    77479.8   0.1002   100%     5121
+  Greedy (beam=1)                        25%    1.0   103078.5   0.0791   100%      713
+  Single Robot                            0%      —          —        —      —        —
+  No Diversity                           75%    1.3    68418.3   0.1070   100%     3919
+  No Switching Penalty (Cswitch=0)      100%    6.8     1525.3   0.1076   100%     3687
+  No Manipulability (β=0)               100%    1.2    75948.3   0.0911   100%     4291
+
+====================================================================================================
+  PER-EXPERIMENT BREAKDOWN
+====================================================================================================
+
+--- ycb_plate_table_to_shelf ---
+  Greedy (beam=1)                          cost=       INF  ho=0  manip=0.0000  time=674s
+  No Diversity                             cost= 100997.16  ho=1  manip=0.1075  time=4556s
+  No Manipulability (β=0)                  cost=  50021.38  ho=1  manip=0.1005  time=9610s
+  No Switching Penalty (Cswitch=0)         cost=    889.37  ho=5  manip=0.1148  time=8636s
+  Proposed                                 cost=  50976.67  ho=1  manip=0.1119  time=11173s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=9043s
+
+--- ycb_plate_shelf_to_table ---
+  Greedy (beam=1)                          cost= 103078.52  ho=1  manip=0.0791  time=713s
+  No Diversity                             cost=       INF  ho=0  manip=0.0000  time=1s
+  No Manipulability (β=0)                  cost= 100870.51  ho=1  manip=0.0898  time=2042s
+  No Switching Penalty (Cswitch=0)         cost=   2243.69  ho=3  manip=0.0915  time=2063s
+  Proposed                                 cost= 102253.66  ho=1  manip=0.0902  time=2563s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=733s
+
+--- mug_inversion ---
+  Greedy (beam=1)                          cost=       INF  ho=0  manip=0.0000  time=39s
+  No Diversity                             cost= 101610.92  ho=1  manip=0.1089  time=1828s
+  No Manipulability (β=0)                  cost= 100211.77  ho=1  manip=0.0822  time=744s
+  No Switching Penalty (Cswitch=0)         cost=   1430.36  ho=9  manip=0.1142  time=116s
+  Proposed                                 cost= 101835.11  ho=1  manip=0.1066  time=768s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=732s
+
+--- flatPlate_box_to_box ---
+  Greedy (beam=1)                          cost=       INF  ho=0  manip=0.0000  time=995s
+  No Diversity                             cost=   2646.74  ho=2  manip=0.1044  time=5372s
+  No Manipulability (β=0)                  cost=  52689.71  ho=2  manip=0.0919  time=4768s
+  No Switching Penalty (Cswitch=0)         cost=   1537.71  ho=10  manip=0.1098  time=3934s
+  Proposed                                 cost=  54853.91  ho=2  manip=0.0919  time=5980s
+  Single Robot                             cost=       INF  ho=0  manip=0.0000  time=2139s
+
+============================================================
+  Segment Assignment Complete — Thu Mar  5 16:37:18 IST 2026
+============================================================
+  ycb_plate_table_to_shelf:
+    ✓ No_Manipulability_β0
+    ✓ No_Switching_Penalty_Cswitch0
+    ✓ Proposed
+    ✓ No_Diversity (no-DPP)
+  ycb_plate_shelf_to_table:
+    ✓ Greedy_beam1
+    ✓ No_Manipulability_β0
+    ✓ No_Switching_Penalty_Cswitch0
+    ✓ Proposed
+  mug_inversion:
+    ✓ No_Manipulability_β0
+    ✓ No_Switching_Penalty_Cswitch0
+    ✓ Proposed
+    ✓ No_Diversity (no-DPP)
+  flatPlate_box_to_box:
+    ✓ No_Manipulability_β0
+    ✓ No_Switching_Penalty_Cswitch0
+    ✓ Proposed
+    ✓ No_Diversity (no-DPP)
+  Done.

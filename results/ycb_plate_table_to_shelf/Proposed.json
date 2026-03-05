@@ -19,5 +19,21 @@
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
     "planning_time_s": 11173.41661787033
+  },
+  "execution": {
+    "task_success": false,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": false,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 0,
+    "handover_success_rate": 0.0,
+    "n_collision_incidents": 425,
+    "n_switches": 1,
+    "execution_time_s": 112.31298422813416,
+    "mean_manipulability": 0.06639507479217606,
+    "placement_position_error": 0.5566549545148249,
+    "placement_orientation_error": 115.31348900487812,
+    "error_message": ""
   }
 }
