@@ -43,11 +43,10 @@ import multiprocessing as mp
 import os
 import subprocess
 import sys
-import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -56,23 +55,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.experiment_config import (
-    load_experiment,
-    get_collision_filter_fn,
-)
-from robosuite_franka_manipulation.planning.assignment import (
-    compute_optimal_robot_assignment,
-    load_all_trajectories,
-    make_collision_check_fn,
-    make_handover_clearance_fn,
-    make_ik_solver_fn,
-    make_jacobian_fns,
-    save_assignment_result,
-)
-from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.utils.env_utils import env_step
+from robosuite_franka_manipulation.experiment_config import load_experiment
 
 from scripts.evaluation.configs import (
     ALL_ABLATIONS,
@@ -85,7 +68,6 @@ from scripts.evaluation.metrics import (
     ExperimentResult,
     ExecutionMetrics,
     PlanningMetrics,
-    extract_planning_metrics,
 )
 from scripts.evaluation.results_store import save_result, RESULTS_ROOT
 
@@ -99,232 +81,163 @@ logger = logging.getLogger(__name__)
 EXPERIMENTS_DIR = _PROJECT_ROOT / "experiments"
 DATA_DIR = _PROJECT_ROOT / "data"
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Environment setup (once per experiment)
-# ═══════════════════════════════════════════════════════════════════════════
-
-def _setup_environment(exp_cfg):
-    """Create the simulation environment and return IK/Jacobian/collision closures.
-
-    Returns:
-        (ik_solver_fn, jacobian_fns, collision_check_fn, env, env_lock, tf_manager)
-    """
-    logger.info("Creating simulation environment for IK / Jacobian evaluation ...")
-
-    env = make_dual_arm_env(
-        ycb_objects=exp_cfg.ycb_objects,
-        custom_objects=exp_cfg.custom_objects,
-        has_renderer=False,
-        has_offscreen_renderer=False,
-        use_camera_obs=False,
-        table_full_size=exp_cfg.table_full_size,
-    )
-    env.reset()
-    for _ in range(10):
-        env_step(env)
-
-    # Disable irrelevant collisions
-    _is_relevant = get_collision_filter_fn(exp_cfg.collision_filter)
-    model = env.sim.model
-    for i in range(model.ngeom):
-        name = model.geom_id2name(i) or ""
-        if not _is_relevant(name):
-            model.geom_contype[i] = 0
-
-    env_lock = threading.RLock()
-    tf_manager = TransformManager(env, env_lock=env_lock)
-
-    ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock, relaxed=True)
-    jacobian_fns = make_jacobian_fns(env, env_lock)
-    collision_check_fn = make_collision_check_fn(
-        env, env_lock,
-        manipulated_object=exp_cfg.task.manipulated_object,
-    )
-
-    logger.info("Environment ready (IK solver, Jacobian functions, collision checker).")
-    return ik_solver_fn, jacobian_fns, collision_check_fn, env, env_lock, tf_manager
-
-
-def _parse_transfer_feasibility(raw):
-    """Convert JSON-friendly transfer_feasibility dict to tuple-keyed dict."""
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        return None
-    out = {}
-    for key_str, val in raw.items():
-        parts = tuple(int(x) for x in key_str.split(","))
-        if len(parts) == 4:
-            out[parts] = bool(val)
-    return out
+_ASSIGNMENT_SCRIPT = str(_PROJECT_ROOT / "scripts" / "pipeline" / "segment_assignment.py")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Single config runner
+# Assignment runner (subprocess — delegates to segment_assignment.py)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _apply_switch_cost_override(override_value: float):
-    """Monkey-patch the solver's switching cost function.
-
-    When ``override_value == 0``, feasible handovers become free;
-    infeasible handovers remain blocked (inf).
-    Returns a restore callable.
-    """
-    import robosuite_franka_manipulation.planning.assignment.solver as solver_mod
-
-    _original = solver_mod.compute_switching_cost
-
-    def _patched(*args, **kwargs):
-        cost = _original(*args, **kwargs)
-        if np.isinf(cost):
-            return cost  # keep infeasible handovers blocked
-        return override_value
-
-    solver_mod.compute_switching_cost = _patched
-    return lambda: setattr(solver_mod, "compute_switching_cost", _original)
-
-
-def run_single_assignment(
-    exp_cfg,
+def run_assignment_subprocess(
+    exp_json_path: str,
     data_dir: str,
     cfg: AblationConfig,
-    ik_solver_fn=None,
-    jacobian_fns=None,
-    collision_check_fn=None,
-    env=None,
-    env_lock=None,
+    output_dir: str,
+    metrics_file: str,
+    no_env: bool = False,
+    timeout: int = 14400,
 ) -> ExperimentResult:
-    """Run assignment planning for a single (experiment, config) pair.
+    """Run assignment planning via subprocess (calls segment_assignment.py).
 
-    Returns an ExperimentResult with planning metrics populated.
+    Builds the command line from the ablation config and delegates to the
+    canonical pipeline script.  Metrics are written as JSON by the subprocess
+    and read back here.
+
+    Args:
+        exp_json_path: Path to the experiment JSON file.
+        data_dir: Directory containing trajectory NPZ files.
+        cfg: Ablation config dict.
+        output_dir: Directory where assignment_results.npz will be saved.
+        metrics_file: Path to write the planning metrics JSON.
+        no_env: Skip environment creation (--no-env).
+        timeout: Subprocess timeout in seconds (default: 4 hours).
+
+    Returns:
+        ExperimentResult with planning metrics populated.
     """
     cid = config_id(cfg)
     label = cfg["label"]
-    exp_name = exp_cfg.name
-    asgn_cfg = exp_cfg.assignment
+    exp_name = Path(exp_json_path).stem
 
     logger.info("  Config: %s", label)
 
-    # --- Resolve parameters (config overrides > experiment defaults) ---
-    alpha = cfg["alpha"] if cfg["alpha"] is not None else asgn_cfg.alpha
-    beta = cfg["beta"] if cfg["beta"] is not None else asgn_cfg.beta
-    epsilon = asgn_cfg.epsilon
-    initial_robot = asgn_cfg.initial_robot
-    beam_width = cfg["beam_width"] if cfg["beam_width"] is not None else asgn_cfg.beam_width
-    handover_stride = cfg["handover_stride"] if cfg["handover_stride"] != 1 else asgn_cfg.handover_stride
-    clearance_radius = cfg["clearance_radius"]
+    # --- Build command ---
+    cmd = [
+        sys.executable, _ASSIGNMENT_SCRIPT,
+        "--experiment", exp_json_path,
+        "--data-dir", data_dir,
+        "--output-dir", output_dir,
+        "--output-metrics", metrics_file,
+        "--no-plot",
+    ]
 
-    # Handle disable_feasibility_filter: set transfer_feasibility to None
+    # Parameter overrides from ablation config
+    if cfg["alpha"] is not None:
+        cmd.extend(["--alpha", str(cfg["alpha"])])
+    if cfg["beta"] is not None:
+        cmd.extend(["--beta", str(cfg["beta"])])
+    if cfg["beam_width"] is not None:
+        cmd.extend(["--beam-width", str(cfg["beam_width"])])
+    if cfg["handover_stride"] != 1:
+        cmd.extend(["--handover-stride", str(cfg["handover_stride"])])
+    if cfg["clearance_radius"] is not None:
+        cmd.extend(["--clearance-radius", str(cfg["clearance_radius"])])
     if cfg["disable_feasibility_filter"]:
-        transfer_feasibility = None
-    else:
-        transfer_feasibility = _parse_transfer_feasibility(asgn_cfg.transfer_feasibility)
-
-    # Handle use_ik flag
-    _ik = ik_solver_fn if cfg["use_ik"] else None
-    _jac = jacobian_fns if cfg["use_ik"] else None
-    _coll = collision_check_fn if cfg["use_ik"] else None
-
-    # Build handover clearance function if needed
-    handover_clearance_fn = None
-    if clearance_radius is not None and env is not None and cfg["use_ik"]:
-        handover_clearance_fn = make_handover_clearance_fn(
-            env,
-            clearance_radius=clearance_radius,
-            manipulated_object=exp_cfg.task.manipulated_object,
-            env_lock=env_lock,
-        )
-
-    # Load trajectories
-    trajectories = load_all_trajectories(
-        data_dir,
-        max_robot0=asgn_cfg.num_trajectories_robot0,
-        max_robot1=asgn_cfg.num_trajectories_robot1,
-    )
-
-    logger.info(
-        "    Parameters: α=%.2f, β=%.2f, beam=%s, stride=%d, clearance=%s, feas_filter=%s, switch_override=%s",
-        alpha, beta,
-        beam_width if beam_width is not None else "unlimited",
-        handover_stride,
-        f"{clearance_radius:.3f}" if clearance_radius is not None else "off",
-        "off" if cfg["disable_feasibility_filter"] else "on",
-        cfg["switch_cost_override"] if cfg["switch_cost_override"] is not None else "off",
-    )
-
-    # --- Apply switch cost override via monkey-patch if needed ---
-    restore_fn = None
+        cmd.append("--disable-feasibility-filter")
     if cfg["switch_cost_override"] is not None:
-        restore_fn = _apply_switch_cost_override(cfg["switch_cost_override"])
+        cmd.extend(["--switch-cost-override", str(cfg["switch_cost_override"])])
+    if not cfg["use_ik"] or no_env:
+        cmd.append("--no-env")
 
-    # --- Run the solver ---
+    logger.info("    Command: %s", " ".join(cmd))
+
+    # --- Run subprocess ---
     t0 = time.time()
     try:
-        result = compute_optimal_robot_assignment(
-            trajectories,
-            transfer_feasibility=transfer_feasibility,
-            initial_robot=initial_robot,
-            alpha=alpha,
-            beta=beta,
-            epsilon=epsilon,
-            ik_solver_fn=_ik,
-            jacobian_fns=_jac,
-            collision_check_fn=_coll,
-            handover_clearance_fn=handover_clearance_fn,
-            beam_width=beam_width,
-            handover_stride=handover_stride,
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         planning_time = time.time() - t0
 
-        # Save per-config assignment result
-        config_data_dir = Path(data_dir) / "configs" / cid
-        config_data_dir.mkdir(parents=True, exist_ok=True)
-        assignment_file = str(config_data_dir / "assignment_results.npz")
-        save_assignment_result(result, assignment_file)
+        if proc.returncode != 0:
+            logger.error(
+                "    Assignment FAILED (exit %d)\n    stderr: %s",
+                proc.returncode,
+                proc.stderr[-1000:] if proc.stderr else "(no stderr)",
+            )
+            return ExperimentResult(
+                experiment=exp_name,
+                config_label=label,
+                config_id=cid,
+                planning=PlanningMetrics(
+                    experiment=exp_name,
+                    config_label=label,
+                    planning_time_s=planning_time,
+                ),
+            )
 
-        # Extract metrics
-        planning_metrics = extract_planning_metrics(
-            data_dir=data_dir,
-            assignment_file=assignment_file,
-            experiment_name=exp_name,
-            config_label=label,
-            planning_time_s=planning_time,
-            jacobian_fns=_jac,
-        )
+        # --- Read metrics JSON written by segment_assignment.py ---
+        if os.path.isfile(metrics_file):
+            with open(metrics_file) as f:
+                d = json.load(f)
 
-        logger.info(
-            "    ✓ cost=%.2f, handovers=%d, manip=%.4f, time=%.1fs",
-            result.total_cost, len(result.handover_points),
-            planning_metrics.mean_manipulability, planning_time,
-        )
+            # Construct PlanningMetrics from the JSON
+            d["config_label"] = label
+            planning_metrics = PlanningMetrics(**{
+                k: v for k, v in d.items()
+                if k in PlanningMetrics.__dataclass_fields__
+            })
 
-        exp_result = ExperimentResult(
-            experiment=exp_name,
-            config_label=label,
-            config_id=cid,
-            planning=planning_metrics,
-        )
-        return exp_result
+            logger.info(
+                "    ✓ cost=%.2f, handovers=%d, manip=%.4f, time=%.1fs",
+                planning_metrics.total_cost, planning_metrics.n_handovers,
+                planning_metrics.mean_manipulability, planning_metrics.planning_time_s,
+            )
+        else:
+            logger.warning("    Metrics file not created: %s", metrics_file)
+            planning_metrics = PlanningMetrics(
+                experiment=exp_name,
+                config_label=label,
+                planning_time_s=planning_time,
+            )
 
-    except Exception as exc:
-        planning_time = time.time() - t0
-        logger.error("    ✗ FAILED after %.1fs: %s", planning_time, exc)
-
-        planning_metrics = PlanningMetrics(
-            experiment=exp_name,
-            config_label=label,
-            planning_time_s=planning_time,
-        )
         return ExperimentResult(
             experiment=exp_name,
             config_label=label,
             config_id=cid,
             planning=planning_metrics,
         )
-    finally:
-        if restore_fn is not None:
-            restore_fn()
+
+    except subprocess.TimeoutExpired:
+        planning_time = time.time() - t0
+        logger.error("    Assignment TIMED OUT (%ds)", timeout)
+        return ExperimentResult(
+            experiment=exp_name,
+            config_label=label,
+            config_id=cid,
+            planning=PlanningMetrics(
+                experiment=exp_name,
+                config_label=label,
+                planning_time_s=planning_time,
+            ),
+        )
+    except Exception as exc:
+        planning_time = time.time() - t0
+        logger.error("    Assignment error after %.1fs: %s", planning_time, exc)
+        return ExperimentResult(
+            experiment=exp_name,
+            config_label=label,
+            config_id=cid,
+            planning=PlanningMetrics(
+                experiment=exp_name,
+                config_label=label,
+                planning_time_s=planning_time,
+            ),
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -434,7 +347,8 @@ def run_experiment(
 ) -> List[ExperimentResult]:
     """Run all ablation configs for a single experiment.
 
-    Creates the environment once (if not --no-env) and runs all configs.
+    Each config is run as a subprocess call to ``segment_assignment.py``,
+    which creates its own simulation environment internally.
     If ``execute=True``, also runs headless execution for each config.
     """
     exp_cfg = load_experiment(exp_json_path)
@@ -462,22 +376,7 @@ def run_experiment(
     logger.info("EXPERIMENT: %s  (%d configs, %d+%d trajectories)", exp_name, len(configs), n_r0, n_r1)
     logger.info("=" * 70)
 
-    # Setup environment once
-    ik_solver_fn = jacobian_fns = collision_check_fn = env = env_lock = None
-    any_needs_ik = any(c["use_ik"] for c in configs) and not no_env
-
-    if any_needs_ik:
-        try:
-            ik_solver_fn, jacobian_fns, collision_check_fn, env, env_lock, _ = (
-                _setup_environment(exp_cfg)
-            )
-        except Exception as exc:
-            logger.error("Environment setup failed for %s: %s", exp_name, exc)
-            logger.warning("Falling back to --no-env mode for %s", exp_name)
-    else:
-        logger.info("Skipping environment creation (--no-env or no configs need IK)")
-
-    # Run each config
+    # Run each config via subprocess
     results: List[ExperimentResult] = []
     for i, cfg in enumerate(configs, 1):
         logger.info("[%d/%d] %s × %s", i, len(configs), exp_name, cfg["label"])
@@ -498,19 +397,21 @@ def run_experiment(
         else:
             cfg_data_dir = data_dir
 
-        exp_result = run_single_assignment(
-            exp_cfg, cfg_data_dir, cfg,
-            ik_solver_fn=ik_solver_fn,
-            jacobian_fns=jacobian_fns,
-            collision_check_fn=collision_check_fn,
-            env=env,
-            env_lock=env_lock,
+        # Output paths for this config
+        config_data_dir = Path(cfg_data_dir) / "configs" / cid
+        metrics_file = str(config_data_dir / "planning_metrics.json")
+
+        exp_result = run_assignment_subprocess(
+            exp_json_path=exp_json_path,
+            data_dir=cfg_data_dir,
+            cfg=cfg,
+            output_dir=str(config_data_dir),
+            metrics_file=metrics_file,
+            no_env=no_env,
         )
 
         # Optionally run headless execution
         if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
-            # Find the assignment NPZ that was saved by run_single_assignment
-            config_data_dir = Path(cfg_data_dir) / "configs" / cid
             asgn_file = str(config_data_dir / "assignment_results.npz")
             if os.path.isfile(asgn_file):
                 exec_metrics = run_execution(
@@ -530,13 +431,6 @@ def run_experiment(
         # Save immediately (so we don't lose progress on crash)
         save_result(exp_result, results_dir)
         results.append(exp_result)
-
-    # Cleanup
-    if env is not None:
-        try:
-            env.close()
-        except Exception:
-            pass
 
     return results
 

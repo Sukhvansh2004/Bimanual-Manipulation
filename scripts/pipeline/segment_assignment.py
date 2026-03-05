@@ -38,10 +38,15 @@ Usage::
 """
 
 import argparse
+import cProfile
+import io
+import json
 import logging
 import os
+import pstats
 import sys
 import threading
+import time
 
 import numpy as np
 
@@ -147,6 +152,32 @@ def main() -> None:
         "--num-traj1", type=int, default=None,
         help="Number of robot-1 trajectories to evaluate (default: all).",
     )
+    parser.add_argument(
+        "--output-dir", type=str, default=None,
+        help="Directory to save assignment_results.npz (default: data dir itself).",
+    )
+    parser.add_argument(
+        "--output-metrics", type=str, default=None,
+        help="Path to write a JSON file with planning metrics (cost, handovers, time, etc.).",
+    )
+    parser.add_argument(
+        "--switch-cost-override", type=float, default=None,
+        help="Override the switching cost returned by compute_switching_cost. "
+             "Set to 0 for free switches, inf to prohibit switches.",
+    )
+    parser.add_argument(
+        "--disable-feasibility-filter", action="store_true",
+        help="Disable the transfer feasibility filter (allow all handovers).",
+    )
+    parser.add_argument(
+        "--profile", action="store_true",
+        help="Enable cProfile profiling and print top functions at the end.",
+    )
+    parser.add_argument(
+        "--profile-output", type=str, default=None,
+        help="Path to save the cProfile .prof binary (for snakeviz). "
+             "Only used when --profile is set.",
+    )
 
     args = parser.parse_args()
 
@@ -190,7 +221,10 @@ def main() -> None:
     beta = args.beta if args.beta is not None else asgn_cfg.beta
     epsilon = asgn_cfg.epsilon
     initial_robot = asgn_cfg.initial_robot
-    transfer_feasibility = _parse_transfer_feasibility(asgn_cfg.transfer_feasibility)
+    if args.disable_feasibility_filter:
+        transfer_feasibility = None
+    else:
+        transfer_feasibility = _parse_transfer_feasibility(asgn_cfg.transfer_feasibility)
     beam_width = args.beam_width if args.beam_width is not None else asgn_cfg.beam_width
     handover_stride = (
         args.handover_stride if args.handover_stride is not None else asgn_cfg.handover_stride
@@ -265,7 +299,30 @@ def main() -> None:
             "Inter-arm collision checks are disabled."
         )
 
-    # --- Run assignment planner ---
+    # --- Apply switch cost override if specified ---
+    _restore_fn = None
+    if args.switch_cost_override is not None:
+        import robosuite_franka_manipulation.planning.assignment.solver as solver_mod
+        _original_sw = solver_mod.compute_switching_cost
+        _override = args.switch_cost_override
+
+        def _patched_sw(*a, **kw):
+            cost = _original_sw(*a, **kw)
+            if np.isinf(cost):
+                return cost
+            return _override
+
+        solver_mod.compute_switching_cost = _patched_sw
+        _restore_fn = lambda: setattr(solver_mod, "compute_switching_cost", _original_sw)
+        logger.info("Switch cost override active: %.2f", _override)
+
+    # --- Run assignment planner (optionally profiled) ---
+    profiler = None
+    if args.profile:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+    t0 = time.time()
     result = compute_optimal_robot_assignment(
         trajectories,
         transfer_feasibility=transfer_feasibility,
@@ -281,19 +338,143 @@ def main() -> None:
         handover_stride=handover_stride,
     )
 
+    planning_time = time.time() - t0
+
+    if profiler is not None:
+        profiler.disable()
+
+    if _restore_fn is not None:
+        _restore_fn()
+
     # --- Print summary ---
     _print_summary(result)
 
     # --- Save result ---
-    out_path = os.path.join(data_dir, "assignment_results.npz")
+    save_dir = args.output_dir if args.output_dir is not None else data_dir
+    os.makedirs(save_dir, exist_ok=True)
+    out_path = os.path.join(save_dir, "assignment_results.npz")
     save_assignment_result(result, out_path)
+
+    # --- Write JSON metrics if requested ---
+    if args.output_metrics is not None:
+        os.makedirs(os.path.dirname(args.output_metrics) or ".", exist_ok=True)
+        metrics = _build_planning_metrics(
+            result, exp_cfg, data_dir, planning_time, jacobian_fns,
+        )
+        with open(args.output_metrics, "w") as f:
+            json.dump(metrics, f, indent=2)
+        logger.info("Metrics written to %s", args.output_metrics)
 
     # --- Optional assignment bar chart ---
     if not args.no_plot:
-        chart_path = os.path.join(data_dir, "assignment_result.png")
+        chart_path = os.path.join(save_dir, "assignment_result.png")
         visualize_assignment_result(result, save_path=chart_path)
 
-    logger.info("Done.")
+    # --- cProfile output ---
+    if profiler is not None:
+        if args.profile_output:
+            os.makedirs(os.path.dirname(args.profile_output) or ".", exist_ok=True)
+            profiler.dump_stats(args.profile_output)
+            logger.info("Profile saved to %s", args.profile_output)
+
+        stream = io.StringIO()
+        stats = pstats.Stats(profiler, stream=stream)
+        stats.strip_dirs()
+        stats.sort_stats("cumulative")
+        stats.print_stats(40)
+        print("\n" + "=" * 70)
+        print("  cProfile: Top 40 by CUMULATIVE time")
+        print("=" * 70)
+        print(stream.getvalue())
+
+        stream2 = io.StringIO()
+        stats2 = pstats.Stats(profiler, stream=stream2)
+        stats2.strip_dirs()
+        stats2.sort_stats("tottime")
+        stats2.print_stats(40)
+        print("\n" + "=" * 70)
+        print("  cProfile: Top 40 by TOTAL (self) time")
+        print("=" * 70)
+        print(stream2.getvalue())
+
+    logger.info("Done. (%.1fs)", planning_time)
+
+
+def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_fns):
+    """Build a flat dict with all PlanningMetrics-compatible fields.
+
+    Computes manipulability along the assigned path using Yoshikawa measure
+    when *jacobian_fns* is available, otherwise falls back to the simple
+    joint-distance proxy.
+
+    The dict is JSON-serialisable and designed to be read back by
+    ``scripts.evaluation.metrics.PlanningMetrics(**d)``.
+    """
+    from robosuite_franka_manipulation.planning.utils.manipulability import (
+        compute_trajectory_manipulability,
+    )
+    from pathlib import Path
+
+    data_path = Path(data_dir)
+    sequence = result.sequence
+    traj_paths = result.trajectory_paths
+
+    # --- Manipulability along the assigned path ---
+    manip_values = []
+    feasible_count = 0
+
+    for seg_idx in range(len(sequence)):
+        tpath = str(traj_paths[seg_idx])
+        fpath = data_path / tpath
+        if not fpath.exists():
+            continue
+        traj_data = np.load(fpath)
+        joint_configs = traj_data["joint_configs"]
+        is_feasible = traj_data["is_feasible"]
+
+        if seg_idx < len(joint_configs) and is_feasible[seg_idx]:
+            q = joint_configs[seg_idx].reshape(1, -1)
+            robot_id = int(sequence[seg_idx])
+            jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
+            m = compute_trajectory_manipulability(
+                q,
+                use_jacobian=(jac_fn is not None),
+                jacobian_fn=jac_fn,
+            )
+            manip_values.append(float(m[0]))
+            feasible_count += 1
+
+    mean_manip = float(np.mean(manip_values)) if manip_values else 0.0
+    min_manip = float(np.min(manip_values)) if manip_values else 0.0
+
+    # --- Per-robot feasibility rates ---
+    feas_rates = {}
+    for robot_id, prefix in [(0, "robot0"), (1, "robot1")]:
+        traj_files = sorted(data_path.glob(f"{prefix}_trajectory_*.npz"))
+        n_total = len(traj_files)
+        n_fully_feasible = sum(
+            1 for tf in traj_files if np.all(np.load(tf)["is_feasible"])
+        )
+        feas_rates[robot_id] = n_fully_feasible / max(n_total, 1)
+
+    return {
+        "experiment": exp_cfg.name,
+        "config_label": "",          # filled by orchestrator if needed
+        "total_cost": float(result.total_cost),
+        "n_segments": len(sequence),
+        "n_handovers": len(result.handover_points),
+        "handover_points": result.handover_points.tolist()
+            if hasattr(result.handover_points, "tolist")
+            else list(result.handover_points),
+        "mean_task_cost": float(np.mean(result.task_costs)),
+        "total_switching_cost": float(np.sum(result.switching_costs)),
+        "mean_manipulability": mean_manip,
+        "min_manipulability": min_manip,
+        "feasibility_rate_robot0": feas_rates[0],
+        "feasibility_rate_robot1": feas_rates[1],
+        "assigned_feasibility_rate": feasible_count / max(len(sequence), 1),
+        "planning_time_s": planning_time,
+    }
 
 
 def _print_summary(result) -> None:
