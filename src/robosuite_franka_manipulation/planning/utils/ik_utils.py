@@ -121,7 +121,7 @@ def solve_ik_mink(
     ori_tol: float,
     max_iters: int = constants.MINK_IK_MAX_ITERS,
     dt: float = constants.MINK_IK_DT,
-    _solver_cache: Optional[_IKSolverCache] = None,
+    solver_cache: Optional[_IKSolverCache] = None,
 ) -> Optional[np.ndarray]:
     """Solve single-arm IK using mink's iterative QP differential IK.
 
@@ -160,12 +160,12 @@ def solve_ik_mink(
     q_full[arm_qpos_idx] = q_init
 
     # ── Build or reuse mink objects ───────────────────────────────────
-    if _solver_cache is not None:
-        config = _solver_cache.config
+    if solver_cache is not None:
+        config = solver_cache.config
         config.update(q=q_full)
-        _solver_cache.posture_task.set_target(q_full)
-        tasks = _solver_cache.tasks
-        limits = _solver_cache.limits
+        solver_cache.posture_task.set_target(q_full)
+        tasks = solver_cache.tasks
+        limits = solver_cache.limits
     else:
         config = mink.Configuration(model_native, q=q_full)
 
@@ -195,8 +195,8 @@ def solve_ik_mink(
 
     # ── Set target SE3 ────────────────────────────────────────────────
     target_se3 = _build_target_se3(target_pos, target_quat)
-    if _solver_cache is not None:
-        _solver_cache.frame_task.set_target(target_se3)
+    if solver_cache is not None:
+        solver_cache.frame_task.set_target(target_se3)
     else:
         frame_task.set_target(target_se3)
 
@@ -478,7 +478,7 @@ def enumerate_ik_solutions_for_arm(
                     q0,
                     pos_tol=pos_tol,
                     ori_tol=ori_tol,
-                    _solver_cache=cache,
+                    solver_cache=cache,
                 )
                 if q_sol is not None:
                     q_sol = np.asarray(q_sol, dtype=float)
