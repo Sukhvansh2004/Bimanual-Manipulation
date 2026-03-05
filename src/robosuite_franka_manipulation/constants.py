@@ -225,22 +225,21 @@ ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
 # Coarse handover resolution for cost evaluation (fewer IK calls)
-COST_EVAL_APPROACH_STEPS = 10     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_APPROACH_STEPS = 5      # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
-COST_EVAL_RETREAT_STEPS = 5      # vs 30 default — only check start/end of retreat
+COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of retreat
 
-# Fallback penalty when IK-based handover evaluation fails but handover is
-# geometrically plausible (both endpoints have pre-computed IK in trajectories).
-# Set high enough to be disfavoured vs. verified handovers, but finite so the
-# DP can still find a path.  Only used when the critical-pose IK (hold +
-# receiver final) succeeds but non-critical poses (retreat waypoints, etc.) fail.
-HANDOVER_IK_SOFT_PENALTY = 5e4
+# Per-waypoint IK-failure penalty added to handover cost when using
+# partial-success evaluation (some intermediate IK calls fail but enough
+# succeed to compute a meaningful cost).
+HANDOVER_IK_PARTIAL_PENALTY = 1000.0
 
-# Third-tier penalty: IK solves for both arms but the resulting configs
-# collide with each other.  Still cheaper than inf so the DP can route
-# through this handover; the execution planner may find a collision-free
-# configuration via trajectory optimisation.
-HANDOVER_IK_COLLISION_PENALTY = 1e5
+# Per-step penalty added when a pair of (transfer, receiver) IK configs
+# collides during the handover trajectory.  Instead of rejecting the
+# entire handover (inf), we accumulate a finite penalty per colliding
+# step so the DP can still route through the handover but prefers ones
+# that are collision-free.
+HANDOVER_COLLISION_STEP_PENALTY = 2000.0
 
 # =============================================================================
 # Control and Trajectory Configuration

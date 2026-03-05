@@ -227,44 +227,62 @@ def _compute_handover_primitive_cost(
     if not transfer_poses and not receiver_poses:
         return np.inf, False
 
-    # Solve IK for each phase, chaining warm starts for consistency
+    # Solve IK for each phase, chaining warm starts for consistency.
+    # Tolerate individual IK failures: skip unsolved poses and continue
+    # the chain so that partial successes can still produce a meaningful
+    # cost (with per-failure penalty).
     def _solve_all(poses: List[StampedPose], robot_id: int,
                    q_warm_start: Optional[np.ndarray] = None):
         configs = []
         q_prev = q_warm_start
+        n_failed = 0
         for p in poses:
             try:
                 q = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
                 if q is None or len(q) == 0:
-                    return None
+                    n_failed += 1
+                    continue  # skip this pose but keep trying
                 configs.append(q)
                 q_prev = q
             except Exception:
-                return None
-        return configs
+                n_failed += 1
+                continue
+        return configs, n_failed
 
     # Early-out: solve the transfer arm first (fewer poses — typically
     # just hold + retreat) so we can fail fast before spending time on
     # the receiver arm's longer approach trajectory.
-    transfer_configs = _solve_all(
-        transfer_poses, transfer_robot_id,
-        q_warm_start=q_warm_start_transfer,
-    ) if transfer_poses else []
-    if transfer_configs is None:
-        logger.debug("Handover IK failure: transfer arm (robot%d)", transfer_robot_id)
+    if transfer_poses:
+        transfer_configs, n_fail_transfer = _solve_all(
+            transfer_poses, transfer_robot_id,
+            q_warm_start=q_warm_start_transfer,
+        )
+    else:
+        transfer_configs, n_fail_transfer = [], 0
+    if not transfer_configs and transfer_poses:
+        logger.debug("Handover IK failure: transfer arm (robot%d) — all poses failed", transfer_robot_id)
         return np.inf, False
 
-    receiver_configs = _solve_all(
-        receiver_poses, receiver_robot_id,
-        q_warm_start=q_warm_start_receiver,
-    ) if receiver_poses else []
-    if receiver_configs is None:
-        logger.debug("Handover IK failure: receiver arm (robot%d)", receiver_robot_id)
+    if receiver_poses:
+        receiver_configs, n_fail_receiver = _solve_all(
+            receiver_poses, receiver_robot_id,
+            q_warm_start=q_warm_start_receiver,
+        )
+    else:
+        receiver_configs, n_fail_receiver = [], 0
+    if not receiver_configs and receiver_poses:
+        logger.debug("Handover IK failure: receiver arm (robot%d) — all poses failed", receiver_robot_id)
         return np.inf, False
+
+    n_total_failed = n_fail_transfer + n_fail_receiver
 
     # --- Collision check along the full handover trajectory ---
     # Phase 1: receiver approaches while transfer holds at hold pose.
     # Phase 2: transfer retreats while receiver stays at final approach.
+    # Instead of rejecting the handover outright, accumulate a per-step
+    # penalty so the DP can still route through colliding handovers but
+    # prefers collision-free ones.
+    n_collision_steps = 0
     if collision_check_fn is not None and transfer_configs and receiver_configs:
         n_hold = len(handover_trajectory.get("transfer_hold", []))
         q_transfer_hold = transfer_configs[0]      # transfer arm during hold
@@ -278,24 +296,19 @@ def _compute_handover_primitive_cost(
         # Phase 1: check each receiver config against transfer hold
         for j, q_recv in enumerate(receiver_configs):
             if not _col_free(q_transfer_hold, q_recv):
-                logger.debug(
-                    "Handover rejected: collision during receiver approach "
-                    "(step %d/%d, transfer=robot%d, receiver=robot%d)",
-                    j, len(receiver_configs),
-                    transfer_robot_id, receiver_robot_id,
-                )
-                return np.inf, False
+                n_collision_steps += 1
 
         # Phase 2: check each transfer retreat config against receiver final
         for i, q_trans in enumerate(transfer_configs[n_hold:], start=n_hold):
             if not _col_free(q_trans, q_receiver_final):
-                logger.debug(
-                    "Handover rejected: collision during transfer retreat "
-                    "(step %d/%d, transfer=robot%d, receiver=robot%d)",
-                    i, len(transfer_configs),
-                    transfer_robot_id, receiver_robot_id,
-                )
-                return np.inf, False
+                n_collision_steps += 1
+
+        if n_collision_steps > 0:
+            logger.debug(
+                "Handover has %d colliding steps "
+                "(transfer=robot%d, receiver=robot%d)",
+                n_collision_steps, transfer_robot_id, receiver_robot_id,
+            )
 
     # Smoothness per arm — use squared diff directly (avoid sqrt)
     smoothness = 0.0
@@ -326,10 +339,18 @@ def _compute_handover_primitive_cost(
         manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
 
     cost = alpha * smoothness + beta * manip_cost
+    # Add penalty for each intermediate IK failure so the DP prefers
+    # handovers where the full trajectory is solvable.
+    if n_total_failed > 0:
+        cost += constants.HANDOVER_IK_PARTIAL_PENALTY * n_total_failed
+    # Add penalty for each collision step.
+    if n_collision_steps > 0:
+        cost += constants.HANDOVER_COLLISION_STEP_PENALTY * n_collision_steps
     logger.debug(
         "Handover primitive cost: smoothness=%.4f, manip=%.4f, total=%.4f "
-        "(transfer=robot%d, receiver=robot%d)",
+        "(transfer=robot%d, receiver=robot%d, ik_failures=%d, collisions=%d)",
         smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
+        n_total_failed, n_collision_steps,
     )
     return cost, True
 
@@ -455,58 +476,15 @@ def compute_switching_cost(
         )
         return cost
 
-    # ── Fallback: check only the two critical poses ──────────────────
-    # (transfer hold + receiver final).  If both solve, emit a high
-    # penalty so the DP can still route through this handover.
+    # _compute_handover_primitive_cost returns (inf, False) only when
+    # ALL IK calls failed for at least one arm — a truly infeasible
+    # handover at this location.
     logger.debug(
-        "Full handover IK failed at seg %d (robot %d→%d), trying critical-pose fallback",
+        "Handover at seg %d (robot %d→%d) is truly infeasible — "
+        "all IK calls failed for at least one arm.",
         segment_idx, prev_robot, curr_robot,
     )
-
-    try:
-        transfer_hold_pose = h_traj.get("transfer_hold", [None])[0]
-        receiver_approach = h_traj.get("receiver_approach", [])
-        receiver_final_pose = receiver_approach[-1] if receiver_approach else h_traj.get("receiver_pre", [None])[0]
-
-        if transfer_hold_pose is None or receiver_final_pose is None:
-            return np.inf
-
-        q_transfer = ik_solver_fn(transfer_hold_pose, prev_robot_id)
-        if q_transfer is None:
-            logger.debug("Critical IK failure: transfer hold (robot%d)", prev_robot_id)
-            return np.inf
-
-        q_receiver = ik_solver_fn(receiver_final_pose, curr_robot_id)
-        if q_receiver is None:
-            logger.debug("Critical IK failure: receiver final (robot%d)", curr_robot_id)
-            return np.inf
-
-        # Check inter-arm collision at the critical meeting point
-        collision_free = True
-        if collision_check_fn is not None:
-            if prev_robot_id == 0:
-                collision_free = collision_check_fn(q_transfer, q_receiver)
-            else:
-                collision_free = collision_check_fn(q_receiver, q_transfer)
-
-        if collision_free:
-            logger.debug(
-                "Critical-pose fallback accepted at seg %d (robot %d→%d), penalty=%.0f",
-                segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_SOFT_PENALTY,
-            )
-            return constants.HANDOVER_IK_SOFT_PENALTY
-
-        # IK solved for both arms but they collide — accept with a
-        # higher (but finite) penalty.  The execution planner may find
-        # an alternate collision-free configuration.
-        logger.debug(
-            "Critical-pose collision-penalty at seg %d (robot %d→%d), penalty=%.0f",
-            segment_idx, prev_robot, curr_robot, constants.HANDOVER_IK_COLLISION_PENALTY,
-        )
-        return constants.HANDOVER_IK_COLLISION_PENALTY
-
-    except Exception:
-        return np.inf
+    return np.inf
 
 
 # ---------------------------------------------------------------------------

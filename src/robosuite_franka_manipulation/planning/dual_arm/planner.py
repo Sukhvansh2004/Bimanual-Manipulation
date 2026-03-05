@@ -539,8 +539,22 @@ class DualArmParallelPlanner:
     ) -> Optional[np.ndarray]:
         """Plan arm B's reference trajectory using RRT when possible.
 
+        Tries multiple IK solutions for the goal configuration to
+        increase the chance of finding one that is collision-free
+        against arm A's trajectory.  Only the temporally-relevant
+        portion of *traj_a* (second half onward) is used for temporal
+        collision checking, since arm B only needs to be clear of arm A
+        near the handover point, not at the start of arm A's segment.
+
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
+        from robosuite_franka_manipulation.planning.utils.ik_utils import (
+            enumerate_ik_solutions_for_arm,
+            apply_ik_orientation_correction,
+        )
+
+        # --- Resolve IK goal candidates ---
+        # Get an initial solution via the normal pipeline (single best).
         quintic_traj, goal_q = plan_pose_to_joint_trajectory(
             self.arm_b, target_pose, desired_length,
             q_warm_start=q_warm_start,
@@ -548,41 +562,96 @@ class DualArmParallelPlanner:
         if quintic_traj is None or goal_q is None:
             return None
 
-        if traj_a is not None and len(traj_a) > 0:
-            q_arm_a_ref = traj_a[-1]
-            start_q = self.arm_b.get_joint_positions()
+        if traj_a is None or len(traj_a) == 0:
+            return quintic_traj
 
+        # --- Enumerate multiple IK solutions for robustness ---
+        # The primary IK solution may be in collision with arm A at
+        # some point during its trajectory.  Trying alternatives
+        # greatly increases the chance of RRT success.
+        goal_candidates = [goal_q]
+        try:
+            pose_for_ik = target_pose
+            if pose_for_ik.frame_id != self.arm_b.base_frame:
+                pose_for_ik = self.arm_b.tf_manager.transform_pose(
+                    pose_for_ik, self.arm_b.base_frame,
+                )
+            corrected_pose = apply_ik_orientation_correction(pose_for_ik)
+            site_name = f"gripper{self.arm_b.robot_id}_{self.arm_b.arm_id}_ft_frame"
+            extra_solutions = enumerate_ik_solutions_for_arm(
+                self.env,
+                robot_id=self.arm_b.robot_id,
+                target_pose=corrected_pose,
+                tf_manager=self.arm_b.tf_manager,
+                arm=self.arm_b.arm_id,
+                site_name=site_name,
+                q_warm_start=q_warm_start,
+                env_lock=self.env_lock,
+                max_solutions=constants.IK_MAX_SOLUTIONS,
+            )
+            for sol in extra_solutions:
+                if not any(np.allclose(sol, g, atol=0.05) for g in goal_candidates):
+                    goal_candidates.append(sol)
+        except Exception as exc:
+            logger.debug("Extra IK enumeration failed: %s", exc)
+
+        logger.info(
+            "Arm B IK: %d goal candidate(s) for RRT.", len(goal_candidates),
+        )
+
+        # --- Reduce temporal collision aggressiveness ---
+        # Only keep the second half of arm A's trajectory for temporal
+        # checks.  Arm B approaches the pre-pose while arm A is still
+        # in transit; by the time arm B settles, arm A is near the end
+        # of its segment.  Checking against early arm A configs causes
+        # unnecessary RRT failures (the goal config is fine at the
+        # handover instant but collides with arm A at earlier positions).
+        traj_a_temporal: Optional[np.ndarray] = traj_a
+        if len(traj_a) > 4:
+            n_keep = max(2, len(traj_a) // 2)
+            traj_a_temporal = traj_a[-n_keep:]
+            logger.info(
+                "Temporal collision: using last %d/%d arm A configs.",
+                n_keep, len(traj_a),
+            )
+
+        q_arm_a_ref = traj_a[-1]
+        start_q = self.arm_b.get_joint_positions()
+
+        # --- Try each IK goal candidate via RRT ---
+        for idx, candidate_q in enumerate(goal_candidates):
             try:
                 rrt_traj, rrt_success = plan_arm_trajectory(
                     env=self.env,
                     robot_id_b=self.arm_b.robot_id,
                     start_q=start_q,
-                    goal_q=goal_q,
+                    goal_q=candidate_q,
                     q_other_arm=q_arm_a_ref,
                     robot_id_a=self.arm_a.robot_id,
                     num_steps=desired_length,
                     env_lock=self.env_lock,
                     rrt_vis=self.rrt_vis,
-                    q_other_arm_trajectory=traj_a,
+                    q_other_arm_trajectory=traj_a_temporal,
                 )
                 if rrt_success:
                     logger.info(
                         "Arm B reference trajectory planned via "
-                        "collision-free joint RRT."
+                        "collision-free joint RRT (IK candidate %d/%d).",
+                        idx + 1, len(goal_candidates),
                     )
                     return rrt_traj
             except Exception as exc:
                 logger.warning(
-                    "Joint RRT planning failed for arm B: %s", exc,
+                    "Joint RRT planning failed for arm B "
+                    "(candidate %d/%d): %s", idx + 1, len(goal_candidates), exc,
                 )
 
-            logger.warning(
-                "No collision-free trajectory found for arm B — "
-                "returning None (no unsafe fallback)."
-            )
-            return None
-
-        return quintic_traj
+        logger.warning(
+            "No collision-free trajectory found for arm B — "
+            "tried %d IK goal candidate(s). Returning None.",
+            len(goal_candidates),
+        )
+        return None
 
     # ------------------------------------------------------------------
     # Utility helpers

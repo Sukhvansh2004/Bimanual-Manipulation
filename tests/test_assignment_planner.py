@@ -422,6 +422,39 @@ class TestHandoverPrimitiveCost:
         assert np.isinf(cost)
         assert ok is False
 
+    def test_partial_ik_failure_returns_finite_with_penalty(self):
+        """When some IK calls fail but at least one succeeds, cost should be
+        finite and include a per-failure penalty."""
+        from robosuite_franka_manipulation import constants as C
+
+        call_count = [0]
+
+        def _partial_ik(pose, robot_id, q_warm_start=None):
+            """Fail on even-numbered calls, succeed on odd."""
+            call_count[0] += 1
+            if call_count[0] % 2 == 0:
+                return None
+            return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4])
+
+        poses = [
+            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+            for i in range(5)
+        ]
+        h_traj = {
+            "transfer_hold": poses[:2],
+            "receiver_approach": poses[2:],
+        }
+        cost, ok = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _partial_ik,
+        )
+        assert ok is True, "Should succeed when some IK calls succeed"
+        assert np.isfinite(cost), "Cost should be finite"
+        # Cost should include penalty for partial failures
+        assert cost >= C.HANDOVER_IK_PARTIAL_PENALTY, (
+            f"Cost {cost} should include at least one partial penalty "
+            f"({C.HANDOVER_IK_PARTIAL_PENALTY})"
+        )
+
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""
         call_log: Dict[int, int] = {0: 0, 1: 0}
@@ -452,8 +485,10 @@ class TestHandoverPrimitiveCost:
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
 
-    def test_collision_check_rejects_colliding_handover(self):
-        """A collision_check_fn returning False should cause inf cost."""
+    def test_collision_check_adds_penalty_for_colliding_handover(self):
+        """Collisions add per-step penalty instead of rejecting the handover."""
+        from robosuite_franka_manipulation import constants as C
+
         def _ik(pose, robot_id, q_warm_start=None):
             return np.ones(7) * 0.5
 
@@ -468,12 +503,28 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:1],
             "receiver_approach": poses,
         }
-        cost, ok = _compute_handover_primitive_cost(
+
+        # Compute cost with collisions
+        cost_col, ok_col = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_colliding,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert ok_col is True
+        assert np.isfinite(cost_col)
+
+        # Compute cost without collisions for comparison
+        cost_free, ok_free = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _ik,
+            collision_check_fn=lambda q0, q1: True,
+        )
+        assert ok_free is True
+
+        # Colliding cost must exceed collision-free cost by at least one
+        # collision step penalty.
+        assert cost_col > cost_free + C.HANDOVER_COLLISION_STEP_PENALTY, (
+            f"Colliding cost ({cost_col:.2f}) should exceed free cost "
+            f"({cost_free:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
+        )
 
     def test_collision_check_passes_when_free(self):
         """A collision_check_fn returning True should not affect cost."""

@@ -719,43 +719,92 @@ def main():
                         f"receiver pre-pose during parallel execution. "
                         f"Attempting independent recovery..."
                     )
-                    # Try RRT: solve IK for pre-pose, plan collision-free path
+                    # Try RRT with multiple IK solutions for the pre-pose.
+                    # The primary IK solution may be in collision with arm A;
+                    # alternative joint configurations for the same Cartesian
+                    # pose could be collision-free.
+                    from robosuite_franka_manipulation.planning.utils.ik_utils import (
+                        enumerate_ik_solutions_for_arm,
+                        apply_ik_orientation_correction,
+                    )
+
                     arm_b_start_q = other_arm.get_joint_positions()
                     arm_a_current_q = current_arm.get_joint_positions()
+
+                    # Enumerate multiple IK goals
+                    ik_goals = []
                     _, recv_goal_q = plan_pose_to_joint_trajectory(
                         other_arm, receiver_pre_pose, num_steps=100,
                         q_warm_start=q_warm_start_receiver,
                     )
+                    if recv_goal_q is not None:
+                        ik_goals.append(recv_goal_q)
+
+                    # Get additional IK solutions
+                    try:
+                        rpp = receiver_pre_pose
+                        if rpp.frame_id != other_arm.base_frame:
+                            rpp = other_arm.tf_manager.transform_pose(
+                                rpp, other_arm.base_frame,
+                            )
+                        corrected_rpp = apply_ik_orientation_correction(rpp)
+                        site_name = f"gripper{other_arm.robot_id}_{other_arm.arm_id}_ft_frame"
+                        extra_sols = enumerate_ik_solutions_for_arm(
+                            system.env,
+                            robot_id=other_arm.robot_id,
+                            target_pose=corrected_rpp,
+                            tf_manager=other_arm.tf_manager,
+                            arm=other_arm.arm_id,
+                            site_name=site_name,
+                            q_warm_start=q_warm_start_receiver,
+                            env_lock=system.env_lock,
+                            max_solutions=constants.IK_MAX_SOLUTIONS,
+                        )
+                        for sol in extra_sols:
+                            if not any(np.allclose(sol, g, atol=0.05) for g in ik_goals):
+                                ik_goals.append(sol)
+                    except Exception:
+                        pass
+
+                    logger.info(
+                        "Recovery: %d IK goal candidate(s) for arm B.",
+                        len(ik_goals),
+                    )
 
                     recovery_ok = False
-                    if recv_goal_q is not None:
+                    for gi, goal_q_candidate in enumerate(ik_goals):
                         try:
                             rrt_traj_b, rrt_ok_b = plan_arm_trajectory(
                                 env=system.env,
                                 robot_id_b=1 - current_robot,
                                 start_q=arm_b_start_q,
-                                goal_q=recv_goal_q,
+                                goal_q=goal_q_candidate,
                                 q_other_arm=arm_a_current_q,
                                 robot_id_a=current_robot,
                                 num_steps=100,
                                 env_lock=system.env_lock,
                                 rrt_vis=rrt_vis,
                             )
-                            logger.info(
-                                "RRT recovery for arm B succeeded. "
-                                "Moving to receiver pre-pose..."
-                            )
-                            other_arm.follow_joint_trajectory(
-                                list(rrt_traj_b), gripper_action=-1.0,
-                                smoothen=exec_cfg.smoothen, num_steps=200,
-                            )
-                            recovery_ok = True
+                            if rrt_ok_b:
+                                logger.info(
+                                    "RRT recovery for arm B succeeded "
+                                    "(IK candidate %d/%d). Moving to "
+                                    "receiver pre-pose...",
+                                    gi + 1, len(ik_goals),
+                                )
+                                other_arm.follow_joint_trajectory(
+                                    list(rrt_traj_b), gripper_action=-1.0,
+                                    smoothen=exec_cfg.smoothen, num_steps=200,
+                                )
+                                recovery_ok = True
+                                break
                         except RuntimeError:
                             logger.warning(
-                                "RRT recovery for arm B failed — "
-                                "trying move_to_pose fallback."
+                                "RRT recovery candidate %d/%d failed.",
+                                gi + 1, len(ik_goals),
                             )
-                    else:
+
+                    if not ik_goals:
                         logger.warning(
                             "IK for receiver pre-pose failed — "
                             "skipping RRT, trying move_to_pose."
