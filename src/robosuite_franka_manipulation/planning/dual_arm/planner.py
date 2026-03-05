@@ -74,6 +74,11 @@ from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
     normalise_trajectory,
     eef_to_joint_trajectory,
 )
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -577,10 +582,6 @@ class DualArmParallelPlanner:
 
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
-        from robosuite_franka_manipulation.planning.utils.ik_utils import (
-            enumerate_ik_solutions_for_arm,
-            apply_ik_orientation_correction,
-        )
 
         # --- Resolve IK goal candidates ---
         # Get an initial solution via the normal pipeline (single best).
