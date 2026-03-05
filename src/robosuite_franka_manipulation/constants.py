@@ -155,7 +155,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # QP solver backend
-MINK_QP_SOLVER = "proxqp"
+MINK_QP_SOLVER = "daqp"
 
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight
