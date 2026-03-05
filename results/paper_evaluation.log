@@ -1,0 +1,53 @@
+2026-03-05 11:38:32,505 [__main__] INFO  Logging to /home/anurag/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
+2026-03-05 11:38:32,505 [__main__] INFO  Paper evaluation: 4 experiments × 6 configs
+2026-03-05 11:38:32,505 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'ycb_plate_shelf_to_table', 'mug_inversion', 'flatPlate_box_to_box']
+2026-03-05 11:38:32,505 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Diversity', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
+2026-03-05 11:38:32,505 [__main__] INFO  
+================================================================================
+2026-03-05 11:38:32,505 [__main__] INFO    PHASE 1: PLANNING
+2026-03-05 11:38:32,505 [__main__] INFO  ================================================================================
+2026-03-05 11:38:32,505 [__main__] INFO  Running 4 experiments in parallel (4 workers)
+2026-03-05 12:08:00,323 [__main__] INFO    mug_inversion: 4/6 configs have finite cost
+2026-03-05 12:08:00,324 [__main__] INFO      Proposed                                  cost=101835.11  [OK]
+2026-03-05 12:08:00,324 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 12:08:00,324 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 12:08:00,324 [__main__] INFO      No Diversity                              cost=101610.92  [OK]
+2026-03-05 12:08:00,324 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1430.36  [OK]
+2026-03-05 12:08:00,324 [__main__] INFO      No Manipulability (β=0)                   cost=100211.77  [OK]
+2026-03-05 12:21:27,366 [__main__] INFO    ycb_plate_shelf_to_table: 4/6 configs have finite cost
+2026-03-05 12:21:27,366 [__main__] INFO      Proposed                                  cost=102253.66  [OK]
+2026-03-05 12:21:27,366 [__main__] INFO      Greedy (beam=1)                           cost=103078.52  [OK]
+2026-03-05 12:21:27,366 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 12:21:27,366 [__main__] INFO      No Diversity                              cost=inf  [FAILED (inf)]
+2026-03-05 12:21:27,366 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=2243.69  [OK]
+2026-03-05 12:21:27,366 [__main__] INFO      No Manipulability (β=0)                   cost=100870.51  [OK]
+2026-03-05 14:08:32,781 [__main__] INFO    flatPlate_box_to_box: 4/6 configs have finite cost
+2026-03-05 14:08:32,782 [__main__] INFO      Proposed                                  cost=54853.91  [OK]
+2026-03-05 14:08:32,782 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 14:08:32,782 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 14:08:32,782 [__main__] INFO      No Diversity                              cost=2646.74  [OK]
+2026-03-05 14:08:32,782 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1537.71  [OK]
+2026-03-05 14:08:32,782 [__main__] INFO      No Manipulability (β=0)                   cost=52689.71  [OK]
+2026-03-05 15:52:14,419 [__main__] INFO    ycb_plate_table_to_shelf: 4/6 configs have finite cost
+2026-03-05 15:52:14,419 [__main__] INFO      Proposed                                  cost=50976.67  [OK]
+2026-03-05 15:52:14,419 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-05 15:52:14,419 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-05 15:52:14,419 [__main__] INFO      No Diversity                              cost=100997.16  [OK]
+2026-03-05 15:52:14,419 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=889.37  [OK]
+2026-03-05 15:52:14,419 [__main__] INFO      No Manipulability (β=0)                   cost=50021.38  [OK]
+2026-03-05 15:52:14,478 [__main__] INFO  
+Total evaluation time: 15222.0 seconds
+2026-03-05 15:52:14,478 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_box_to_box/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_box_to_box/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_box_to_box/Proposed_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0.json: ExecutionMetrics.__init__() got an unexpected keyword argument 'parallel_collision_free'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Switching_Penalty_Cswitch0.json: ExecutionMetrics.__init__() got an unexpected keyword argument 'parallel_collision_free'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Proposed.json: ExecutionMetrics.__init__() got an unexpected keyword argument 'parallel_collision_free'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/flatPlate_shelf_to_box/Proposed_exec.json: 'experiment'
+2026-03-05 15:52:14,479 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/Greedy_beam1_exec.json: 'experiment'
+2026-03-05 15:52:14,480 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/No_Manipulability_β0_exec.json: 'experiment'
+2026-03-05 15:52:14,480 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/No_Switching_Penalty_Cswitch0_exec.json: 'experiment'
+2026-03-05 15:52:14,480 [scripts.evaluation.results_store] WARNING  Failed to load /home/anurag/Dual-Arm-Franka-Control-MTP/results/ycb_plate_table_to_shelf/Proposed_exec.json: 'experiment'
+2026-03-05 15:52:14,481 [scripts.evaluation.results_store] INFO  Summary saved: /home/anurag/Dual-Arm-Franka-Control-MTP/results/summary.json (28 results)

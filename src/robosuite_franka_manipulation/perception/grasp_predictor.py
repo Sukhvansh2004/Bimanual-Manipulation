@@ -16,9 +16,9 @@ from robosuite_franka_manipulation.utils import downsample_point_cloud, transfor
 from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
 from robosuite_franka_manipulation.schema import GraspSchema
 
-from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
-from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
-from grasp_gen.robot import get_gripper_info
+# from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
+# from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal
+# from grasp_gen.robot import get_gripper_info
 
 # Configure logging
 logger = logging.getLogger(__name__)

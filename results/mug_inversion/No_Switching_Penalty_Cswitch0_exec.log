@@ -1,0 +1,185 @@
+[robosuite WARNING] No private macro file found! (macros.py:53)
+[robosuite WARNING] It is recommended to use a private macro file (macros.py:54)
+[robosuite WARNING] To setup, run: python /home/anurag/miniconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/robosuite/scripts/setup_macros.py (macros.py:55)
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-05 15:55:02,739 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 15:55:02,739 - robosuite_franka_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
+2026-03-05 15:55:02,739 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 15:55:02,739 - robosuite_franka_manipulation.system_manager - INFO - 
+1. Creating dual-arm environment...
+2026-03-05 15:55:02,740 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-05 15:55:02,740 - robosuite_franka_manipulation.environments.dual_arm - WARNING - YCB object 'mug' not found at /home/anurag/Dual-Arm-Franka-Control-MTP/deps/YCB_Dataset/ycb/mug.xml
+2026-03-05 15:55:03,278 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-05 15:55:03,801 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Environment created
+2026-03-05 15:55:03,801 - robosuite_franka_manipulation.system_manager - INFO - 
+1a. Creating shared TransformManager...
+2026-03-05 15:55:03,801 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.system_manager - INFO -    ✓ TransformManager created
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.system_manager - INFO - 
+1b. Loading arm and gripper controllers...
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Controllers loaded
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.system_manager - INFO - 
+2. Starting services...
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.system_manager - INFO -    Starting Service Manager...
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-05 15:55:03,803 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-05 15:55:04,304 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Service Manager started
+2026-03-05 15:55:04,305 - robosuite_franka_manipulation.system_manager - INFO -    FastSAM service disabled by flag
+2026-03-05 15:55:04,305 - robosuite_franka_manipulation.system_manager - INFO -    Grasp service disabled by flag
+2026-03-05 15:55:04,305 - robosuite_franka_manipulation.system_manager - INFO -    Starting Move To Pose service...
+2026-03-05 15:55:04,305 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
+2026-03-05 15:55:04,305 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
+2026-03-05 15:55:04,306 - robosuite_franka_manipulation.services.services_core - INFO - Registered service: move_to_pose_service (control) at localhost:5553
+2026-03-05 15:55:04,307 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Move To Pose service started on tcp://localhost:5553
+2026-03-05 15:55:04,807 - robosuite_franka_manipulation.system_manager - INFO -    ✓ Move To Pose service started
+2026-03-05 15:55:04,808 - robosuite_franka_manipulation.system_manager - INFO - 
+3. Preparing teleoperation...
+2026-03-05 15:55:04,809 - robosuite_franka_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
+2026-03-05 15:55:04,809 - robosuite_franka_manipulation.system_manager - INFO - 
+4. Settling environment...
+2026-03-05 15:55:04,999 - robosuite_franka_manipulation.system_manager - INFO -    Registered dynamic TF frame 'wallObstacle'
+2026-03-05 15:55:04,999 - robosuite_franka_manipulation.system_manager - INFO - 
+======================================================================
+2026-03-05 15:55:04,999 - robosuite_franka_manipulation.system_manager - INFO - System Ready!
+2026-03-05 15:55:04,999 - robosuite_franka_manipulation.system_manager - INFO - ======================================================================
+2026-03-05 15:55:04,999 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
+2026-03-05 15:55:04,999 - __main__ - INFO - Loading assignment result from data/mug_inversion/configs/No_Switching_Penalty_Cswitch0/assignment_results.npz ...
+2026-03-05 15:55:05,070 - __main__ - INFO - Loaded 7 unique trajectories for assignment: ['robot0_trajectory_11.npz', 'robot0_trajectory_16.npz', 'robot0_trajectory_2.npz', 'robot0_trajectory_6.npz', 'robot1_trajectory_19.npz', 'robot1_trajectory_2.npz', 'robot1_trajectory_7.npz']
+2026-03-05 15:55:05,071 - __main__ - INFO - Handover points: [15, 17, 27, 32, 33, 43, 44, 47, 48]
+2026-03-05 15:55:05,071 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
+2026-03-05 15:55:05,071 - __main__ - INFO - Robot 1 starting at waypoint 0
+2026-03-05 15:55:05,077 - __main__ - INFO - Robot 1 planning RRT to pre-grasp pose...
+2026-03-05 15:55:05,080 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-05 15:55:05,080 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-05 15:55:05,080 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-05 15:55:05,081 - __main__ - INFO - RRT to pre-grasp succeeded. Following collision-free joint trajectory...
+2026-03-05 15:55:05,081 - robosuite_franka_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints, max 400 steps)
+2026-03-05 15:55:15,032 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-05 15:55:15,032 - __main__ - INFO - Robot 1 following grasp approach trajectory...
+2026-03-05 15:55:15,032 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (50 waypoints)
+2026-03-05 15:55:18,449 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 15 while Robot 0 moves to handover pre-pose
+2026-03-05 15:55:18,451 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 2 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=0 geoms, env=12 geoms)
+2026-03-05 15:55:18,451 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=17, nv=17, frozen_dofs=10, solver=proxqp)
+2026-03-05 15:55:18,460 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 15.
+2026-03-05 15:55:18,462 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-05 15:55:18,462 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-05 15:55:18,646 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=89, tree_b=1)
+2026-03-05 15:55:18,829 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=173, tree_b=1)
+2026-03-05 15:55:19,016 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=255, tree_b=1)
+2026-03-05 15:55:19,209 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=332, tree_b=1)
+2026-03-05 15:55:19,415 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=412, tree_b=1)
+2026-03-05 15:55:19,638 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=495, tree_b=1)
+2026-03-05 15:55:19,868 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=574, tree_b=1)
+2026-03-05 15:55:20,111 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=656, tree_b=1)
+2026-03-05 15:55:20,365 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=738, tree_b=1)
+2026-03-05 15:55:20,629 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=819, tree_b=1)
+2026-03-05 15:55:20,906 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=900, tree_b=1)
+2026-03-05 15:55:21,184 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=981, tree_b=1)
+2026-03-05 15:55:21,471 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1063, tree_b=1)
+2026-03-05 15:55:21,857 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1148, tree_b=1)
+2026-03-05 15:55:22,157 - robosuite_franka_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot0.
+2026-03-05 15:55:22,157 - robosuite_franka_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B: Joint RRT failed — no collision-free path found (tried None iterations).
+2026-03-05 15:55:22,157 - robosuite_franka_manipulation.planning.dual_arm.planner - WARNING - No collision-free trajectory found for arm B — returning None (no unsafe fallback).
+2026-03-05 15:55:22,158 - robosuite_franka_manipulation.planning.dual_arm.planner - ERROR - Failed to plan reference trajectory for arm B (robot0_right). Falling back to arm-A-only execution.
+2026-03-05 15:55:22,158 - robosuite_franka_manipulation.planning.dual_arm.planner - INFO - Executing arm A trajectory alone (15 waypoints).
+2026-03-05 15:55:22,158 - robosuite_franka_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (15 waypoints, max 30 steps)
+2026-03-05 15:55:22,858 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 1:right - Joint trajectory converged at step 14 (max err=0.0220 rad)
+2026-03-05 15:55:22,858 - __main__ - WARNING - Arm B did not fully converge (err=inf)
+2026-03-05 15:55:22,858 - __main__ - INFO - Arm B (Robot 0) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-05 15:55:22,864 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-05 15:55:22,864 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-05 15:55:22,903 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=82, tree_b=1)
+2026-03-05 15:55:22,952 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=158, tree_b=1)
+2026-03-05 15:55:23,010 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=235, tree_b=1)
+2026-03-05 15:55:23,078 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=314, tree_b=1)
+2026-03-05 15:55:23,157 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=398, tree_b=1)
+2026-03-05 15:55:23,246 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=482, tree_b=1)
+2026-03-05 15:55:23,344 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=562, tree_b=1)
+2026-03-05 15:55:23,452 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=647, tree_b=1)
+2026-03-05 15:55:23,569 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=724, tree_b=1)
+2026-03-05 15:55:23,711 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=807, tree_b=1)
+2026-03-05 15:55:23,872 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=889, tree_b=1)
+2026-03-05 15:55:24,027 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=970, tree_b=1)
+2026-03-05 15:55:24,192 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1048, tree_b=1)
+2026-03-05 15:55:24,364 - robosuite_franka_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1132, tree_b=1)
+2026-03-05 15:55:24,543 - robosuite_franka_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot0.
+2026-03-05 15:55:24,543 - __main__ - WARNING - RRT recovery for arm B failed — trying move_to_pose fallback.
+2026-03-05 15:55:24,543 - __main__ - INFO - Attempting move_to_pose fallback for arm B...
+2026-03-05 15:55:24,543 - robosuite_franka_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right:
+2026-03-05 15:55:24,544 - robosuite_franka_manipulation.controllers.arm - INFO -   Current EEF in base: pos=[    0.42639 -8.4031e-16     0.70805]
+2026-03-05 15:55:24,544 - robosuite_franka_manipulation.controllers.arm - INFO -   Target in base: pos=[    0.47371     0.14898    0.053831]
+2026-03-05 15:55:24,544 - robosuite_franka_manipulation.controllers.arm - INFO -   Distance to target: 0.6726m
+2026-03-05 15:55:25,315 - robosuite_franka_manipulation.services.services_core - WARNING - Service move_to_pose_service is already registered.
+2026-03-05 15:55:34,425 - robosuite_franka_manipulation.services.services_core - WARNING - Service move_to_pose_service is already registered.
+2026-03-05 15:55:41,257 - robosuite_franka_manipulation.services.services_core - WARNING - Service move_to_pose_service is already registered.
+2026-03-05 15:55:44,563 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 0:right - mink trajectory did NOT converge: pos_err=0.2627, ori_err=0.1480
+2026-03-05 15:55:44,563 - __main__ - WARNING - move_to_pose recovery also failed — handover likely to fail.
+2026-03-05 15:55:44,563 - __main__ - INFO - Executing handover at waypoint 15 (robot 1 → robot 0)...
+2026-03-05 15:55:44,563 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-05 15:55:44,564 - robosuite_franka_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right:
+2026-03-05 15:55:44,564 - robosuite_franka_manipulation.controllers.arm - INFO -   Current EEF in base: pos=[    0.66418    -0.24916     0.30477]
+2026-03-05 15:55:44,564 - robosuite_franka_manipulation.controllers.arm - INFO -   Target in base: pos=[     0.6643    -0.24926     0.30516]
+2026-03-05 15:55:44,564 - robosuite_franka_manipulation.controllers.arm - INFO -   Distance to target: 0.0004m
+2026-03-05 15:55:47,020 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-05 15:55:47,034 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot0_right (50 waypoints)
+2026-03-05 15:55:52,040 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 0:right - mink trajectory did NOT converge: pos_err=0.1854, ori_err=0.2332
+2026-03-05 15:55:52,041 - __main__ - WARNING - Receiver arm did NOT converge on approach (dist=0.1854m). Handover may fail.
+2026-03-05 15:55:53,668 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-05 15:55:53,668 - robosuite_franka_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (30 waypoints)
+2026-03-05 15:55:56,672 - robosuite_franka_manipulation.controllers.arm - INFO - ROBOT 1:right - mink trajectory did NOT converge: pos_err=0.0571, ori_err=0.4096
+2026-03-05 15:55:56,673 - __main__ - WARNING - Handover at waypoint 15 LIKELY FAILED — receiver arm did not converge. (robot 1 → robot 0). Continuing execution anyway. Total handovers: 0/1
+2026-03-05 15:55:56,677 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 17 while Robot 1 moves to handover pre-pose
+2026-03-05 15:55:56,680 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 2 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=0 geoms, env=12 geoms)
+2026-03-05 15:55:56,680 - robosuite_franka_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=17, nv=17, frozen_dofs=10, solver=proxqp)
+2026-03-05 15:55:56,688 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 2 sampled arm A configs from trajectory of length 2.
+2026-03-05 15:55:56,692 - robosuite_franka_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-05 15:55:56,692 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-05 15:55:56,692 - robosuite_franka_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-05 15:55:56,693 - robosuite_franka_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT.
+2026-03-05 15:55:56,693 - __main__ - ERROR - An error occurred: The number of derivatives at boundaries does not match: expected 2, got 0+0
+Traceback (most recent call last):
+  File "/home/anurag/Dual-Arm-Franka-Control-MTP/scripts/pipeline/dual_arm_handover_traj.py", line 693, in main
+    par_result = parallel_planner.execute_parallel(
+  File "/home/anurag/Dual-Arm-Franka-Control-MTP/src/robosuite_franka_manipulation/planning/dual_arm/planner.py", line 244, in execute_parallel
+    traj_a = resample_joint_trajectory(traj_a, target_len)
+  File "/home/anurag/Dual-Arm-Franka-Control-MTP/src/robosuite_franka_manipulation/planning/utils/trajectory_utils.py", line 452, in resample_joint_trajectory
+    return interp1d(old_t, waypoints, axis=0, kind="cubic")(new_t)
+  File "/home/anurag/miniconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/scipy/interpolate/_interpolate.py", line 397, in __init__
+    self._spline = make_interp_spline(xx, yy, k=order,
+  File "/home/anurag/miniconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/scipy/interpolate/_bsplines.py", line 1596, in make_interp_spline
+    raise ValueError("The number of derivatives at boundaries does not "
+ValueError: The number of derivatives at boundaries does not match: expected 2, got 0+0
+2026-03-05 15:55:56,698 - __main__ - INFO - Execution metrics saved to results/mug_inversion/No_Switching_Penalty_Cswitch0_exec.json
+2026-03-05 15:55:56,698 - robosuite_franka_manipulation.system_manager - INFO - 
+Stopping system...
+2026-03-05 15:55:56,698 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
+2026-03-05 15:55:56,698 - robosuite_franka_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
+2026-03-05 15:55:56,698 - robosuite_franka_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
+2026-03-05 15:55:56,729 - robosuite_franka_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
+2026-03-05 15:55:56,729 - robosuite_franka_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-05 15:55:57,275 - robosuite_franka_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-05 15:55:57,275 - robosuite_franka_manipulation.services.services_core - INFO - Service Manager stopped
+2026-03-05 15:55:57,361 - robosuite_franka_manipulation.system_manager - INFO - System stopped
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+
+Keys                          	Command
+Ctrl+q                        	reset simulation
+spacebar                      	toggle gripper (open/close)
+up-right-down-left            	move horizontally in x-y plane
+.-;                           	move vertically
+o-p                           	rotate (yaw)
+y-h                           	rotate (pitch)
+e-r                           	rotate (roll)
+b                             	toggle arm/base mode (if applicable)
+s                             	switch active arm (if multi-armed robot)
+=                             	switch active robot (if multi-robot environment)
+

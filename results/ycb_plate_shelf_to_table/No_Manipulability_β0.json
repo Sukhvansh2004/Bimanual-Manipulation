@@ -1,0 +1,39 @@
+{
+  "experiment": "ycb_plate_shelf_to_table",
+  "config_label": "No Manipulability (\u03b2=0)",
+  "config_id": "No_Manipulability_\u03b20",
+  "planning": {
+    "experiment": "ycb_plate_shelf_to_table",
+    "config_label": "No Manipulability (\u03b2=0)",
+    "total_cost": 100870.50848181258,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      29
+    ],
+    "mean_task_cost": 17.41016963625061,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.08975395849938249,
+    "min_manipulability": 0.017626973549862375,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 694.472195148468
+  },
+  "execution": {
+    "task_success": true,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 1,
+    "handover_success_rate": 1.0,
+    "n_collision_incidents": 562,
+    "n_switches": 1,
+    "execution_time_s": 65.38183093070984,
+    "mean_manipulability": 0.08033794471381903,
+    "placement_position_error": null,
+    "placement_orientation_error": null,
+    "error_message": ""
+  }
+}

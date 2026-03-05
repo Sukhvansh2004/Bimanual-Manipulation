@@ -5,36 +5,35 @@
   "planning": {
     "experiment": "ycb_plate_table_to_shelf",
     "config_label": "Proposed",
-    "total_cost": 101878.21771950723,
+    "total_cost": 50976.66564015508,
     "n_segments": 50,
     "n_handovers": 1,
     "handover_points": [
-      6
+      10
     ],
-    "mean_task_cost": 37.564354390144,
-    "total_switching_cost": 100000.0,
-    "mean_manipulability": 0.8035318335235054,
-    "min_manipulability": 0.7512142534909312,
+    "mean_task_cost": 19.53331280310181,
+    "total_switching_cost": 50000.0,
+    "mean_manipulability": 0.11192451452114406,
+    "min_manipulability": 0.06902307549418986,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 1091.7823078632355
+    "planning_time_s": 3678.5615723133087
   },
   "execution": {
-    "experiment": "ycb_plate_table_to_shelf",
-    "config_label": "Proposed",
-    "task_success": true,
-    "handover_success_rate": 1.0,
-    "n_handovers_attempted": 1,
-    "n_handovers_succeeded": 1,
-    "n_collision_incidents": 1,
-    "execution_time_s": 118.59210538864136,
+    "task_success": false,
     "grasp_success": true,
     "transport_success": true,
     "place_success": true,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 0,
+    "handover_success_rate": 0.0,
+    "n_collision_incidents": 440,
     "n_switches": 1,
-    "mean_manipulability": 0.7724418819932448,
-    "parallel_collision_free": false,
+    "execution_time_s": 78.93515253067017,
+    "mean_manipulability": 0.064223385404638,
+    "placement_position_error": null,
+    "placement_orientation_error": null,
     "error_message": ""
   }
 }

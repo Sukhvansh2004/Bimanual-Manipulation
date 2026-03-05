@@ -1,0 +1,39 @@
+{
+  "experiment": "mug_inversion",
+  "config_label": "No Diversity",
+  "config_id": "No_Diversity",
+  "planning": {
+    "experiment": "mug_inversion",
+    "config_label": "No Diversity",
+    "total_cost": 101610.92440840212,
+    "n_segments": 80,
+    "n_handovers": 1,
+    "handover_points": [
+      35
+    ],
+    "mean_task_cost": 20.13655510502639,
+    "total_switching_cost": 100000.0,
+    "mean_manipulability": 0.10894048528680485,
+    "min_manipulability": 0.07203564683823772,
+    "feasibility_rate_robot0": 0.0,
+    "feasibility_rate_robot1": 0.0,
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 660.5392832756042
+  },
+  "execution": {
+    "task_success": false,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": true,
+    "n_handovers_attempted": 1,
+    "n_handovers_succeeded": 0,
+    "handover_success_rate": 0.0,
+    "n_collision_incidents": 360,
+    "n_switches": 1,
+    "execution_time_s": 63.17759323120117,
+    "mean_manipulability": 0.0994108775163467,
+    "placement_position_error": null,
+    "placement_orientation_error": null,
+    "error_message": ""
+  }
+}

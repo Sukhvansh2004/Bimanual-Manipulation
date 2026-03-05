@@ -22,7 +22,7 @@ from robosuite_franka_manipulation.environments.dual_arm import DualArmEnvironme
 import meshcat
 import meshcat.geometry as g
 from robosuite_franka_manipulation.utils.meshcat_mj_utils import MeshcatMjVisualizer
-from grasp_gen.utils.meshcat_utils import make_frame
+# from grasp_gen.utils.meshcat_utils import make_frame
 from PIL import Image, ImageDraw, ImageFont
 
 from logging import getLogger

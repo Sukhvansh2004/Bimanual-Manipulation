@@ -1,0 +1,71 @@
+============================================================
+  Paper Step 3: Headless Execution
+  Tasks:   ycb_plate_table_to_shelf ycb_plate_shelf_to_table mug_inversion flatPlate_box_to_box
+  Workers: 4
+  Timeout: 1200s per run
+  Time:    Thu Mar  5 03:52:15 PM IST 2026
+============================================================
+
+  Found 16 execution jobs
+  [START] ycb_plate_table_to_shelf × No_Switching_Penalty_Cswitch0
+  [START] ycb_plate_table_to_shelf × Proposed
+  [START] ycb_plate_table_to_shelf × No_Manipulability_β0
+  [START] ycb_plate_table_to_shelf × No_Diversity
+  [DONE]  ycb_plate_table_to_shelf × No_Manipulability_β0
+  [START] ycb_plate_shelf_to_table × Proposed
+  [DONE]  ycb_plate_table_to_shelf × No_Diversity
+  [START] ycb_plate_shelf_to_table × Greedy_beam1
+  [DONE]  ycb_plate_table_to_shelf × Proposed
+  [START] ycb_plate_shelf_to_table × No_Switching_Penalty_Cswitch0
+  [DONE]  ycb_plate_shelf_to_table × Proposed
+  [START] ycb_plate_shelf_to_table × No_Manipulability_β0
+  [DONE]  ycb_plate_shelf_to_table × Greedy_beam1
+  [START] mug_inversion × Proposed
+  [DONE]  ycb_plate_table_to_shelf × No_Switching_Penalty_Cswitch0
+  [START] mug_inversion × No_Switching_Penalty_Cswitch0
+  [DONE]  ycb_plate_shelf_to_table × No_Manipulability_β0
+  [START] mug_inversion × No_Manipulability_β0
+  [DONE]  ycb_plate_shelf_to_table × No_Switching_Penalty_Cswitch0
+  [START] mug_inversion × No_Diversity
+  [DONE]  mug_inversion × Proposed
+  [START] flatPlate_box_to_box × Proposed
+  [DONE]  mug_inversion × No_Switching_Penalty_Cswitch0
+  [START] flatPlate_box_to_box × No_Switching_Penalty_Cswitch0
+  [DONE]  mug_inversion × No_Manipulability_β0
+  [START] flatPlate_box_to_box × No_Manipulability_β0
+  [DONE]  mug_inversion × No_Diversity
+  [START] flatPlate_box_to_box × No_Diversity
+  [DONE]  flatPlate_box_to_box × Proposed
+  [DONE]  flatPlate_box_to_box × No_Diversity
+  [DONE]  flatPlate_box_to_box × No_Manipulability_β0
+  [DONE]  flatPlate_box_to_box × No_Switching_Penalty_Cswitch0
+
+============================================================
+  Execution Complete — Thu Mar  5 04:00:51 PM IST 2026
+============================================================
+  ycb_plate_table_to_shelf:
+    Greedy_beam1: success=True  collisions=1
+    No_Diversity: success=True  collisions=416
+    No_Manipulability_β0: success=True  collisions=195
+    No_Switching_Penalty_Cswitch0: success=False  collisions=1681
+    Proposed: success=False  collisions=440
+  ycb_plate_shelf_to_table:
+    Greedy_beam1: success=True  collisions=394
+    No_Manipulability_β0: success=True  collisions=562
+    No_Switching_Penalty_Cswitch0: success=True  collisions=585
+    Proposed: success=True  collisions=513
+  mug_inversion:
+    No_Diversity: success=False  collisions=360
+    No_Manipulability_β0: success=True  collisions=342
+    No_Switching_Penalty_Cswitch0: success=False  collisions=0
+    Proposed: success=True  collisions=183
+  flatPlate_box_to_box:
+    No_Diversity: success=False  collisions=1029
+    No_Manipulability_β0: success=False  collisions=270
+    No_Switching_Penalty_Cswitch0: success=False  collisions=2229
+    Proposed: success=False  collisions=268
+
+  Merging execution metrics into result files...
+  Merged 17 execution results.
+
+  Run 'python scripts/evaluation/paper_metrics.py' to view final metrics.

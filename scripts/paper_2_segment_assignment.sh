@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Conda ─────────────────────────────────────────────────────────────────
-source ~/anaconda3/etc/profile.d/conda.sh
+source ~/miniconda3/etc/profile.d/conda.sh
 conda activate dual_arm_manipulation
 
 TASKS=(

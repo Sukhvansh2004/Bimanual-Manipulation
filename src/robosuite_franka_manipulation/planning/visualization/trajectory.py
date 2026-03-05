@@ -7,7 +7,7 @@ import meshcat
 import meshcat.geometry as g
 from typing import Any, Dict, List, Optional
 
-from grasp_gen.utils.meshcat_utils import make_frame
+# from grasp_gen.utils.meshcat_utils import make_frame
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult

@@ -21,7 +21,7 @@ from robosuite_franka_manipulation.utils.pointcloud import validate_point_cloud
 from robosuite_franka_manipulation.utils.env_utils import resolve_mesh_path
 from robosuite_franka_manipulation.schema import GraspRequest, GraspResponse, ResponseStatus, GraspSchema
 
-from grasp_gen.utils.point_cloud_utils import filter_colliding_grasps
+# from grasp_gen.utils.point_cloud_utils import filter_colliding_grasps
 
 # Configure logging
 logger = logging.getLogger(__name__)

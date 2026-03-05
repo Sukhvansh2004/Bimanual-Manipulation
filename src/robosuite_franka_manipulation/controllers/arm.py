@@ -27,7 +27,7 @@ from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     plan_quintic_joint_trajectory,
     velocity_profile_joint_trajectory,
 )
-from grasp_gen.utils.meshcat_utils import make_frame
+# from grasp_gen.utils.meshcat_utils import make_frame
 import logging
 
 # Configure logging
