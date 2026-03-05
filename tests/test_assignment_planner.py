@@ -860,13 +860,15 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.apply_ik_orientation_correction")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
-        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = [np.zeros(7)]
+        mock_cache.return_value = MagicMock()
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager, env_lock=None)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
@@ -880,13 +882,15 @@ class TestFactoryFunctions:
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.apply_ik_orientation_correction")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
-        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = []  # no solutions
+        mock_cache.return_value = MagicMock()
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
@@ -894,7 +898,7 @@ class TestFactoryFunctions:
 
         assert result is None
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.compute_arm_jacobian")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.compute_arm_jacobian")
     def test_make_jacobian_fns_returns_per_robot(self, mock_jac, mock_env):
         mock_jac.return_value = np.eye(6, 7)
 
@@ -915,7 +919,7 @@ class TestFactoryFunctions:
         assert calls[0][1]["robot_id"] == 0
         assert calls[1][1]["robot_id"] == 1
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.compute_arm_jacobian")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.compute_arm_jacobian")
     def test_make_jacobian_fns_with_lock(self, mock_jac, mock_env):
         mock_jac.return_value = np.eye(6, 7)
         import threading
@@ -946,21 +950,21 @@ class TestMakeCollisionCheckFn:
         data.qvel = np.zeros(20)
         lock = threading.RLock()
 
-        # Mock the lazy imports inside the factory
+        # Mock the imports used by the factory
         with patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=False,
         ) as mock_collision, patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.in_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
             return_value=False,
         ) as mock_in_collision, patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env, env_lock=lock)
@@ -982,19 +986,19 @@ class TestMakeCollisionCheckFn:
         data.qvel = np.zeros(20)
 
         with patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=True,  # collision!
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.in_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
             return_value=False,
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env)

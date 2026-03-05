@@ -10,9 +10,28 @@ import threading
 from contextlib import nullcontext
 from typing import Callable, Dict, Optional
 
+import mujoco
 import numpy as np
+import robosuite.utils.transform_utils as T
 
+from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.environments import DualArmEnvironment
+from robosuite_franka_manipulation.planning.utils.collision_utils import (
+    check_inter_arm_collision,
+    in_collision,
+)
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    apply_ik_orientation_correction,
+    compute_arm_jacobian,
+    create_solver_cache,
+    enumerate_ik_solutions_for_arm,
+)
+from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+    get_arm_joint_ids,
+    get_environment_collision_geoms,
+    get_joint_qpos_indices,
+    get_native_mj_object,
+)
 from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
 
 
@@ -36,20 +55,23 @@ def make_ik_solver_fn(
         relaxed: If True, use relaxed IK tolerances suited for handover
             cost estimation (faster, higher acceptance rate).
     """
-    from robosuite_franka_manipulation import constants as C
-    from robosuite_franka_manipulation.planning.utils.ik_utils import (
-        enumerate_ik_solutions_for_arm,
-        apply_ik_orientation_correction,
-    )
+    pos_tol = constants.HANDOVER_IK_POS_TOLERANCE if relaxed else constants.IK_POS_TOLERANCE
+    ori_tol = constants.HANDOVER_IK_ORI_TOLERANCE if relaxed else constants.IK_ORI_TOLERANCE
 
-    pos_tol = C.HANDOVER_IK_POS_TOLERANCE if relaxed else C.IK_POS_TOLERANCE
-    ori_tol = C.HANDOVER_IK_ORI_TOLERANCE if relaxed else C.IK_ORI_TOLERANCE
+    # Per-robot solver caches — lazily initialised on first call so that
+    # mink objects (MjData, tasks, limits) are allocated once and reused
+    # across all subsequent IK evaluations.
+    _solver_caches: dict = {}
 
     def _ik_solver(
         pose: StampedPose,
         robot_id: int,
         q_warm_start: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
+        if robot_id not in _solver_caches:
+            _solver_caches[robot_id] = create_solver_cache(
+                env, robot_id, env_lock=env_lock,
+            )
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
             env,
@@ -61,6 +83,7 @@ def make_ik_solver_fn(
             pos_tol=pos_tol,
             ori_tol=ori_tol,
             q_warm_start=q_warm_start,
+            solver_cache=_solver_caches[robot_id],
         )
         return solutions[0] if solutions else None
 
@@ -81,8 +104,6 @@ def make_jacobian_fns(
         env: The dual-arm simulation environment.
         env_lock: Optional reentrant lock guarding the environment.
     """
-    from robosuite_franka_manipulation.planning.utils.ik_utils import compute_arm_jacobian
-
     def _make_for_robot(robot_id: int) -> Callable[[np.ndarray], np.ndarray]:
         def _jacobian_fn(q: np.ndarray) -> np.ndarray:
             return compute_arm_jacobian(
@@ -115,17 +136,6 @@ def make_collision_check_fn(
             (e.g. ``"plate_0"``, ``"mug_0"``).  Contacts involving geoms
             whose names start with this prefix are ignored.
     """
-    import mujoco
-    from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
-        get_arm_joint_ids,
-        get_joint_qpos_indices,
-        get_native_mj_object,
-    )
-    from robosuite_franka_manipulation.planning.utils.collision_utils import (
-        check_inter_arm_collision,
-        in_collision,
-    )
-
     model = env.sim.model
     data = env.sim.data
     qpos_idx_0 = get_joint_qpos_indices(model, get_arm_joint_ids(model, 0))
@@ -208,13 +218,6 @@ def make_handover_clearance_fn(
             the environment geom list).
         env_lock: Optional reentrant lock guarding the environment.
     """
-    import mujoco
-    import robosuite.utils.transform_utils as T
-    from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
-        get_environment_collision_geoms,
-        get_native_mj_object,
-    )
-
     native_model = get_native_mj_object(env.sim.model)
     native_data = get_native_mj_object(env.sim.data)
 

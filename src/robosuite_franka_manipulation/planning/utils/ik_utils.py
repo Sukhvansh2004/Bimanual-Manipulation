@@ -103,6 +103,37 @@ class _IKSolverCache:
         self.limits = [self.config_limit]
 
 
+def create_solver_cache(
+    env: DualArmEnvironment,
+    robot_id: int,
+    arm: str = "right",
+    env_lock: Optional[threading.RLock] = None,
+) -> _IKSolverCache:
+    """Pre-build a solver cache for a specific robot arm.
+
+    Reuse the returned object across multiple calls to
+    :func:`enumerate_ik_solutions_for_arm` to amortise mink object
+    construction (``~1 ms`` per cache creation, dominated by
+    ``MjData`` allocation).
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        arm: Which arm (``"right"`` or ``"left"``).
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
+        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+        site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+        model_native = mujoco_utils.get_native_mj_object(model)
+        q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
+        return _IKSolverCache(model_native, q_full, site_name, joint_dof_idx)
+
+
 # ---------------------------------------------------------------------------
 # Primary IK solver — mink-based iterative QP
 # ---------------------------------------------------------------------------
@@ -347,6 +378,7 @@ def enumerate_ik_solutions_for_arm(
     pos_tol: float = constants.IK_POS_TOLERANCE,
     ori_tol: float = constants.IK_ORI_TOLERANCE,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
+    solver_cache: Optional[_IKSolverCache] = None,
 ) -> List[np.ndarray]:
     f"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
 
@@ -434,10 +466,11 @@ def enumerate_ik_solutions_for_arm(
         model_native = mujoco_utils.get_native_mj_object(model)
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
 
-        # Build a solver cache once — reused across all seeds to avoid
-        # re-allocating MjData and mink task objects per seed (~1 ms saved
-        # per seed, ~37 ms per IK call with 36 seeds).
-        cache = _IKSolverCache(model_native, full_qpos, site_name, joint_dof_idx)
+        # Reuse the caller-supplied cache if available; otherwise create
+        # one for this call (still reused across all seeds within it).
+        cache = solver_cache or _IKSolverCache(
+            model_native, full_qpos, site_name, joint_dof_idx,
+        )
 
         min_manip = constants.IK_MIN_MANIPULABILITY
         scored: List[Tuple[float, np.ndarray]] = []
