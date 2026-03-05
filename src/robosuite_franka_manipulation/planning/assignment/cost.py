@@ -230,51 +230,57 @@ def _compute_handover_primitive_cost(
     # Solve IK for each phase, chaining warm starts for consistency.
     # Tolerate individual IK failures: skip unsolved poses and continue
     # the chain so that partial successes can still produce a meaningful
-    # cost (with per-failure penalty).
+    # cost (with per-failure penalty weighted by how far off the IK was).
     def _solve_all(poses: List[StampedPose], robot_id: int,
                    q_warm_start: Optional[np.ndarray] = None):
         configs = []
         q_prev = q_warm_start
         n_failed = 0
+        total_residual = 0.0
         for p in poses:
             try:
-                q = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
-                if q is None or len(q) == 0:
+                q, residual = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
+                if q is None:
                     n_failed += 1
+                    # Accumulate how far off the best seed was so the DP
+                    # can differentiate near-misses from far misses.
+                    if np.isfinite(residual):
+                        total_residual += residual
                     continue  # skip this pose but keep trying
                 configs.append(q)
                 q_prev = q
             except Exception:
                 n_failed += 1
                 continue
-        return configs, n_failed
+        return configs, n_failed, total_residual
 
     # Early-out: solve the transfer arm first (fewer poses — typically
     # just hold + retreat) so we can fail fast before spending time on
     # the receiver arm's longer approach trajectory.
     if transfer_poses:
-        transfer_configs, n_fail_transfer = _solve_all(
+        transfer_configs, n_fail_transfer, res_transfer = _solve_all(
             transfer_poses, transfer_robot_id,
             q_warm_start=q_warm_start_transfer,
         )
     else:
-        transfer_configs, n_fail_transfer = [], 0
+        transfer_configs, n_fail_transfer, res_transfer = [], 0, 0.0
     if not transfer_configs and transfer_poses:
         logger.debug("Handover IK failure: transfer arm (robot%d) — all poses failed", transfer_robot_id)
         return np.inf, False
 
     if receiver_poses:
-        receiver_configs, n_fail_receiver = _solve_all(
+        receiver_configs, n_fail_receiver, res_receiver = _solve_all(
             receiver_poses, receiver_robot_id,
             q_warm_start=q_warm_start_receiver,
         )
     else:
-        receiver_configs, n_fail_receiver = [], 0
+        receiver_configs, n_fail_receiver, res_receiver = [], 0, 0.0
     if not receiver_configs and receiver_poses:
         logger.debug("Handover IK failure: receiver arm (robot%d) — all poses failed", receiver_robot_id)
         return np.inf, False
 
     n_total_failed = n_fail_transfer + n_fail_receiver
+    total_residual = res_transfer + res_receiver
 
     # --- Collision check along the full handover trajectory ---
     # Phase 1: receiver approaches while transfer holds at hold pose.
@@ -339,18 +345,21 @@ def _compute_handover_primitive_cost(
         manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
 
     cost = alpha * smoothness + beta * manip_cost
-    # Add penalty for each intermediate IK failure so the DP prefers
-    # handovers where the full trajectory is solvable.
+    # Add penalty for each intermediate IK failure, weighted by how far
+    # off the best seed was.  This lets the DP distinguish near-miss
+    # failures (1 cm off) from far misses (10 cm off).
     if n_total_failed > 0:
-        cost += constants.HANDOVER_IK_PARTIAL_PENALTY * n_total_failed
+        cost += (constants.HANDOVER_IK_PARTIAL_PENALTY * n_total_failed
+                 + constants.HANDOVER_IK_RESIDUAL_WEIGHT * total_residual)
     # Add penalty for each collision step.
     if n_collision_steps > 0:
         cost += constants.HANDOVER_COLLISION_STEP_PENALTY * n_collision_steps
     logger.debug(
         "Handover primitive cost: smoothness=%.4f, manip=%.4f, total=%.4f "
-        "(transfer=robot%d, receiver=robot%d, ik_failures=%d, collisions=%d)",
+        "(transfer=robot%d, receiver=robot%d, ik_failures=%d, "
+        "ik_residual=%.4f, collisions=%d)",
         smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
-        n_total_failed, n_collision_steps,
+        n_total_failed, total_residual, n_collision_steps,
     )
     return cost, True
 

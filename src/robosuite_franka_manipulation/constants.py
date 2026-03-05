@@ -238,14 +238,23 @@ COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of ret
 # Per-waypoint IK-failure penalty added to handover cost when using
 # partial-success evaluation (some intermediate IK calls fail but enough
 # succeed to compute a meaningful cost).
-HANDOVER_IK_PARTIAL_PENALTY = 1000.0
+HANDOVER_IK_PARTIAL_PENALTY = 500.0
+
+# Multiplier on the accumulated IK residual (pos_err + ori_err) across
+# failed poses.  Two handovers with the same number of IK failures are
+# differentiated by how close the best seed got: a near-miss (1 cm off)
+# incurs a much smaller penalty than a far miss (10 cm off).
+#   residual_penalty = HANDOVER_IK_RESIDUAL_WEIGHT × Σ(pos_err + ori_err)
+# Typical residuals range 0.05 (near-miss) to 0.6 (far miss), so a
+# weight of 5 000 produces ~250–3 000 additional cost per failure.
+HANDOVER_IK_RESIDUAL_WEIGHT = 5000.0
 
 # Per-step penalty added when a pair of (transfer, receiver) IK configs
 # collides during the handover trajectory.  Instead of rejecting the
 # entire handover (inf), we accumulate a finite penalty per colliding
 # step so the DP can still route through the handover but prefers ones
 # that are collision-free.
-HANDOVER_COLLISION_STEP_PENALTY = 2000.0
+HANDOVER_COLLISION_STEP_PENALTY = 1500.0
 
 # =============================================================================
 # Control and Trajectory Configuration

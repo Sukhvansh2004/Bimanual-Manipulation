@@ -69,11 +69,19 @@ def make_ik_solver_fn(
         pose: StampedPose,
         robot_id: int,
         q_warm_start: Optional[np.ndarray] = None,
-    ) -> Optional[np.ndarray]:
+    ) -> tuple:
+        """Return ``(solution_or_None, best_residual)``.
+
+        *best_residual* is the smallest combined ``pos_err + ori_err``
+        across all IK seeds when no solution was found (``inf`` if a
+        solution was found, i.e. effectively 0 — but we return 0.0
+        explicitly for clarity).
+        """
         if robot_id not in _solver_caches:
             _solver_caches[robot_id] = create_solver_cache(
                 env, robot_id, env_lock=env_lock,
             )
+        cache = _solver_caches[robot_id]
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
             env,
@@ -85,9 +93,13 @@ def make_ik_solver_fn(
             pos_tol=pos_tol,
             ori_tol=ori_tol,
             q_warm_start=q_warm_start,
-            solver_cache=_solver_caches[robot_id],
+            solver_cache=cache,
         )
-        return solutions[0] if solutions else None
+        if solutions:
+            return solutions[0], 0.0
+        # Return the best residual across all seeds — indicates how
+        # close the best seed got to convergence.
+        return None, cache.best_residual
 
     return _ik_solver
 

@@ -62,6 +62,7 @@ class _IKSolverCache:
     __slots__ = (
         "config", "frame_task", "posture_task", "damping_task",
         "config_limit", "freeze_task", "tasks", "limits",
+        "best_residual",
     )
 
     def __init__(
@@ -101,6 +102,7 @@ class _IKSolverCache:
         if self.freeze_task is not None:
             self.tasks.append(self.freeze_task)
         self.limits = [self.config_limit]
+        self.best_residual: float = float("inf")
 
 
 def create_solver_cache(
@@ -285,6 +287,11 @@ def solve_ik_mink(
     if pos_err < pos_tol and ori_err < ori_tol:
         return np.array(config.q[arm_qpos_idx], dtype=float)
 
+    # Record the final residual on the cache so callers can assess
+    # "how close" this seed got (used for residual-weighted penalties).
+    residual = pos_err + ori_err
+    if solver_cache is not None:
+        solver_cache.best_residual = min(solver_cache.best_residual, residual)
     logger.debug(
         "mink IK failed: pos_err=%.5f (tol %.4f), ori_err=%.5f (tol %.4f)",
         pos_err, pos_tol, ori_err, ori_tol,
@@ -471,6 +478,8 @@ def enumerate_ik_solutions_for_arm(
         cache = solver_cache or _IKSolverCache(
             model_native, full_qpos, site_name, joint_dof_idx,
         )
+        # Reset best_residual so each enumerate call gets a fresh value.
+        cache.best_residual = float("inf")
 
         min_manip = constants.IK_MIN_MANIPULABILITY
         scored: List[Tuple[float, np.ndarray]] = []
