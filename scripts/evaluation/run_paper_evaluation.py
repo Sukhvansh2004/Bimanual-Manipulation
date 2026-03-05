@@ -49,6 +49,8 @@ import sys
 import time
 from pathlib import Path
 
+from tqdm import tqdm
+
 # Project root (evaluation/ → scripts/ → project root)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
@@ -126,6 +128,7 @@ def run_planning_phase(
         exp_jsons.append((exp_name, exp_json))
 
     all_results: list[ExperimentResult] = []
+    total_configs = len(exp_jsons) * len(configs)
 
     if workers > 1 and len(exp_jsons) > 1:
         # ── Parallel: one process per experiment ──────────────────────
@@ -133,8 +136,16 @@ def run_planning_phase(
 
         n_workers = min(workers, len(exp_jsons))
         logger.info(
-            "Running %d experiments in parallel (%d workers)",
-            len(exp_jsons), n_workers,
+            "Running %d experiments × %d configs = %d evaluations "
+            "(%d parallel workers)",
+            len(exp_jsons), len(configs), total_configs, n_workers,
+        )
+
+        pbar = tqdm(
+            total=total_configs,
+            desc="Segment assignment",
+            unit="eval",
+            ncols=90,
         )
 
         futures = {}
@@ -159,6 +170,9 @@ def run_planning_phase(
                     results = []
 
                 all_results.extend(results)
+                # Each experiment completes len(configs) evaluations
+                pbar.update(len(configs))
+                pbar.set_postfix_str(f"done: {exp_name}")
 
                 # Summary for this experiment
                 valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
@@ -170,12 +184,22 @@ def run_planning_phase(
                     cost = r.planning.total_cost if r.planning else float("inf")
                     status = "OK" if cost < float("inf") else "FAILED (inf)"
                     logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+
+        pbar.close()
     else:
         # ── Sequential ────────────────────────────────────────────────
+        pbar = tqdm(
+            total=total_configs,
+            desc="Segment assignment",
+            unit="eval",
+            ncols=90,
+        )
+
         for exp_name, exp_json in exp_jsons:
             logger.info("=" * 70)
             logger.info("PLANNING: %s", exp_name)
             logger.info("=" * 70)
+            pbar.set_postfix_str(exp_name)
 
             results = run_experiment(
                 exp_json, configs,
@@ -184,6 +208,7 @@ def run_planning_phase(
                 execute=False,
             )
             all_results.extend(results)
+            pbar.update(len(results))
 
             valid = [r for r in results if r.planning and r.planning.total_cost < float("inf")]
             logger.info(
@@ -194,6 +219,8 @@ def run_planning_phase(
                 cost = r.planning.total_cost if r.planning else float("inf")
                 status = "OK" if cost < float("inf") else "FAILED (inf)"
                 logger.info("    %-40s  cost=%.2f  [%s]", r.config_label, cost, status)
+
+        pbar.close()
 
     return all_results
 
