@@ -69,6 +69,8 @@ GRIPPER_GRASP_OFFSETS = {
     },
 }
 
+SUCTION_DISTANCE = 0.05  # Distance threshold for suction weld contact (meters)
+
 # =============================================================================
 # Perception and Detection Configuration
 # =============================================================================

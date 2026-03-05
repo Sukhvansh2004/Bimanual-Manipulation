@@ -440,8 +440,7 @@ def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
                 if g1_arr.size > 0:
                     # Snout can be either geom1 or geom2
                     mask = (g1_arr == handles.snout_geom_id) | (g2_arr == handles.snout_geom_id)
-                    # Use threshold of 0.05 as requested
-                    mask &= (dist_arr < 0.05)
+                    mask &= (dist_arr < constants.SUCTION_DISTANCE)
                     
                     if np.any(mask):
                         # Get indices of contacts involving the snout within threshold
