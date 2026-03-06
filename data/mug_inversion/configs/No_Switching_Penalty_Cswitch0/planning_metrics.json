@@ -1,0 +1,26 @@
+{
+  "experiment": "mug_inversion",
+  "config_label": "",
+  "total_cost": 1462.1359072905088,
+  "n_segments": 80,
+  "n_handovers": 9,
+  "handover_points": [
+    17,
+    18,
+    26,
+    27,
+    28,
+    37,
+    38,
+    44,
+    49
+  ],
+  "mean_task_cost": 18.276698841131353,
+  "total_switching_cost": 0.0,
+  "mean_manipulability": 0.11444112189860492,
+  "min_manipulability": 0.09289647846292651,
+  "feasibility_rate_robot0": 0.0,
+  "feasibility_rate_robot1": 0.0,
+  "assigned_feasibility_rate": 1.0,
+  "planning_time_s": 110.11772274971008
+}

@@ -6,11 +6,11 @@
   "n_handovers_attempted": 2,
   "n_handovers_succeeded": 2,
   "handover_success_rate": 1.0,
-  "n_collision_incidents": 269,
+  "n_collision_incidents": 7,
   "n_switches": 2,
-  "execution_time_s": 248.83253645896912,
-  "mean_manipulability": 0.08670617222819622,
-  "placement_position_error": 1.026263866874988,
-  "placement_orientation_error": 171.5132574129952,
+  "execution_time_s": 422.71653509140015,
+  "mean_manipulability": 0.07031561155376953,
+  "placement_position_error": 0.17925372211708707,
+  "placement_orientation_error": 68.36079926924447,
   "error_message": ""
 }
