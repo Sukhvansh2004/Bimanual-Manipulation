@@ -16,7 +16,7 @@ for e in exps:
     print(f"  Target: {cfg.task.target_pose.position.tolist()}")
     print(f"  Has start: {cfg.task.start_pose is not None}")
     print(f"  Steps: {cfg.planning.num_steps}")
-    print(f"  Filter: {cfg.collision_filter.exclude_patterns}")
+    print(f"  Filter: {cfg.collision_filter.relevant_patterns}")
     # New sections
     print(f"  Viz mesh: {cfg.visualization.visualize_mesh}, zmq: {cfg.visualization.zmq_url}")
     print(f"  Output save: {cfg.output.save_trajectories}, dir: {cfg.output.output_dir}")

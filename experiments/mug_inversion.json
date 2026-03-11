@@ -48,7 +48,7 @@
         ]
     },
     "collision_filter": {
-        "exclude_patterns": ["mug", "wall"]
+        "relevant_patterns": ["mug", "wall"]
     },
     "visualization": {
         "visualize_mesh": true,

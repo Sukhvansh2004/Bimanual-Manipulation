@@ -68,7 +68,7 @@
         "_rrt_bounds_comment": "z-max=1.45 gives enough lift space above the shelves (~1.15) for handover positions, while still 0.15m below wall top (1.60). y=\u00b10.50 allows detour around wall (y=+0.35)."
     },
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "shelf_a", "shelf_b", "wall"]
+        "relevant_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "shelf_a", "shelf_b", "wall"]
     },
     "visualization": {
         "visualize_mesh": true,

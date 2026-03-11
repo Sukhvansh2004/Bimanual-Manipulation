@@ -474,7 +474,7 @@ Experiments are defined as JSON files in the `experiments/` directory. Each conf
     "approach_offset": 0.3
   },
   "collision_filter": {
-    "exclude_patterns": ["flatPlate", "table_shelf"]
+    "relevant_patterns": ["flatPlate", "table_shelf"]
   },
   "visualization": {
     "visualize_mesh": true,

@@ -60,7 +60,7 @@
         ]
     },
     "collision_filter": {
-        "exclude_patterns": ["mug", "track", "table_rack", "rack_a", "rack_b", "wall"]
+        "relevant_patterns": ["mug", "track", "table_rack", "rack_a", "rack_b", "wall"]
     },
     "visualization": {
         "visualize_mesh": true,

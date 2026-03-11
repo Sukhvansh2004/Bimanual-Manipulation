@@ -656,4 +656,4 @@ All planning functions rely on `StampedPose` and `TransformManager` to ensure co
 
 ### Collision Filtering
 
-The experiment config system supports collision filter exclusion patterns via `collision_filter.exclude_patterns`. This allows planning to ignore expected contacts (e.g., the manipulated object touching the shelf during insertion). The function `get_collision_filter_fn()` in `experiment_config.py` constructs the appropriate MuJoCo geom filter.
+The experiment config system supports collision filter patterns via `collision_filter.relevant_patterns`. These patterns identify geoms that are relevant to the task (manipulated objects, support surfaces, etc.) and should keep their collision properties active. Geoms not matching any pattern (and not robot geoms) get their `contype` set to 0, disabling irrelevant geom-to-geom collision checks as an optimisation. The function `get_collision_filter_fn()` in `experiment_config.py` constructs the appropriate MuJoCo geom filter.

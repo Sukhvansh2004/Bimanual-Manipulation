@@ -62,7 +62,7 @@ class PlanningConfig:
 @dataclass
 class CollisionFilterConfig:
     """Patterns for collision-filter optimisation in worker envs."""
-    exclude_patterns: List[str] = field(default_factory=list)
+    relevant_patterns: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -255,7 +255,7 @@ def load_experiment(path: str) -> ExperimentConfig:
     # --- collision filter ---
     cf_raw = raw.get("collision_filter", {})
     collision_filter = CollisionFilterConfig(
-        exclude_patterns=cf_raw.get("exclude_patterns", []),
+        relevant_patterns=cf_raw.get("relevant_patterns", []),
     )
 
     # --- visualization ---
@@ -346,15 +346,16 @@ def detect_start_pose(env, object_name: str) -> Optional[PoseConfig]:
 def get_collision_filter_fn(collision_filter: CollisionFilterConfig):
     """
     Return a callable ``(geom_name: str) -> bool`` that returns *True* when the
-    geom should be **kept** in collision checking (i.e. it is a robot or the
-    manipulated object).
+    geom should be **kept** in collision checking (i.e. it is a robot geom or
+    a task-relevant object such as the manipulated object or its support
+    surfaces).
     """
-    patterns = collision_filter.exclude_patterns
+    patterns = collision_filter.relevant_patterns
 
     def _is_relevant(name: str) -> bool:
         is_robot = any(name.startswith(p) for p in ("robot0", "gripper0", "robot1", "gripper1"))
-        is_moving = any(pat in name for pat in patterns)
-        return is_robot or is_moving
+        is_task_object = any(pat in name for pat in patterns)
+        return is_robot or is_task_object
 
     return _is_relevant
 
