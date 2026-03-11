@@ -33,10 +33,6 @@ from bimanual_manipulation.transforms import StampedPose, TransformManager
 logger = logging.getLogger(__name__)
 
 
-# Fallback joints to try if primary sweep joint fails
-EAIK_FALLBACK_JOINTS = [5, 3]  # EAIK indices for joints 6, 4
-
-
 def _get_urdf_path() -> str:
     """Locate the Franka Panda URDF shipped with robosuite."""
     import robosuite
