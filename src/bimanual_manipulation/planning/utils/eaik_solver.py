@@ -1,13 +1,15 @@
 """Analytical IK solver using EAIK (Efficient Analytical Inverse Kinematics).
 
 Provides closed-form IK solutions for the 7-DOF Franka Panda by sweeping
-a locked joint across its range and collecting all analytical solutions.
-This replaces the iterative QP-based ``solve_ik_mink`` with a ~1000×
-faster analytical approach for offline IK enumeration.
+all joints in turn: each one is locked at discrete values while the
+remaining 6-DOF system is solved analytically.  This explores the full
+redundancy manifold and replaces the iterative QP-based ``solve_ik_mink``
+with a ~1000× faster analytical approach.
 
-The 7-DOF Panda is reduced to 6-DOF by locking one joint at a time.
-Joint 4 (0-indexed=3 in EAIK) produces 8 exact solutions per locked
-value and is the default sweep joint.
+When a reference configuration (*q_reference*) is supplied, each joint's
+sweep is centred on the reference value within a configurable window,
+biasing solutions toward the previous configuration for trajectory
+continuity (warm-starting).
 """
 
 import logging
@@ -46,7 +48,7 @@ def _get_urdf_path() -> str:
     return str(urdf)
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=256)
 def _build_eaik_robot(locked_joint: int, locked_value: float) -> Optional[UrdfRobot]:
     """Build an EAIK robot with a specific joint locked at a given value.
 
@@ -89,100 +91,137 @@ def _compute_jacobian_mujoco(
     return np.vstack([jacp[:, arm_dof_idx], jacr[:, arm_dof_idx]])
 
 
+def _sweep_values_for_joint(
+    joint_idx: int,
+    joint_limits_lo: np.ndarray,
+    joint_limits_hi: np.ndarray,
+    num_sweep: int,
+    q_reference: Optional[np.ndarray],
+) -> np.ndarray:
+    """Compute sweep values for a single joint.
+
+    When *q_reference* is provided the sweep is centred on
+    ``q_reference[joint_idx]`` within a ``±EAIK_WARM_START_WINDOW``
+    window (clipped to joint limits), and the reference value itself
+    is always included.  Otherwise a uniform sweep across the full
+    joint range is used.
+    """
+    lo = float(joint_limits_lo[joint_idx])
+    hi = float(joint_limits_hi[joint_idx])
+    if not (np.isfinite(lo) and np.isfinite(hi) and hi > lo):
+        return np.array([])
+
+    if q_reference is not None:
+        centre = float(np.clip(q_reference[joint_idx], lo, hi))
+        half = constants.EAIK_WARM_START_WINDOW
+        w_lo = max(lo, centre - half)
+        w_hi = min(hi, centre + half)
+        vals = np.linspace(w_lo, w_hi, num_sweep)
+        # Ensure the reference value itself is included
+        if not np.any(np.isclose(vals, centre, atol=1e-8)):
+            vals = np.sort(np.append(vals, centre))
+        return vals
+
+    return np.linspace(lo, hi, num_sweep)
+
+
 def solve_ik_eaik(
     target_pos: np.ndarray,
     target_quat: np.ndarray,
     joint_limits_lo: np.ndarray,
     joint_limits_hi: np.ndarray,
     *,
-    sweep_joint: int = constants.EAIK_SWEEP_JOINT_INDEX,
     num_sweep: int = constants.EAIK_NUM_SWEEP_VALUES,
-    sweep_range: Optional[Tuple[float, float]] = None,
+    q_reference: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     """Solve IK analytically using EAIK with joint sweeping.
 
-    Sweeps the locked joint across its range, collecting all closed-form
-    solutions. Solutions outside joint limits are discarded.
+    All 7 joints are swept in turn (each one locked while the remaining
+    6-DOF system is solved analytically).  This explores the robot's
+    full redundancy manifold and produces a much richer solution set
+    than sweeping a single joint.
+
+    When *q_reference* is provided the sweep for each joint is
+    concentrated near the reference value, biasing solutions toward
+    the previous configuration and maintaining trajectory continuity.
 
     Args:
         target_pos: Desired EEF position in world frame ``(3,)``.
         target_quat: Desired EEF quaternion ``(x, y, z, w)`` in world frame.
         joint_limits_lo: Lower joint limits ``(7,)``.
         joint_limits_hi: Upper joint limits ``(7,)``.
-        sweep_joint: EAIK joint index to lock and sweep (default: 3 = Panda joint 4).
-        num_sweep: Number of discrete values for the swept joint.
-        sweep_range: ``(lo, hi)`` range for the swept joint. If None, uses
-            the joint limits of the corresponding robot joint.
+        num_sweep: Number of discrete values per joint.
+        q_reference: Optional reference configuration for warm-start.
+            When given, each joint's sweep is centred on the reference
+            value within a ``±EAIK_WARM_START_WINDOW`` window.
 
     Returns:
         List of valid joint configurations ``(7,)``, unsorted.
     """
     # Build 4×4 homogeneous target
     rot_mat = R.from_quat(target_quat).as_matrix()
-    T = np.eye(4)
-    T[:3, :3] = rot_mat
-    T[:3, 3] = target_pos
+    T_target = np.eye(4)
+    T_target[:3, :3] = rot_mat
+    T_target[:3, 3] = target_pos
 
-    # Determine sweep range from joint limits
-    robot_joint_idx = constants.EAIK_SWEEP_JOINT_ROBOT_INDEX
-    if sweep_range is None:
-        lo = float(joint_limits_lo[robot_joint_idx])
-        hi = float(joint_limits_hi[robot_joint_idx])
-    else:
-        lo, hi = sweep_range
-
-    if not (np.isfinite(lo) and np.isfinite(hi) and hi > lo):
-        logger.warning("EAIK: invalid sweep range [%.3f, %.3f]", lo, hi)
-        return []
-
-    sweep_values = np.linspace(lo, hi, num_sweep)
+    n_joints = len(joint_limits_lo)
     all_solutions: List[np.ndarray] = []
+    has_exact = False
 
-    for val in sweep_values:
-        bot = _build_eaik_robot(sweep_joint, round(float(val), 6))
-        if bot is None:
-            continue
-
-        try:
-            result = bot.IK(T)
-        except Exception:
-            continue
-
-        for q_sol, is_ls in zip(result.Q, result.is_LS):
-            # Prefer exact solutions; accept LS only if no exact ones found
-            if is_ls:
-                continue
-
-            q = np.asarray(q_sol, dtype=float)
-            if q.shape[0] != 7:
-                continue
-
-            # Enforce joint limits
-            if np.any(q < joint_limits_lo - 1e-6) or np.any(q > joint_limits_hi + 1e-6):
-                continue
-
-            # Clamp to exact limits
-            q = np.clip(q, joint_limits_lo, joint_limits_hi)
-            all_solutions.append(q)
-
-    # If no exact solutions found, accept least-squares solutions
-    if not all_solutions:
-        for val in sweep_values:
-            bot = _build_eaik_robot(sweep_joint, round(float(val), 6))
+    for jidx in range(n_joints):
+        sweep_vals = _sweep_values_for_joint(
+            jidx, joint_limits_lo, joint_limits_hi, num_sweep, q_reference,
+        )
+        for val in sweep_vals:
+            bot = _build_eaik_robot(jidx, round(float(val), 6))
             if bot is None:
                 continue
+
             try:
-                result = bot.IK(T)
+                result = bot.IK(T_target)
             except Exception:
                 continue
+
             for q_sol, is_ls in zip(result.Q, result.is_LS):
+                if is_ls:
+                    continue
+
                 q = np.asarray(q_sol, dtype=float)
                 if q.shape[0] != 7:
                     continue
-                if np.any(q < joint_limits_lo - 1e-6) or np.any(q > joint_limits_hi + 1e-6):
+                if np.any(q < joint_limits_lo - 1e-6) or np.any(
+                    q > joint_limits_hi + 1e-6
+                ):
                     continue
+
                 q = np.clip(q, joint_limits_lo, joint_limits_hi)
                 all_solutions.append(q)
+                has_exact = True
+
+    # If no exact solutions found, accept least-squares solutions
+    if not has_exact:
+        for jidx in range(n_joints):
+            sweep_vals = _sweep_values_for_joint(
+                jidx, joint_limits_lo, joint_limits_hi, num_sweep, q_reference,
+            )
+            for val in sweep_vals:
+                bot = _build_eaik_robot(jidx, round(float(val), 6))
+                if bot is None:
+                    continue
+                try:
+                    result = bot.IK(T_target)
+                except Exception:
+                    continue
+                for q_sol, is_ls in zip(result.Q, result.is_LS):
+                    q = np.asarray(q_sol, dtype=float)
+                    if q.shape[0] != 7:
+                        continue
+                    if np.any(q < joint_limits_lo - 1e-6) or np.any(
+                        q > joint_limits_hi + 1e-6
+                    ):
+                        continue
+                    q = np.clip(q, joint_limits_lo, joint_limits_hi)
+                    all_solutions.append(q)
 
     return all_solutions
 
@@ -337,11 +376,12 @@ def enumerate_ik_solutions_eaik(
         qvel_backup = np.array(data.qvel, copy=True)
 
         try:
-            # Get all analytical solutions via joint sweep
+            # Get all analytical solutions via multi-joint sweep
             raw_solutions = solve_ik_eaik(
                 target_pos, target_quat,
                 joint_lo, joint_hi,
                 num_sweep=num_sweep,
+                q_reference=q_reference,
             )
 
             logger.debug(

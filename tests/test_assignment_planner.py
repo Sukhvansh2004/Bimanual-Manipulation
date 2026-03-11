@@ -902,7 +902,7 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_eaik")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
         self, mock_correction, mock_ik, mock_env, mock_tf_manager,
@@ -922,7 +922,7 @@ class TestFactoryFunctions:
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_eaik")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
         self, mock_correction, mock_ik, mock_env, mock_tf_manager,

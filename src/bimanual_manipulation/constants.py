@@ -144,14 +144,10 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 # EAIK Analytical IK Configuration
 # =============================================================================
-# Panda is 7-DOF, EAIK handles up to 6-DOF.  We lock one joint and sweep
-# across its range to enumerate diverse solutions.
-# Joint 3 (0-based URDF index) → SPHERICAL_SECOND_TWO_INTERSECTING
-# decomposition, yielding up to 8 exact solutions per locked value.
-EAIK_SWEEP_JOINT_INDEX = 3       # EAIK 0-based index of the joint to lock
-EAIK_SWEEP_JOINT_ROBOT_INDEX = 3 # Corresponding index in the 7-DOF joint vector
-EAIK_NUM_SWEEP_VALUES = 20       # Number of lock values to sweep across joint range
-EAIK_MIN_MANIPULABILITY = 1e-5   # Reject solutions below this manipulability threshold
+# Panda is 7-DOF, EAIK handles up to 6-DOF.  We lock one joint at a time
+# and sweep across its range.  By sweeping ALL 7 joints we explore the
+# full redundancy manifold instead of relying on a single wrist joint.
+EAIK_NUM_SWEEP_VALUES = 8        # Sweep values *per joint* (7 joints × 8 = 56 total)
 
 # =============================================================================
 # Mink QP-based IK / Reactive Tracking Configuration
@@ -175,11 +171,6 @@ MINK_DAMPING_COST = 1e-4       # minimum-norm regulariser
 # ── Integration timestep ──
 MINK_DT = 0.01                 # seconds per QP solve (reactive tracking)
 MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
-
-# ── Iterative IK convergence ──
-MINK_IK_MAX_ITERS = 150        # maximum QP iterations per IK seed (converges within ~100 typically)
-MINK_IK_STALL_WINDOW = 10      # iterations to detect stalling (faster bail-out on bad seeds)
-MINK_IK_STALL_TOL = 1e-7       # minimum error improvement to avoid stall
 
 # ── CollisionAvoidanceLimit ──
 MINK_COLLISION_MIN_DIST = 0.005     # minimum distance between geoms (metres)

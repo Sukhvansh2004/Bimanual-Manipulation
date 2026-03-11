@@ -339,8 +339,7 @@ class TestPlanningModule:
         required = [
             'MINK_QP_SOLVER', 'MINK_POSITION_COST', 'MINK_ORIENTATION_COST',
             'MINK_FRAME_GAIN', 'MINK_LM_DAMPING', 'MINK_POSTURE_COST',
-            'MINK_DAMPING_COST', 'MINK_DT', 'MINK_IK_DT', 'MINK_IK_MAX_ITERS',
-            'MINK_IK_STALL_WINDOW', 'MINK_IK_STALL_TOL',
+            'MINK_DAMPING_COST', 'MINK_DT', 'MINK_IK_DT',
             'MINK_COLLISION_MIN_DIST', 'MINK_COLLISION_DETECT_DIST',
             'MINK_COLLISION_GAIN',
         ]
