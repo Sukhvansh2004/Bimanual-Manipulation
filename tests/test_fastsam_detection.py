@@ -7,10 +7,10 @@ Tests object detection, grasp prediction, and perception pipeline.
 import pytest
 import numpy as np
 import time
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.services import ServiceManager, ServiceClient, FastSAMService
-from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.services import ServiceManager, ServiceClient, FastSAMService
+from bimanual_manipulation.transforms import TransformManager
+from bimanual_manipulation import constants
 
 @pytest.fixture(scope="class")
 def perception_services(request):

@@ -7,10 +7,10 @@ The transforms module provides coordinate frame management similar to ROS tf/tf2
 - Build and traverse frame trees
 - Stream live frame axes to Meshcat for debugging
 
-All classes are exported from `robosuite_franka_manipulation.transforms`:
+All classes are exported from `bimanual_manipulation.transforms`:
 
 ```python
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation.transforms import (
     StampedPose,
     Transform,
     TransformManager,
@@ -22,9 +22,9 @@ from robosuite_franka_manipulation.transforms import (
 ## Quick Start
 
 ```python
-from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.transforms import TransformManager, StampedPose
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation import constants
 
 env = make_dual_arm_env()
 env.reset()
@@ -128,7 +128,7 @@ Arrays are converted to `np.float64` and quaternions normalised in `__post_init_
 | `apply_to_pose(pose)` | `StampedPose` | Apply this transform to a pose (pose must be in `child_frame`) |
 
 ```python
-from robosuite_franka_manipulation.transforms import Transform
+from bimanual_manipulation.transforms import Transform
 
 # Create a transform
 tf = Transform(
@@ -240,7 +240,7 @@ coordinate axes and optional text labels for every frame in the
 
 ```python
 import threading
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation.transforms import (
     stream_transforms_to_meshcat,
     MeshcatTFVisualizerConfig,
 )

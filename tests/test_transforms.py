@@ -10,12 +10,12 @@ from scipy.spatial.transform import Rotation as R
 from pydantic import ValidationError
 from unittest.mock import Mock, MagicMock
 
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation.transforms import (
     StampedPose,
     Transform,
     TransformManager,
 )
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation import constants
 
 
 class TestStampedPose:

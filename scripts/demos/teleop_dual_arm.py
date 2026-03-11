@@ -8,9 +8,9 @@ import argparse
 from robosuite.wrappers import VisualizationWrapper
 
 # Import the custom environment factory
-from robosuite_franka_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.environments import make_dual_arm_env
 # Import the teleop module
-from robosuite_franka_manipulation.teleop import KeyboardTeleop
+from bimanual_manipulation.teleop import KeyboardTeleop
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

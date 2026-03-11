@@ -9,10 +9,10 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
-from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+from bimanual_manipulation.transforms import TransformManager, StampedPose
+from bimanual_manipulation import constants
 
 
 class TestArmControllers:

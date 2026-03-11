@@ -59,7 +59,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from robosuite_franka_manipulation.experiment_config import load_experiment
+from bimanual_manipulation.experiment_config import load_experiment
 
 from scripts.evaluation.configs import (
     ALL_ABLATIONS,

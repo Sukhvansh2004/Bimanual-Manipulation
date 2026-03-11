@@ -7,7 +7,7 @@ Tests Prompt Service, Grasp Service, and MoveToPose Service functionality.
 import pytest
 import time
 
-from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
+from bimanual_manipulation.services.services_core import ServiceManager, ServiceClient
 
 class MockService:
     """Mock service for testing ServiceManager."""

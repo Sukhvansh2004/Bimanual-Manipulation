@@ -75,7 +75,7 @@ pip install -e .
 ## Project Structure
 
 ```
-├── src/robosuite_franka_manipulation/       # Main package
+├── src/bimanual_manipulation/       # Main package
 │   ├── constants.py                         # All configuration constants
 │   ├── experiment_config.py                 # JSON experiment config loader & dataclasses
 │   ├── schema.py                            # Pydantic models for service APIs
@@ -574,7 +574,7 @@ client.call('move_to_pose_service', {
 
 ## Configuration
 
-Key constants are defined in `src/robosuite_franka_manipulation/constants.py`:
+Key constants are defined in `src/bimanual_manipulation/constants.py`:
 
 | Constant | Value | Description |
 |----------|-------|-------------|
@@ -600,7 +600,7 @@ Key constants are defined in `src/robosuite_franka_manipulation/constants.py`:
 ### Controllers
 
 ```python
-from robosuite_franka_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
+from bimanual_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 
 # Arm control with SE(3) trajectory planning
 arm = RobosuiteArmController(env, arm_id="right", robot_id=0)
@@ -615,7 +615,7 @@ gripper.close()
 ### Perception
 
 ```python
-from robosuite_franka_manipulation.perception import ObjectDetector, GraspPredictor
+from bimanual_manipulation.perception import ObjectDetector, GraspPredictor
 
 # Object detection
 detector = ObjectDetector(camera_intrinsics, camera_width, camera_height)
@@ -629,7 +629,7 @@ grasps = predictor.predict_grasps(object_pcd, object_pose, num_grasps=5)
 ### Planning
 
 ```python
-from robosuite_franka_manipulation.planning import (
+from bimanual_manipulation.planning import (
     plan_object_trajectory,           # RRT-Connect in SE(3)
     generate_object_trajectory,       # SE(3) interpolation (lift-approach-insert)
     generate_end_effector_trajectory, # Object → EEF trajectory via grasp transform
@@ -655,7 +655,7 @@ trajectory, success = plan_object_trajectory(
 ### Transforms (tf-like API)
 
 ```python
-from robosuite_franka_manipulation.transforms import TransformManager, StampedPose
+from bimanual_manipulation.transforms import TransformManager, StampedPose
 
 # Create transform manager with environment
 tf_manager = TransformManager(env)
@@ -677,7 +677,7 @@ eef_pose = tf_manager.get_frame_pose("robot0_right_eef", "world")
 ### SE(3) Utilities
 
 ```python
-from robosuite_franka_manipulation.utils.se3 import (
+from bimanual_manipulation.utils.se3 import (
     pose_to_SE3, SE3_to_pose, SE3_log, SE3_exp,
     interpolate_SE3, interpolate_pose, compute_se3_distance,
 )
@@ -695,7 +695,7 @@ pos, quat = SE3_to_pose(T)
 ### Services
 
 ```python
-from robosuite_franka_manipulation.services import (
+from bimanual_manipulation.services import (
     ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
 )
 

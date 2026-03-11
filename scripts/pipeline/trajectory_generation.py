@@ -30,34 +30,34 @@ import meshcat.transformations as tf
 from scipy.spatial.transform import Rotation as R
 
 import robosuite.utils.transform_utils as T
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.perception.grasp_predictor import maximize_entropy_grasps
-from robosuite_franka_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.perception.grasp_predictor import maximize_entropy_grasps
+from bimanual_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
+from bimanual_manipulation.utils.env_utils import (
     env_step,
     register_mesh_extraction_env
 )
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from bimanual_manipulation import constants
+from bimanual_manipulation.transforms.stamped_pose import StampedPose
 
 # Services and Planning
-from robosuite_franka_manipulation.services.grasp_service import GraspService
-from robosuite_franka_manipulation.services.services_core import ServiceManager
-from robosuite_franka_manipulation.planning.grasp_generator import GraspGenerator
+from bimanual_manipulation.services.grasp_service import GraspService
+from bimanual_manipulation.services.services_core import ServiceManager
+from bimanual_manipulation.planning.grasp_generator import GraspGenerator
 
 # Planning Modules
-from robosuite_franka_manipulation.planning.trajectory import (
+from bimanual_manipulation.planning.trajectory import (
     generate_end_effector_trajectory, 
     generate_object_trajectory,
 )
-from robosuite_franka_manipulation.planning.collision_checker import (
+from bimanual_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
 )
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
-from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
-from robosuite_franka_manipulation.planning.visualization.robot_mesh import RobotMeshVisualizer
-from robosuite_franka_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
-from robosuite_franka_manipulation.experiment_config import (
+from bimanual_manipulation.planning.utils.trajectory_utils import save_trajectory
+from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
+from bimanual_manipulation.planning.visualization.robot_mesh import RobotMeshVisualizer
+from bimanual_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
+from bimanual_manipulation.experiment_config import (
     load_experiment, detect_start_pose, get_collision_filter_fn
 )
 
@@ -342,7 +342,7 @@ def main() -> None:
     if args.reuse_object_traj:
         obj_traj_path = os.path.join(output_dir, "object_trajectory.npz")
         if os.path.exists(obj_traj_path):
-            from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory as _load_traj
+            from bimanual_manipulation.planning.utils.trajectory_utils import load_trajectory as _load_traj
             _, loaded_obj_traj, _, _ = _load_traj(obj_traj_path)
             if loaded_obj_traj:
                 object_trajectory = loaded_obj_traj

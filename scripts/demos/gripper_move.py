@@ -1,6 +1,6 @@
-from robosuite_franka_manipulation.controllers import RobosuiteGripperController
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.controllers import RobosuiteGripperController
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation import constants
 import logging
 
 # Configure logging

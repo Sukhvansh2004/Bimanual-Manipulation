@@ -16,16 +16,16 @@ import atexit
 import signal
 from typing import Any
 
-from robosuite_franka_manipulation import (
+from bimanual_manipulation import (
     DualArmManipulationSystem, constants, StampedPose
 )
-from robosuite_franka_manipulation.system_manager import (
+from bimanual_manipulation.system_manager import (
     detect, get_grasps, get_grasps_mesh, get_eef, 
     set_prompt, go_to_pose, load_trajectory_file, visualize_trajectory_data, 
     cancel_move, get_arm_status, follow_eef_trajectory
 )
-from robosuite_franka_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env, env_step
-from robosuite_franka_manipulation.experiment_config import load_experiment
+from bimanual_manipulation.utils.env_utils import create_ycb_object, create_primitive_object, register_mesh_extraction_env, env_step
+from bimanual_manipulation.experiment_config import load_experiment
 
 # Configure logging
 logging.basicConfig(

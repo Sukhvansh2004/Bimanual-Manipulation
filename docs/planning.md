@@ -1,6 +1,6 @@
 # Planning Architecture
 
-The planning module (`robosuite_franka_manipulation.planning`) provides a robust framework for generating, validating, and executing complex dual-arm manipulation tasks. It integrates collision-aware path planning on SE(3), grasp synthesis, trajectory interpolation, inverse kinematics (IK) solvers, and physics-based collision checking.
+The planning module (`bimanual_manipulation.planning`) provides a robust framework for generating, validating, and executing complex dual-arm manipulation tasks. It integrates collision-aware path planning on SE(3), grasp synthesis, trajectory interpolation, inverse kinematics (IK) solvers, and physics-based collision checking.
 
 ## Overview
 
@@ -88,7 +88,7 @@ Key constants in `constants.py`:
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.trajectory import plan_object_trajectory
+from bimanual_manipulation.planning.trajectory import plan_object_trajectory
 
 trajectory, success = plan_object_trajectory(
     env=env,
@@ -244,7 +244,7 @@ Converts an EEF (Cartesian) trajectory for Arm A into joint space via sequential
 #### Usage
 
 ```python
-from robosuite_franka_manipulation.planning.dual_arm import (
+from bimanual_manipulation.planning.dual_arm import (
     DualArmParallelPlanner,
 )
 
@@ -374,7 +374,7 @@ All trajectory data flowing through the assignment pipeline is represented by **
 All numeric fields are coerced to `np.ndarray` via `__post_init__`, so constructing from lists works seamlessly. `TrajectoryBundle` is the single entry point — returned by `load_all_trajectories()` and accepted by `compute_optimal_robot_assignment()`, `compute_cost_matrix()`, `compute_switching_cost()`, and `visualize_trajectory_feasibility()`.
 
 ```python
-from robosuite_franka_manipulation.planning.assignment import (
+from bimanual_manipulation.planning.assignment import (
     ObjectTrajectory, RobotTrajectory, TrajectoryBundle,
 )
 
@@ -560,7 +560,7 @@ All assignment submodules use Python's `logging` module with the standard `__nam
 | `INFO` | Cost matrix dimensions, finite-entry counts, assignment total cost & handover count, trajectory loading summaries |
 | `DEBUG` | Per-segment cost breakdowns (smoothness / manipulability), per-state feasibility ratios, IK failures, collision rejections, switching cost evaluations, Viterbi forward-pass terminal state |
 
-Enable with `--debug` on the CLI or `logging.getLogger('robosuite_franka_manipulation.planning.assignment').setLevel(logging.DEBUG)` programmatically.
+Enable with `--debug` on the CLI or `logging.getLogger('bimanual_manipulation.planning.assignment').setLevel(logging.DEBUG)` programmatically.
 
 #### Submodule Summary
 
@@ -588,13 +588,13 @@ trajectory_generation.py  →  data/<experiment>/robot{0,1}_trajectory_*.npz
 ### Generating and Validating a Pick-and-Place Trajectory
 
 ```python
-from robosuite_franka_manipulation.planning.trajectory_generator import (
+from bimanual_manipulation.planning.trajectory_generator import (
     generate_object_trajectory,
     generate_end_effector_trajectory,
     check_trajectory_feasibility,
 )
-from robosuite_franka_manipulation.transforms import StampedPose
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.transforms import StampedPose
+from bimanual_manipulation import constants
 
 # 1. Define Start and Target Poses
 start_pose = StampedPose(position=[0.5, 0, 0.85], quaternion=[0, 0, 0, 1], frame_id="world")

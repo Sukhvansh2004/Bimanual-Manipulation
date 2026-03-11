@@ -2,7 +2,7 @@
 
 The system uses a distributed microservices architecture for robotic perception and grasp planning. All services communicate via ZeroMQ (ZMQ) with JSON message serialization.
 
-All service implementations live in `src/robosuite_franka_manipulation/services/`:
+All service implementations live in `src/bimanual_manipulation/services/`:
 - `services_core.py` — `ServiceManager` and `ServiceClient` base classes
 - `fastsam_service.py` — FastSAM detection service
 - `grasp_service.py` — GraspGen prediction service
@@ -49,10 +49,10 @@ This starts all services automatically and provides an interactive shell.
 ### Manual Service Startup
 
 ```python
-from robosuite_franka_manipulation.services import (
+from bimanual_manipulation.services import (
     ServiceManager, ServiceClient, FastSAMService, GraspService, MoveToPoseService
 )
-from robosuite_franka_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.environments import make_dual_arm_env
 
 # Create environment
 env = make_dual_arm_env()
@@ -77,7 +77,7 @@ move.register_controller(0, "right", arm_controller_0)
 move.start()
 
 # Or use the all-in-one system manager:
-from robosuite_franka_manipulation.system_manager import DualArmManipulationSystem
+from bimanual_manipulation.system_manager import DualArmManipulationSystem
 system = DualArmManipulationSystem(visualize=True, meshcat_tf=True)
 system.start()
 ```
@@ -87,7 +87,7 @@ system.start()
 The `ServiceClient` provides a unified interface to all services:
 
 ```python
-from robosuite_franka_manipulation.services import ServiceClient
+from bimanual_manipulation.services import ServiceClient
 
 client = ServiceClient()
 
@@ -267,7 +267,7 @@ response = client.call('move_to_pose_service', {
 
 ## Configuration Constants
 
-All service ports and timeouts are defined in `src/robosuite_franka_manipulation/constants.py`:
+All service ports and timeouts are defined in `src/bimanual_manipulation/constants.py`:
 
 ```python
 # Network Configuration

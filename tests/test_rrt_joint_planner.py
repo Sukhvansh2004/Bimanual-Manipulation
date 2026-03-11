@@ -11,7 +11,7 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 from dataclasses import dataclass
 
-from robosuite_franka_manipulation.planning.rrt.joint import (
+from bimanual_manipulation.planning.rrt.joint import (
     JointRRTResult,
     joint_distance,
     steer,
@@ -20,16 +20,16 @@ from robosuite_franka_manipulation.planning.rrt.joint import (
     rrt_connect_joint_space,
     shortcut_joint_path,
 )
-from robosuite_franka_manipulation.planning.trajectory.arm_planner import (
+from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
-from robosuite_franka_manipulation.planning.rrt.core import (
+from bimanual_manipulation.planning.rrt.core import (
     rrt_connect_generic,
     _TreeNode,
     _generic_nearest,
     _generic_extract_path,
 )
-from robosuite_franka_manipulation.planning.rrt.path_smoothing import (
+from bimanual_manipulation.planning.rrt.path_smoothing import (
     shortcut_generic,
     densify_generic,
 )
@@ -344,10 +344,10 @@ class TestRRTConnectMocked:
     """Tests for ``rrt_connect_joint_space`` with mocked collision checking."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+        "bimanual_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+        "bimanual_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_direct_path_success(self, mock_collision, mock_segment):
         """When the direct segment is collision-free, return immediately."""
@@ -376,24 +376,24 @@ class TestRRTConnectMocked:
         env.sim.data = data
 
         with patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
+            "bimanual_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
             return_value=list(range(7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
+            "bimanual_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
             return_value=np.arange(7),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_limits",
+            "bimanual_manipulation.planning.rrt.joint.planner.get_joint_limits",
             return_value=(np.full(7, -2.0), np.full(7, 2.0)),
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner.get_native_mj_object",
+            "bimanual_manipulation.planning.rrt.joint.planner.get_native_mj_object",
             return_value=model,
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
+            "bimanual_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
+            "bimanual_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
             return_value=[0, 1, 2],
         ), patch(
-            "robosuite_franka_manipulation.planning.rrt.joint.planner.mujoco",
+            "bimanual_manipulation.planning.rrt.joint.planner.mujoco",
         ):
             result = rrt_connect_joint_space(
                 env=env,
@@ -413,7 +413,7 @@ class TestPlanArmTrajectoryMocked:
     """Tests for the ``plan_arm_trajectory`` convenience function."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+        "bimanual_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_rrt_success_returns_dense(self, mock_rrt):
         """When RRT succeeds, the result should be densified to num_steps."""
@@ -424,10 +424,10 @@ class TestPlanArmTrajectoryMocked:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
             side_effect=lambda env, path, **kw: path,  # no-op smoothing
         ), patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
             side_effect=lambda path, **kw: path,  # no-op Bézier
         ):
             traj, success = plan_arm_trajectory(
@@ -446,7 +446,7 @@ class TestPlanArmTrajectoryMocked:
         np.testing.assert_array_almost_equal(traj[-1], np.ones(7))
 
     @patch(
-        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+        "bimanual_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_rrt_failure_raises(self, mock_rrt):
         """When RRT fails, should raise RuntimeError (no unsafe fallback)."""
@@ -476,10 +476,10 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_calls_rrt(self):
         """When target_b is StampedPose and traj_a is given, RRT is attempted."""
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
-        from robosuite_franka_manipulation.transforms import StampedPose
+        from bimanual_manipulation.transforms import StampedPose
 
         env = MagicMock()
         arm_a = MagicMock()
@@ -511,7 +511,7 @@ class TestDualArmPlannerRRTIntegration:
 
         # Mock the plan_arm_trajectory to verify it's called
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+            "bimanual_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.return_value = (np.random.randn(50, 7), True)
 
@@ -525,10 +525,10 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_falls_back_without_traj_a(self):
         """Without traj_a, should use quintic interpolation (no RRT)."""
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
-        from robosuite_franka_manipulation.transforms import StampedPose
+        from bimanual_manipulation.transforms import StampedPose
 
         env = MagicMock()
         arm_a = MagicMock()
@@ -558,7 +558,7 @@ class TestDualArmPlannerRRTIntegration:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+            "bimanual_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             result = planner._resolve_trajectory_b(
                 target_pose, 50, None, None
@@ -572,10 +572,10 @@ class TestDualArmPlannerRRTIntegration:
 
     def test_resolve_trajectory_b_rrt_failure_returns_none(self):
         """When RRT fails (raises), should return None (no unsafe fallback)."""
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
-        from robosuite_franka_manipulation.transforms import StampedPose
+        from bimanual_manipulation.transforms import StampedPose
 
         env = MagicMock()
         arm_a = MagicMock()
@@ -606,7 +606,7 @@ class TestDualArmPlannerRRTIntegration:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+            "bimanual_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.side_effect = RuntimeError("Joint RRT failed")
 
@@ -627,7 +627,7 @@ class TestPlanningExports:
     """Verify that new symbols are exported from the planning package."""
 
     def test_exports_available(self):
-        from robosuite_franka_manipulation import planning
+        from bimanual_manipulation import planning
 
         expected = [
             "rrt_connect_generic",
@@ -781,38 +781,38 @@ class TestTemporalCollisionChecking:
         from unittest.mock import patch as _p
         return [
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
+                "bimanual_manipulation.planning.rrt.joint.planner.get_arm_joint_ids",
                 return_value=list(range(7)),
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
+                "bimanual_manipulation.planning.rrt.joint.planner.get_joint_qpos_indices",
                 return_value=np.arange(7),
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_joint_limits",
+                "bimanual_manipulation.planning.rrt.joint.planner.get_joint_limits",
                 return_value=(np.full(7, -2.0), np.full(7, 2.0)),
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner.get_native_mj_object",
+                "bimanual_manipulation.planning.rrt.joint.planner.get_native_mj_object",
                 return_value=MagicMock(),
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
+                "bimanual_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
+                "bimanual_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
                 return_value=[0, 1, 2],
             ),
             _p(
-                "robosuite_franka_manipulation.planning.rrt.joint.planner.mujoco",
+                "bimanual_manipulation.planning.rrt.joint.planner.mujoco",
             ),
         ]
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+        "bimanual_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+        "bimanual_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_direct_path_checked_against_all_samples(
         self, mock_collision, mock_segment
@@ -851,10 +851,10 @@ class TestTemporalCollisionChecking:
         assert call_count["segment"] == 5
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+        "bimanual_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+        "bimanual_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_direct_path_fails_if_any_sample_collides(
         self, mock_collision, mock_segment
@@ -895,10 +895,10 @@ class TestTemporalCollisionChecking:
         # Key assertion: we verified the direct path wasn't accepted
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+        "bimanual_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+        "bimanual_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_single_q_other_arm_used_without_trajectory(
         self, mock_collision, mock_segment
@@ -935,10 +935,10 @@ class TestTemporalCollisionChecking:
         assert call_count["segment"] == 1
 
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
+        "bimanual_manipulation.planning.rrt.joint.planner.collision_free_joint_segment"
     )
     @patch(
-        "robosuite_franka_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
+        "bimanual_manipulation.planning.rrt.joint.planner.check_arm_config_collision"
     )
     def test_small_trajectory_uses_all_configs(
         self, mock_collision, mock_segment
@@ -981,7 +981,7 @@ class TestTemporalCollisionInPlanArmTrajectory:
     """Verify that plan_arm_trajectory passes temporal trajectory through."""
 
     @patch(
-        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+        "bimanual_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_trajectory_passed_to_rrt(self, mock_rrt):
         """q_other_arm_trajectory should be forwarded to RRT."""
@@ -993,10 +993,10 @@ class TestTemporalCollisionInPlanArmTrajectory:
         traj_a = np.random.randn(30, 7)
 
         with patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
             side_effect=lambda env, path, **kw: path,
         ), patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
             side_effect=lambda path, **kw: path,
         ):
             traj, success = plan_arm_trajectory(
@@ -1019,7 +1019,7 @@ class TestTemporalCollisionInPlanArmTrajectory:
         np.testing.assert_array_equal(passed_traj, traj_a)
 
     @patch(
-        "robosuite_franka_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
+        "bimanual_manipulation.planning.trajectory.arm_planner.rrt_connect_joint_space"
     )
     def test_trajectory_passed_to_smoothing(self, mock_rrt):
         """q_other_arm_trajectory should be forwarded to smoothing steps."""
@@ -1031,10 +1031,10 @@ class TestTemporalCollisionInPlanArmTrajectory:
         traj_a = np.random.randn(30, 7)
 
         with patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.shortcut_joint_path",
             side_effect=lambda env, path, **kw: path,
         ) as mock_shortcut, patch(
-            "robosuite_franka_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
+            "bimanual_manipulation.planning.trajectory.arm_planner.bezier_smooth_joint_path",
             side_effect=lambda path, **kw: path,
         ) as mock_bezier:
             plan_arm_trajectory(
@@ -1068,10 +1068,10 @@ class TestTemporalCollisionInDualArmPlanner:
 
     def test_plan_collision_free_passes_traj_a(self):
         """_plan_collision_free_trajectory_b should pass temporally-reduced traj_a."""
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
-        from robosuite_franka_manipulation.transforms import StampedPose
+        from bimanual_manipulation.transforms import StampedPose
 
         env = MagicMock()
         arm_a = MagicMock()
@@ -1102,7 +1102,7 @@ class TestTemporalCollisionInDualArmPlanner:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+            "bimanual_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.return_value = (np.random.randn(50, 7), True)
 
@@ -1120,10 +1120,10 @@ class TestTemporalCollisionInDualArmPlanner:
 
     def test_q_other_arm_uses_traj_a_last(self):
         """q_other_arm (static fallback) should use traj_a[-1]."""
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
-        from robosuite_franka_manipulation.transforms import StampedPose
+        from bimanual_manipulation.transforms import StampedPose
 
         env = MagicMock()
         arm_a = MagicMock()
@@ -1154,7 +1154,7 @@ class TestTemporalCollisionInDualArmPlanner:
         )
 
         with patch(
-            "robosuite_franka_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
+            "bimanual_manipulation.planning.dual_arm.planner.plan_arm_trajectory"
         ) as mock_plan:
             mock_plan.return_value = (np.random.randn(50, 7), True)
 
@@ -1176,7 +1176,7 @@ class TestRRTVisualizerCallbacks:
 
     def test_draw_path_with_custom_pos_fn(self):
         """draw_path should accept a custom position extractor."""
-        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+        from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
         mock_vis = MagicMock()
         rrt_vis = RRTVisualizer(mock_vis)
@@ -1193,7 +1193,7 @@ class TestRRTVisualizerCallbacks:
 
     def test_draw_start_goal(self):
         """draw_start_goal should create sphere objects."""
-        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+        from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
         mock_vis = MagicMock()
         rrt_vis = RRTVisualizer(mock_vis)
@@ -1206,7 +1206,7 @@ class TestRRTVisualizerCallbacks:
 
     def test_draw_smoothed_path(self):
         """draw_smoothed_path should create line segments."""
-        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+        from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
         mock_vis = MagicMock()
         rrt_vis = RRTVisualizer(mock_vis)
@@ -1220,7 +1220,7 @@ class TestRRTVisualizerCallbacks:
 
     def test_edge_counter_increments(self):
         """Each tree edge should have a unique counter."""
-        from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+        from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
         mock_vis = MagicMock()
         rrt_vis = RRTVisualizer(mock_vis)
@@ -1249,13 +1249,13 @@ class TestTemporalSamplesConstant:
     """Verify the temporal samples constant exists and is reasonable."""
 
     def test_constant_exists(self):
-        from robosuite_franka_manipulation import constants
+        from bimanual_manipulation import constants
         assert hasattr(constants, "ARM_RRT_TEMPORAL_SAMPLES")
 
     def test_constant_positive(self):
-        from robosuite_franka_manipulation import constants
+        from bimanual_manipulation import constants
         assert constants.ARM_RRT_TEMPORAL_SAMPLES > 0
 
     def test_constant_reasonable_range(self):
-        from robosuite_franka_manipulation import constants
+        from bimanual_manipulation import constants
         assert 2 <= constants.ARM_RRT_TEMPORAL_SAMPLES <= 50

@@ -5,7 +5,7 @@ The `utils` package provides reusable utility functions organized by domain. All
 ## Overview
 
 ```python
-from robosuite_franka_manipulation.utils import (
+from bimanual_manipulation.utils import (
     # SE(3) Lie algebra (from utils.se3)
     skew, unskew, SE3_log, SE3_exp, pose_to_SE3, SE3_to_pose,
     compute_se3_distance, interpolate_SE3, se3_to_matrix, matrix_to_se3,
@@ -47,7 +47,7 @@ SE(3) is the Special Euclidean group representing rigid body transformations (ro
 ### Usage
 
 ```python
-from robosuite_franka_manipulation.utils.se3 import (
+from bimanual_manipulation.utils.se3 import (
     pose_to_SE3, SE3_to_pose, SE3_log, SE3_exp,
     compute_se3_distance, interpolate_SE3, interpolate_pose,
     skew, unskew, se3_to_matrix, matrix_to_se3,
@@ -101,7 +101,7 @@ twist_rec = matrix_to_se3(mat) # Recover twist
 The SE(3) utilities are used in both the arm controller for smooth trajectory tracking and the RRT-Connect planner for geodesic interpolation:
 
 ```python
-from robosuite_franka_manipulation.controllers import RobosuiteArmController
+from bimanual_manipulation.controllers import RobosuiteArmController
 
 # The controller uses SE(3) interpolation internally
 arm = RobosuiteArmController(env, arm_id="right")
@@ -115,7 +115,7 @@ Common point cloud operations for the perception pipeline.
 ### Functions
 
 ```python
-from robosuite_franka_manipulation.utils.pointcloud import (
+from bimanual_manipulation.utils.pointcloud import (
     downsample_point_cloud,
     estimate_pose_from_point_cloud,
     transform_point_cloud,
@@ -181,7 +181,7 @@ Helpers for interacting with the robosuite simulation environment.
 ### Core Functions
 
 ```python
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.env_utils import (
     env_step,                         # Step the environment with action persistence
     set_robot_config,                 # Set robot joint configuration
     register_mesh_extraction_env,     # Register env for mesh extraction
@@ -194,7 +194,7 @@ from robosuite_franka_manipulation.utils.env_utils import (
 ### YCB Object Support
 
 ```python
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.env_utils import (
     get_available_ycb_objects,   # List available YCB objects in the dataset
     list_ycb_objects,            # Print available objects
     resolve_mesh_path,           # Get mesh file path for a YCB object
@@ -215,7 +215,7 @@ prim_spec = create_primitive_object("box", "plate", size=[0.2, 0.2, 0.02], posit
 Mesh loading and point sampling for collision checking and grasp planning.
 
 ```python
-from robosuite_franka_manipulation.utils.mesh_utils import load_mesh_and_sample
+from bimanual_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 # Load a mesh file and sample points on its surface
 points = load_mesh_and_sample(mesh_path, num_samples=2000, scale=1.0)
@@ -226,7 +226,7 @@ points = load_mesh_and_sample(mesh_path, num_samples=2000, scale=1.0)
 High-level manipulation primitive classes for common dual-arm tasks.
 
 ```python
-from robosuite_franka_manipulation.utils.primitives import (
+from bimanual_manipulation.utils.primitives import (
     DualArmHandoverPlanner,     # Plan and execute dual-arm handover sequences
     ObjectGraspPrimitive,       # Grasp an object with approach + close
     ReleaseRetreatPrimitive,    # Release object and retreat to safe pose
@@ -244,7 +244,7 @@ planner = DualArmHandoverPlanner(env, tf_manager)
 Functions for managing suction gripper weld constraints in MuJoCo.
 
 ```python
-from robosuite_franka_manipulation.utils.suction_weld import (
+from bimanual_manipulation.utils.suction_weld import (
     apply_suction_weld,    # Create a weld constraint between gripper and object
     clear_suction_cache,   # Clear cached weld data
 )
@@ -255,7 +255,7 @@ from robosuite_franka_manipulation.utils.suction_weld import (
 Low-level utilities for rendering MuJoCo model elements in Meshcat. Not re-exported from `utils/__init__.py` — import directly when needed:
 
 ```python
-from robosuite_franka_manipulation.utils.meshcat_mj_utils import (
+from bimanual_manipulation.utils.meshcat_mj_utils import (
     # Functions for loading MuJoCo geoms/bodies into Meshcat
 )
 ```
@@ -266,7 +266,7 @@ Complete example using multiple utility modules:
 
 ```python
 import numpy as np
-from robosuite_franka_manipulation.utils import (
+from bimanual_manipulation.utils import (
     deproject_depth_to_point_cloud,
     estimate_pose_from_point_cloud,
     transform_point_cloud,
@@ -274,8 +274,8 @@ from robosuite_franka_manipulation.utils import (
     SE3_to_pose,
     interpolate_SE3,
 )
-from robosuite_franka_manipulation.transforms import StampedPose
-from robosuite_franka_manipulation import constants
+from bimanual_manipulation.transforms import StampedPose
+from bimanual_manipulation import constants
 
 # Get point cloud from depth
 pcd_camera = deproject_depth_to_point_cloud(depth, mask, fx, fy, cx, cy)

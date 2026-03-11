@@ -3,10 +3,10 @@ from scipy.spatial.transform import Rotation as R
 import time
 import threading
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.controllers import RobosuiteArmController
-from robosuite_franka_manipulation.environments import make_dual_arm_env, DualArmEnvironment
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
+from bimanual_manipulation import constants
+from bimanual_manipulation.controllers import RobosuiteArmController
+from bimanual_manipulation.environments import make_dual_arm_env, DualArmEnvironment
+from bimanual_manipulation.transforms import StampedPose, TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 
 import logging
 # Configure logging

@@ -50,13 +50,13 @@ import time
 
 import numpy as np
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.experiment_config import (
+from bimanual_manipulation import constants
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.experiment_config import (
     load_experiment,
     get_collision_filter_fn,
 )
-from robosuite_franka_manipulation.planning.assignment import (
+from bimanual_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
     make_collision_check_fn,
@@ -65,12 +65,12 @@ from robosuite_franka_manipulation.planning.assignment import (
     make_jacobian_fns,
     save_assignment_result,
 )
-from robosuite_franka_manipulation.planning.visualization.trajectory import (
+from bimanual_manipulation.planning.visualization.trajectory import (
     visualize_trajectory_feasibility,
     visualize_assignment_result,
 )
-from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.transforms import TransformManager
+from bimanual_manipulation.utils.env_utils import env_step
 
 
 def setup_logging(level: int = logging.INFO):
@@ -302,7 +302,7 @@ def main() -> None:
     # --- Apply switch cost override if specified ---
     _restore_fn = None
     if args.switch_cost_override is not None:
-        import robosuite_franka_manipulation.planning.assignment.solver as solver_mod
+        import bimanual_manipulation.planning.assignment.solver as solver_mod
         _original_sw = solver_mod.compute_switching_cost
         _override = args.switch_cost_override
 
@@ -410,7 +410,7 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
     The dict is JSON-serialisable and designed to be read back by
     ``scripts.evaluation.metrics.PlanningMetrics(**d)``.
     """
-    from robosuite_franka_manipulation.planning.utils.manipulability import (
+    from bimanual_manipulation.planning.utils.manipulability import (
         compute_trajectory_manipulability,
     )
     from pathlib import Path

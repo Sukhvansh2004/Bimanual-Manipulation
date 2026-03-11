@@ -9,112 +9,112 @@ Unable to load module hid, required to interface with SpaceMouse.
            Only macOS is officially supported. Install the additional
 
            requirements with `pip install -r requirements-extra.txt`
-2026-03-06 01:50:20,938 - robosuite_franka_manipulation.experiment_config - INFO - Loading experiment 'mug_inversion' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/mug_inversion.json
+2026-03-06 01:50:20,938 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'mug_inversion' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/mug_inversion.json
 2026-03-06 01:50:20,938 - __main__ - INFO - Loaded experiment: mug_inversion – Orientation-correction dual-handover: a YCB mug starts inverted (upside-down) on the left side of the table. A central wall blocks direct transfer, forcing the trajectory to detour around the +y corridor. Robot-1 (suction gripper) grasps the exposed bottom surface (facing up), lifts it, and hands off to Robot-0 (finger gripper) around the wall. Robot-0 re-grasps the mug by its rim, reorients it to upright, and places it on the right side of the table. The wall plus the 180° orientation change make the suction-to-finger handover essential.
 2026-03-06 01:50:20,938 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion ...
-2026-03-06 01:50:20,939 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
-2026-03-06 01:50:20,956 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
-2026-03-06 01:50:20,971 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
-2026-03-06 01:50:20,972 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-06 01:50:20,939 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-06 01:50:20,956 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-06 01:50:20,971 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-06 01:50:20,972 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
 2026-03-06 01:50:20,972 - __main__ - INFO - Assignment parameters: α=10.00, β=1.00, ε=1.0e-06, beam=unlimited, stride=1, clearance=0.030m
 2026-03-06 01:50:20,972 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
-2026-03-06 01:50:20,972 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
-2026-03-06 01:50:22,533 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 01:50:22,534 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
-2026-03-06 01:50:23,201 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 01:50:23,202 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
-2026-03-06 01:50:23,564 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
-2026-03-06 01:50:23,566 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-06 01:50:20,972 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-06 01:50:22,533 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-06 01:50:22,534 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
+2026-03-06 01:50:23,201 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-06 01:50:23,202 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
+2026-03-06 01:50:23,564 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-06 01:50:23,566 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
 2026-03-06 01:50:23,567 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
 2026-03-06 01:50:23,567 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
 2026-03-06 01:50:23,567 - __main__ - INFO - Switch cost override active: 0.00
-2026-03-06 01:50:23,567 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=unlimited, stride=1)
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1674/3200 finite entries
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments × 40 states
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments × 40 states, beam_width=unlimited, handover_stride=1
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 20/40 alive states
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,722 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 9/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 10/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 11/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 12/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 13/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,723 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 14/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,724 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 15/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,724 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 16/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
-2026-03-06 01:50:23,754 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 17/79: 0.0s (IK=1, pruned=21, alive=21) ETA 0s
-2026-03-06 01:50:26,851 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 18/79: 3.1s (IK=20, pruned=21, alive=21) ETA 11s
-2026-03-06 01:50:29,993 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 19/79: 3.1s (IK=18, pruned=20, alive=20) ETA 20s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 20/79: 0.0s (IK=0, pruned=19, alive=19) ETA 19s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 21/79: 0.0s (IK=0, pruned=19, alive=19) ETA 17s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 22/79: 0.0s (IK=0, pruned=19, alive=19) ETA 16s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 23/79: 0.0s (IK=0, pruned=19, alive=19) ETA 15s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 24/79: 0.0s (IK=0, pruned=19, alive=19) ETA 14s
-2026-03-06 01:50:29,994 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 25/79: 0.0s (IK=0, pruned=19, alive=19) ETA 14s
-2026-03-06 01:50:30,039 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 26/79: 0.0s (IK=1, pruned=20, alive=20) ETA 13s
-2026-03-06 01:50:33,824 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 27/79: 3.8s (IK=20, pruned=21, alive=21) ETA 19s
-2026-03-06 01:50:37,725 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 28/79: 3.9s (IK=24, pruned=25, alive=25) ETA 26s
-2026-03-06 01:50:42,048 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 29/79: 4.3s (IK=27, pruned=30, alive=30) ETA 32s
-2026-03-06 01:50:45,880 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 30/79: 3.8s (IK=23, pruned=30, alive=30) ETA 36s
-2026-03-06 01:50:51,566 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 31/79: 5.7s (IK=23, pruned=30, alive=30) ETA 43s
-2026-03-06 01:50:56,149 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 32/79: 4.6s (IK=24, pruned=30, alive=30) ETA 48s
-2026-03-06 01:51:00,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 33/79: 4.5s (IK=25, pruned=31, alive=31) ETA 52s
-2026-03-06 01:51:05,191 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 34/79: 4.5s (IK=26, pruned=32, alive=32) ETA 55s
-2026-03-06 01:51:10,474 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 35/79: 5.3s (IK=29, pruned=35, alive=35) ETA 59s
-2026-03-06 01:51:15,763 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 36/79: 5.3s (IK=34, pruned=36, alive=36) ETA 62s
-2026-03-06 01:51:22,905 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 37/79: 7.1s (IK=34, pruned=36, alive=36) ETA 67s
-2026-03-06 01:51:27,955 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 38/79: 5.0s (IK=34, pruned=36, alive=36) ETA 69s
-2026-03-06 01:51:33,607 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 39/79: 5.7s (IK=33, pruned=36, alive=36) ETA 72s
-2026-03-06 01:51:38,407 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 40/79: 4.8s (IK=34, pruned=36, alive=36) ETA 73s
-2026-03-06 01:51:44,451 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 41/79: 6.0s (IK=30, pruned=37, alive=37) ETA 75s
-2026-03-06 01:51:49,056 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 42/79: 4.6s (IK=35, pruned=37, alive=37) ETA 75s
-2026-03-06 01:51:54,244 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 43/79: 5.2s (IK=35, pruned=36, alive=36) ETA 76s
-2026-03-06 01:52:07,018 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 44/79: 12.8s (IK=36, pruned=37, alive=37) ETA 82s
-2026-03-06 01:52:10,022 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 45/79: 3.0s (IK=30, pruned=31, alive=31) ETA 80s
-2026-03-06 01:52:12,134 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 46/79: 2.1s (IK=28, pruned=29, alive=29) ETA 78s
-2026-03-06 01:52:12,811 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 47/79: 0.7s (IK=19, pruned=20, alive=20) ETA 74s
-2026-03-06 01:52:13,248 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 48/79: 0.4s (IK=16, pruned=17, alive=17) ETA 71s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 49/79: 0.4s (IK=16, pruned=16, alive=16) ETA 67s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 50/79: 0.0s (IK=0, pruned=16, alive=16) ETA 64s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 51/79: 0.0s (IK=0, pruned=16, alive=16) ETA 60s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 52/79: 0.0s (IK=0, pruned=16, alive=16) ETA 57s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 53/79: 0.0s (IK=0, pruned=16, alive=16) ETA 54s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 54/79: 0.0s (IK=0, pruned=16, alive=16) ETA 51s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 55/79: 0.0s (IK=0, pruned=16, alive=16) ETA 48s
-2026-03-06 01:52:13,682 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 56/79: 0.0s (IK=0, pruned=16, alive=16) ETA 45s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 57/79: 0.0s (IK=0, pruned=16, alive=16) ETA 42s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 58/79: 0.0s (IK=0, pruned=16, alive=16) ETA 40s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 59/79: 0.0s (IK=0, pruned=16, alive=16) ETA 37s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 60/79: 0.0s (IK=0, pruned=16, alive=16) ETA 35s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 61/79: 0.0s (IK=0, pruned=16, alive=16) ETA 32s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 62/79: 0.0s (IK=0, pruned=15, alive=15) ETA 30s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 63/79: 0.0s (IK=0, pruned=15, alive=15) ETA 28s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 64/79: 0.0s (IK=0, pruned=15, alive=15) ETA 26s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 65/79: 0.0s (IK=0, pruned=15, alive=15) ETA 24s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 66/79: 0.0s (IK=0, pruned=15, alive=15) ETA 22s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 67/79: 0.0s (IK=0, pruned=15, alive=15) ETA 20s
-2026-03-06 01:52:13,683 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 68/79: 0.0s (IK=0, pruned=15, alive=15) ETA 18s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 69/79: 0.0s (IK=0, pruned=15, alive=15) ETA 16s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 70/79: 0.0s (IK=0, pruned=15, alive=15) ETA 14s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 71/79: 0.0s (IK=0, pruned=15, alive=15) ETA 12s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 72/79: 0.0s (IK=0, pruned=15, alive=15) ETA 11s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 73/79: 0.0s (IK=0, pruned=14, alive=14) ETA 9s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 74/79: 0.0s (IK=0, pruned=12, alive=12) ETA 7s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 75/79: 0.0s (IK=0, pruned=12, alive=12) ETA 6s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 76/79: 0.0s (IK=0, pruned=6, alive=6) ETA 4s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 77/79: 0.0s (IK=0, pruned=5, alive=5) ETA 3s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 78/79: 0.0s (IK=0, pruned=5, alive=5) ETA 1s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 79/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=675, pruned=1636, elapsed=110.0s
-2026-03-06 01:52:13,684 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Best terminal cost=1462.1359 at state 10
-2026-03-06 01:52:13,685 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Assignment solved: total_cost=1462.1359, handovers=9
+2026-03-06 01:50:23,567 - bimanual_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=unlimited, stride=1)
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1674/3200 finite entries
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments × 40 states
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments × 40 states, beam_width=unlimited, handover_stride=1
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 20/40 alive states
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,722 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 9/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 10/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 11/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 12/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 13/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,723 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 14/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,724 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 15/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,724 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 16/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:50:23,754 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 17/79: 0.0s (IK=1, pruned=21, alive=21) ETA 0s
+2026-03-06 01:50:26,851 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 18/79: 3.1s (IK=20, pruned=21, alive=21) ETA 11s
+2026-03-06 01:50:29,993 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 19/79: 3.1s (IK=18, pruned=20, alive=20) ETA 20s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 20/79: 0.0s (IK=0, pruned=19, alive=19) ETA 19s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 21/79: 0.0s (IK=0, pruned=19, alive=19) ETA 17s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 22/79: 0.0s (IK=0, pruned=19, alive=19) ETA 16s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 23/79: 0.0s (IK=0, pruned=19, alive=19) ETA 15s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 24/79: 0.0s (IK=0, pruned=19, alive=19) ETA 14s
+2026-03-06 01:50:29,994 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 25/79: 0.0s (IK=0, pruned=19, alive=19) ETA 14s
+2026-03-06 01:50:30,039 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 26/79: 0.0s (IK=1, pruned=20, alive=20) ETA 13s
+2026-03-06 01:50:33,824 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 27/79: 3.8s (IK=20, pruned=21, alive=21) ETA 19s
+2026-03-06 01:50:37,725 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 28/79: 3.9s (IK=24, pruned=25, alive=25) ETA 26s
+2026-03-06 01:50:42,048 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 29/79: 4.3s (IK=27, pruned=30, alive=30) ETA 32s
+2026-03-06 01:50:45,880 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 30/79: 3.8s (IK=23, pruned=30, alive=30) ETA 36s
+2026-03-06 01:50:51,566 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 31/79: 5.7s (IK=23, pruned=30, alive=30) ETA 43s
+2026-03-06 01:50:56,149 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 32/79: 4.6s (IK=24, pruned=30, alive=30) ETA 48s
+2026-03-06 01:51:00,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 33/79: 4.5s (IK=25, pruned=31, alive=31) ETA 52s
+2026-03-06 01:51:05,191 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 34/79: 4.5s (IK=26, pruned=32, alive=32) ETA 55s
+2026-03-06 01:51:10,474 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 35/79: 5.3s (IK=29, pruned=35, alive=35) ETA 59s
+2026-03-06 01:51:15,763 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 36/79: 5.3s (IK=34, pruned=36, alive=36) ETA 62s
+2026-03-06 01:51:22,905 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 37/79: 7.1s (IK=34, pruned=36, alive=36) ETA 67s
+2026-03-06 01:51:27,955 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 38/79: 5.0s (IK=34, pruned=36, alive=36) ETA 69s
+2026-03-06 01:51:33,607 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 39/79: 5.7s (IK=33, pruned=36, alive=36) ETA 72s
+2026-03-06 01:51:38,407 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 40/79: 4.8s (IK=34, pruned=36, alive=36) ETA 73s
+2026-03-06 01:51:44,451 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 41/79: 6.0s (IK=30, pruned=37, alive=37) ETA 75s
+2026-03-06 01:51:49,056 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 42/79: 4.6s (IK=35, pruned=37, alive=37) ETA 75s
+2026-03-06 01:51:54,244 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 43/79: 5.2s (IK=35, pruned=36, alive=36) ETA 76s
+2026-03-06 01:52:07,018 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 44/79: 12.8s (IK=36, pruned=37, alive=37) ETA 82s
+2026-03-06 01:52:10,022 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 45/79: 3.0s (IK=30, pruned=31, alive=31) ETA 80s
+2026-03-06 01:52:12,134 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 46/79: 2.1s (IK=28, pruned=29, alive=29) ETA 78s
+2026-03-06 01:52:12,811 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 47/79: 0.7s (IK=19, pruned=20, alive=20) ETA 74s
+2026-03-06 01:52:13,248 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 48/79: 0.4s (IK=16, pruned=17, alive=17) ETA 71s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 49/79: 0.4s (IK=16, pruned=16, alive=16) ETA 67s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 50/79: 0.0s (IK=0, pruned=16, alive=16) ETA 64s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 51/79: 0.0s (IK=0, pruned=16, alive=16) ETA 60s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 52/79: 0.0s (IK=0, pruned=16, alive=16) ETA 57s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 53/79: 0.0s (IK=0, pruned=16, alive=16) ETA 54s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 54/79: 0.0s (IK=0, pruned=16, alive=16) ETA 51s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 55/79: 0.0s (IK=0, pruned=16, alive=16) ETA 48s
+2026-03-06 01:52:13,682 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 56/79: 0.0s (IK=0, pruned=16, alive=16) ETA 45s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 57/79: 0.0s (IK=0, pruned=16, alive=16) ETA 42s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 58/79: 0.0s (IK=0, pruned=16, alive=16) ETA 40s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 59/79: 0.0s (IK=0, pruned=16, alive=16) ETA 37s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 60/79: 0.0s (IK=0, pruned=16, alive=16) ETA 35s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 61/79: 0.0s (IK=0, pruned=16, alive=16) ETA 32s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 62/79: 0.0s (IK=0, pruned=15, alive=15) ETA 30s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 63/79: 0.0s (IK=0, pruned=15, alive=15) ETA 28s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 64/79: 0.0s (IK=0, pruned=15, alive=15) ETA 26s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 65/79: 0.0s (IK=0, pruned=15, alive=15) ETA 24s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 66/79: 0.0s (IK=0, pruned=15, alive=15) ETA 22s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 67/79: 0.0s (IK=0, pruned=15, alive=15) ETA 20s
+2026-03-06 01:52:13,683 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 68/79: 0.0s (IK=0, pruned=15, alive=15) ETA 18s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 69/79: 0.0s (IK=0, pruned=15, alive=15) ETA 16s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 70/79: 0.0s (IK=0, pruned=15, alive=15) ETA 14s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 71/79: 0.0s (IK=0, pruned=15, alive=15) ETA 12s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 72/79: 0.0s (IK=0, pruned=15, alive=15) ETA 11s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 73/79: 0.0s (IK=0, pruned=14, alive=14) ETA 9s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 74/79: 0.0s (IK=0, pruned=12, alive=12) ETA 7s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 75/79: 0.0s (IK=0, pruned=12, alive=12) ETA 6s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 76/79: 0.0s (IK=0, pruned=6, alive=6) ETA 4s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 77/79: 0.0s (IK=0, pruned=5, alive=5) ETA 3s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 78/79: 0.0s (IK=0, pruned=5, alive=5) ETA 1s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 79/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=675, pruned=1636, elapsed=110.0s
+2026-03-06 01:52:13,684 - bimanual_manipulation.planning.assignment.solver - INFO - Best terminal cost=1462.1359 at state 10
+2026-03-06 01:52:13,685 - bimanual_manipulation.planning.assignment.solver - INFO - Assignment solved: total_cost=1462.1359, handovers=9
 2026-03-06 01:52:13,685 - __main__ - INFO - ============================================================
 2026-03-06 01:52:13,685 - __main__ - INFO - Optimal Assignment Results
 2026-03-06 01:52:13,685 - __main__ - INFO - ============================================================
@@ -203,6 +203,6 @@ Unable to load module hid, required to interface with SpaceMouse.
 2026-03-06 01:52:13,686 - __main__ - INFO -   Seg  79: Robot0  traj=robot0_trajectory_10.npz  task=17.6145  switch=0.0000  total=17.6145
 2026-03-06 01:52:13,686 - __main__ - INFO -   Robot0 — feasible segments: 56/80  cost range: [16.1710, 20.9980]
 2026-03-06 01:52:13,686 - __main__ - INFO -   Robot1 — feasible segments: 49/80  cost range: [16.2667, 23.6239]
-2026-03-06 01:52:13,687 - robosuite_franka_manipulation.planning.assignment.result - INFO - Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion/configs/No_Switching_Penalty_Cswitch0/assignment_results.npz
+2026-03-06 01:52:13,687 - bimanual_manipulation.planning.assignment.result - INFO - Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion/configs/No_Switching_Penalty_Cswitch0/assignment_results.npz
 2026-03-06 01:52:13,720 - __main__ - INFO - Metrics written to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion/configs/No_Switching_Penalty_Cswitch0/planning_metrics.json
 2026-03-06 01:52:13,720 - __main__ - INFO - Done. (110.1s)

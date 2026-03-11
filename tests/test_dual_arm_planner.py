@@ -9,8 +9,8 @@ import pytest
 import numpy as np
 import mujoco
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.planning.utils.mujoco_utils import (
     get_native_mj_object,
     get_robot_collision_geoms,
     get_object_collision_geoms,
@@ -133,7 +133,7 @@ class TestCollisionAvoidanceLimitIntegration:
         (arm_B vs arm_A, arm_B vs object, arm_B vs env) when an object is present
         and the scene has environment geoms."""
         from unittest.mock import MagicMock
-        from robosuite_franka_manipulation.planning.dual_arm import (
+        from bimanual_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
 

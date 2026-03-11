@@ -34,40 +34,40 @@ import threading
 from typing import Callable, Dict, List, Optional, Tuple
 import meshcat
 from contextlib import nullcontext
-from robosuite_franka_manipulation import (
+from bimanual_manipulation import (
     DualArmManipulationSystem, constants
 )
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.env_utils import (
     env_step, register_mesh_extraction_env,
     start_collision_monitor, stop_collision_monitor,
 )
-from robosuite_franka_manipulation.experiment_config import load_experiment, ExperimentConfig
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
+from bimanual_manipulation.experiment_config import load_experiment, ExperimentConfig
+from bimanual_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
 )
-from robosuite_franka_manipulation.planning.visualization.trajectory import (
+from bimanual_manipulation.planning.visualization.trajectory import (
     visualize_trajectory, visualize_handover_plan
 )
-from robosuite_franka_manipulation.utils.primitives import (
+from bimanual_manipulation.utils.primitives import (
     ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
 )
-from robosuite_franka_manipulation.planning.dual_arm import DualArmParallelPlanner
-from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
-from robosuite_franka_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
-from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
+from bimanual_manipulation.planning.dual_arm import DualArmParallelPlanner
+from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
+from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
+from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
     plan_pose_to_joint_trajectory,
 )
-from robosuite_franka_manipulation.planning.assignment import (
+from bimanual_manipulation.planning.assignment import (
     load_assignment_result,
     AssignmentResult,
 )
-from robosuite_franka_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.utils.manipulability import (
     compute_trajectory_manipulability,
     compute_manipulability_from_jacobian,
 )
 from scipy.spatial.transform import Rotation as R
-from robosuite_franka_manipulation.planning.assignment.factories import make_jacobian_fns
-from robosuite_franka_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.assignment.factories import make_jacobian_fns
+from bimanual_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )

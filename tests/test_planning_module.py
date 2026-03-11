@@ -3,18 +3,18 @@ import numpy as np
 import mujoco
 from unittest.mock import MagicMock, patch
 from scipy.spatial.transform import Rotation as R
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.planning.utils import ik_utils, mujoco_utils
-from robosuite_franka_manipulation.transforms import StampedPose, TransformManager
-from robosuite_franka_manipulation.planning.trajectory.generator import (
+from bimanual_manipulation import constants
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.planning.utils import ik_utils, mujoco_utils
+from bimanual_manipulation.transforms import StampedPose, TransformManager
+from bimanual_manipulation.planning.trajectory.generator import (
     generate_object_trajectory,
     generate_end_effector_trajectory,
 )
-from robosuite_franka_manipulation.planning.collision_checker import (
+from bimanual_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
 )
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from bimanual_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 
 class TestPlanningModule:
     @pytest.fixture
@@ -85,13 +85,13 @@ class TestPlanningModule:
         np.testing.assert_allclose(eef_traj[1].position, [1, 0, 1.1], atol=1e-6)
         assert eef_traj[0].frame_id == "world"
 
-    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.set_qpos')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.in_collision')
+    @patch('bimanual_manipulation.planning.collision_checker.mujoco')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.set_qpos')
+    @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.in_collision')
     def test_check_trajectory_feasibility_success(
         self,
         mock_in_collision, 
@@ -127,11 +127,11 @@ class TestPlanningModule:
         mock_ik.assert_called() 
         assert mock_utils_mujoco.mj_fwdPosition.called or mock_gen_mujoco.mj_fwdPosition.called
 
-    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.collision_checker.mujoco')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
+    @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
     def test_check_trajectory_feasibility_ik_fail(
         self,
         mock_ik, 
@@ -159,13 +159,13 @@ class TestPlanningModule:
         assert results[0].ik_success is False
         assert results[0].is_feasible is False
 
-    @patch('robosuite_franka_manipulation.planning.collision_checker.mujoco')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.set_qpos')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_joint_qpos_indices')
-    @patch('robosuite_franka_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
-    @patch('robosuite_franka_manipulation.planning.utils.trajectory_utils.in_collision')
+    @patch('bimanual_manipulation.planning.collision_checker.mujoco')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.set_qpos')
+    @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
+    @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.utils.trajectory_utils.in_collision')
     def test_check_trajectory_feasibility_collision(
         self,
         mock_in_collision, 

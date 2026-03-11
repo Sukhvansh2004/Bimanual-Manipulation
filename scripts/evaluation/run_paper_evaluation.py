@@ -101,7 +101,7 @@ def setup_logging(debug: bool = False):
 
     # Suppress extremely verbose loggers even in debug mode
     for noisy in ("mink", "robosuite", "OpenGL", "PIL",
-                  "robosuite_franka_manipulation.planning.utils.ik_utils"):
+                  "bimanual_manipulation.planning.utils.ik_utils"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     logger.info("Logging to %s (level=%s)", log_file, logging.getLevelName(level))
@@ -242,7 +242,7 @@ def run_execution_phase(
     timeout: int = 600,
 ) -> list[ExperimentResult]:
     """Run execution for all configs that have valid planning results."""
-    from robosuite_franka_manipulation.experiment_config import load_experiment
+    from bimanual_manipulation.experiment_config import load_experiment
     all_results = []
 
     for exp_name in experiments:

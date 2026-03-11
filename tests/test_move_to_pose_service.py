@@ -5,10 +5,10 @@ import threading
 import numpy as np
 from unittest.mock import MagicMock, ANY
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.services.move_to_pose_service import MoveToPoseService
-from robosuite_franka_manipulation.services.services_core import ServiceManager, ServiceClient
-from robosuite_franka_manipulation.transforms import StampedPose
+from bimanual_manipulation import constants
+from bimanual_manipulation.services.move_to_pose_service import MoveToPoseService
+from bimanual_manipulation.services.services_core import ServiceManager, ServiceClient
+from bimanual_manipulation.transforms import StampedPose
 
 class MockController:
     def __init__(self):

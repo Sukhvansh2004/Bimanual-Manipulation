@@ -5,7 +5,7 @@ Tests environment creation, reset, and basic operations.
 """
 
 import pytest
-from robosuite_franka_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.environments import make_dual_arm_env
 
 
 class TestEnvironmentSetup:
@@ -48,7 +48,7 @@ class TestCollisionMonitor:
 
     def test_start_sets_ignore_pairs(self):
         """ignore_pairs should be stored and forwarded to in_collision."""
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
         mon = CollisionMonitor()
         pairs = [("gripper0", "gripper1")]
         mon.start("obj_0", ignore_pairs=pairs)
@@ -56,7 +56,7 @@ class TestCollisionMonitor:
 
     def test_start_resets_count(self):
         """Starting monitoring should reset the collision count."""
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
         mon = CollisionMonitor()
         mon._collision_count = 42
         mon.start("obj_0")
@@ -64,15 +64,15 @@ class TestCollisionMonitor:
 
     def test_min_penetration_depth_default(self):
         """Default min_penetration_depth should come from constants."""
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
-        from robosuite_franka_manipulation import constants
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation import constants
         mon = CollisionMonitor()
         mon.start()
         assert mon._min_penetration_depth == constants.COLLISION_MONITOR_MIN_DEPTH
 
     def test_min_penetration_depth_override(self):
         """Caller should be able to override min_penetration_depth."""
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
         mon = CollisionMonitor()
         mon.start(min_penetration_depth=0.005)
         assert mon._min_penetration_depth == 0.005
@@ -80,7 +80,7 @@ class TestCollisionMonitor:
     def test_check_passes_ignore_pairs_and_threshold(self):
         """check() should forward ignore_pairs and contact_dist_threshold."""
         from unittest.mock import patch, MagicMock
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
 
         mon = CollisionMonitor()
         pairs = [("gripper0", "gripper1")]
@@ -88,7 +88,7 @@ class TestCollisionMonitor:
 
         mock_env = MagicMock()
         with patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.in_collision",
+            "bimanual_manipulation.planning.utils.collision_utils.in_collision",
         ) as mock_ic_real:
             mock_ic_real.return_value = False
             mon.check(mock_env)
@@ -103,7 +103,7 @@ class TestCollisionMonitor:
 
     def test_stop_returns_accumulated_count(self):
         """stop() should return and reset the count."""
-        from robosuite_franka_manipulation.utils.env_utils import CollisionMonitor
+        from bimanual_manipulation.utils.env_utils import CollisionMonitor
         mon = CollisionMonitor()
         mon.start()
         mon._collision_count = 7

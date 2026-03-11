@@ -130,7 +130,7 @@ def extract_planning_metrics(
     Returns:
         Populated PlanningMetrics.
     """
-    from robosuite_franka_manipulation.planning.utils.manipulability import (
+    from bimanual_manipulation.planning.utils.manipulability import (
         compute_trajectory_manipulability,
     )
 

@@ -8,8 +8,8 @@ import pytest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from robosuite_franka_manipulation.controllers import RobosuiteArmController
-from robosuite_franka_manipulation.utils.se3 import (
+from bimanual_manipulation.controllers import RobosuiteArmController
+from bimanual_manipulation.utils.se3 import (
     skew,
     unskew,
     se3_to_matrix,

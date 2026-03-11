@@ -18,8 +18,8 @@ Stop:
 import argparse
 import threading
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.transforms import MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.transforms import MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
 
 
 def main() -> None:

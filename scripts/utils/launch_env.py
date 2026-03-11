@@ -30,20 +30,20 @@ import time
 import numpy as np
 import logging
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.transforms import TransformManager
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.transforms import TransformManager
+from bimanual_manipulation.utils.env_utils import (
     get_available_ycb_objects,
     list_ycb_objects,
     create_primitive_object,
     create_ycb_object,
 )
-from robosuite_franka_manipulation.experiment_config import (
+from bimanual_manipulation.experiment_config import (
     load_experiment,
     list_experiments,
     ExperimentConfig,
 )
-import robosuite_franka_manipulation.constants as constants
+import bimanual_manipulation.constants as constants
 
 # Configure logging
 logging.basicConfig(

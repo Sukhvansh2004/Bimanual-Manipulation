@@ -22,24 +22,24 @@ import sys
 import meshcat
 import meshcat.geometry as g
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.transforms import (
     TransformManager,
     MeshcatTFVisualizerConfig,
     stream_transforms_to_meshcat,
 )
-from robosuite_franka_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.env_utils import (
     env_step,
     register_mesh_extraction_env,
 )
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
+from bimanual_manipulation import constants
+from bimanual_manipulation.transforms.stamped_pose import StampedPose
 
-from robosuite_franka_manipulation.planning.trajectory import generate_object_trajectory
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import save_trajectory
-from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
-from robosuite_franka_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
-from robosuite_franka_manipulation.experiment_config import (
+from bimanual_manipulation.planning.trajectory import generate_object_trajectory
+from bimanual_manipulation.planning.utils.trajectory_utils import save_trajectory
+from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
+from bimanual_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
+from bimanual_manipulation.experiment_config import (
     load_experiment,
     detect_start_pose,
 )

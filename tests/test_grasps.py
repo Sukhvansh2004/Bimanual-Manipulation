@@ -13,12 +13,12 @@ from scipy.spatial.transform import Rotation as R
 from unittest.mock import patch, MagicMock
 import torch
 
-from robosuite_franka_manipulation.transforms import StampedPose, Transform
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.utils import transform_point_cloud
-from robosuite_franka_manipulation.schema import GraspSchema
-from robosuite_franka_manipulation.perception.grasp_predictor import GraspPredictor, maximize_entropy_grasps
-from robosuite_franka_manipulation.services.grasp_service import GraspService
+from bimanual_manipulation.transforms import StampedPose, Transform
+from bimanual_manipulation import constants
+from bimanual_manipulation.utils import transform_point_cloud
+from bimanual_manipulation.schema import GraspSchema
+from bimanual_manipulation.perception.grasp_predictor import GraspPredictor, maximize_entropy_grasps
+from bimanual_manipulation.services.grasp_service import GraspService
 
 class TestGraspTransformations:
     """Test grasp transformation logic without requiring GraspGen model."""
@@ -455,8 +455,8 @@ class TestGraspOffset:
     
     @pytest.fixture
     def predictor(self):
-        with patch('robosuite_franka_manipulation.perception.grasp_predictor.GraspGenSampler'), \
-             patch('robosuite_franka_manipulation.perception.grasp_predictor.load_grasp_cfg'):
+        with patch('bimanual_manipulation.perception.grasp_predictor.GraspGenSampler'), \
+             patch('bimanual_manipulation.perception.grasp_predictor.load_grasp_cfg'):
             # Initialize with a dummy gripper type
             predictor = GraspPredictor(gripper_type='test_gripper')
             return predictor
@@ -550,19 +550,19 @@ def mock_constants():
     # We'll use a context manager inside the test or a fixture.
     # Since this is a merged file, we can define a fixture that applies specifically 
     # to the service logic tests if needed.
-    with patch('robosuite_franka_manipulation.constants.GRIPPER_TYPE_MAPPING', 
+    with patch('bimanual_manipulation.constants.GRIPPER_TYPE_MAPPING', 
                {'simple_a': 'gripper_a', 'simple_b': 'gripper_b'}):
-        with patch('robosuite_franka_manipulation.constants.GRIPPER_COLLISION_THRESHOLD', 0.005), \
-             patch('robosuite_franka_manipulation.constants.GRIPPER_COLLISION_MESH_SAMPLES', 10):
+        with patch('bimanual_manipulation.constants.GRIPPER_COLLISION_THRESHOLD', 0.005), \
+             patch('bimanual_manipulation.constants.GRIPPER_COLLISION_MESH_SAMPLES', 10):
             yield
 
 @pytest.fixture
 def mock_grasp_service():
     # Patch dependencies in __init__
-    with patch('robosuite_franka_manipulation.services.grasp_service.GraspPredictor'), \
-         patch('robosuite_franka_manipulation.services.grasp_service.zmq.Context'), \
-         patch('robosuite_franka_manipulation.services.grasp_service.ServiceClient'), \
-         patch('robosuite_franka_manipulation.services.grasp_service.TransformManager'):
+    with patch('bimanual_manipulation.services.grasp_service.GraspPredictor'), \
+         patch('bimanual_manipulation.services.grasp_service.zmq.Context'), \
+         patch('bimanual_manipulation.services.grasp_service.ServiceClient'), \
+         patch('bimanual_manipulation.services.grasp_service.TransformManager'):
         service = GraspService(tf_manager=None)
         service.grasp_predictors = {} 
         return service

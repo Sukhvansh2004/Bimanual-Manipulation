@@ -37,21 +37,21 @@ import threading
 import meshcat
 import numpy as np
 
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.transforms import (
     TransformManager,
     MeshcatTFVisualizerConfig,
     stream_transforms_to_meshcat,
 )
-from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.utils.env_utils import env_step
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.experiment_config import (
+from bimanual_manipulation.transforms.stamped_pose import StampedPose
+from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation import constants
+from bimanual_manipulation.experiment_config import (
     load_experiment,
     detect_start_pose,
 )
-from robosuite_franka_manipulation.planning.trajectory.object_planner import plan_object_trajectory
-from robosuite_franka_manipulation.planning.rrt.visualizer import RRTVisualizer
+from bimanual_manipulation.planning.trajectory.object_planner import plan_object_trajectory
+from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
 logging.basicConfig(
     level=logging.INFO,

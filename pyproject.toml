@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "robosuite-franka-manipulation"
+name = "bimanual-manipulation"
 version = "0.1.0"
 description = "Dual-arm Franka manipulation with perception and teleoperation"
 readme = "README.md"
@@ -15,7 +15,7 @@ authors = [
 maintainers = [
     {name = "Sukhvansh Jain", email = "sukhvanshjain@gmail.com"},
 ]
-keywords = ["robotics", "manipulation", "franka", "robosuite", "grasping"]
+keywords = ["robotics", "manipulation", "franka", "robosuite", "grasping", "bimanual"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -75,7 +75,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"robosuite_franka_manipulation" = ["*.yaml", "*.json"]
+"bimanual_manipulation" = ["*.yaml", "*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

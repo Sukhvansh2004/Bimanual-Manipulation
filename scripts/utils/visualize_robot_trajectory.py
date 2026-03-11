@@ -16,18 +16,18 @@ import time
 import os
 import threading
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.environments import make_dual_arm_env
-from robosuite_franka_manipulation.utils.env_utils import env_step, register_mesh_extraction_env
-from robosuite_franka_manipulation.transforms import (
+from bimanual_manipulation import constants
+from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.utils.env_utils import env_step, register_mesh_extraction_env
+from bimanual_manipulation.transforms import (
     TransformManager, 
     stream_transforms_to_meshcat, 
     MeshcatTFVisualizerConfig
 )
-from robosuite_franka_manipulation.experiment_config import load_experiment
-from robosuite_franka_manipulation.planning.utils.trajectory_utils import load_trajectory
-from robosuite_franka_manipulation.planning.visualization.trajectory import visualize_trajectory
-from robosuite_franka_manipulation.planning.visualization import RobotMeshVisualizer, ObjectMeshVisualizer
+from bimanual_manipulation.experiment_config import load_experiment
+from bimanual_manipulation.planning.utils.trajectory_utils import load_trajectory
+from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
+from bimanual_manipulation.planning.visualization import RobotMeshVisualizer, ObjectMeshVisualizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

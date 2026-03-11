@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Quick test of experiment config loading (including new sections)."""
-from robosuite_franka_manipulation.experiment_config import load_experiment, list_experiments
+from bimanual_manipulation.experiment_config import load_experiment, list_experiments
 
 exps = list_experiments()
 print(f"Found {len(exps)} experiments:")

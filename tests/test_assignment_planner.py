@@ -24,8 +24,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from robosuite_franka_manipulation import constants
-from robosuite_franka_manipulation.planning.assignment import (
+from bimanual_manipulation import constants
+from bimanual_manipulation.planning.assignment import (
     AssignmentResult,
     ObjectTrajectory,
     RobotTrajectory,
@@ -41,10 +41,10 @@ from robosuite_franka_manipulation.planning.assignment import (
     make_jacobian_fns,
     save_assignment_result,
 )
-from robosuite_franka_manipulation.planning.assignment.cost import (
+from bimanual_manipulation.planning.assignment.cost import (
     _compute_handover_primitive_cost,
 )
-from robosuite_franka_manipulation.transforms import StampedPose
+from bimanual_manipulation.transforms import StampedPose
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -425,7 +425,7 @@ class TestHandoverPrimitiveCost:
     def test_partial_ik_failure_returns_finite_with_penalty(self):
         """When some IK calls fail but at least one succeeds, cost should be
         finite and include a per-failure penalty."""
-        from robosuite_franka_manipulation import constants as C
+        from bimanual_manipulation import constants as C
 
         call_count = [0]
 
@@ -458,7 +458,7 @@ class TestHandoverPrimitiveCost:
     def test_residual_weighted_penalty_differentiates_near_and_far_misses(self):
         """Near-miss IK failures (small residual) should produce lower cost
         than far-miss failures (large residual) for the same number of failures."""
-        from robosuite_franka_manipulation import constants as C
+        from bimanual_manipulation import constants as C
 
         def _make_partial_ik(residual_on_fail: float):
             call_count = [0]
@@ -529,7 +529,7 @@ class TestHandoverPrimitiveCost:
 
     def test_collision_check_adds_penalty_for_colliding_handover(self):
         """Collisions add per-step penalty instead of rejecting the handover."""
-        from robosuite_franka_manipulation import constants as C
+        from bimanual_manipulation import constants as C
 
         def _ik(pose, robot_id, q_warm_start=None):
             return np.ones(7) * 0.5, 0.0
@@ -902,9 +902,9 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
+    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
         self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
@@ -925,9 +925,9 @@ class TestFactoryFunctions:
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
+    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
         self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
@@ -942,12 +942,12 @@ class TestFactoryFunctions:
         assert result is None
         assert residual == 0.42
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_returns_per_robot(
         self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
         mock_env,
@@ -980,12 +980,12 @@ class TestFactoryFunctions:
         assert site_calls[0][0][0] == 0
         assert site_calls[1][0][0] == 1
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_with_lock(
         self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
         mock_env,
@@ -1016,7 +1016,7 @@ class TestFactoryFunctions:
 class TestMakeCollisionCheckFn:
     """Test the make_collision_check_fn factory (mocked environment)."""
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
+    @patch("bimanual_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_check_fn_calls_mujoco(self, _mock_ctx):
         """Verify the factory produces a callable that accesses MuJoCo."""
         import threading
@@ -1033,19 +1033,19 @@ class TestMakeCollisionCheckFn:
 
         # Mock the imports used by the factory
         with patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
+            "bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
+            "bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
+            "bimanual_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=False,
         ) as mock_collision, patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
+            "bimanual_manipulation.planning.assignment.factories.in_collision",
             return_value=False,
         ) as mock_in_collision, patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
+            "bimanual_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env, env_lock=lock)
@@ -1055,7 +1055,7 @@ class TestMakeCollisionCheckFn:
             mock_collision.assert_called_once()
             mock_in_collision.assert_called_once()
 
-    @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
+    @patch("bimanual_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_detected_returns_false(self, _mock_ctx):
         """When inter-arm collision is detected, the fn should return False."""
         env = MagicMock()
@@ -1067,19 +1067,19 @@ class TestMakeCollisionCheckFn:
         data.qvel = np.zeros(20)
 
         with patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
+            "bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
+            "bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
+            "bimanual_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=True,  # collision!
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
+            "bimanual_manipulation.planning.assignment.factories.in_collision",
             return_value=False,
         ), patch(
-            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
+            "bimanual_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env)
@@ -1096,7 +1096,7 @@ class TestExperimentConfigAssignment:
     """Verify every experiment JSON loads with a valid assignment config."""
 
     def test_all_experiments_have_assignment(self):
-        from robosuite_franka_manipulation.experiment_config import (
+        from bimanual_manipulation.experiment_config import (
             list_experiments,
             load_experiment,
         )
@@ -1116,7 +1116,7 @@ class TestExperimentConfigAssignment:
             assert asgn.epsilon > 0
 
     def test_assignment_defaults_match_constants(self):
-        from robosuite_franka_manipulation.experiment_config import AssignmentConfig
+        from bimanual_manipulation.experiment_config import AssignmentConfig
 
         default = AssignmentConfig()
         assert default.alpha == constants.ASSIGNMENT_ALPHA
@@ -1134,7 +1134,7 @@ class TestPlanningExports:
     """Verify the planning package re-exports the new symbols."""
 
     def test_exports_available(self):
-        from robosuite_franka_manipulation import planning
+        from bimanual_manipulation import planning
 
         for name in (
             "compute_optimal_robot_assignment",
