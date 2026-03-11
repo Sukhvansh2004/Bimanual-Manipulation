@@ -70,7 +70,6 @@ def make_ik_solver_fn(
             target_pose=corrected,
             tf_manager=tf_manager,
             env_lock=env_lock,
-            max_solutions=1,
             q_reference=q_warm_start,
         )
         if solutions:
