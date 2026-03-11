@@ -381,8 +381,26 @@ def enumerate_ik_solutions_eaik(
         joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
         joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
 
-        # Transform target to the robot's base frame.
-        # EAIK solves IK in the URDF base frame (panda_link0), not world.
+        if site_name is None:
+            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+
+        model_native = mujoco_utils.get_native_mj_object(model)
+        data_native = mujoco_utils.get_native_mj_object(data)
+
+        # Get site ID for Jacobian computation and FK verification
+        site_id = mujoco.mj_name2id(model_native, mujoco.mjtObj.mjOBJ_SITE, site_name)
+        if site_id < 0:
+            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
+
+        # --- World-frame target (for FK verification) ---
+        pose_world = target_pose
+        if pose_world.frame_id != constants.WORLD_FRAME:
+            pose_world = tf_manager.transform_pose(pose_world, constants.WORLD_FRAME)
+        target_pos_world = np.asarray(pose_world.position, dtype=float)
+        target_quat_world = np.asarray(pose_world.quaternion, dtype=float)
+
+        # --- Base-frame target (for EAIK) ---
+        # EAIK solves IK in the URDF base frame (panda_link0 = robot_base).
         base_frame = f"robot{robot_id}_base"
         pose_base = target_pose
         if pose_base.frame_id != base_frame:
@@ -391,23 +409,45 @@ def enumerate_ik_solutions_eaik(
         target_pos = np.asarray(pose_base.position, dtype=float)
         target_quat = np.asarray(pose_base.quaternion, dtype=float)
 
-        # We also need the world-frame target for FK verification
-        pose_world = target_pose
-        if pose_world.frame_id != constants.WORLD_FRAME:
-            pose_world = tf_manager.transform_pose(pose_world, constants.WORLD_FRAME)
-        target_pos_world = np.asarray(pose_world.position, dtype=float)
-        target_quat_world = np.asarray(pose_world.quaternion, dtype=float)
+        # --- Pre-compensate for EAIK EEF ↔ MuJoCo site mismatch ---
+        # EAIK's kinematic chain ends at a different point/orientation
+        # than MuJoCo's grip_site (different frame conventions and the
+        # fixed joint8 / gripper offset).  Compute the transform from
+        # EAIK's EEF to MuJoCo's site using EAIK FK at the current
+        # joint config, so frame conventions are consistent.
+        q_current = np.array(data.qpos, dtype=float).ravel()[joint_qpos_idx]
+        bot_fk = _build_eaik_robot(0, round(float(q_current[0]), 6))
+        if bot_fk is None:
+            raise RuntimeError("Failed to build EAIK robot for FK offset")
+        T_eaik_current = np.array(bot_fk.fwdKin(list(q_current)))
 
-        if site_name is None:
-            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+        # MuJoCo site pose in robot base frame
+        robot = env.robots[robot_id]
+        base_body_name = robot.robot_model.root_body
+        base_pos_w = np.array(data.get_body_xpos(base_body_name), dtype=float)
+        base_rot_w = np.array(
+            data.get_body_xmat(base_body_name), dtype=float,
+        ).reshape(3, 3)
+        base_rot_inv = base_rot_w.T
 
-        model_native = mujoco_utils.get_native_mj_object(model)
-        data_native = mujoco_utils.get_native_mj_object(data)
+        site_pos_w = np.array(data_native.site_xpos[site_id], dtype=float)
+        site_mat_w = np.array(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
 
-        # Get site ID for Jacobian computation
-        site_id = mujoco.mj_name2id(model_native, mujoco.mjtObj.mjOBJ_SITE, site_name)
-        if site_id < 0:
-            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
+        T_site_base = np.eye(4)
+        T_site_base[:3, :3] = base_rot_inv @ site_mat_w
+        T_site_base[:3, 3] = base_rot_inv @ (site_pos_w - base_pos_w)
+
+        # Offset from EAIK EEF to MuJoCo site (in EAIK's frame)
+        T_eaik_to_site = np.linalg.inv(T_eaik_current) @ T_site_base
+
+        # EAIK target = desired_site_base @ inv(offset)
+        T_site_desired = np.eye(4)
+        T_site_desired[:3, :3] = R.from_quat(target_quat).as_matrix()
+        T_site_desired[:3, 3] = target_pos
+
+        T_eaik_target = T_site_desired @ np.linalg.inv(T_eaik_to_site)
+        target_pos = T_eaik_target[:3, 3]
+        target_quat = R.from_matrix(T_eaik_target[:3, :3]).as_quat()
 
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
 
