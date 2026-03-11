@@ -5,17 +5,37 @@
   "planning": {
     "experiment": "ycb_plate_shelf_to_table",
     "config_label": "No Switching Penalty (Cswitch=0)",
-    "total_cost": Infinity,
-    "n_segments": 0,
-    "n_handovers": 0,
-    "handover_points": [],
-    "mean_task_cost": 0.0,
+    "total_cost": 2049.1388515688477,
+    "n_segments": 50,
+    "n_handovers": 3,
+    "handover_points": [
+      24,
+      41,
+      42
+    ],
+    "mean_task_cost": 40.982777031376955,
     "total_switching_cost": 0.0,
-    "mean_manipulability": 0.0,
-    "min_manipulability": 0.0,
+    "mean_manipulability": 0.09874288672937462,
+    "min_manipulability": 0.026743188645687078,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
-    "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 0.027467012405395508
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 8143.610950231552
+  },
+  "execution": {
+    "task_success": false,
+    "grasp_success": true,
+    "transport_success": true,
+    "place_success": false,
+    "n_handovers_attempted": 3,
+    "n_handovers_succeeded": 2,
+    "handover_success_rate": 0.6666666666666666,
+    "n_collision_incidents": 267,
+    "n_switches": 3,
+    "execution_time_s": 312.78945684432983,
+    "mean_manipulability": 0.10853235485693073,
+    "placement_position_error": 0.30541598744502846,
+    "placement_orientation_error": 109.53867488663145,
+    "error_message": ""
   }
 }

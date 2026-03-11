@@ -1067,7 +1067,7 @@ class TestTemporalCollisionInDualArmPlanner:
     """Verify that DualArmParallelPlanner passes traj_a as temporal trajectory."""
 
     def test_plan_collision_free_passes_traj_a(self):
-        """_plan_collision_free_trajectory_b should pass full traj_a."""
+        """_plan_collision_free_trajectory_b should pass temporally-reduced traj_a."""
         from robosuite_franka_manipulation.planning.dual_arm import (
             DualArmParallelPlanner,
         )
@@ -1108,11 +1108,14 @@ class TestTemporalCollisionInDualArmPlanner:
 
             planner._resolve_trajectory_b(target_pose, 50, None, traj_a)
 
-            # Verify traj_a was passed as q_other_arm_trajectory
+            # Verify q_other_arm_trajectory uses the temporally-reduced
+            # last portion of traj_a (len > 4 → keep last half)
             call_kwargs = mock_plan.call_args.kwargs
             assert "q_other_arm_trajectory" in call_kwargs
+            temporal_traj = call_kwargs["q_other_arm_trajectory"]
+            n_keep = max(2, len(traj_a) // 2)  # 25 for a 50-long traj
             np.testing.assert_array_equal(
-                call_kwargs["q_other_arm_trajectory"], traj_a,
+                temporal_traj, traj_a[-n_keep:],
             )
 
     def test_q_other_arm_uses_traj_a_last(self):

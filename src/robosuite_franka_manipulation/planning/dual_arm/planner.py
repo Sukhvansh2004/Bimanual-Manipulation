@@ -54,7 +54,6 @@ from robosuite_franka_manipulation import constants
 from robosuite_franka_manipulation.controllers.arm import RobosuiteArmController
 from robosuite_franka_manipulation.environments import DualArmEnvironment
 from robosuite_franka_manipulation.transforms.stamped_pose import StampedPose
-from robosuite_franka_manipulation.utils.env_utils import env_step
 from robosuite_franka_manipulation.planning.utils.trajectory_utils import (
     resample_joint_trajectory,
 )
@@ -75,6 +74,11 @@ from robosuite_franka_manipulation.planning.dual_arm.trajectory_helpers import (
     normalise_trajectory,
     eef_to_joint_trajectory,
 )
+from robosuite_franka_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -214,10 +218,28 @@ class DualArmParallelPlanner:
         if ref_traj_b is None:
             logger.error(
                 "Failed to plan reference trajectory for arm B "
-                "(robot%d_%s).",
+                "(robot%d_%s). Falling back to arm-A-only execution.",
                 self.arm_b.robot_id, self.arm_b.arm_id,
             )
-            return ParallelExecutionResult(duration_s=time.time() - t0)
+            # Fall back: execute arm A's trajectory alone so it still
+            # reaches the handover region, even though arm B couldn't
+            # be moved simultaneously.
+            logger.info(
+                "Executing arm A trajectory alone (%d waypoints).",
+                len(traj_a),
+            )
+            self.arm_a.follow_joint_trajectory(
+                traj_a, smoothen=False,
+                gripper_action=gripper_a,
+            )
+            err_a = self._joint_error(self.arm_a, traj_a[-1])
+            result = ParallelExecutionResult(duration_s=time.time() - t0)
+            result.success_a = err_a < self.convergence_threshold
+            result.final_pos_error_a = err_a
+            result.success_b = False
+            result.final_pos_error_b = float("inf")
+            result.collision_free = False
+            return result
 
         # ── Synchronise lengths ───────────────────────────────────────
         target_len = num_steps_override or max(n_a, len(ref_traj_b))
@@ -305,7 +327,7 @@ class DualArmParallelPlanner:
                targets — the QP then tracks them while satisfying
                collision constraints).
             4. ``solve_ik`` -> extract arm B's velocity -> integrate.
-            5. Send both arms' actions via ``env_step``.
+            5. Sends each arm's command via ``move_to_joint_config``.
         """
         ctx = self.env_lock if self.env_lock else nullcontext()
         max_steps = num_steps * 2
@@ -313,6 +335,8 @@ class DualArmParallelPlanner:
         steps_taken = 0
         start_time = time.time()
         qp_fail_count = 0
+        consecutive_qp_fails = 0
+        MAX_CONSECUTIVE_QP_FAILS = 30
 
         result = ParallelExecutionResult()
 
@@ -352,42 +376,33 @@ class DualArmParallelPlanner:
                 # the QP resume once arm A moves away.
                 arm_b_joints = q_full[m.qpos_idx_b].copy()
                 qp_fail_count += 1
+                consecutive_qp_fails += 1
                 logger.debug(
                     "mink QP failed at step %d — holding arm B position "
                     "(ref drift=%.3f rad).",
                     steps_taken,
                     float(np.max(np.abs(arm_b_joints - ref_q_b))),
                 )
-
-            # ── Build and send actions ────────────────────────────────
-            action_a = self.arm_a.construct_joint_action(
-                target_q_a, gripper_action=gripper_a,
-            ) if self.arm_a.is_joint_position_controller else (
-                self._pose_action_from_joints(
-                    self.arm_a, target_q_a, gripper_a,
-                )
-            )
-            action_b = self.arm_b.construct_joint_action(
-                arm_b_joints, gripper_action=gripper_b,
-            ) if self.arm_b.is_joint_position_controller else (
-                self._pose_action_from_joints(
-                    self.arm_b, arm_b_joints, gripper_b,
-                )
-            )
-
-            with ctx:
-                if action_a is not None:
-                    env_step(
-                        self.env, action_a,
-                        robot_id=self.arm_a.robot_id,
-                        arm=self.arm_a.arm_id,
+                # Early bail-out when QP fails too many times in a row —
+                # arm B clearly cannot move in this configuration.
+                if consecutive_qp_fails >= MAX_CONSECUTIVE_QP_FAILS:
+                    logger.warning(
+                        "QP failed %d consecutive steps — aborting "
+                        "parallel execution early (arm B stuck).",
+                        consecutive_qp_fails,
                     )
-                if action_b is not None:
-                    env_step(
-                        self.env, action_b,
-                        robot_id=self.arm_b.robot_id,
-                        arm=self.arm_b.arm_id,
-                    )
+                    break
+            else:
+                consecutive_qp_fails = 0
+
+            # ── Move both arms via controller API ─────────────────────
+            # Action persistence keeps the other arm in place.
+            self.arm_a.move_to_joint_config(
+                target_q_a, gripper_action=gripper_a, num_steps=2,
+            )
+            self.arm_b.move_to_joint_config(
+                arm_b_joints, gripper_action=gripper_b, num_steps=2,
+            )
 
             steps_taken += 1
 
@@ -463,9 +478,15 @@ class DualArmParallelPlanner:
     def _solve_mink_step(self) -> Optional[np.ndarray]:
         """Run one mink solve_ik step and return arm B's target joints.
 
+        If the primary QP solve (with collision avoidance) fails, a
+        *relaxed* retry is attempted without the
+        ``CollisionAvoidanceLimit``.  This prevents the failure cascade
+        where arm B holds position, diverges from its reference, and
+        causes persistent collisions.
+
         Returns:
-            (7,) joint configuration for arm B, or ``None`` if the QP
-            fails.
+            (7,) joint configuration for arm B, or ``None`` if both the
+            primary and relaxed QP solves fail.
         """
         m = self._mink
         assert m is not None
@@ -474,33 +495,56 @@ class DualArmParallelPlanner:
         if m.posture_task is not None:
             tasks.append(m.posture_task)
 
-        limits = []
+        limits_full: list = []
         if m.vel_limit is not None:
-            limits.append(m.vel_limit)
+            limits_full.append(m.vel_limit)
         if m.config_limit is not None:
-            limits.append(m.config_limit)
+            limits_full.append(m.config_limit)
         if m.collision_limit is not None:
-            limits.append(m.collision_limit)
+            limits_full.append(m.collision_limit)
 
         constraints = []
         if m.freeze_task is not None:
             constraints.append(m.freeze_task)
 
+        # --- Primary solve (with collision avoidance) -----------------
         try:
             vel = mink.solve_ik(
                 configuration=m.config,
                 tasks=tasks,
                 dt=constants.MINK_DT,
                 solver=constants.MINK_QP_SOLVER,
-                limits=limits if limits else None,
+                limits=limits_full if limits_full else None,
                 constraints=constraints if constraints else None,
             )
-        except Exception as exc:
-            logger.debug("mink solve_ik failed: %s", exc)
-            return None
+            m.config.integrate_inplace(vel, constants.MINK_DT)
+            return m.config.q[m.qpos_idx_b].copy()
+        except Exception as exc_primary:
+            pass  # fall through to relaxed solve
 
-        m.config.integrate_inplace(vel, constants.MINK_DT)
-        return m.config.q[m.qpos_idx_b].copy()
+        # --- Relaxed fallback (drop collision avoidance) --------------
+        limits_relaxed = [
+            lim for lim in limits_full
+            if lim is not m.collision_limit
+        ]
+        try:
+            vel = mink.solve_ik(
+                configuration=m.config,
+                tasks=tasks,
+                dt=constants.MINK_DT,
+                solver=constants.MINK_QP_SOLVER,
+                limits=limits_relaxed if limits_relaxed else None,
+                constraints=constraints if constraints else None,
+            )
+            logger.debug("Primary QP infeasible — relaxed solve succeeded.")
+            m.config.integrate_inplace(vel, constants.MINK_DT)
+            return m.config.q[m.qpos_idx_b].copy()
+        except Exception as exc_relaxed:
+            logger.debug(
+                "Both primary and relaxed mink solve_ik failed: %s",
+                exc_relaxed,
+            )
+            return None
 
     # ------------------------------------------------------------------
     # Trajectory resolution
@@ -529,8 +573,18 @@ class DualArmParallelPlanner:
     ) -> Optional[np.ndarray]:
         """Plan arm B's reference trajectory using RRT when possible.
 
+        Tries multiple IK solutions for the goal configuration to
+        increase the chance of finding one that is collision-free
+        against arm A's trajectory.  Only the temporally-relevant
+        portion of *traj_a* (second half onward) is used for temporal
+        collision checking, since arm B only needs to be clear of arm A
+        near the handover point, not at the start of arm A's segment.
+
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
+
+        # --- Resolve IK goal candidates ---
+        # Get an initial solution via the normal pipeline (single best).
         quintic_traj, goal_q = plan_pose_to_joint_trajectory(
             self.arm_b, target_pose, desired_length,
             q_warm_start=q_warm_start,
@@ -538,41 +592,96 @@ class DualArmParallelPlanner:
         if quintic_traj is None or goal_q is None:
             return None
 
-        if traj_a is not None and len(traj_a) > 0:
-            q_arm_a_ref = traj_a[-1]
-            start_q = self.arm_b.get_joint_positions()
+        if traj_a is None or len(traj_a) == 0:
+            return quintic_traj
 
+        # --- Enumerate multiple IK solutions for robustness ---
+        # The primary IK solution may be in collision with arm A at
+        # some point during its trajectory.  Trying alternatives
+        # greatly increases the chance of RRT success.
+        goal_candidates = [goal_q]
+        try:
+            pose_for_ik = target_pose
+            if pose_for_ik.frame_id != self.arm_b.base_frame:
+                pose_for_ik = self.arm_b.tf_manager.transform_pose(
+                    pose_for_ik, self.arm_b.base_frame,
+                )
+            corrected_pose = apply_ik_orientation_correction(pose_for_ik)
+            site_name = f"gripper{self.arm_b.robot_id}_{self.arm_b.arm_id}_ft_frame"
+            extra_solutions = enumerate_ik_solutions_for_arm(
+                self.env,
+                robot_id=self.arm_b.robot_id,
+                target_pose=corrected_pose,
+                tf_manager=self.arm_b.tf_manager,
+                arm=self.arm_b.arm_id,
+                site_name=site_name,
+                q_warm_start=q_warm_start,
+                env_lock=self.env_lock,
+                max_solutions=constants.IK_MAX_SOLUTIONS,
+            )
+            for sol in extra_solutions:
+                if not any(np.allclose(sol, g, atol=0.05) for g in goal_candidates):
+                    goal_candidates.append(sol)
+        except Exception as exc:
+            logger.debug("Extra IK enumeration failed: %s", exc)
+
+        logger.info(
+            "Arm B IK: %d goal candidate(s) for RRT.", len(goal_candidates),
+        )
+
+        # --- Reduce temporal collision aggressiveness ---
+        # Only keep the second half of arm A's trajectory for temporal
+        # checks.  Arm B approaches the pre-pose while arm A is still
+        # in transit; by the time arm B settles, arm A is near the end
+        # of its segment.  Checking against early arm A configs causes
+        # unnecessary RRT failures (the goal config is fine at the
+        # handover instant but collides with arm A at earlier positions).
+        traj_a_temporal: Optional[np.ndarray] = traj_a
+        if len(traj_a) > 4:
+            n_keep = max(2, len(traj_a) // 2)
+            traj_a_temporal = traj_a[-n_keep:]
+            logger.info(
+                "Temporal collision: using last %d/%d arm A configs.",
+                n_keep, len(traj_a),
+            )
+
+        q_arm_a_ref = traj_a[-1]
+        start_q = self.arm_b.get_joint_positions()
+
+        # --- Try each IK goal candidate via RRT ---
+        for idx, candidate_q in enumerate(goal_candidates):
             try:
                 rrt_traj, rrt_success = plan_arm_trajectory(
                     env=self.env,
                     robot_id_b=self.arm_b.robot_id,
                     start_q=start_q,
-                    goal_q=goal_q,
+                    goal_q=candidate_q,
                     q_other_arm=q_arm_a_ref,
                     robot_id_a=self.arm_a.robot_id,
                     num_steps=desired_length,
                     env_lock=self.env_lock,
                     rrt_vis=self.rrt_vis,
-                    q_other_arm_trajectory=traj_a,
+                    q_other_arm_trajectory=traj_a_temporal,
                 )
                 if rrt_success:
                     logger.info(
                         "Arm B reference trajectory planned via "
-                        "collision-free joint RRT."
+                        "collision-free joint RRT (IK candidate %d/%d).",
+                        idx + 1, len(goal_candidates),
                     )
                     return rrt_traj
             except Exception as exc:
                 logger.warning(
-                    "Joint RRT planning failed for arm B: %s", exc,
+                    "Joint RRT planning failed for arm B "
+                    "(candidate %d/%d): %s", idx + 1, len(goal_candidates), exc,
                 )
 
-            logger.warning(
-                "No collision-free trajectory found for arm B — "
-                "returning None (no unsafe fallback)."
-            )
-            return None
-
-        return quintic_traj
+        logger.warning(
+            "No collision-free trajectory found for arm B — "
+            "tried %d IK goal candidate(s). Returning None.",
+            len(goal_candidates),
+        )
+        return None
 
     # ------------------------------------------------------------------
     # Utility helpers
@@ -584,28 +693,3 @@ class DualArmParallelPlanner:
     ) -> float:
         """Max absolute joint error."""
         return float(np.max(np.abs(arm.get_joint_positions() - target_q)))
-
-    @staticmethod
-    def _pose_action_from_joints(
-        arm: RobosuiteArmController,
-        target_joints: np.ndarray,
-        gripper_action: float,
-    ) -> Optional[np.ndarray]:
-        """Fall-back for OSC controllers: FK the joints -> Cartesian action."""
-        try:
-            from robosuite_franka_manipulation.utils.env_utils import (
-                set_robot_config,
-            )
-            qpos_backup = arm.env.sim.data.qpos.copy()
-            set_robot_config(
-                arm.env, arm.robot_id, arm.arm_id, target_joints,
-            )
-            pos, quat = arm.get_eef_pose_in_base()
-            arm.env.sim.data.qpos[:] = qpos_backup
-            arm.env.sim.forward()
-            return arm.construct_robot_action(
-                pos, quat, gripper_action=gripper_action,
-            )
-        except Exception as e:
-            logger.warning("Pose-action fallback failed: %s", e)
-            return None

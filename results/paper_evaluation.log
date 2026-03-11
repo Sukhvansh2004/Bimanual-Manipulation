@@ -1,0 +1,31 @@
+2026-03-06 04:45:23,497 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
+2026-03-06 04:45:23,497 [__main__] INFO  Paper evaluation: 4 experiments × 6 configs
+2026-03-06 04:45:23,497 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'ycb_plate_shelf_to_table', 'mug_inversion', 'flatPlate_box_to_box']
+2026-03-06 04:45:23,497 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Diversity', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
+2026-03-06 04:45:23,497 [__main__] INFO  
+================================================================================
+2026-03-06 04:45:23,498 [__main__] INFO    PHASE 1: PLANNING
+2026-03-06 04:45:23,498 [__main__] INFO  ================================================================================
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): ycb_plate_shelf_to_table × Proposed
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): ycb_plate_shelf_to_table × Greedy (beam=1)
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): ycb_plate_shelf_to_table × Single Robot
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): ycb_plate_shelf_to_table × No Diversity
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × Proposed
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × Greedy (beam=1)
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × Single Robot
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × No Diversity
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × No Switching Penalty (Cswitch=0)
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): mug_inversion × No Manipulability (β=0)
+2026-03-06 04:45:23,498 [__main__] INFO    SKIP (resume): flatPlate_box_to_box × Proposed
+2026-03-06 04:45:23,499 [__main__] INFO  Resume: 11 already completed, 13 remaining
+2026-03-06 04:45:23,499 [__main__] INFO  Running 13 jobs (4 experiments × 6 configs, 11 skipped) with 8 parallel workers
+2026-03-06 05:39:39,914 [__main__] INFO      Greedy (beam=1)                           cost=13250.48  [OK]
+2026-03-06 06:25:36,299 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-06 07:04:41,878 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=2049.14  [OK]
+2026-03-06 07:21:05,825 [__main__] INFO      No Manipulability (β=0)                   cost=11809.74  [OK]
+2026-03-06 08:09:30,065 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-06 08:55:13,908 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-06 08:55:13,917 [__main__] INFO      No Manipulability (β=0)                   cost=inf  [FAILED (inf)]
+2026-03-06 08:55:13,918 [__main__] INFO      Proposed                                  cost=inf  [FAILED (inf)]
+2026-03-06 08:55:13,927 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=inf  [FAILED (inf)]
+2026-03-06 08:55:13,964 [__main__] INFO      No Diversity                              cost=inf  [FAILED (inf)]

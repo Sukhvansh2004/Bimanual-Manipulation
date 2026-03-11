@@ -5,4 +5,3 @@ models/**
 scratch/**
 MUJOCO_LOG.TXT
 pytest_output.log
-data/**

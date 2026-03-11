@@ -69,6 +69,8 @@ GRIPPER_GRASP_OFFSETS = {
     },
 }
 
+SUCTION_DISTANCE = 0.05  # Distance threshold for suction weld contact (meters)
+
 # =============================================================================
 # Perception and Detection Configuration
 # =============================================================================
@@ -126,15 +128,26 @@ IK_ELBOW_DISCRETIZATION = 4  # Number of elbow angle discretization steps
 IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
 IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
 IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_UNIQUE_TOLERANCE = 1e-3  # Tolerance for unique solution filtering
+IK_UNIQUE_TOLERANCE = 0.25  # Tolerance for unique solution filtering (~14.3°)
 IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
 # Trajectory Feasibility Check Parameters (warm-start driven — needs speed)
 TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
-TRAJ_IK_MAX_SOLUTIONS = 2  # Just need 1 collision-free + 1 backup
+TRAJ_IK_MAX_SOLUTIONS = 4
+
+# Relaxed IK tolerances for handover cost evaluation (we only need a rough
+# feasibility check, not a high-precision solution).
+HANDOVER_IK_POS_TOLERANCE = 0.01   # 10 mm (vs. 5 mm for grasp IK)
+HANDOVER_IK_ORI_TOLERANCE = 0.05   # ~3° (vs. 0.29° for grasp IK)
 
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
+
+# Collision Monitor — execution-time severity filter.
+# MuJoCo ``contact.dist`` is negative for penetration; a threshold of
+# 1e-3 m (1 mm) ignores light touches and only counts contacts with
+# meaningful penetration.
+COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
 
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
@@ -144,7 +157,7 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # =============================================================================
 
 # QP solver backend
-MINK_QP_SOLVER = "proxqp"
+MINK_QP_SOLVER = "daqp"
 
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight
@@ -220,8 +233,30 @@ ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
 # Coarse handover resolution for cost evaluation (fewer IK calls)
-COST_EVAL_APPROACH_STEPS = 5     # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_APPROACH_STEPS = 5      # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
+COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of retreat
+
+# Per-waypoint IK-failure penalty added to handover cost when using
+# partial-success evaluation (some intermediate IK calls fail but enough
+# succeed to compute a meaningful cost).
+HANDOVER_IK_PARTIAL_PENALTY = 500.0
+
+# Multiplier on the accumulated IK residual (pos_err + ori_err) across
+# failed poses.  Two handovers with the same number of IK failures are
+# differentiated by how close the best seed got: a near-miss (1 cm off)
+# incurs a much smaller penalty than a far miss (10 cm off).
+#   residual_penalty = HANDOVER_IK_RESIDUAL_WEIGHT × Σ(pos_err + ori_err)
+# Typical residuals range 0.05 (near-miss) to 0.6 (far miss), so a
+# weight of 5 000 produces ~250–3 000 additional cost per failure.
+HANDOVER_IK_RESIDUAL_WEIGHT = 5000.0
+
+# Per-step penalty added when a pair of (transfer, receiver) IK configs
+# collides during the handover trajectory.  Instead of rejecting the
+# entire handover (inf), we accumulate a finite penalty per colliding
+# step so the DP can still route through the handover but prefers ones
+# that are collision-free.
+HANDOVER_COLLISION_STEP_PENALTY = 1500.0
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -248,6 +283,12 @@ TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movemen
 
 # Joint-space convergence (used by arm controller & dual-arm planner)
 JOINT_CONVERGENCE_THRESHOLD = 0.05  # L-inf joint error (rad) for declaring convergence
+
+# Maximum per-step joint displacement (rad) — clamps commands to prevent
+# violent jerky movements near singularities or with large RRT waypoint gaps.
+# Franka real-world limits are ~2.175 rad/s for joints 1-4 and ~2.61 rad/s
+# for joints 5-7.  At 20 Hz control rate → ~0.1 rad/step is conservative.
+MAX_JOINT_DELTA_PER_STEP = 0.15  # rad (~8.6° per step)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

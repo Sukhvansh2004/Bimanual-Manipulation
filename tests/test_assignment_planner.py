@@ -383,9 +383,9 @@ class TestHandoverPrimitiveCost:
     """Tests for the internal _compute_handover_primitive_cost function."""
 
     @staticmethod
-    def _dummy_ik(pose: StampedPose, robot_id: int) -> Optional[np.ndarray]:
+    def _dummy_ik(pose: StampedPose, robot_id: int, q_warm_start=None):
         """Return a deterministic 7-DOF config based on the pose."""
-        return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4])
+        return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
 
     def test_empty_trajectory_returns_inf(self):
         cost, ok = _compute_handover_primitive_cost(
@@ -411,8 +411,8 @@ class TestHandoverPrimitiveCost:
         assert cost > 0
 
     def test_ik_failure_returns_inf(self):
-        def _failing_ik(pose, robot_id):
-            return None
+        def _failing_ik(pose, robot_id, q_warm_start=None):
+            return None, 0.5
 
         poses = [StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="w")]
         h_traj = {"transfer_hold": poses}
@@ -422,12 +422,87 @@ class TestHandoverPrimitiveCost:
         assert np.isinf(cost)
         assert ok is False
 
+    def test_partial_ik_failure_returns_finite_with_penalty(self):
+        """When some IK calls fail but at least one succeeds, cost should be
+        finite and include a per-failure penalty."""
+        from robosuite_franka_manipulation import constants as C
+
+        call_count = [0]
+
+        def _partial_ik(pose, robot_id, q_warm_start=None):
+            """Fail on even-numbered calls, succeed on odd."""
+            call_count[0] += 1
+            if call_count[0] % 2 == 0:
+                return None, 0.1  # near-miss residual
+            return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
+
+        poses = [
+            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+            for i in range(5)
+        ]
+        h_traj = {
+            "transfer_hold": poses[:2],
+            "receiver_approach": poses[2:],
+        }
+        cost, ok = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _partial_ik,
+        )
+        assert ok is True, "Should succeed when some IK calls succeed"
+        assert np.isfinite(cost), "Cost should be finite"
+        # Cost should include penalty for partial failures
+        assert cost >= C.HANDOVER_IK_PARTIAL_PENALTY, (
+            f"Cost {cost} should include at least one partial penalty "
+            f"({C.HANDOVER_IK_PARTIAL_PENALTY})"
+        )
+
+    def test_residual_weighted_penalty_differentiates_near_and_far_misses(self):
+        """Near-miss IK failures (small residual) should produce lower cost
+        than far-miss failures (large residual) for the same number of failures."""
+        from robosuite_franka_manipulation import constants as C
+
+        def _make_partial_ik(residual_on_fail: float):
+            call_count = [0]
+            def _ik(pose, robot_id, q_warm_start=None):
+                call_count[0] += 1
+                if call_count[0] % 2 == 0:
+                    return None, residual_on_fail  # fail with specified residual
+                return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
+            return _ik
+
+        poses = [
+            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
+            for i in range(5)
+        ]
+        h_traj = {
+            "transfer_hold": poses[:2],
+            "receiver_approach": poses[2:],
+        }
+
+        # Near-miss: residual = 0.02 (≈ 2 cm position error)
+        cost_near, ok_near = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.02),
+        )
+        # Far-miss: residual = 0.5 (≈ 50 cm position error)
+        cost_far, ok_far = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.5),
+        )
+
+        assert ok_near and ok_far, "Both should succeed with partial failures"
+        assert cost_near < cost_far, (
+            f"Near-miss cost ({cost_near:.2f}) should be lower than "
+            f"far-miss cost ({cost_far:.2f})"
+        )
+        # The difference should be driven by HANDOVER_IK_RESIDUAL_WEIGHT
+        assert cost_far - cost_near > C.HANDOVER_IK_RESIDUAL_WEIGHT * 0.1, (
+            "Residual weight should produce meaningful cost difference"
+        )
+
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""
         call_log: Dict[int, int] = {0: 0, 1: 0}
 
-        def _ik(pose, robot_id):
-            return np.ones(7) * (robot_id + 1)
+        def _ik(pose, robot_id, q_warm_start=None):
+            return np.ones(7) * (robot_id + 1), 0.0
 
         def _jac_factory(rid):
             def _fn(q):
@@ -452,10 +527,12 @@ class TestHandoverPrimitiveCost:
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
 
-    def test_collision_check_rejects_colliding_handover(self):
-        """A collision_check_fn returning False should cause inf cost."""
-        def _ik(pose, robot_id):
-            return np.ones(7) * 0.5
+    def test_collision_check_adds_penalty_for_colliding_handover(self):
+        """Collisions add per-step penalty instead of rejecting the handover."""
+        from robosuite_franka_manipulation import constants as C
+
+        def _ik(pose, robot_id, q_warm_start=None):
+            return np.ones(7) * 0.5, 0.0
 
         def _always_colliding(q0, q1):
             return False  # collision detected
@@ -468,17 +545,33 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:1],
             "receiver_approach": poses,
         }
-        cost, ok = _compute_handover_primitive_cost(
+
+        # Compute cost with collisions
+        cost_col, ok_col = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_colliding,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert ok_col is True
+        assert np.isfinite(cost_col)
+
+        # Compute cost without collisions for comparison
+        cost_free, ok_free = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _ik,
+            collision_check_fn=lambda q0, q1: True,
+        )
+        assert ok_free is True
+
+        # Colliding cost must exceed collision-free cost by at least one
+        # collision step penalty.
+        assert cost_col > cost_free + C.HANDOVER_COLLISION_STEP_PENALTY, (
+            f"Colliding cost ({cost_col:.2f}) should exceed free cost "
+            f"({cost_free:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
+        )
 
     def test_collision_check_passes_when_free(self):
         """A collision_check_fn returning True should not affect cost."""
-        def _ik(pose, robot_id):
-            return np.ones(7) * 0.5
+        def _ik(pose, robot_id, q_warm_start=None):
+            return np.ones(7) * 0.5, 0.0
 
         def _always_free(q0, q1):
             return True  # no collision
@@ -502,9 +595,9 @@ class TestHandoverPrimitiveCost:
         """Verify transfer_robot_id and receiver_robot_id are forwarded to IK."""
         ik_calls: List[int] = []
 
-        def _ik(pose, robot_id):
+        def _ik(pose, robot_id, q_warm_start=None):
             ik_calls.append(robot_id)
-            return np.ones(7) * robot_id
+            return np.ones(7) * robot_id, 0.0
 
         poses = [
             StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
@@ -809,43 +902,67 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.apply_ik_orientation_correction")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
-        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = [np.zeros(7)]
+        mock_cache.return_value = MagicMock()
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager, env_lock=None)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result = ik_fn(pose, robot_id=0)
+        result, residual = ik_fn(pose, robot_id=0)
 
         assert result is not None
         assert result.shape == (7,)
+        assert residual == 0.0
         mock_correction.assert_called_once()
         mock_ik.assert_called_once()
         # Verify robot_id was forwarded
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.enumerate_ik_solutions_for_arm")
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.apply_ik_orientation_correction")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.create_solver_cache")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
-        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = []  # no solutions
+        mock_cache.return_value = MagicMock(best_residual=0.42)
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result = ik_fn(pose, robot_id=1)
+        result, residual = ik_fn(pose, robot_id=1)
 
         assert result is None
+        assert residual == 0.42
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.compute_arm_jacobian")
-    def test_make_jacobian_fns_returns_per_robot(self, mock_jac, mock_env):
-        mock_jac.return_value = np.eye(6, 7)
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    def test_make_jacobian_fns_returns_per_robot(
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        mock_env,
+    ):
+        mock_jids.return_value = list(range(7))
+        mock_qidx.return_value = np.arange(7)
+        mock_didx.return_value = np.arange(7)
+        mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
+        mock_native.side_effect = lambda x: x
+
+        mock_config = MagicMock()
+        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
+        mock_mink.Configuration.return_value = mock_config
+
+        mock_env.sim.data.qpos = np.zeros(17)
 
         fns = make_jacobian_fns(mock_env, env_lock=None)
         assert 0 in fns
@@ -857,24 +974,43 @@ class TestFactoryFunctions:
 
         assert J0.shape == (6, 7)
         assert J1.shape == (6, 7)
-        assert mock_jac.call_count == 2
 
-        # Verify correct robot_id was passed in each call
-        calls = mock_jac.call_args_list
-        assert calls[0][1]["robot_id"] == 0
-        assert calls[1][1]["robot_id"] == 1
+        # Verify per-robot site names were resolved
+        site_calls = mock_site.call_args_list
+        assert site_calls[0][0][0] == 0
+        assert site_calls[1][0][0] == 1
 
-    @patch("robosuite_franka_manipulation.planning.utils.ik_utils.compute_arm_jacobian")
-    def test_make_jacobian_fns_with_lock(self, mock_jac, mock_env):
-        mock_jac.return_value = np.eye(6, 7)
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.mink")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_eef_site_name")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_dof_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices")
+    @patch("robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids")
+    def test_make_jacobian_fns_with_lock(
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        mock_env,
+    ):
+        mock_jids.return_value = list(range(7))
+        mock_qidx.return_value = np.arange(7)
+        mock_didx.return_value = np.arange(7)
+        mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
+        mock_native.side_effect = lambda x: x
+
+        mock_config = MagicMock()
+        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
+        mock_mink.Configuration.return_value = mock_config
+
+        mock_env.sim.data.qpos = np.zeros(17)
+
         import threading
         lock = threading.RLock()
 
         fns = make_jacobian_fns(mock_env, env_lock=lock)
         fns[0](np.zeros(7))
 
-        _, kwargs = mock_jac.call_args
-        assert kwargs["env_lock"] is lock
+        # Verify config.update was called (reuse path)
+        mock_config.update.assert_called()
+        mock_config.get_frame_jacobian.assert_called()
 
 
 class TestMakeCollisionCheckFn:
@@ -895,18 +1031,21 @@ class TestMakeCollisionCheckFn:
         data.qvel = np.zeros(20)
         lock = threading.RLock()
 
-        # Mock the lazy imports inside the factory
+        # Mock the imports used by the factory
         with patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=False,
         ) as mock_collision, patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
+            return_value=False,
+        ) as mock_in_collision, patch(
+            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env, env_lock=lock)
@@ -914,6 +1053,7 @@ class TestMakeCollisionCheckFn:
 
             assert result is True  # no collision
             mock_collision.assert_called_once()
+            mock_in_collision.assert_called_once()
 
     @patch("robosuite_franka_manipulation.planning.assignment.factories.nullcontext")
     def test_collision_detected_returns_false(self, _mock_ctx):
@@ -927,16 +1067,19 @@ class TestMakeCollisionCheckFn:
         data.qvel = np.zeros(20)
 
         with patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_arm_joint_ids",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_arm_joint_ids",
             side_effect=lambda m, rid: list(range(rid * 7, rid * 7 + 7)),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_joint_qpos_indices",
+            "robosuite_franka_manipulation.planning.assignment.factories.get_joint_qpos_indices",
             side_effect=lambda m, jids: np.array(jids),
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.collision_utils.check_inter_arm_collision",
+            "robosuite_franka_manipulation.planning.assignment.factories.check_inter_arm_collision",
             return_value=True,  # collision!
         ), patch(
-            "robosuite_franka_manipulation.planning.utils.mujoco_utils.get_native_mj_object",
+            "robosuite_franka_manipulation.planning.assignment.factories.in_collision",
+            return_value=False,
+        ), patch(
+            "robosuite_franka_manipulation.planning.assignment.factories.get_native_mj_object",
             side_effect=lambda x: x,
         ), patch("mujoco.mj_forward"):
             fn = make_collision_check_fn(env)

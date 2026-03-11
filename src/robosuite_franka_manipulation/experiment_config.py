@@ -50,6 +50,7 @@ class PlanningConfig:
     """Grasp generation & trajectory planning knobs."""
     num_grasps: int = 200
     num_entropy_grasps: int = 20
+    use_dpp: bool = True  # Use DPP entropy maximization for grasp selection; False → top-N by score
     gripper_types: List[str] = field(default_factory=lambda: ["finger", "suction"])
     collision_check: str = "Inter"
     num_steps: int = constants.OBJECT_TRAJ_NUM_STEPS
@@ -87,7 +88,7 @@ class ExecutionConfig:
     """Execution parameters for the dual-arm handover script."""
     visualize: bool = True
     meshcat_tf: bool = True
-    smoothen: bool = False
+    smoothen: bool = True
     assignment_path: Optional[str] = None  # path to assignment_results.npz; None → auto-discover in data dir
 
 
@@ -280,7 +281,7 @@ def load_experiment(path: str) -> ExperimentConfig:
     execution = ExecutionConfig(
         visualize=exec_raw.get("visualize", True),
         meshcat_tf=exec_raw.get("meshcat_tf", True),
-        smoothen=exec_raw.get("smoothen", False),
+        smoothen=exec_raw.get("smoothen", True),
         assignment_path=exec_raw.get("assignment_path", None),
     )
 

@@ -1,0 +1,81 @@
+{
+    "name": "mug_inversion",
+    "description": "Orientation-correction dual-handover: a YCB mug starts inverted (upside-down) on the left side of the table. A central wall blocks direct transfer, forcing the trajectory to detour around the +y corridor. Robot-1 (suction gripper) grasps the exposed bottom surface (facing up), lifts it, and hands off to Robot-0 (finger gripper) around the wall. Robot-0 re-grasps the mug by its rim, reorients it to upright, and places it on the right side of the table. The wall plus the 180° orientation change make the suction-to-finger handover essential.",
+    "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
+        "ycb_objects": [
+            {
+                "ycb_name": "mug",
+                "position": [-0.2, 0.0, 0.927],
+                "quaternion": [0, 1, 0, 0],
+                "_comment": "Mug inverted (180° around Y-axis): bottom faces up, handle faces +y"
+            }
+        ],
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "wallObstacle",
+                "size": [0.06, 0.30, 0.25],
+                "position": [0.0, 0.0, 1.025],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.4, 0.4, 0.4, 0.8],
+                "is_static": true,
+                "_comment": "Central wall: x=±0.03, y=±0.15, z=0.90–1.15. Blocks direct transfer, forcing the mug through a dual-arm handover."
+            }
+        ]
+    },
+    "task": {
+        "manipulated_object": "mug_0",
+        "start_pose": null,
+        "target_pose": {
+            "position": [0.2, 0.0, 0.927],
+            "quaternion": [0, 0, 0, 1],
+            "_comment": "Upright mug on the right side, handle pointing same direction as start (+y)"
+        }
+    },
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": null,
+        "num_steps": 80,
+        "lift_height": 0.2,
+        "approach_offset": 0.25,
+        "rrt_bounds": [
+            [-0.5, -0.5, 0.9],
+            [0.5, 0.5, 2.0]
+        ]
+    },
+    "collision_filter": {
+        "exclude_patterns": ["mug", "wall"]
+    },
+    "visualization": {
+        "visualize_mesh": true,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000",
+        "enable_meshcat": true
+    },
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": true
+    },
+    "assignment": {
+        "alpha": 10.0,
+        "beta": 1.0,
+        "epsilon": 1e-06,
+        "initial_robot": null,
+        "transfer_feasibility": null
+    },
+    "runtime": {
+        "debug": false,
+        "num_workers": 4
+    }
+}

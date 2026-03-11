@@ -1,0 +1,188 @@
+{
+    "name": "flatPlate_box_to_box",
+    "description": "Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.",
+    "environment": {
+        "table_full_size": [1.0, 0.75, 0.05],
+        "ycb_objects": [],
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "flatPlate",
+                "size": [0.26, 0.26, 0.02],
+                "position": [-0.25, 0.0, 0.915],
+                "quaternion": [0, 0, 0, 1],
+                "density": 100,
+                "friction": [1.0, 1.0, 1.0],
+                "rgba": null,
+                "_comment": "Flat plate lying horizontally inside Box-A"
+            },
+            {
+                "type": "box",
+                "name": "wallObstacle",
+                "size": [0.1, 0.30, 0.35],
+                "position": [0.0, 0.1, 1.075],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.4, 0.4, 0.4, 0.8],
+                "is_static": true,
+                "_comment": "Central wall: x=±0.05, y=−0.10 to +0.30, z=0.90–1.25. Blocks direct transfer, forcing detour around through the other arm's workspace."
+            },
+            {
+                "type": "box",
+                "name": "boxABottom",
+                "size": [0.34, 0.34, 0.005],
+                "position": [-0.25, 0.0, 0.9025],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Box-A bottom panel"
+            },
+            {
+                "type": "box",
+                "name": "boxAWallFront",
+                "size": [0.34, 0.015, 0.04],
+                "position": [-0.25, -0.163, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxAWallBack",
+                "size": [0.34, 0.015, 0.04],
+                "position": [-0.25, 0.163, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxAWallLeft",
+                "size": [0.015, 0.34, 0.04],
+                "position": [-0.413, 0.0, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxAWallRight",
+                "size": [0.015, 0.34, 0.04],
+                "position": [-0.087, 0.0, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxBBottom",
+                "size": [0.34, 0.34, 0.005],
+                "position": [0.25, 0.0, 0.9025],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Box-B bottom panel"
+            },
+            {
+                "type": "box",
+                "name": "boxBWallFront",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.25, -0.163, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxBWallBack",
+                "size": [0.34, 0.015, 0.04],
+                "position": [0.25, 0.163, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxBWallLeft",
+                "size": [0.015, 0.34, 0.04],
+                "position": [0.087, 0.0, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "boxBWallRight",
+                "size": [0.015, 0.34, 0.04],
+                "position": [0.413, 0.0, 0.92],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.35, 0.25, 0.15, 1.0],
+                "is_static": true
+            }
+        ]
+    },
+    "task": {
+        "manipulated_object": "flatPlate",
+        "start_pose": null,
+        "target_pose": {
+            "position": [0.25, 0.0, 0.915],
+            "quaternion": [0, 0, 0, 1],
+            "_comment": "Flat inside Box-B (mirrored from Box-A)"
+        }
+    },
+    "planning": {
+        "num_grasps": 200,
+        "num_entropy_grasps": 20,
+        "gripper_types": ["finger", "suction"],
+        "collision_check": null,
+        "num_steps": 80,
+        "lift_height": 0.2,
+        "approach_offset": 0.3,
+        "rrt_bounds": [
+            [-0.5, -0.5, 0.9],
+            [0.5, 0.5, 1.25]
+        ],
+        "_rrt_bounds_comment": "z-max=1.25 matches wall top so trajectories cannot go over the wall and must detour around through the other arm's workspace."
+    },
+    "collision_filter": {
+        "exclude_patterns": ["flatPlate", "plate", "boxA", "boxB", "boundary", "wall"]
+    },
+    "visualization": {
+        "visualize_mesh": true,
+        "mesh_step_interval": 10,
+        "mesh_opacity": 0.4,
+        "mesh_sample_ratio": 0.5,
+        "zmq_url": "tcp://127.0.0.1:6000",
+        "enable_meshcat": true
+    },
+    "output": {
+        "save_trajectories": false,
+        "output_dir": null
+    },
+    "execution": {
+        "visualize": true,
+        "meshcat_tf": true,
+        "smoothen": true
+    },
+    "assignment": {
+        "alpha": 10.0,
+        "beta": 1.0,
+        "epsilon": 1e-06,
+        "initial_robot": null,
+        "transfer_feasibility": null
+    },
+    "runtime": {
+        "debug": false,
+        "num_workers": 4
+    }
+}

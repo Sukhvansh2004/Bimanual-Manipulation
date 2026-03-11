@@ -45,6 +45,98 @@ def _build_target_se3(
 
 
 # ---------------------------------------------------------------------------
+# Solver cache — reuse mink objects across IK seeds to avoid repeated
+# MjData allocation (~0.6 ms) and task-object construction (~0.4 ms).
+# ---------------------------------------------------------------------------
+
+
+class _IKSolverCache:
+    """Pre-built mink objects reusable across IK seeds for one arm.
+
+    Creating these objects once and resetting via
+    ``config.update(q=...)`` / ``posture_task.set_target(q)`` is ~60×
+    cheaper than re-constructing a ``mink.Configuration`` (which
+    allocates a new ``MjData`` every time).
+    """
+
+    __slots__ = (
+        "config", "frame_task", "posture_task", "damping_task",
+        "config_limit", "freeze_task", "tasks", "limits",
+        "best_residual",
+    )
+
+    def __init__(
+        self,
+        model_native: mujoco.MjModel,
+        full_qpos: np.ndarray,
+        site_name: str,
+        arm_dof_idx: np.ndarray,
+    ):
+        self.config = mink.Configuration(model_native, q=full_qpos)
+        self.frame_task = mink.FrameTask(
+            frame_name=site_name,
+            frame_type="site",
+            position_cost=constants.MINK_POSITION_COST,
+            orientation_cost=constants.MINK_ORIENTATION_COST,
+            gain=constants.MINK_FRAME_GAIN,
+            lm_damping=constants.MINK_LM_DAMPING,
+        )
+        self.posture_task = mink.PostureTask(
+            model=model_native, cost=constants.MINK_POSTURE_COST,
+        )
+        self.damping_task = mink.DampingTask(
+            model_native, cost=constants.MINK_DAMPING_COST,
+        )
+        self.config_limit = mink.ConfigurationLimit(model_native)
+
+        frozen_dofs = mujoco_utils.get_frozen_dof_indices(
+            model_native, arm_dof_idx,
+        )
+        self.freeze_task = (
+            mink.DofFreezingTask(model_native, dof_indices=frozen_dofs)
+            if frozen_dofs
+            else None
+        )
+
+        self.tasks: list = [self.frame_task, self.posture_task, self.damping_task]
+        if self.freeze_task is not None:
+            self.tasks.append(self.freeze_task)
+        self.limits = [self.config_limit]
+        self.best_residual: float = float("inf")
+
+
+def create_solver_cache(
+    env: DualArmEnvironment,
+    robot_id: int,
+    arm: str = "right",
+    env_lock: Optional[threading.RLock] = None,
+) -> _IKSolverCache:
+    """Pre-build a solver cache for a specific robot arm.
+
+    Reuse the returned object across multiple calls to
+    :func:`enumerate_ik_solutions_for_arm` to amortise mink object
+    construction (``~1 ms`` per cache creation, dominated by
+    ``MjData`` allocation).
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        arm: Which arm (``"right"`` or ``"left"``).
+        env_lock: Optional reentrant lock guarding the environment.
+    """
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
+        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+        site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+        model_native = mujoco_utils.get_native_mj_object(model)
+        q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
+        return _IKSolverCache(model_native, q_full, site_name, joint_dof_idx)
+
+
+# ---------------------------------------------------------------------------
 # Primary IK solver — mink-based iterative QP
 # ---------------------------------------------------------------------------
 
@@ -62,6 +154,7 @@ def solve_ik_mink(
     ori_tol: float,
     max_iters: int = constants.MINK_IK_MAX_ITERS,
     dt: float = constants.MINK_IK_DT,
+    solver_cache: Optional[_IKSolverCache] = None,
 ) -> Optional[np.ndarray]:
     """Solve single-arm IK using mink's iterative QP differential IK.
 
@@ -99,36 +192,50 @@ def solve_ik_mink(
     q_full = np.array(full_qpos, dtype=float)
     q_full[arm_qpos_idx] = q_init
 
-    # ── Build mink objects (lightweight, no persistent state needed) ──
-    config = mink.Configuration(model_native, q=q_full)
+    # ── Build or reuse mink objects ───────────────────────────────────
+    if solver_cache is not None:
+        config = solver_cache.config
+        config.update(q=q_full)
+        solver_cache.posture_task.set_target(q_full)
+        tasks = solver_cache.tasks
+        limits = solver_cache.limits
+    else:
+        config = mink.Configuration(model_native, q=q_full)
 
-    frame_task = mink.FrameTask(
-        frame_name=site_name,
-        frame_type="site",
-        position_cost=constants.MINK_POSITION_COST,
-        orientation_cost=constants.MINK_ORIENTATION_COST,
-        gain=constants.MINK_FRAME_GAIN,
-        lm_damping=constants.MINK_LM_DAMPING,
-    )
+        frame_task = mink.FrameTask(
+            frame_name=site_name,
+            frame_type="site",
+            position_cost=constants.MINK_POSITION_COST,
+            orientation_cost=constants.MINK_ORIENTATION_COST,
+            gain=constants.MINK_FRAME_GAIN,
+            lm_damping=constants.MINK_LM_DAMPING,
+        )
 
-    posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
-    posture_task.set_target(q_full)  # bias toward initial posture
+        posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
+        posture_task.set_target(q_full)  # bias toward initial posture
 
-    damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
-    config_limit = mink.ConfigurationLimit(model_native)
+        damping_task = mink.DampingTask(model_native, cost=constants.MINK_DAMPING_COST)
+        config_limit = mink.ConfigurationLimit(model_native)
 
-    frozen_dofs = mujoco_utils.get_frozen_dof_indices(model_native, arm_dof_idx)
-    freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
+        frozen_dofs = mujoco_utils.get_frozen_dof_indices(model_native, arm_dof_idx)
+        freeze_task = mink.DofFreezingTask(model_native, dof_indices=frozen_dofs) if frozen_dofs else None
+
+        # ── Build task / limit lists ──────────────────────────────────
+        tasks: list = [frame_task, posture_task, damping_task]
+        if freeze_task is not None:
+            tasks.append(freeze_task)
+        limits = [config_limit]
 
     # ── Set target SE3 ────────────────────────────────────────────────
     target_se3 = _build_target_se3(target_pos, target_quat)
-    frame_task.set_target(target_se3)
+    if solver_cache is not None:
+        solver_cache.frame_task.set_target(target_se3)
+    else:
+        frame_task.set_target(target_se3)
 
-    # ── Build task / limit lists ──────────────────────────────────────
-    tasks: list = [frame_task, posture_task, damping_task]
-    if freeze_task is not None:
-        tasks.append(freeze_task)
-    limits = [config_limit]
+    # Pre-compute the inverse for convergence checks (avoids re-computing
+    # each iteration).
+    target_se3_inv = target_se3.inverse()
 
     # ── Iterative QP solve ────────────────────────────────────────────
     prev_err_norm = float("inf")
@@ -151,7 +258,7 @@ def solve_ik_mink(
         current_se3 = config.get_transform_frame_to_world(site_name, "site")
         pos_err = float(np.linalg.norm(current_se3.translation() - target_pos))
 
-        rel_se3 = target_se3.inverse().multiply(current_se3)
+        rel_se3 = target_se3_inv.multiply(current_se3)
         ori_err = float(np.linalg.norm(rel_se3.rotation().log()))
 
         if pos_err < pos_tol and ori_err < ori_tol:
@@ -174,12 +281,17 @@ def solve_ik_mink(
     # ── Final tolerance check (may have converged on last iter) ───────
     current_se3 = config.get_transform_frame_to_world(site_name, "site")
     pos_err = float(np.linalg.norm(current_se3.translation() - target_pos))
-    rel_se3 = target_se3.inverse().multiply(current_se3)
+    rel_se3 = target_se3_inv.multiply(current_se3)
     ori_err = float(np.linalg.norm(rel_se3.rotation().log()))
 
     if pos_err < pos_tol and ori_err < ori_tol:
         return np.array(config.q[arm_qpos_idx], dtype=float)
 
+    # Record the final residual on the cache so callers can assess
+    # "how close" this seed got (used for residual-weighted penalties).
+    residual = pos_err + ori_err
+    if solver_cache is not None:
+        solver_cache.best_residual = min(solver_cache.best_residual, residual)
     logger.debug(
         "mink IK failed: pos_err=%.5f (tol %.4f), ori_err=%.5f (tol %.4f)",
         pos_err, pos_tol, ori_err, ori_tol,
@@ -273,6 +385,7 @@ def enumerate_ik_solutions_for_arm(
     pos_tol: float = constants.IK_POS_TOLERANCE,
     ori_tol: float = constants.IK_ORI_TOLERANCE,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
+    solver_cache: Optional[_IKSolverCache] = None,
 ) -> List[np.ndarray]:
     f"""Enumerate IK solutions for a single arm by running IK from multiple seeds.
 
@@ -360,15 +473,32 @@ def enumerate_ik_solutions_for_arm(
         model_native = mujoco_utils.get_native_mj_object(model)
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
 
+        # Reuse the caller-supplied cache if available; otherwise create
+        # one for this call (still reused across all seeds within it).
+        cache = solver_cache or _IKSolverCache(
+            model_native, full_qpos, site_name, joint_dof_idx,
+        )
+        # Reset best_residual so each enumerate call gets a fresh value.
+        cache.best_residual = float("inf")
+
         min_manip = constants.IK_MIN_MANIPULABILITY
         scored: List[Tuple[float, np.ndarray]] = []
 
         def _check_manipulability(q_sol: np.ndarray) -> Optional[float]:
-            """Compute manipulability and return the score if above threshold, else None."""
+            """Compute manipulability and return the score if above threshold, else None.
+
+            Reuses the solver cache's Configuration (already at the
+            converged FK state after a successful ``solve_ik_mink`` call)
+            to avoid a redundant ``MjData`` allocation.
+            """
+            # After solve_ik_mink returns successfully, cache.config.q
+            # already has the converged arm joints and FK is current.
+            # We do a cheap update to ensure exact parity with fresh-config
+            # behaviour (frozen DOF drift is negligible but this is safe).
             q_full = full_qpos.copy()
             q_full[joint_qpos_idx] = q_sol
-            config = mink.Configuration(model_native, q=q_full)
-            J = config.get_frame_jacobian(site_name, "site")
+            cache.config.update(q=q_full)
+            J = cache.config.get_frame_jacobian(site_name, "site")
             J_arm = J[:, joint_dof_idx]  # (6, 7)
             m = compute_manipulability_from_jacobian(J_arm)
             if m < min_manip:
@@ -390,6 +520,7 @@ def enumerate_ik_solutions_for_arm(
                     q0,
                     pos_tol=pos_tol,
                     ori_tol=ori_tol,
+                    solver_cache=cache,
                 )
                 if q_sol is not None:
                     q_sol = np.asarray(q_sol, dtype=float)

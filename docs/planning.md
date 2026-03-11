@@ -283,7 +283,6 @@ else:
 | `_plan_collision_free_trajectory_b(...)` | Runs joint-space RRT-Connect against Arm A's final config, falls back to quintic interpolation on failure. |
 | `_eef_to_joint_trajectory(arm, eef_traj)` | Converts an EEF trajectory to joint space via sequential IK (warm-started). |
 | `_joint_error(arm, target_q)` | `max(\|q_actual − q_target\|)` — used for convergence checking. |
-| `_pose_action_from_joints(arm, target_joints, ...)` | OSC fallback: FK target joints → Cartesian action for non-joint-position controllers. |
 
 #### Joint-Space RRT for Arm B Reference Trajectory (`rrt/joint/`)
 
@@ -475,7 +474,7 @@ Three factory functions create closures around the simulation environment for IK
 |----------|-----------|---------|
 | `make_ik_solver_fn(env, tf_manager, env_lock)` | `(StampedPose, int) → Optional[np.ndarray]` | Creates an IK solver that applies orientation correction and delegates to `enumerate_ik_solutions_for_arm` |
 | `make_jacobian_fns(env, env_lock)` | `Dict[int, (np.ndarray) → np.ndarray]` | Creates per-robot Jacobian closures mapping joint configs to 6×7 Jacobians via `compute_arm_jacobian` |
-| `make_collision_check_fn(env, env_lock)` | `(np.ndarray, np.ndarray) → bool` | Creates an inter-arm collision checker that sets both arms' joint configs, runs MuJoCo forward, and returns whether they are collision-free |
+| `make_collision_check_fn(env, env_lock, manipulated_object=None)` | `(np.ndarray, np.ndarray) → bool` | Creates a collision checker that sets both arms' joint configs, runs MuJoCo forward, and returns whether they are collision-free (inter-arm + arm-environment, ignoring the manipulated object) |
 
 When `--no-env` is used, all three are `None` and the planner falls back to simpler heuristics (joint-distance manipulability proxy, constant switching cost, no collision checking).
 

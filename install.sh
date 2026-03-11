@@ -7,10 +7,14 @@ set -e
 echo "=== Dual-Arm Franka Manipulation Installer ==="
 echo ""
 
+# Initialize git submodules (GraspGen, YCB_Dataset)
+echo "Initializing git submodules..."
+git submodule update --init deps/GraspGen deps/YCB_Dataset
+
 # Install system dependencies for rendering
 echo "Installing system dependencies for offscreen rendering..."
 if command -v apt-get &> /dev/null; then
-    sudo apt-get update
+    sudo apt-get update || echo "Warning: apt-get update had errors (non-critical, continuing...)"
     sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev libglu1-mesa-dev libgl1-mesa-dev freeglut3-dev build-essential cmake
 elif command -v yum &> /dev/null; then
     sudo yum install -y mesa-libEGL-devel mesa-libGLES-devel mesa-libOSMesa-devel mesa-libGLU-devel freeglut-devel gcc gcc-c++ make cmake

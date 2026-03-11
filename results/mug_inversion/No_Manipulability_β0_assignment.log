@@ -1,0 +1,207 @@
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-06 01:52:16,764 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-06 01:52:16,767 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-06 01:52:21,223 - robosuite_franka_manipulation.experiment_config - INFO - Loading experiment 'mug_inversion' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/mug_inversion.json
+2026-03-06 01:52:21,223 - __main__ - INFO - Loaded experiment: mug_inversion – Orientation-correction dual-handover: a YCB mug starts inverted (upside-down) on the left side of the table. A central wall blocks direct transfer, forcing the trajectory to detour around the +y corridor. Robot-1 (suction gripper) grasps the exposed bottom surface (facing up), lifts it, and hands off to Robot-0 (finger gripper) around the wall. Robot-0 re-grasps the mug by its rim, reorients it to upright, and places it on the right side of the table. The wall plus the 180° orientation change make the suction-to-finger handover essential.
+2026-03-06 01:52:21,223 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion ...
+2026-03-06 01:52:21,224 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-06 01:52:21,237 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-06 01:52:21,249 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-06 01:52:21,249 - robosuite_franka_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-06 01:52:21,249 - __main__ - INFO - Assignment parameters: α=10.00, β=0.00, ε=1.0e-06, beam=unlimited, stride=1, clearance=0.030m
+2026-03-06 01:52:21,249 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
+2026-03-06 01:52:21,249 - robosuite_franka_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-06 01:52:22,498 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-06 01:52:22,499 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
+2026-03-06 01:52:23,051 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-06 01:52:23,052 - robosuite_franka_manipulation.environments.dual_arm - INFO - Added YCB object: mug_0 (mug)
+2026-03-06 01:52:23,338 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-06 01:52:23,340 - robosuite_franka_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-06 01:52:23,340 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
+2026-03-06 01:52:23,341 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
+2026-03-06 01:52:23,341 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=0.00, beam=unlimited, stride=1)
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1674/3200 finite entries
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments × 40 states
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments × 40 states, beam_width=unlimited, handover_stride=1
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 20/40 alive states
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,496 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 9/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 10/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 11/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 12/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 13/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 14/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 15/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:23,497 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 16/79: 0.0s (IK=0, pruned=20, alive=20) ETA 0s
+2026-03-06 01:52:26,094 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 17/79: 2.6s (IK=20, pruned=20, alive=21) ETA 9s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 18/79: 3.9s (IK=20, pruned=21, alive=21) ETA 22s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 19/79: 0.0s (IK=0, pruned=20, alive=20) ETA 21s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 20/79: 0.0s (IK=0, pruned=19, alive=19) ETA 19s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 21/79: 0.0s (IK=0, pruned=19, alive=19) ETA 18s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 22/79: 0.0s (IK=0, pruned=19, alive=19) ETA 17s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 23/79: 0.0s (IK=0, pruned=19, alive=19) ETA 16s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 24/79: 0.0s (IK=0, pruned=19, alive=19) ETA 15s
+2026-03-06 01:52:29,999 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 25/79: 0.0s (IK=0, pruned=19, alive=19) ETA 14s
+2026-03-06 01:52:33,721 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 26/79: 3.7s (IK=19, pruned=19, alive=20) ETA 21s
+2026-03-06 01:52:40,843 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 27/79: 7.1s (IK=38, pruned=21, alive=21) ETA 33s
+2026-03-06 01:53:03,953 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 28/79: 23.1s (IK=114, pruned=24, alive=25) ETA 74s
+2026-03-06 01:53:49,226 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 29/79: 45.3s (IK=209, pruned=30, alive=30) ETA 148s
+2026-03-06 01:54:29,352 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 30/79: 40.1s (IK=209, pruned=30, alive=30) ETA 206s
+2026-03-06 01:55:11,342 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 31/79: 42.0s (IK=209, pruned=30, alive=30) ETA 260s
+2026-03-06 01:55:58,895 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 32/79: 47.6s (IK=209, pruned=30, alive=30) ETA 316s
+2026-03-06 01:57:00,306 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 33/79: 61.4s (IK=228, pruned=31, alive=31) ETA 386s
+2026-03-06 01:58:10,317 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 34/79: 70.0s (IK=247, pruned=32, alive=32) ETA 459s
+2026-03-06 01:59:34,875 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 35/79: 84.6s (IK=304, pruned=35, alive=35) ETA 542s
+2026-03-06 02:00:56,735 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 36/79: 81.9s (IK=323, pruned=36, alive=36) ETA 613s
+2026-03-06 02:02:24,898 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 37/79: 88.2s (IK=323, pruned=36, alive=36) ETA 683s
+2026-03-06 02:03:39,489 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 38/79: 74.6s (IK=323, pruned=36, alive=36) ETA 729s
+2026-03-06 02:05:04,281 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 39/79: 84.8s (IK=323, pruned=36, alive=36) ETA 780s
+2026-03-06 02:06:07,436 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 40/79: 63.2s (IK=323, pruned=36, alive=36) ETA 803s
+2026-03-06 02:07:27,145 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 41/79: 79.7s (IK=340, pruned=36, alive=37) ETA 838s
+2026-03-06 02:08:28,454 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 42/79: 61.3s (IK=340, pruned=37, alive=37) ETA 850s
+2026-03-06 02:09:36,398 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 43/79: 67.9s (IK=321, pruned=36, alive=36) ETA 865s
+2026-03-06 02:10:43,660 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 44/79: 67.3s (IK=339, pruned=37, alive=37) ETA 875s
+2026-03-06 02:11:43,974 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 45/79: 60.3s (IK=321, pruned=31, alive=31) ETA 877s
+2026-03-06 02:12:34,086 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 46/79: 50.1s (IK=240, pruned=29, alive=29) ETA 868s
+2026-03-06 02:13:00,037 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 47/79: 26.0s (IK=192, pruned=20, alive=20) ETA 842s
+2026-03-06 02:13:04,119 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 48/79: 4.1s (IK=64, pruned=17, alive=17) ETA 801s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 49/79: 0.4s (IK=16, pruned=15, alive=16) ETA 760s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 50/79: 0.0s (IK=0, pruned=16, alive=16) ETA 720s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 51/79: 0.0s (IK=0, pruned=16, alive=16) ETA 681s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 52/79: 0.0s (IK=0, pruned=16, alive=16) ETA 644s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 53/79: 0.0s (IK=0, pruned=16, alive=16) ETA 609s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 54/79: 0.0s (IK=0, pruned=16, alive=16) ETA 575s
+2026-03-06 02:13:04,539 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 55/79: 0.0s (IK=0, pruned=16, alive=16) ETA 542s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 56/79: 0.0s (IK=0, pruned=16, alive=16) ETA 510s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 57/79: 0.0s (IK=0, pruned=16, alive=16) ETA 479s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 58/79: 0.0s (IK=0, pruned=16, alive=16) ETA 449s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 59/79: 0.0s (IK=0, pruned=16, alive=16) ETA 421s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 60/79: 0.0s (IK=0, pruned=16, alive=16) ETA 393s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 61/79: 0.0s (IK=0, pruned=16, alive=16) ETA 366s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 62/79: 0.0s (IK=0, pruned=15, alive=15) ETA 340s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 63/79: 0.0s (IK=0, pruned=15, alive=15) ETA 315s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 64/79: 0.0s (IK=0, pruned=15, alive=15) ETA 291s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 65/79: 0.0s (IK=0, pruned=15, alive=15) ETA 267s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 66/79: 0.0s (IK=0, pruned=15, alive=15) ETA 244s
+2026-03-06 02:13:04,540 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 67/79: 0.0s (IK=0, pruned=15, alive=15) ETA 222s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 68/79: 0.0s (IK=0, pruned=15, alive=15) ETA 201s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 69/79: 0.0s (IK=0, pruned=15, alive=15) ETA 180s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 70/79: 0.0s (IK=0, pruned=15, alive=15) ETA 160s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 71/79: 0.0s (IK=0, pruned=15, alive=15) ETA 140s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 72/79: 0.0s (IK=0, pruned=15, alive=15) ETA 121s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 73/79: 0.0s (IK=0, pruned=14, alive=14) ETA 102s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 74/79: 0.0s (IK=0, pruned=12, alive=12) ETA 84s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 75/79: 0.0s (IK=0, pruned=12, alive=12) ETA 66s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 76/79: 0.0s (IK=0, pruned=6, alive=6) ETA 49s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 77/79: 0.0s (IK=0, pruned=5, alive=5) ETA 32s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 78/79: 0.0s (IK=0, pruned=5, alive=5) ETA 16s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Segment 79/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=5614, pruned=1631, elapsed=1241.0s
+2026-03-06 02:13:04,541 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Best terminal cost=13516.4662 at state 4
+2026-03-06 02:13:04,542 - robosuite_franka_manipulation.planning.assignment.solver - INFO - Assignment solved: total_cost=13516.4662, handovers=1
+2026-03-06 02:13:04,542 - __main__ - INFO - ============================================================
+2026-03-06 02:13:04,542 - __main__ - INFO - Optimal Assignment Results
+2026-03-06 02:13:04,542 - __main__ - INFO - ============================================================
+2026-03-06 02:13:04,542 - __main__ - INFO -   Total cost     : 13516.4662
+2026-03-06 02:13:04,542 - __main__ - INFO -   Segments       : 80
+2026-03-06 02:13:04,543 - __main__ - INFO -   Handovers      : 1  [36]
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   0: Robot1  traj=robot1_trajectory_11.npz  task=0.0380  switch=0.0000  total=0.0380
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   1: Robot1  traj=robot1_trajectory_11.npz  task=0.0321  switch=0.0000  total=0.0321
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   2: Robot1  traj=robot1_trajectory_11.npz  task=0.0307  switch=0.0000  total=0.0307
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   3: Robot1  traj=robot1_trajectory_11.npz  task=0.0295  switch=0.0000  total=0.0295
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   4: Robot1  traj=robot1_trajectory_11.npz  task=0.0284  switch=0.0000  total=0.0284
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   5: Robot1  traj=robot1_trajectory_11.npz  task=0.0274  switch=0.0000  total=0.0274
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   6: Robot1  traj=robot1_trajectory_11.npz  task=0.0264  switch=0.0000  total=0.0264
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   7: Robot1  traj=robot1_trajectory_11.npz  task=0.0256  switch=0.0000  total=0.0256
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   8: Robot1  traj=robot1_trajectory_11.npz  task=0.0248  switch=0.0000  total=0.0248
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg   9: Robot1  traj=robot1_trajectory_11.npz  task=0.0241  switch=0.0000  total=0.0241
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  10: Robot1  traj=robot1_trajectory_11.npz  task=0.0234  switch=0.0000  total=0.0234
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  11: Robot1  traj=robot1_trajectory_11.npz  task=0.0227  switch=0.0000  total=0.0227
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  12: Robot1  traj=robot1_trajectory_11.npz  task=0.0221  switch=0.0000  total=0.0221
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  13: Robot1  traj=robot1_trajectory_11.npz  task=0.0215  switch=0.0000  total=0.0215
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  14: Robot1  traj=robot1_trajectory_11.npz  task=0.0209  switch=0.0000  total=0.0209
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  15: Robot1  traj=robot1_trajectory_11.npz  task=0.0202  switch=0.0000  total=0.0202
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  16: Robot1  traj=robot1_trajectory_11.npz  task=0.0196  switch=0.0000  total=0.0196
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  17: Robot1  traj=robot1_trajectory_11.npz  task=0.0190  switch=0.0000  total=0.0190
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  18: Robot1  traj=robot1_trajectory_11.npz  task=0.0183  switch=0.0000  total=0.0183
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  19: Robot1  traj=robot1_trajectory_11.npz  task=0.0176  switch=0.0000  total=0.0176
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  20: Robot1  traj=robot1_trajectory_11.npz  task=0.0169  switch=0.0000  total=0.0169
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  21: Robot1  traj=robot1_trajectory_11.npz  task=0.0162  switch=0.0000  total=0.0162
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  22: Robot1  traj=robot1_trajectory_11.npz  task=0.0154  switch=0.0000  total=0.0154
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  23: Robot1  traj=robot1_trajectory_11.npz  task=0.0147  switch=0.0000  total=0.0147
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  24: Robot1  traj=robot1_trajectory_11.npz  task=0.0140  switch=0.0000  total=0.0140
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  25: Robot1  traj=robot1_trajectory_11.npz  task=0.0133  switch=0.0000  total=0.0133
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  26: Robot1  traj=robot1_trajectory_11.npz  task=0.0127  switch=0.0000  total=0.0127
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  27: Robot1  traj=robot1_trajectory_11.npz  task=0.0121  switch=0.0000  total=0.0121
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  28: Robot1  traj=robot1_trajectory_11.npz  task=0.0116  switch=0.0000  total=0.0116
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  29: Robot1  traj=robot1_trajectory_11.npz  task=0.0113  switch=0.0000  total=0.0113
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  30: Robot1  traj=robot1_trajectory_11.npz  task=0.0110  switch=0.0000  total=0.0110
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  31: Robot1  traj=robot1_trajectory_11.npz  task=0.0109  switch=0.0000  total=0.0109
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  32: Robot1  traj=robot1_trajectory_11.npz  task=0.0109  switch=0.0000  total=0.0109
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  33: Robot1  traj=robot1_trajectory_11.npz  task=0.0110  switch=0.0000  total=0.0110
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  34: Robot1  traj=robot1_trajectory_11.npz  task=0.0113  switch=0.0000  total=0.0113
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  35: Robot1  traj=robot1_trajectory_11.npz  task=0.0122  switch=0.0000  total=0.0122
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  36: Robot0  traj=robot0_trajectory_4.npz  task=0.0123  switch=13500.2681  total=13500.2804
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  37: Robot0  traj=robot0_trajectory_4.npz  task=0.0126  switch=0.0000  total=0.0126
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  38: Robot0  traj=robot0_trajectory_4.npz  task=0.0148  switch=0.0000  total=0.0148
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  39: Robot0  traj=robot0_trajectory_4.npz  task=0.0171  switch=0.0000  total=0.0171
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  40: Robot0  traj=robot0_trajectory_4.npz  task=0.0188  switch=0.0000  total=0.0188
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  41: Robot0  traj=robot0_trajectory_4.npz  task=0.0199  switch=0.0000  total=0.0199
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  42: Robot0  traj=robot0_trajectory_4.npz  task=0.0206  switch=0.0000  total=0.0206
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  43: Robot0  traj=robot0_trajectory_4.npz  task=0.0212  switch=0.0000  total=0.0212
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  44: Robot0  traj=robot0_trajectory_4.npz  task=0.0217  switch=0.0000  total=0.0217
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  45: Robot0  traj=robot0_trajectory_4.npz  task=0.0221  switch=0.0000  total=0.0221
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  46: Robot0  traj=robot0_trajectory_4.npz  task=0.0226  switch=0.0000  total=0.0226
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  47: Robot0  traj=robot0_trajectory_4.npz  task=0.0230  switch=0.0000  total=0.0230
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  48: Robot0  traj=robot0_trajectory_4.npz  task=0.0235  switch=0.0000  total=0.0235
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  49: Robot0  traj=robot0_trajectory_4.npz  task=0.0241  switch=0.0000  total=0.0241
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  50: Robot0  traj=robot0_trajectory_4.npz  task=0.0243  switch=0.0000  total=0.0243
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  51: Robot0  traj=robot0_trajectory_4.npz  task=0.0245  switch=0.0000  total=0.0245
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  52: Robot0  traj=robot0_trajectory_4.npz  task=0.0194  switch=0.0000  total=0.0194
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  53: Robot0  traj=robot0_trajectory_4.npz  task=0.0190  switch=0.0000  total=0.0190
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  54: Robot0  traj=robot0_trajectory_4.npz  task=0.0163  switch=0.0000  total=0.0163
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  55: Robot0  traj=robot0_trajectory_4.npz  task=0.0157  switch=0.0000  total=0.0157
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  56: Robot0  traj=robot0_trajectory_4.npz  task=0.0154  switch=0.0000  total=0.0154
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  57: Robot0  traj=robot0_trajectory_4.npz  task=0.0151  switch=0.0000  total=0.0151
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  58: Robot0  traj=robot0_trajectory_4.npz  task=0.0148  switch=0.0000  total=0.0148
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  59: Robot0  traj=robot0_trajectory_4.npz  task=0.0147  switch=0.0000  total=0.0147
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  60: Robot0  traj=robot0_trajectory_4.npz  task=0.0147  switch=0.0000  total=0.0147
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  61: Robot0  traj=robot0_trajectory_4.npz  task=0.0148  switch=0.0000  total=0.0148
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  62: Robot0  traj=robot0_trajectory_4.npz  task=0.0151  switch=0.0000  total=0.0151
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  63: Robot0  traj=robot0_trajectory_4.npz  task=0.0154  switch=0.0000  total=0.0154
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  64: Robot0  traj=robot0_trajectory_4.npz  task=0.0159  switch=0.0000  total=0.0159
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  65: Robot0  traj=robot0_trajectory_4.npz  task=0.0165  switch=0.0000  total=0.0165
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  66: Robot0  traj=robot0_trajectory_4.npz  task=0.0172  switch=0.0000  total=0.0172
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  67: Robot0  traj=robot0_trajectory_4.npz  task=0.0179  switch=0.0000  total=0.0179
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  68: Robot0  traj=robot0_trajectory_4.npz  task=2.4553  switch=0.0000  total=2.4553
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  69: Robot0  traj=robot0_trajectory_4.npz  task=0.0179  switch=0.0000  total=0.0179
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  70: Robot0  traj=robot0_trajectory_4.npz  task=0.0200  switch=0.0000  total=0.0200
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  71: Robot0  traj=robot0_trajectory_4.npz  task=0.0212  switch=0.0000  total=0.0212
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  72: Robot0  traj=robot0_trajectory_4.npz  task=1.3375  switch=0.0000  total=1.3375
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  73: Robot0  traj=robot0_trajectory_4.npz  task=2.3160  switch=0.0000  total=2.3160
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  74: Robot0  traj=robot0_trajectory_4.npz  task=1.3915  switch=0.0000  total=1.3915
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  75: Robot0  traj=robot0_trajectory_4.npz  task=2.2278  switch=0.0000  total=2.2278
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  76: Robot0  traj=robot0_trajectory_4.npz  task=1.4134  switch=0.0000  total=1.4134
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  77: Robot0  traj=robot0_trajectory_4.npz  task=2.1774  switch=0.0000  total=2.1774
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  78: Robot0  traj=robot0_trajectory_4.npz  task=1.5197  switch=0.0000  total=1.5197
+2026-03-06 02:13:04,543 - __main__ - INFO -   Seg  79: Robot0  traj=robot0_trajectory_4.npz  task=0.0216  switch=0.0000  total=0.0216
+2026-03-06 02:13:04,543 - __main__ - INFO -   Robot0 — feasible segments: 56/80  cost range: [0.0086, 2.0500]
+2026-03-06 02:13:04,543 - __main__ - INFO -   Robot1 — feasible segments: 49/80  cost range: [0.0072, 0.0762]
+2026-03-06 02:13:04,544 - robosuite_franka_manipulation.planning.assignment.result - INFO - Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion/configs/No_Manipulability_β0/assignment_results.npz
+2026-03-06 02:13:04,582 - __main__ - INFO - Metrics written to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/mug_inversion/configs/No_Manipulability_β0/planning_metrics.json
+2026-03-06 02:13:04,582 - __main__ - INFO - Done. (1241.2s)

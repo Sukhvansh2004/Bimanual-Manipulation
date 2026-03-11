@@ -1,0 +1,16 @@
+{
+  "task_success": false,
+  "grasp_success": true,
+  "transport_success": true,
+  "place_success": false,
+  "n_handovers_attempted": 1,
+  "n_handovers_succeeded": 1,
+  "handover_success_rate": 1.0,
+  "n_collision_incidents": 56,
+  "n_switches": 1,
+  "execution_time_s": 218.31727766990662,
+  "mean_manipulability": 0.07210555609444501,
+  "placement_position_error": 0.36466141420011183,
+  "placement_orientation_error": 146.77825991937863,
+  "error_message": ""
+}
