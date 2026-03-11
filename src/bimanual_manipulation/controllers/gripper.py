@@ -7,6 +7,7 @@ from typing import Optional, TYPE_CHECKING
 import logging
 
 from bimanual_manipulation import constants
+from bimanual_manipulation.utils.env_utils import env_step
 
 if TYPE_CHECKING:
     from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
@@ -90,5 +91,4 @@ class RobosuiteGripperController:
         robot_action[-1] = gripper_val
         
         with self.env_lock if self.env_lock else nullcontext():
-            from bimanual_manipulation.utils.env_utils import env_step
             env_step(self.env, robot_action, robot_id=self.robot_id, arm=self.arm_id)

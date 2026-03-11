@@ -43,6 +43,8 @@ from bimanual_manipulation.planning.utils.trajectory_utils import (
     save_trajectory,
     load_trajectory,
     WaypointFeasibilityResult,
+)
+from bimanual_manipulation.utils.trajectory_math import (
     resample_joint_trajectory,
     quintic_scalar,
     plan_quintic_joint_trajectory,

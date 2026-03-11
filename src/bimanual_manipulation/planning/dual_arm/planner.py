@@ -45,18 +45,15 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import nullcontext
-from typing import List, Optional, Union
+from typing import List, Optional, TYPE_CHECKING, Union
 
 import mink
 import numpy as np
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
-from bimanual_manipulation.planning.utils.trajectory_utils import (
-    resample_joint_trajectory,
-)
+from bimanual_manipulation.utils.trajectory_math import resample_joint_trajectory
 from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
@@ -79,6 +76,8 @@ from bimanual_manipulation.planning.utils.ik_utils import (
     apply_ik_orientation_correction,
 )
 
+if TYPE_CHECKING:
+    from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
 logger = logging.getLogger(__name__)
 

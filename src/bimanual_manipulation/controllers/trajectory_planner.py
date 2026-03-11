@@ -18,7 +18,7 @@ from bimanual_manipulation.utils.se3 import (
     interpolate_pose,
     pose_to_SE3,
 )
-from bimanual_manipulation.planning.utils.trajectory_utils import quintic_scalar
+from bimanual_manipulation.utils.trajectory_math import quintic_scalar
 
 logger = logging.getLogger(__name__)
 

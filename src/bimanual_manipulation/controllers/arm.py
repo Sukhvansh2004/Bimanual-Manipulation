@@ -23,14 +23,20 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
+from bimanual_manipulation.controllers.trajectory_executor import TrajectoryExecutor
 from bimanual_manipulation.controllers.trajectory_planner import (
     plan_quintic_trajectory,
     smoothen_trajectory,
 )
 from bimanual_manipulation.controllers.visualization import TrajectoryVisualizer
+from bimanual_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
+    apply_ik_orientation_correction,
+)
 from bimanual_manipulation.transforms import StampedPose, TransformManager
+from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
-from bimanual_manipulation.planning.utils.trajectory_utils import (
+from bimanual_manipulation.utils.trajectory_math import (
     plan_quintic_joint_trajectory,
     velocity_profile_joint_trajectory,
 )
@@ -100,7 +106,6 @@ class RobosuiteArmController:
         self.last_status = 1
 
         # Delegate trajectory execution and visualization
-        from bimanual_manipulation.controllers.trajectory_executor import TrajectoryExecutor
         self._executor = TrajectoryExecutor(self)
         self._visualizer = TrajectoryVisualizer(
             robot_id, arm_id, self.tf_manager, self.base_frame,
@@ -207,11 +212,6 @@ class RobosuiteArmController:
             position=target_pos.tolist(),
             quaternion=target_quat.tolist(),
             frame_id=self.base_frame,
-        )
-
-        from bimanual_manipulation.planning.utils.ik_utils import (
-            enumerate_ik_solutions_for_arm,
-            apply_ik_orientation_correction,
         )
 
         target_stamped = apply_ik_orientation_correction(target_stamped)
@@ -541,7 +541,6 @@ class RobosuiteArmController:
                     target_joints, gripper_action=gripper_action,
                 )
                 with self.env_lock if self.env_lock else nullcontext():
-                    from bimanual_manipulation.utils.env_utils import env_step
                     env_step(
                         self.env, robot_action,
                         robot_id=self.robot_id, arm=self.arm_id,

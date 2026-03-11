@@ -7,17 +7,17 @@ the orchestration logic focused on execution.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, TYPE_CHECKING, Union
 
 import numpy as np
 
-from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
-from bimanual_manipulation.planning.utils.trajectory_utils import (
-    plan_quintic_joint_trajectory,
-)
+from bimanual_manipulation.utils.trajectory_math import plan_quintic_joint_trajectory
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
 
 def plan_pose_to_joint_trajectory(

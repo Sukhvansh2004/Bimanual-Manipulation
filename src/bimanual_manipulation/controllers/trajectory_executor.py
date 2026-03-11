@@ -16,12 +16,10 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
+from bimanual_manipulation.planning.utils import mujoco_utils as _mu
 from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
-from bimanual_manipulation.planning.utils.trajectory_utils import (
-    plan_quintic_joint_trajectory,
-    velocity_profile_joint_trajectory,
-)
+
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +97,6 @@ class TrajectoryExecutor:
             world_quaternions[i] = (r_wp * r_corr).as_quat()
 
         # ── Build mink objects ────────────────────────────────────────
-        from bimanual_manipulation.planning.utils import mujoco_utils as _mu
-
         model = ctrl.env.sim.model
         data = ctrl.env.sim.data
         model_native = _mu.get_native_mj_object(model)

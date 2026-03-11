@@ -43,8 +43,14 @@ def enumerate_ik_solutions_for_arm(
     env_lock: threading.RLock = None,
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
+    q_reference: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     f"""Enumerate IK solutions for a single arm using EAIK analytical solver.
+
+    When *q_reference* is provided, solutions are sorted by joint-space
+    proximity to the reference configuration (closest first).  This
+    ensures trajectory continuity when solving IK for consecutive
+    waypoints.
 
     Returns:
         List of joint angle arrays of shape ({constants.FRANKA_ARM_DOF},).
@@ -59,6 +65,7 @@ def enumerate_ik_solutions_for_arm(
         env_lock=env_lock,
         max_solutions=max_solutions,
         unique_atol=unique_atol,
+        q_reference=q_reference,
     )
 
 

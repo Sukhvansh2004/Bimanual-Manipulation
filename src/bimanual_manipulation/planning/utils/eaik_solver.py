@@ -278,6 +278,7 @@ def enumerate_ik_solutions_eaik(
     num_sweep: int = EAIK_NUM_SWEEP_VALUES,
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
+    q_reference: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     """Enumerate IK solutions using EAIK analytical solver.
 
@@ -295,9 +296,14 @@ def enumerate_ik_solutions_eaik(
         num_sweep: Number of swept-joint values.
         max_solutions: Maximum solutions to return.
         unique_atol: Tolerance for uniqueness filtering.
+        q_reference: Optional reference joint configuration for
+            warm-starting.  When provided, the returned solutions are
+            re-sorted by L2 distance to *q_reference* (closest first)
+            so that consecutive waypoint IK solutions stay continuous.
 
     Returns:
-        List of joint configurations ``(7,)``, ranked by manipulability.
+        List of joint configurations ``(7,)``, ranked by proximity to
+        *q_reference* if given, otherwise by manipulability.
     """
     from contextlib import nullcontext
 
@@ -368,6 +374,10 @@ def enumerate_ik_solutions_eaik(
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
             mujoco.mj_fwdPosition(model_native, data_native)
+
+        # Re-sort by proximity to reference config for trajectory continuity
+        if q_reference is not None and len(solutions) > 1:
+            solutions.sort(key=lambda q: float(np.linalg.norm(q - q_reference)))
 
         return solutions
 
