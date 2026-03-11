@@ -133,7 +133,7 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | Module | Purpose |
 |--------|---------|
 | `collision_utils.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
-| `ik_utils.py` | Mink QP-based IK solver with multi-seed enumeration |
+| `ik_utils.py` | EAIK analytical IK with multi-solution enumeration |
 | `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
 | `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
 | `visualization_utils.py` | General Meshcat visualization helpers |
@@ -638,12 +638,11 @@ else:
 
 ### Inverse Kinematics (IK)
 
-The module uses a mink QP-based differential IK solver (`solve_ik_mink`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by:
-- Trying multiple random seed configurations (`IK_NUM_SEED_CONFIGS = 48`)
-- Warm-starting from the previous waypoint's solution for trajectory continuity
-- Elbow angle discretization (`IK_ELBOW_DISCRETIZATION = 8`) to handle 7-DOF redundancy
-- Filtering duplicate solutions (`IK_UNIQUE_TOLERANCE = 1e-3`)
-- All QP solver configuration is centralized in `constants.py` (`MINK_*` constants)
+The module uses EAIK (Efficient Analytical Inverse Kinematics) for closed-form IK solving via `enumerate_ik_solutions_eaik`, wrapped by `enumerate_ik_solutions_for_arm`. The 7-DOF Panda is reduced to 6-DOF by sweeping a locked joint across its range, yielding up to 8 exact solutions per locked value. This approach adds robustness by:
+- Sweeping the redundant joint across its range (`EAIK_NUM_SWEEP_VALUES = 20`)
+- Filtering duplicate solutions (`IK_UNIQUE_TOLERANCE = 0.25`)
+- Ranking solutions by manipulability (via raw MuJoCo Jacobians)
+- All EAIK configuration is centralized in `constants.py` (`EAIK_*` constants)
 
 ### Coordinate Frames
 
@@ -651,7 +650,7 @@ All planning functions rely on `StampedPose` and `TransformManager` to ensure co
 
 ### Optimization
 
-- **Warm Starting**: IK solver uses the previous waypoint's solution as seed for the next, ensuring joint-space continuity and faster convergence.
+- **Analytical IK**: EAIK provides exact closed-form solutions (~2μs/call), eliminating iterative convergence and warm-starting.
 - **Dynamic Programming**: When validating grasp pairs for dual-arm tasks, results are cached to avoid re-computing feasibility for the same grasp in different pair combinations.
 - **Multiprocessing**: The trajectory generation scripts (`trajectory_generation.py`, `dual_trajectory_generation.py`) use Python `multiprocessing` with configurable worker pools to evaluate multiple grasp candidates in parallel.
 

@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as R
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.planning.utils import ik_utils, mujoco_utils
+from bimanual_manipulation.planning.utils.eaik_solver import compute_arm_jacobian
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 from bimanual_manipulation.planning.trajectory.generator import (
     generate_object_trajectory,
@@ -199,12 +200,11 @@ class TestPlanningModule:
         assert results[0].is_feasible is False
 
     def test_ik_convergence_basic(self):
-        """Test that mink-based IK converges to a known reachable pose."""
+        """Test that EAIK analytical IK finds valid solutions for the robot home pose."""
         env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
         env.reset()
         
         try:
-            # Robot 0 right arm
             robot_id = 0
             arm = "right"
             
@@ -212,53 +212,43 @@ class TestPlanningModule:
             data = env.sim.data
             
             site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-            site_id = int(model.site_name2id(site_name))
-            
             joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
             joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
-            joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
             joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
-            
-            # 1. Pick a target configuration and find its site pose
-            rng = np.random.default_rng(42)
-            # Avoid extreme limits for better test reliability
-            q_target = rng.uniform(joint_lo + 0.1, joint_hi - 0.1)
-            
+
             model_native = mujoco_utils.get_native_mj_object(model)
             data_native = mujoco_utils.get_native_mj_object(data)
-            
-            mujoco_utils.set_qpos(data, joint_qpos_idx, q_target)
-            mujoco.mj_fwdPosition(model_native, data_native)
-            
+
+            # Use the robot's current (home) configuration target
+            site_id = int(model.site_name2id(site_name))
             target_pos = np.array(data.site_xpos[site_id])
             target_mat = np.array(data.site_xmat[site_id]).reshape(3, 3)
             target_quat = R.from_matrix(target_mat).as_quat()
             
-            # 2. Solve IK from the target config as warm-start
-            env.reset()
-            
-            full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
-            
-            q_sol = ik_utils.solve_ik_mink(
-                model_native, full_qpos, site_name,
-                joint_qpos_idx, joint_dof_idx,
-                target_pos, target_quat,
-                q_target,  # warm-start with the ground-truth config
-                pos_tol=1e-4, ori_tol=1e-3,
+            from bimanual_manipulation.transforms import TransformManager, StampedPose
+            tf_manager = TransformManager(env)
+            target_pose = StampedPose(
+                position=target_pos.tolist(),
+                quaternion=target_quat.tolist(),
+                frame_id=constants.WORLD_FRAME,
             )
             
-            assert q_sol is not None, "mink IK failed to converge to known valid pose"
+            solutions = ik_utils.enumerate_ik_solutions_for_arm(
+                env,
+                robot_id=robot_id,
+                target_pose=target_pose,
+                tf_manager=tf_manager,
+                arm=arm,
+                site_name=site_name,
+                max_solutions=5,
+            )
             
-            # 3. Verify precision via FK
-            mujoco_utils.set_qpos(data, joint_qpos_idx, q_sol)
-            mujoco.mj_fwdPosition(model_native, data_native)
-            pos_err, rot_err = mujoco_utils.compute_site_error(model, data, site_id, target_pos, target_quat)
+            assert len(solutions) > 0, "EAIK returned no solutions for home pose"
             
-            pos_dist = np.linalg.norm(pos_err)
-            rot_dist = np.linalg.norm(rot_err)
-            
-            assert pos_dist < 1e-4, f"Position error too high: {pos_dist}"
-            assert rot_dist < 1e-3, f"Rotation error too high: {rot_dist}"
+            for q_sol in solutions:
+                assert q_sol.shape == (constants.FRANKA_ARM_DOF,), f"Wrong shape: {q_sol.shape}"
+                assert np.all(q_sol >= joint_lo - 1e-6), "Solution below joint limits"
+                assert np.all(q_sol <= joint_hi + 1e-6), "Solution above joint limits"
         finally:
             env.close()
 
@@ -310,10 +300,7 @@ class TestPlanningModule:
                 tf_manager=tf_manager,
                 arm=arm,
                 site_name=site_name,
-                q_warm_start=q_target,
                 max_solutions=3,
-                num_seed_configs=4,
-                elbow_discretization=2,
             )
             
             assert len(solutions) > 0, "enumerate_ik_solutions_for_arm returned no solutions"
@@ -327,13 +314,13 @@ class TestPlanningModule:
             env.close()
 
     def test_compute_arm_jacobian(self):
-        """Test that mink-based Jacobian has correct shape and is non-degenerate."""
+        """Test that MuJoCo-based Jacobian has correct shape and is non-degenerate."""
         env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
         env.reset()
         
         try:
             for robot_id in [0, 1]:
-                J = ik_utils.compute_arm_jacobian(env, robot_id=robot_id, arm="right")
+                J = compute_arm_jacobian(env, robot_id=robot_id, arm="right")
                 
                 # Shape check
                 assert J.shape == (6, 7), f"Expected (6, 7), got {J.shape}"

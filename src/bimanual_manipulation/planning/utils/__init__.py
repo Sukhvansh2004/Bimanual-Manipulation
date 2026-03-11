@@ -12,8 +12,11 @@ subpackages:
 
 from bimanual_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
-    solve_ik_mink,
-    unique_solutions,
+)
+from bimanual_manipulation.planning.utils.eaik_solver import (
+    enumerate_ik_solutions_eaik,
+    solve_ik_eaik,
+    compute_arm_jacobian,
 )
 from bimanual_manipulation.planning.utils.collision_utils import (
     in_collision,
@@ -54,8 +57,9 @@ from bimanual_manipulation.planning.utils.manipulability import (
 __all__ = [
     # IK utilities
     "enumerate_ik_solutions_for_arm",
-    "solve_ik_mink",
-    "unique_solutions",
+    "enumerate_ik_solutions_eaik",
+    "solve_ik_eaik",
+    "compute_arm_jacobian",
     # Collision utilities
     "in_collision",
     "get_geom_ids_by_prefix",

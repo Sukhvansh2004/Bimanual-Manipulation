@@ -99,8 +99,6 @@ def process_waypoint(
         target_pose=target_pose,
         arm=arm,
         site_name=site_name,
-        q_warm_start=last_config,
-        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
         max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
         env_lock=None, # Caller holds lock
         tf_manager=tf_manager
@@ -182,8 +180,6 @@ def process_dual_waypoint(
         target_pose=target0,
         arm=arm,
         site_name=site0,
-        q_warm_start=last_config0,
-        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
         max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
         env_lock=None, 
         tf_manager=tf_manager
@@ -195,8 +191,6 @@ def process_dual_waypoint(
         target_pose=target1,
         arm=arm,
         site_name=site1,
-        q_warm_start=last_config1,
-        num_seed_configs=constants.TRAJ_IK_NUM_SEED_CONFIGS,
         max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
         env_lock=None, 
         tf_manager=tf_manager

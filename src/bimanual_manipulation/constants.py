@@ -122,23 +122,12 @@ ENTROPY_ORIENTATION_SCALE = 5
 GRASP_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
 DUAL_GRASP_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
 
-# IK Solver Parameters (grasp feasibility — needs diversity)
-IK_NUM_SEED_CONFIGS = 16  # Number of random seed configurations for IK
-IK_ELBOW_DISCRETIZATION = 4  # Number of elbow angle discretization steps
+# IK Solver Parameters
 IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
-IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
 IK_UNIQUE_TOLERANCE = 0.25  # Tolerance for unique solution filtering (~14.3°)
-IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
 IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
-# Trajectory Feasibility Check Parameters (warm-start driven — needs speed)
-TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
+# Trajectory Feasibility Check Parameters
 TRAJ_IK_MAX_SOLUTIONS = 4
-
-# Relaxed IK tolerances for handover cost evaluation (we only need a rough
-# feasibility check, not a high-precision solution).
-HANDOVER_IK_POS_TOLERANCE = 0.01   # 10 mm (vs. 5 mm for grasp IK)
-HANDOVER_IK_ORI_TOLERANCE = 0.05   # ~3° (vs. 0.29° for grasp IK)
 
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
@@ -151,6 +140,18 @@ COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
 
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
+
+# =============================================================================
+# EAIK Analytical IK Configuration
+# =============================================================================
+# Panda is 7-DOF, EAIK handles up to 6-DOF.  We lock one joint and sweep
+# across its range to enumerate diverse solutions.
+# Joint 3 (0-based URDF index) → SPHERICAL_SECOND_TWO_INTERSECTING
+# decomposition, yielding up to 8 exact solutions per locked value.
+EAIK_SWEEP_JOINT_INDEX = 3       # EAIK 0-based index of the joint to lock
+EAIK_SWEEP_JOINT_ROBOT_INDEX = 3 # Corresponding index in the 7-DOF joint vector
+EAIK_NUM_SWEEP_VALUES = 20       # Number of lock values to sweep across joint range
+EAIK_MIN_MANIPULABILITY = 1e-5   # Reject solutions below this manipulability threshold
 
 # =============================================================================
 # Mink QP-based IK / Reactive Tracking Configuration

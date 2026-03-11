@@ -761,7 +761,6 @@ def main():
                             tf_manager=other_arm.tf_manager,
                             arm=other_arm.arm_id,
                             site_name=site_name,
-                            q_warm_start=q_warm_start_receiver,
                             env_lock=system.env_lock,
                             max_solutions=constants.IK_MAX_SOLUTIONS,
                         )

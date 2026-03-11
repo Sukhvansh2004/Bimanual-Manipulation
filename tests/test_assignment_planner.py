@@ -902,15 +902,13 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
-    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_eaik")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
-        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = [np.zeros(7)]
-        mock_cache.return_value = MagicMock()
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager, env_lock=None)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
@@ -921,46 +919,51 @@ class TestFactoryFunctions:
         assert residual == 0.0
         mock_correction.assert_called_once()
         mock_ik.assert_called_once()
-        # Verify robot_id was forwarded
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
-    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
+    @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_eaik")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
-        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = []  # no solutions
-        mock_cache.return_value = MagicMock(best_residual=0.42)
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
         result, residual = ik_fn(pose, robot_id=1)
 
         assert result is None
-        assert residual == 0.42
+        assert residual == float("inf")
 
-    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.mujoco")
     @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
     @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_returns_per_robot(
-        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mujoco,
         mock_env,
     ):
         mock_jids.return_value = list(range(7))
         mock_qidx.return_value = np.arange(7)
         mock_didx.return_value = np.arange(7)
         mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
-        mock_native.side_effect = lambda x: x
 
-        mock_config = MagicMock()
-        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
-        mock_mink.Configuration.return_value = mock_config
+        mock_model_native = MagicMock()
+        mock_model_native.nv = 17
+        mock_data_native = MagicMock()
+        mock_data_native.qpos = np.zeros(17)
+        mock_native.side_effect = lambda x: mock_model_native if x is mock_env.sim.model else mock_data_native
+        mock_mujoco.mj_name2id.return_value = 0
+        mock_mujoco.mjtObj.mjOBJ_SITE = 6
+
+        def _mock_jac_site(model, data, jacp, jacr, site_id):
+            jacp[:] = np.ones((3, 17))
+            jacr[:] = np.ones((3, 17))
+        mock_mujoco.mj_jacSite.side_effect = _mock_jac_site
 
         mock_env.sim.data.qpos = np.zeros(17)
 
@@ -975,30 +978,37 @@ class TestFactoryFunctions:
         assert J0.shape == (6, 7)
         assert J1.shape == (6, 7)
 
-        # Verify per-robot site names were resolved
         site_calls = mock_site.call_args_list
         assert site_calls[0][0][0] == 0
         assert site_calls[1][0][0] == 1
 
-    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.mujoco")
     @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
     @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_with_lock(
-        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mujoco,
         mock_env,
     ):
         mock_jids.return_value = list(range(7))
         mock_qidx.return_value = np.arange(7)
         mock_didx.return_value = np.arange(7)
         mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
-        mock_native.side_effect = lambda x: x
 
-        mock_config = MagicMock()
-        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
-        mock_mink.Configuration.return_value = mock_config
+        mock_model_native = MagicMock()
+        mock_model_native.nv = 17
+        mock_data_native = MagicMock()
+        mock_data_native.qpos = np.zeros(17)
+        mock_native.side_effect = lambda x: mock_model_native if x is mock_env.sim.model else mock_data_native
+        mock_mujoco.mj_name2id.return_value = 0
+        mock_mujoco.mjtObj.mjOBJ_SITE = 6
+
+        def _mock_jac_site(model, data, jacp, jacr, site_id):
+            jacp[:] = np.ones((3, 17))
+            jacr[:] = np.ones((3, 17))
+        mock_mujoco.mj_jacSite.side_effect = _mock_jac_site
 
         mock_env.sim.data.qpos = np.zeros(17)
 
@@ -1008,9 +1018,8 @@ class TestFactoryFunctions:
         fns = make_jacobian_fns(mock_env, env_lock=lock)
         fns[0](np.zeros(7))
 
-        # Verify config.update was called (reuse path)
-        mock_config.update.assert_called()
-        mock_config.get_frame_jacobian.assert_called()
+        mock_mujoco.mj_fwdPosition.assert_called()
+        mock_mujoco.mj_jacSite.assert_called()
 
 
 class TestMakeCollisionCheckFn:

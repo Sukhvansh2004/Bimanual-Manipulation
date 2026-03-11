@@ -207,16 +207,8 @@ def check_dual_arm_pose_feasibility(
     input_frame: str = constants.WORLD_FRAME,
     env_lock=None,
     arm: str = "right",
-    # IK discretization / search params
-    num_seed_configs: int = constants.IK_NUM_SEED_CONFIGS,
-    elbow_discretization: int = constants.IK_ELBOW_DISCRETIZATION,
-    max_solutions_per_arm: int = constants.IK_NUM_SEED_CONFIGS,
-    # IK solver params
-    pos_tol: float = constants.IK_POS_TOLERANCE,
-    ori_tol: float = constants.IK_ORI_TOLERANCE,
-    # Collision params
+    max_solutions_per_arm: int = constants.IK_MAX_SOLUTIONS,
     contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
-    # Pairing caps
     max_pairs: int = constants.DUAL_ARM_MAX_PAIRS,
 ) -> List[List[Union[np.ndarray, bool]]]:
     f"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
@@ -259,14 +251,10 @@ def check_dual_arm_pose_feasibility(
         robot_id=0,
         target_pose=target0,
         arm=arm,
-        site_name=f"gripper0_{arm}_ft_frame", # Target Flange
+        site_name=f"gripper0_{arm}_ft_frame",
         tf_manager=tf_manager,
         env_lock=env_lock,
-        num_seed_configs=num_seed_configs,
-        elbow_discretization=elbow_discretization,
         max_solutions=max_solutions_per_arm,
-        pos_tol=pos_tol,
-        ori_tol=ori_tol,
     )
 
     q_solutions_1 = enumerate_ik_solutions_for_arm(
@@ -274,14 +262,10 @@ def check_dual_arm_pose_feasibility(
         robot_id=1,
         target_pose=target1,
         arm=arm,
-        site_name=f"gripper1_{arm}_ft_frame", # Target Flange
+        site_name=f"gripper1_{arm}_ft_frame",
         tf_manager=tf_manager,
         env_lock=env_lock,
-        num_seed_configs=num_seed_configs,
-        elbow_discretization=elbow_discretization,
         max_solutions=max_solutions_per_arm,
-        pos_tol=pos_tol,
-        ori_tol=ori_tol,
     )
 
     if len(q_solutions_0) == 0 or len(q_solutions_1) == 0:

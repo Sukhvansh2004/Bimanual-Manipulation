@@ -615,7 +615,6 @@ class DualArmParallelPlanner:
                 tf_manager=self.arm_b.tf_manager,
                 arm=self.arm_b.arm_id,
                 site_name=site_name,
-                q_warm_start=q_warm_start,
                 env_lock=self.env_lock,
                 max_solutions=constants.IK_MAX_SOLUTIONS,
             )
