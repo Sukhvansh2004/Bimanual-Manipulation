@@ -148,6 +148,8 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # and sweep across its range.  By sweeping ALL 7 joints we explore the
 # full redundancy manifold instead of relying on a single wrist joint.
 EAIK_NUM_SWEEP_VALUES = 8        # Sweep values *per joint* (7 joints × 8 = 56 total)
+EAIK_MIN_MANIPULABILITY = 1e-5   # Reject solutions below this manipulability threshold
+EAIK_WARM_START_WINDOW = 0.5     # Half-width (rad, ~28.6°) for q_reference-biased sweep
 
 # =============================================================================
 # Mink QP-based IK / Reactive Tracking Configuration

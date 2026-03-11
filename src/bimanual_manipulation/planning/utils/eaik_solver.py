@@ -166,40 +166,8 @@ def solve_ik_eaik(
 
     n_joints = len(joint_limits_lo)
     all_solutions: List[np.ndarray] = []
-    has_exact = False
 
-    for jidx in range(n_joints):
-        sweep_vals = _sweep_values_for_joint(
-            jidx, joint_limits_lo, joint_limits_hi, num_sweep, q_reference,
-        )
-        for val in sweep_vals:
-            bot = _build_eaik_robot(jidx, round(float(val), 6))
-            if bot is None:
-                continue
-
-            try:
-                result = bot.IK(T_target)
-            except Exception:
-                continue
-
-            for q_sol, is_ls in zip(result.Q, result.is_LS):
-                if is_ls:
-                    continue
-
-                q = np.asarray(q_sol, dtype=float)
-                if q.shape[0] != 7:
-                    continue
-                if np.any(q < joint_limits_lo - 1e-6) or np.any(
-                    q > joint_limits_hi + 1e-6
-                ):
-                    continue
-
-                q = np.clip(q, joint_limits_lo, joint_limits_hi)
-                all_solutions.append(q)
-                has_exact = True
-
-    # If no exact solutions found, accept least-squares solutions
-    if not has_exact:
+    for accept_ls in (False, True):
         for jidx in range(n_joints):
             sweep_vals = _sweep_values_for_joint(
                 jidx, joint_limits_lo, joint_limits_hi, num_sweep, q_reference,
@@ -208,11 +176,16 @@ def solve_ik_eaik(
                 bot = _build_eaik_robot(jidx, round(float(val), 6))
                 if bot is None:
                     continue
+
                 try:
                     result = bot.IK(T_target)
                 except Exception:
                     continue
+
                 for q_sol, is_ls in zip(result.Q, result.is_LS):
+                    if is_ls and not accept_ls:
+                        continue
+
                     q = np.asarray(q_sol, dtype=float)
                     if q.shape[0] != 7:
                         continue
@@ -220,8 +193,13 @@ def solve_ik_eaik(
                         q > joint_limits_hi + 1e-6
                     ):
                         continue
+
                     q = np.clip(q, joint_limits_lo, joint_limits_hi)
                     all_solutions.append(q)
+
+        # Use exact solutions if we found any; only fall back to LS if needed
+        if all_solutions:
+            break
 
     return all_solutions
 
