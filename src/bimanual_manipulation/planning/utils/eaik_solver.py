@@ -321,7 +321,9 @@ def _filter_and_rank_solutions(
             "EAIK: %d solutions ranked by manipulability (best=%.4e, worst=%.4e)",
             len(result), scored[0][0], scored[min(len(scored) - 1, max_solutions - 1)][0],
         )
-
+    else:
+        logger.debug("EAIK: no solutions passed FK and manipulability filtering")
+        
     return result
 
 
