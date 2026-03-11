@@ -146,8 +146,8 @@ def solve_ik_eaik(
     the previous configuration and maintaining trajectory continuity.
 
     Args:
-        target_pos: Desired EEF position in world frame ``(3,)``.
-        target_quat: Desired EEF quaternion ``(x, y, z, w)`` in world frame.
+        target_pos: Desired EEF position in robot base frame ``(3,)``.
+        target_quat: Desired EEF quaternion ``(x, y, z, w)`` in robot base frame.
         joint_limits_lo: Lower joint limits ``(7,)``.
         joint_limits_hi: Upper joint limits ``(7,)``.
         num_sweep: Number of discrete values per joint.
@@ -204,6 +204,29 @@ def solve_ik_eaik(
     return all_solutions
 
 
+def _fk_error(
+    data_native: mujoco.MjData,
+    site_id: int,
+    target_pos_world: np.ndarray,
+    target_quat_world: np.ndarray,
+) -> Tuple[float, float]:
+    """Compute position and orientation FK error after ``mj_fwdPosition``.
+
+    Returns:
+        ``(pos_err, rot_err)`` — Euclidean position error (m) and
+        geodesic rotation error (rad).
+    """
+    achieved_pos = np.asarray(data_native.site_xpos[site_id], dtype=float)
+    achieved_mat = np.asarray(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
+    pos_err = float(np.linalg.norm(achieved_pos - target_pos_world))
+    rot_err = float(
+        np.linalg.norm(
+            (R.from_quat(target_quat_world) * R.from_matrix(achieved_mat).inv()).as_rotvec()
+        )
+    )
+    return pos_err, rot_err
+
+
 def _filter_and_rank_solutions(
     solutions: List[np.ndarray],
     model_native: mujoco.MjModel,
@@ -213,11 +236,22 @@ def _filter_and_rank_solutions(
     arm_qpos_idx: np.ndarray,
     full_qpos: np.ndarray,
     *,
+    target_pos_world: np.ndarray,
+    target_quat_world: np.ndarray,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
     min_manip: float = constants.IK_MIN_MANIPULABILITY,
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
+    fk_pos_tol: float = constants.EAIK_FK_POS_TOLERANCE,
+    fk_rot_tol: float = constants.EAIK_FK_ROT_TOLERANCE,
 ) -> List[np.ndarray]:
-    """De-duplicate, filter by manipulability, and rank solutions.
+    """De-duplicate, FK-verify, filter by manipulability, and rank solutions.
+
+    Each candidate is set into MuJoCo via ``mj_fwdPosition`` (already
+    required for the Jacobian) and its achieved EEF pose is compared
+    against the world-frame target.  Solutions whose position error
+    exceeds *fk_pos_tol* or orientation error exceeds *fk_rot_tol* are
+    discarded — this catches unreachable targets and LS approximations
+    that are too far off.
 
     Args:
         solutions: Raw solutions from ``solve_ik_eaik``.
@@ -227,9 +261,13 @@ def _filter_and_rank_solutions(
         arm_dof_idx: DOF indices for the arm ``(7,)``.
         arm_qpos_idx: qpos indices for the arm ``(7,)``.
         full_qpos: Full model qpos vector ``(nq,)``.
+        target_pos_world: Target position in world frame ``(3,)``.
+        target_quat_world: Target quaternion ``(x,y,z,w)`` in world frame.
         unique_atol: Tolerance for de-duplication.
         min_manip: Minimum manipulability threshold.
         max_solutions: Maximum number of solutions to return.
+        fk_pos_tol: Max allowed position error (m).
+        fk_rot_tol: Max allowed orientation error (rad).
 
     Returns:
         Ranked list of joint configurations, best manipulability first.
@@ -243,13 +281,28 @@ def _filter_and_rank_solutions(
         if not any(np.allclose(q, u, atol=unique_atol, rtol=0.0) for u in unique):
             unique.append(q)
 
-    # Score by manipulability
+    # Score by manipulability, with FK verification
     scored: List[Tuple[float, np.ndarray]] = []
     for q in unique:
+        # _compute_jacobian_mujoco calls mj_fwdPosition internally,
+        # so site_xpos / site_xmat are up-to-date afterwards.
         J = _compute_jacobian_mujoco(
             model_native, data_native, site_id,
             arm_dof_idx, arm_qpos_idx, q, full_qpos,
         )
+
+        # FK verification: reject solutions that don't reach the target
+        pos_err, rot_err = _fk_error(
+            data_native, site_id, target_pos_world, target_quat_world,
+        )
+        if pos_err > fk_pos_tol or rot_err > fk_rot_tol:
+            logger.debug(
+                "EAIK: solution rejected by FK check "
+                "(pos_err=%.4f m > %.4f, rot_err=%.4f rad > %.4f)",
+                pos_err, fk_pos_tol, rot_err, fk_rot_tol,
+            )
+            continue
+
         m = compute_manipulability_from_jacobian(J)
         if m < min_manip:
             logger.debug("EAIK: solution rejected, manipulability %.4e < %.2e", m, min_manip)
@@ -328,13 +381,22 @@ def enumerate_ik_solutions_eaik(
         joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
         joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
 
-        # Transform target to world frame (MuJoCo sites are in world)
-        pose = target_pose
-        if pose.frame_id != constants.WORLD_FRAME:
-            pose = tf_manager.transform_pose(pose, constants.WORLD_FRAME)
+        # Transform target to the robot's base frame.
+        # EAIK solves IK in the URDF base frame (panda_link0), not world.
+        base_frame = f"robot{robot_id}_base"
+        pose_base = target_pose
+        if pose_base.frame_id != base_frame:
+            pose_base = tf_manager.transform_pose(pose_base, base_frame)
 
-        target_pos = np.asarray(pose.position, dtype=float)
-        target_quat = np.asarray(pose.quaternion, dtype=float)
+        target_pos = np.asarray(pose_base.position, dtype=float)
+        target_quat = np.asarray(pose_base.quaternion, dtype=float)
+
+        # We also need the world-frame target for FK verification
+        pose_world = target_pose
+        if pose_world.frame_id != constants.WORLD_FRAME:
+            pose_world = tf_manager.transform_pose(pose_world, constants.WORLD_FRAME)
+        target_pos_world = np.asarray(pose_world.position, dtype=float)
+        target_quat_world = np.asarray(pose_world.quaternion, dtype=float)
 
         if site_name is None:
             site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
@@ -367,11 +429,13 @@ def enumerate_ik_solutions_eaik(
                 len(raw_solutions), robot_id, target_pos,
             )
 
-            # Filter, de-duplicate, and rank by manipulability
+            # Filter, de-duplicate, FK-verify, and rank by manipulability
             solutions = _filter_and_rank_solutions(
                 raw_solutions,
                 model_native, data_native, site_id,
                 joint_dof_idx, joint_qpos_idx, full_qpos,
+                target_pos_world=target_pos_world,
+                target_quat_world=target_quat_world,
                 unique_atol=unique_atol,
                 max_solutions=max_solutions,
             )
