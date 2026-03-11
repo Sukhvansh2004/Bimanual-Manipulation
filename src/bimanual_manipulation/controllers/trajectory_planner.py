@@ -5,7 +5,7 @@ SE(3) space for smooth, jerk-limited end-effector motion.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R

@@ -13,6 +13,8 @@ value and is the default sweep joint.
 import logging
 from functools import lru_cache
 from pathlib import Path
+import threading
+from contextlib import nullcontext
 from typing import List, Optional, Tuple
 
 import mujoco
@@ -274,7 +276,7 @@ def enumerate_ik_solutions_eaik(
     tf_manager: TransformManager,
     arm: str = "right",
     site_name: Optional[str] = None,
-    env_lock=None,
+    env_lock: Optional[threading.RLock] = None,
     num_sweep: int = EAIK_NUM_SWEEP_VALUES,
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
@@ -305,7 +307,6 @@ def enumerate_ik_solutions_eaik(
         List of joint configurations ``(7,)``, ranked by proximity to
         *q_reference* if given, otherwise by manipulability.
     """
-    from contextlib import nullcontext
 
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:

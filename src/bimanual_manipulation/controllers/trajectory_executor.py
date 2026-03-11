@@ -5,10 +5,12 @@ OSC-based trajectory following for end-effector pose trajectories.
 Also provides joint-space trajectory execution.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from contextlib import nullcontext
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import mink
 from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
@@ -19,6 +21,9 @@ from bimanual_manipulation import constants
 from bimanual_manipulation.planning.utils import mujoco_utils as _mu
 from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
+
+if TYPE_CHECKING:
+    from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +37,7 @@ class TrajectoryExecutor:
     and delegates action construction and environment stepping to it.
     """
 
-    def __init__(self, controller) -> None:
+    def __init__(self, controller: RobosuiteArmController) -> None:
         """
         Args:
             controller: The parent ``RobosuiteArmController``.

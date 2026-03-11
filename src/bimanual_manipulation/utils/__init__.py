@@ -77,6 +77,12 @@ from bimanual_manipulation.utils.suction_weld import (
     clear_suction_cache,
 )
 
+from bimanual_manipulation.utils.trajectory_math import (
+    plan_quintic_joint_trajectory,
+    quintic_scalar,
+    resample_joint_trajectory,
+)
+
 __all__ = [
     # SE(3) utilities
     'skew',
@@ -106,6 +112,9 @@ __all__ = [
     'reset_action_persistence',
     'get_action_persistence_manager',
     'ActionPersistenceManager',
+    'start_collision_monitor',
+    'stop_collision_monitor',
+    'get_collision_count',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
@@ -124,4 +133,8 @@ __all__ = [
     # Suction weld utilities
     'apply_suction_weld',
     'clear_suction_cache',
+    # Trajectory math
+    'plan_quintic_joint_trajectory',
+    'quintic_scalar',
+    'resample_joint_trajectory',
 ]

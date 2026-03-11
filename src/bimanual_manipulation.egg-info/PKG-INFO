@@ -46,6 +46,7 @@ Requires-Dist: addict
 Requires-Dist: torch-geometric
 Requires-Dist: yourdfpy==0.0.56
 Requires-Dist: mink>=1.0.0
+Requires-Dist: EAIK>=1.2.0
 Requires-Dist: proxsuite
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0.0; extra == "dev"

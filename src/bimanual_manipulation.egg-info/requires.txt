@@ -23,6 +23,7 @@ addict
 torch-geometric
 yourdfpy==0.0.56
 mink>=1.0.0
+EAIK>=1.2.0
 proxsuite
 
 [dev]

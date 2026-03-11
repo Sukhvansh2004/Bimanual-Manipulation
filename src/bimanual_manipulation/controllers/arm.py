@@ -35,7 +35,6 @@ from bimanual_manipulation.planning.utils.ik_utils import (
 )
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 from bimanual_manipulation.utils.env_utils import env_step
-from bimanual_manipulation.utils.se3 import pose_to_SE3
 from bimanual_manipulation.utils.trajectory_math import (
     plan_quintic_joint_trajectory,
     velocity_profile_joint_trajectory,
