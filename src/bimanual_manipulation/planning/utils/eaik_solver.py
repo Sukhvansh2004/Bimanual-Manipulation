@@ -32,15 +32,6 @@ from bimanual_manipulation.transforms import StampedPose, TransformManager
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# EAIK constants — imported from central config
-# ---------------------------------------------------------------------------
-from bimanual_manipulation.constants import (
-    EAIK_SWEEP_JOINT_INDEX,
-    EAIK_SWEEP_JOINT_ROBOT_INDEX,
-    EAIK_NUM_SWEEP_VALUES,
-    EAIK_MIN_MANIPULABILITY,
-)
 
 # Fallback joints to try if primary sweep joint fails
 EAIK_FALLBACK_JOINTS = [5, 3]  # EAIK indices for joints 6, 4
@@ -108,8 +99,8 @@ def solve_ik_eaik(
     joint_limits_lo: np.ndarray,
     joint_limits_hi: np.ndarray,
     *,
-    sweep_joint: int = EAIK_SWEEP_JOINT_INDEX,
-    num_sweep: int = EAIK_NUM_SWEEP_VALUES,
+    sweep_joint: int = constants.EAIK_SWEEP_JOINT_INDEX,
+    num_sweep: int = constants.EAIK_NUM_SWEEP_VALUES,
     sweep_range: Optional[Tuple[float, float]] = None,
 ) -> List[np.ndarray]:
     """Solve IK analytically using EAIK with joint sweeping.
@@ -137,7 +128,7 @@ def solve_ik_eaik(
     T[:3, 3] = target_pos
 
     # Determine sweep range from joint limits
-    robot_joint_idx = EAIK_SWEEP_JOINT_ROBOT_INDEX
+    robot_joint_idx = constants.EAIK_SWEEP_JOINT_ROBOT_INDEX
     if sweep_range is None:
         lo = float(joint_limits_lo[robot_joint_idx])
         hi = float(joint_limits_hi[robot_joint_idx])
@@ -277,7 +268,7 @@ def enumerate_ik_solutions_eaik(
     arm: str = "right",
     site_name: Optional[str] = None,
     env_lock: Optional[threading.RLock] = None,
-    num_sweep: int = EAIK_NUM_SWEEP_VALUES,
+    num_sweep: int = constants.EAIK_NUM_SWEEP_VALUES,
     max_solutions: int = constants.IK_MAX_SOLUTIONS,
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
     q_reference: Optional[np.ndarray] = None,
@@ -412,7 +403,6 @@ def compute_arm_jacobian(
     Returns:
         ``np.ndarray`` of shape ``(6, 7)``.
     """
-    from contextlib import nullcontext
 
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:
