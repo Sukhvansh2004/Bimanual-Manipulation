@@ -14,7 +14,6 @@ import mujoco
 import numpy as np
 import robosuite.utils.transform_utils as T
 
-from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.planning.utils.collision_utils import (
     check_inter_arm_collision,
@@ -23,8 +22,8 @@ from bimanual_manipulation.planning.utils.collision_utils import (
 from bimanual_manipulation.planning.utils.ik_utils import (
     apply_ik_orientation_correction,
 )
-from bimanual_manipulation.planning.utils.eaik_solver import (
-    enumerate_ik_solutions_eaik,
+from bimanual_manipulation.planning.utils.ik_utils import (
+    enumerate_ik_solutions_for_arm,
 )
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
@@ -65,13 +64,14 @@ def make_ik_solver_fn(
         *residual* is 0.0 when a solution is found, ``inf`` otherwise.
         """
         corrected = apply_ik_orientation_correction(pose)
-        solutions = enumerate_ik_solutions_eaik(
+        solutions = enumerate_ik_solutions_for_arm(
             env,
             robot_id=robot_id,
             target_pose=corrected,
             tf_manager=tf_manager,
             env_lock=env_lock,
             max_solutions=1,
+            q_reference=q_warm_start,
         )
         if solutions:
             return solutions[0], 0.0
