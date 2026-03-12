@@ -45,6 +45,7 @@ from bimanual_manipulation.planning.assignment.cost import (
     _compute_handover_primitive_cost,
 )
 from bimanual_manipulation.transforms import StampedPose
+from bimanual_manipulation.utils.primitives import HandoverTrajectory
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -389,7 +390,7 @@ class TestHandoverPrimitiveCost:
 
     def test_empty_trajectory_returns_inf(self):
         result = _compute_handover_primitive_cost(
-            {}, 1.0, 1.0, 1e-6, self._dummy_ik,
+            HandoverTrajectory(), 1.0, 1.0, 1e-6, self._dummy_ik,
         )
         assert np.isinf(result.cost)
         assert result.feasible is False
@@ -399,10 +400,10 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="object")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_pre": poses[1:],
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:2],
+            receiver_pre=poses[1:],
+        )
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, self._dummy_ik,
         )
@@ -415,7 +416,7 @@ class TestHandoverPrimitiveCost:
             return None, 0.5
 
         poses = [StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="w")]
-        h_traj = {"transfer_hold": poses}
+        h_traj = HandoverTrajectory(transfer_hold=poses)
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _failing_ik,
         )
@@ -438,16 +439,17 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(5)
         ]
-        h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_approach": poses[2:],
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:2],
+            receiver_approach=poses[2:],
+        )
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _partial_ik,
         )
         assert result.feasible is False, "Should fail when any IK call fails"
         assert result.cost == np.inf, "Cost should be inf on partial IK failure"
 
+    @patch.object(constants, 'HANDOVER_EARLY_EXIT_ON_COLLISION', False)
     def test_collision_aware_config_selection(self):
         """When the closest-to-warm-start config collides, an alternative
         candidate should be selected instead."""
@@ -466,10 +468,10 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:1],
-            "receiver_approach": poses[1:],
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:1],
+            receiver_approach=poses[1:],
+        )
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _multi_ik,
             collision_check_fn=_collision_check,
@@ -497,57 +499,16 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses,
-            "receiver_approach": poses,
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses,
+            receiver_approach=poses,
+        )
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik, jacobian_fns=jac_fns,
         )
         assert result.feasible is True
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
-
-    def test_collision_check_adds_penalty_for_colliding_handover(self):
-        """Collisions add per-step penalty instead of rejecting the handover."""
-        from bimanual_manipulation import constants as C
-
-        def _ik(pose, robot_id, q_warm_start=None):
-            return np.ones(7) * 0.5, 0.0
-
-        def _always_colliding(q0, q1):
-            return False  # collision detected
-
-        poses = [
-            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
-            for i in range(3)
-        ]
-        h_traj = {
-            "transfer_hold": poses[:1],
-            "receiver_approach": poses,
-        }
-
-        # Compute cost with collisions
-        result_col = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _ik,
-            collision_check_fn=_always_colliding,
-        )
-        assert result_col.feasible is True
-        assert np.isfinite(result_col.cost)
-
-        # Compute cost without collisions for comparison
-        result_free = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _ik,
-            collision_check_fn=lambda q0, q1: True,
-        )
-        assert result_free.feasible is True
-
-        # Colliding cost must exceed collision-free cost by at least one
-        # collision step penalty.
-        assert result_col.cost > result_free.cost + C.HANDOVER_COLLISION_STEP_PENALTY, (
-            f"Colliding cost ({result_col.cost:.2f}) should exceed free cost "
-            f"({result_free.cost:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
-        )
 
     def test_collision_check_passes_when_free(self):
         """A collision_check_fn returning True should not affect cost."""
@@ -561,10 +522,10 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:1],
-            "receiver_approach": poses,
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:1],
+            receiver_approach=poses,
+        )
         result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_free,
@@ -583,10 +544,10 @@ class TestHandoverPrimitiveCost:
         poses = [
             StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
         ]
-        h_traj = {
-            "transfer_hold": poses,
-            "receiver_pre": poses,
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses,
+            receiver_pre=poses,
+        )
         _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             transfer_robot_id=1,

@@ -66,6 +66,7 @@ from bimanual_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 from bimanual_manipulation.utils.primitives import (
     DualArmHandoverPlanner,
+    HandoverTrajectory,
     ObjectGraspPrimitive,
     ReleaseRetreatPrimitive,
     compute_ee_pose,

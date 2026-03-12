@@ -254,12 +254,11 @@ COST_EVAL_APPROACH_STEPS = 5      # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
 COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of retreat
 
-# Per-step penalty added when a pair of (transfer, receiver) IK configs
-# collides during the handover trajectory.  Instead of rejecting the
-# entire handover (inf), we accumulate a finite penalty per colliding
-# step so the DP can still route through the handover but prefers ones
-# that are collision-free.
-HANDOVER_COLLISION_STEP_PENALTY = 1500.0
+# Early-exit flags: when True, a single IK failure or collision
+# immediately returns inf cost instead of adding a soft penalty.
+HANDOVER_EARLY_EXIT_ON_IK_FAILURE = True
+HANDOVER_EARLY_EXIT_ON_COLLISION = True
+
 
 # =============================================================================
 # Control and Trajectory Configuration
