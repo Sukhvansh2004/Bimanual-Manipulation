@@ -151,16 +151,12 @@ class HandoverVisualizer:
 
         # Render object mesh at handover pose
         if self._object_name and result.object_pose is not None:
-            obj_color = (
-                ik_failed_color if ik_failed_color is not None
-                else constants.VIS_COLOR_FEASIBLE
-            )
             obj_path = f"{base}/object"
             self._obj_vis.visualize_object_at_pose(
                 object_name=self._object_name,
                 pose=result.object_pose,
                 path=obj_path,
-                color=obj_color,
+                color=0x0000ff,
                 opacity=constants.VIS_MESH_OPACITY,
             )
 
