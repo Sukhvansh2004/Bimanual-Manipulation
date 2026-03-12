@@ -210,7 +210,12 @@ def _solve_all_ik(
     n_failed = 0
     for p in poses:
         try:
-            result = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
+            raw = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
+            # Accept either plain result or (result, residual) tuple
+            if isinstance(raw, tuple):
+                result = raw[0]
+            else:
+                result = raw
             if result is None:
                 n_failed += 1
                 all_candidates.append([])

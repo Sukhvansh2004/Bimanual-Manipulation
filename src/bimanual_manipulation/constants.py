@@ -153,8 +153,30 @@ EAIK_FK_POS_TOLERANCE = 1e-3     # Max FK position error (m) to accept a solutio
 EAIK_FK_ROT_TOLERANCE = 5e-3     # Max FK orientation error (rad, ~2.9°) to accept a solution
 
 # =============================================================================
+# IK Solver Selection
+# =============================================================================
+# Which backend to use for offline IK enumeration.
+# Options: "eaik" (analytical, fastest), "scipy" (L-BFGS-B), "mink" (QP iterative)
+IK_SOLVER_BACKEND = "eaik"
+
+# =============================================================================
+# Scipy L-BFGS-B IK Configuration
+# =============================================================================
+SCIPY_IK_NUM_SEEDS = 16         # Number of seed configs to try
+SCIPY_IK_MAX_ITERS = 200        # Max L-BFGS-B iterations per seed
+SCIPY_IK_POS_TOLERANCE = 5e-3   # Max position error (m) to accept
+SCIPY_IK_ROT_TOLERANCE = 5e-3   # Max orientation error (rad) to accept
+
+# =============================================================================
 # Mink QP-based IK / Reactive Tracking Configuration
 # =============================================================================
+# Mink offline IK solver parameters
+MINK_IK_NUM_SEEDS = 16          # Number of seed configs to try
+MINK_IK_MAX_ITERS = 150         # Max QP iterations per seed
+MINK_IK_POS_TOLERANCE = 5e-3    # Position convergence tolerance (m)
+MINK_IK_ROT_TOLERANCE = 5e-3    # Orientation convergence tolerance (rad)
+MINK_IK_STALL_WINDOW = 10       # Iterations without improvement before bail-out
+MINK_IK_STALL_TOL = 1e-7        # Minimum improvement to reset stall counter
 
 # QP solver backend
 MINK_QP_SOLVER = "daqp"

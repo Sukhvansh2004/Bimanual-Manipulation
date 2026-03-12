@@ -12,11 +12,11 @@ subpackages:
 
 from bimanual_manipulation.planning.utils.ik_utils import (
     enumerate_ik_solutions_for_arm,
+    compute_arm_jacobian,
 )
 from bimanual_manipulation.planning.utils.eaik_solver import (
     enumerate_ik_solutions_eaik,
     solve_ik_eaik,
-    compute_arm_jacobian,
 )
 from bimanual_manipulation.planning.utils.collision_utils import (
     in_collision,

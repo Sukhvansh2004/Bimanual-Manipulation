@@ -893,13 +893,12 @@ class TestFactoryFunctions:
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager, env_lock=None)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result, residual = ik_fn(pose, robot_id=0)
+        result = ik_fn(pose, robot_id=0)
 
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].shape == (7,)
-        assert residual == 0.0
         mock_correction.assert_called_once()
         mock_ik.assert_called_once()
         _, kwargs = mock_ik.call_args
@@ -915,10 +914,9 @@ class TestFactoryFunctions:
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result, residual = ik_fn(pose, robot_id=1)
+        result = ik_fn(pose, robot_id=1)
 
         assert result is None
-        assert residual == float("inf")
 
     @patch("bimanual_manipulation.planning.assignment.factories.mujoco")
     @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
