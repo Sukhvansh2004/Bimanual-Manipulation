@@ -105,6 +105,8 @@ def solve_ik_mink(
         mink.ConfigurationLimit(model_native),
     ]
 
+    R_target = R.from_quat(target_quat)
+
     stall_window = constants.MINK_IK_STALL_WINDOW
     best_err = float("inf")
     stall_count = 0
@@ -123,7 +125,7 @@ def solve_ik_mink(
         achieved_rot = T_current.rotation()
         pos_err = float(np.linalg.norm(achieved_pos - target_pos))
         rot_err = float(np.linalg.norm(
-            (R.from_quat(target_quat) * R.from_matrix(achieved_rot.as_matrix()).inv()).as_rotvec()
+            (R_target * R.from_matrix(achieved_rot.as_matrix()).inv()).as_rotvec()
         ))
 
         if pos_err <= pos_tol and rot_err <= ori_tol:
@@ -241,11 +243,22 @@ def enumerate_ik_solutions_mink(
                 "Mink IK: %d raw solutions for robot%d", len(raw_solutions), robot_id,
             )
 
-            # De-duplicate
-            unique: List[np.ndarray] = []
-            for q in raw_solutions:
-                if not any(np.allclose(q, u, atol=unique_atol, rtol=0.0) for u in unique):
-                    unique.append(q)
+            # De-duplicate (vectorised: sort then compare neighbours)
+            if raw_solutions:
+                sol_arr = np.array(raw_solutions)
+                order = np.lexsort(sol_arr[:, ::-1].T)
+                sorted_sols = sol_arr[order]
+                if len(sorted_sols) > 1:
+                    diffs = np.abs(sorted_sols[1:] - sorted_sols[:-1])
+                    is_dup = np.all(diffs <= unique_atol, axis=1)
+                    mask = np.empty(len(sorted_sols), dtype=bool)
+                    mask[0] = True
+                    mask[1:] = ~is_dup
+                    unique = [sorted_sols[i] for i in np.flatnonzero(mask)]
+                else:
+                    unique = [sorted_sols[0]]
+            else:
+                unique = []
 
             # Filter by manipulability and rank
             scored = []

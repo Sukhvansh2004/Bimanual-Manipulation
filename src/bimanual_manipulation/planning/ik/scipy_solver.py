@@ -104,6 +104,7 @@ def solve_ik_scipy(
     """
     bounds = list(zip(joint_lo.tolist(), joint_hi.tolist()))
     solutions: List[np.ndarray] = []
+    R_target = R.from_quat(target_quat)
 
     for q0 in q_seeds:
         result = minimize(
@@ -112,7 +113,7 @@ def solve_ik_scipy(
             args=(
                 model_native, data_native, site_id,
                 arm_qpos_idx, arm_dof_idx, full_qpos,
-                target_pos, target_quat,
+                target_pos, R_target,
             ),
             method="L-BFGS-B",
             jac=True,
@@ -125,8 +126,8 @@ def solve_ik_scipy(
         data_native.qpos[:] = full_qpos.copy()
         data_native.qpos[arm_qpos_idx] = q_sol
         mujoco.mj_fwdPosition(model_native, data_native)
-        pos_err, rot_err = mujoco_utils.compute_site_error(
-            model_native, data_native, site_id, target_pos, target_quat,
+        pos_err, rot_err = mujoco_utils.compute_site_error_fast(
+            data_native, site_id, target_pos, R_target,
         )
         p_err = float(np.linalg.norm(pos_err))
         r_err = float(np.linalg.norm(rot_err))
@@ -242,11 +243,22 @@ def enumerate_ik_solutions_scipy(
                 "Scipy IK: %d raw solutions for robot%d", len(raw_solutions), robot_id,
             )
 
-            # De-duplicate
-            unique: List[np.ndarray] = []
-            for q in raw_solutions:
-                if not any(np.allclose(q, u, atol=unique_atol, rtol=0.0) for u in unique):
-                    unique.append(q)
+            # De-duplicate (vectorised: sort then compare neighbours)
+            if raw_solutions:
+                sol_arr = np.array(raw_solutions)
+                order = np.lexsort(sol_arr[:, ::-1].T)
+                sorted_sols = sol_arr[order]
+                if len(sorted_sols) > 1:
+                    diffs = np.abs(sorted_sols[1:] - sorted_sols[:-1])
+                    is_dup = np.all(diffs <= unique_atol, axis=1)
+                    mask = np.empty(len(sorted_sols), dtype=bool)
+                    mask[0] = True
+                    mask[1:] = ~is_dup
+                    unique = [sorted_sols[i] for i in np.flatnonzero(mask)]
+                else:
+                    unique = [sorted_sols[0]]
+            else:
+                unique = []
 
             # Filter by manipulability and rank
             scored = []

@@ -58,8 +58,10 @@ def compute_manipulability_simple(joint_config: np.ndarray) -> float:
 def compute_manipulability_from_jacobian(jacobian: np.ndarray) -> float:
     """Compute Yoshikawa manipulability from a Jacobian matrix.
 
-    .. math::
-        w = \\sqrt{\\det(J \\, J^T)}
+    :math:`w = \\prod(\\sigma_i)` where :math:`\\sigma_i` are the
+    singular values of *J*.  This is equivalent to
+    :math:`\\sqrt{\\det(J\\,J^T)}` but avoids the matrix multiply and
+    determinant by using SVD directly.
 
     Args:
         jacobian: Jacobian matrix of shape ``(m, n)``.
@@ -67,12 +69,8 @@ def compute_manipulability_from_jacobian(jacobian: np.ndarray) -> float:
     Returns:
         Manipulability value (≥ 0).
     """
-    if jacobian.shape[0] > jacobian.shape[1]:
-        det_val = np.linalg.det(jacobian.T @ jacobian)
-    else:
-        det_val = np.linalg.det(jacobian @ jacobian.T)
-
-    return max(np.sqrt(max(det_val, 0.0)), 1e-6)
+    s = np.linalg.svd(jacobian, compute_uv=False)
+    return max(float(np.prod(s)), 1e-6)
 
 
 # ---------------------------------------------------------------------------

@@ -54,11 +54,18 @@ def _get_enumerate_fn() -> Callable:
 
 
 def unique_solutions(solutions: Iterable[np.ndarray], atol: float = constants.IK_UNIQUE_TOLERANCE) -> List[np.ndarray]:
-    uniq: List[np.ndarray] = []
-    for q in solutions:
-        if not any(np.allclose(q, u, atol=atol, rtol=0.0) for u in uniq):
-            uniq.append(q)
-    return uniq
+    sol_list = list(solutions)
+    if len(sol_list) <= 1:
+        return sol_list
+    sol_arr = np.array(sol_list)
+    order = np.lexsort(sol_arr[:, ::-1].T)
+    sorted_sols = sol_arr[order]
+    diffs = np.abs(sorted_sols[1:] - sorted_sols[:-1])
+    is_dup = np.all(diffs <= atol, axis=1)
+    mask = np.empty(len(sorted_sols), dtype=bool)
+    mask[0] = True
+    mask[1:] = ~is_dup
+    return [sorted_sols[i] for i in np.flatnonzero(mask)]
 
 
 def enumerate_ik_solutions_for_arm(

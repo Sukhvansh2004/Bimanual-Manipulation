@@ -318,26 +318,33 @@ def _fk_error(
     data_native: mujoco.MjData,
     site_id: int,
     target_pos_world: np.ndarray,
-    R_target: R,
+    target_mat: np.ndarray,
 ) -> Tuple[float, float]:
     """Compute position and orientation FK error after ``mj_fwdPosition``.
 
     Args:
-        R_target: Pre-constructed ``scipy.spatial.transform.Rotation``
-            for the target orientation (avoids repeated ``R.from_quat``).
+        target_mat: Pre-computed 3×3 rotation matrix for the target.
 
     Returns:
         ``(pos_err, rot_err)`` — Euclidean position error (m) and
         geodesic rotation error (rad).
     """
     achieved_pos = data_native.site_xpos[site_id]
-    achieved_mat = np.asarray(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
     pos_err = float(np.linalg.norm(achieved_pos - target_pos_world))
-    rot_err = float(
-        np.linalg.norm(
-            (R_target * R.from_matrix(achieved_mat).inv()).as_rotvec()
-        )
-    )
+    # Trace-based geodesic rotation error — avoids constructing scipy
+    # Rotation objects entirely.  trace(R_target @ R_achieved^T) equals
+    # the Frobenius inner product of the two matrices.
+    achieved_mat = data_native.site_xmat[site_id]  # flat (9,)
+    # Inline dot: trace = sum(target_mat_flat * achieved_mat_flat)
+    trace = float(np.dot(target_mat.ravel(), achieved_mat.ravel()))
+    # angle = arccos(clip((trace-1)/2, -1, 1))
+    cos_val = (trace - 1.0) * 0.5
+    if cos_val >= 1.0:
+        rot_err = 0.0
+    elif cos_val <= -1.0:
+        rot_err = np.pi
+    else:
+        rot_err = float(np.arccos(cos_val))
     return pos_err, rot_err
 
 
@@ -389,18 +396,22 @@ def _filter_and_rank_solutions(
     if not solutions:
         return []
 
-    # De-duplicate (vectorised: sort by first joint, compare neighbours)
+    # De-duplicate (fully vectorised: sort then compare neighbours)
     sol_arr = np.array(solutions)  # (N, 7)
     order = np.lexsort(sol_arr[:, ::-1].T)  # sort by joint 0, then 1, ...
     sorted_sols = sol_arr[order]
-    mask = np.ones(len(sorted_sols), dtype=bool)
-    for i in range(1, len(sorted_sols)):
-        if np.allclose(sorted_sols[i], sorted_sols[i - 1], atol=unique_atol, rtol=0.0):
-            mask[i] = False
-    unique: List[np.ndarray] = [sorted_sols[i] for i in range(len(sorted_sols)) if mask[i]]
+    if len(sorted_sols) > 1:
+        diffs = np.abs(sorted_sols[1:] - sorted_sols[:-1])  # (N-1, 7)
+        is_dup = np.all(diffs <= unique_atol, axis=1)  # (N-1,)
+        mask = np.empty(len(sorted_sols), dtype=bool)
+        mask[0] = True
+        mask[1:] = ~is_dup
+        unique: List[np.ndarray] = [sorted_sols[i] for i in np.flatnonzero(mask)]
+    else:
+        unique: List[np.ndarray] = [sorted_sols[0]]
 
-    # Precompute target rotation for FK error checks
-    R_target = R.from_quat(target_quat_world)
+    # Precompute target rotation matrix for FK error checks
+    target_mat = R.from_quat(target_quat_world).as_matrix()
 
     # Score by manipulability, with FK verification
     scored: List[Tuple[float, np.ndarray]] = []
@@ -414,7 +425,7 @@ def _filter_and_rank_solutions(
 
         # FK verification: reject solutions that don't reach the target
         pos_err, rot_err = _fk_error(
-            data_native, site_id, target_pos_world, R_target,
+            data_native, site_id, target_pos_world, target_mat,
         )
         if pos_err > fk_pos_tol or rot_err > fk_rot_tol:
             logger.debug(
