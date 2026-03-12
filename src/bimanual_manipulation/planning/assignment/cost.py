@@ -558,15 +558,16 @@ def compute_switching_cost(
     if segment_idx >= curr_traj.n_waypoints:
         return np.inf
 
-    # Compute grasp transforms: G = T_obj⁻¹ @ T_ee
+    # Compute grasp transforms: G = T_ee⁻¹ @ T_obj  (ee ← object)
     T_obj = obj_pose.to_matrix()
-    T_obj_inv = np.linalg.inv(T_obj)
+    T_ee_prev = _eef_matrix(prev_traj, segment_idx)
+    T_ee_curr = _eef_matrix(curr_traj, segment_idx)
 
     grasp_transfer = StampedPose.from_matrix(
-        T_obj_inv @ _eef_matrix(prev_traj, segment_idx), "object"
+        np.linalg.inv(T_ee_prev) @ T_obj, "ee"
     )
     grasp_receiver = StampedPose.from_matrix(
-        T_obj_inv @ _eef_matrix(curr_traj, segment_idx), "object"
+        np.linalg.inv(T_ee_curr) @ T_obj, "ee"
     )
 
     h_planner = DualArmHandoverPlanner(
