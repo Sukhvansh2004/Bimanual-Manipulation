@@ -189,6 +189,112 @@ def compute_cost_matrix(
 # Handover primitive cost
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Handover primitive helpers
+# ---------------------------------------------------------------------------
+
+def _solve_all_ik(
+    poses: List[StampedPose],
+    robot_id: int,
+    ik_solver_fn: Callable,
+    q_warm_start: Optional[np.ndarray] = None,
+) -> Tuple[List[List[np.ndarray]], int]:
+    """Solve IK for every pose, returning ALL candidate configs per pose.
+
+    Returns:
+        ``(all_candidates, n_failed)`` where ``all_candidates[i]`` is a
+        list of valid joint configs for pose *i* (empty on failure).
+    """
+    all_candidates: List[List[np.ndarray]] = []
+    q_prev = q_warm_start
+    n_failed = 0
+    for p in poses:
+        try:
+            result = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
+            if result is None:
+                n_failed += 1
+                all_candidates.append([])
+                return all_candidates, n_failed
+            candidates = result if isinstance(result, list) else [result]
+            if q_prev is not None and len(candidates) > 1:
+                candidates = sorted(
+                    candidates,
+                    key=lambda q: float(np.linalg.norm(q - q_prev)),
+                )
+            all_candidates.append(candidates)
+            q_prev = candidates[0]
+        except Exception:
+            n_failed += 1
+            all_candidates.append([])
+    return all_candidates, n_failed
+
+
+def _select_collision_free_configs(
+    candidates_list: List[List[np.ndarray]],
+    other_config: np.ndarray,
+    this_robot_id: int,
+    collision_check_fn: Callable[[np.ndarray, np.ndarray], bool],
+) -> Tuple[List[np.ndarray], int]:
+    """Pick one config per waypoint, preferring collision-free candidates.
+
+    Each waypoint's candidates are checked against a single fixed
+    *other_config* (the opposing arm's config during that phase).
+
+    Returns:
+        ``(selected_configs, n_collision_steps)``
+    """
+    selected: List[np.ndarray] = []
+    n_collision_steps = 0
+    for cands in candidates_list:
+        if not cands:
+            continue
+        found_free = False
+        for q_cand in cands:
+            q0, q1 = (q_cand, other_config) if this_robot_id == 0 else (other_config, q_cand)
+            if collision_check_fn(q0, q1):
+                selected.append(q_cand)
+                found_free = True
+                break
+        if not found_free:
+            selected.append(cands[0])
+            n_collision_steps += 1
+    return selected, n_collision_steps
+
+
+def _compute_smoothness(configs: List[np.ndarray]) -> float:
+    """Squared joint displacement along a config sequence."""
+    if len(configs) < 2:
+        return 0.0
+    arr = np.array(configs)
+    diffs = np.diff(arr, axis=0)
+    return float(np.sum(diffs * diffs))
+
+
+def _compute_manipulability_cost(
+    configs: List[np.ndarray],
+    robot_id: int,
+    epsilon: float,
+    jacobian_fns: Optional[Dict[int, Callable]],
+) -> float:
+    """Reciprocal manipulability cost for one arm's config sequence."""
+    if not configs:
+        return 0.0
+    arr = np.array(configs)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
+    manip_vals = compute_trajectory_manipulability(
+        arr,
+        use_jacobian=(jac_fn is not None),
+        jacobian_fn=jac_fn,
+    )
+    return float(np.sum(1.0 / (manip_vals + epsilon)))
+
+
+# ---------------------------------------------------------------------------
+# Handover primitive cost
+# ---------------------------------------------------------------------------
+
 def _compute_handover_primitive_cost(
     handover_trajectory: Dict[str, List[StampedPose]],
     alpha: float,
@@ -218,7 +324,6 @@ def _compute_handover_primitive_cost(
     """
     transfer_poses: List[StampedPose] = []
     receiver_poses: List[StampedPose] = []
-
     for key in ("transfer_hold", "transfer_retreat"):
         transfer_poses.extend(handover_trajectory.get(key, []))
     for key in ("receiver_pre", "receiver_approach"):
@@ -227,141 +332,101 @@ def _compute_handover_primitive_cost(
     if not transfer_poses and not receiver_poses:
         return np.inf, False
 
-    # Solve IK for each phase, chaining warm starts for consistency.
-    # Tolerate individual IK failures: skip unsolved poses and continue
-    # the chain so that partial successes can still produce a meaningful
-    # cost (with per-failure penalty weighted by how far off the IK was).
-    def _solve_all(poses: List[StampedPose], robot_id: int,
-                   q_warm_start: Optional[np.ndarray] = None):
-        configs = []
-        q_prev = q_warm_start
-        n_failed = 0
-        total_residual = 0.0
-        for p in poses:
-            try:
-                q, residual = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
-                if q is None:
-                    n_failed += 1
-                    # Accumulate how far off the best seed was so the DP
-                    # can differentiate near-misses from far misses.
-                    if np.isfinite(residual):
-                        total_residual += residual
-                    continue  # skip this pose but keep trying
-                configs.append(q)
-                q_prev = q
-            except Exception:
-                n_failed += 1
-                continue
-        return configs, n_failed, total_residual
-
-    # Early-out: solve the transfer arm first (fewer poses — typically
-    # just hold + retreat) so we can fail fast before spending time on
-    # the receiver arm's longer approach trajectory.
-    if transfer_poses:
-        transfer_configs, n_fail_transfer, res_transfer = _solve_all(
-            transfer_poses, transfer_robot_id,
-            q_warm_start=q_warm_start_transfer,
-        )
-    else:
-        transfer_configs, n_fail_transfer, res_transfer = [], 0, 0.0
-    if not transfer_configs and transfer_poses:
-        logger.debug("Handover IK failure: transfer arm (robot%d) — all poses failed", transfer_robot_id)
+    # --- IK (early-out on any failure) ---
+    transfer_candidates, n_fail_t = _solve_all_ik(
+        transfer_poses, transfer_robot_id, ik_solver_fn, q_warm_start_transfer,
+    ) if transfer_poses else ([], 0)
+    if n_fail_t > 0:
+        logger.debug("Handover infeasible: transfer arm (robot%d) — %d/%d IK failures",
+                      transfer_robot_id, n_fail_t, len(transfer_poses))
         return np.inf, False
 
-    if receiver_poses:
-        receiver_configs, n_fail_receiver, res_receiver = _solve_all(
-            receiver_poses, receiver_robot_id,
-            q_warm_start=q_warm_start_receiver,
-        )
-    else:
-        receiver_configs, n_fail_receiver, res_receiver = [], 0, 0.0
-    if not receiver_configs and receiver_poses:
-        logger.debug("Handover IK failure: receiver arm (robot%d) — all poses failed", receiver_robot_id)
+    receiver_candidates, n_fail_r = _solve_all_ik(
+        receiver_poses, receiver_robot_id, ik_solver_fn, q_warm_start_receiver,
+    ) if receiver_poses else ([], 0)
+    if n_fail_r > 0:
+        logger.debug("Handover infeasible: receiver arm (robot%d) — %d/%d IK failures",
+                      receiver_robot_id, n_fail_r, len(receiver_poses))
         return np.inf, False
 
-    n_total_failed = n_fail_transfer + n_fail_receiver
-    total_residual = res_transfer + res_receiver
+    # --- Collision-aware config selection ---
+    transfer_configs, receiver_configs, n_collision_steps = _select_handover_configs(
+        handover_trajectory, transfer_candidates, receiver_candidates,
+        transfer_robot_id, receiver_robot_id, collision_check_fn,
+    )
 
-    # --- Collision check along the full handover trajectory ---
-    # Phase 1: receiver approaches while transfer holds at hold pose.
-    # Phase 2: transfer retreats while receiver stays at final approach.
-    # Instead of rejecting the handover outright, accumulate a per-step
-    # penalty so the DP can still route through colliding handovers but
-    # prefers collision-free ones.
-    n_collision_steps = 0
-    if collision_check_fn is not None and transfer_configs and receiver_configs:
-        n_hold = len(handover_trajectory.get("transfer_hold", []))
-        q_transfer_hold = transfer_configs[0]      # transfer arm during hold
-        q_receiver_final = receiver_configs[-1]     # receiver at grasp approach
-
-        def _col_free(q_trans, q_recv):
-            if transfer_robot_id == 0:
-                return collision_check_fn(q_trans, q_recv)
-            return collision_check_fn(q_recv, q_trans)
-
-        # Phase 1: check each receiver config against transfer hold
-        for j, q_recv in enumerate(receiver_configs):
-            if not _col_free(q_transfer_hold, q_recv):
-                n_collision_steps += 1
-
-        # Phase 2: check each transfer retreat config against receiver final
-        for i, q_trans in enumerate(transfer_configs[n_hold:], start=n_hold):
-            if not _col_free(q_trans, q_receiver_final):
-                n_collision_steps += 1
-
-        if n_collision_steps > 0:
-            logger.debug(
-                "Handover has %d colliding steps "
-                "(transfer=robot%d, receiver=robot%d)",
-                n_collision_steps, transfer_robot_id, receiver_robot_id,
-            )
-
-    # Smoothness per arm — use squared diff directly (avoid sqrt)
-    smoothness = 0.0
-    for cfgs in (transfer_configs, receiver_configs):
-        if cfgs and len(cfgs) >= 2:
-            arr = np.array(cfgs)
-            for i in range(arr.shape[0] - 1):
-                diff = arr[i + 1] - arr[i]
-                smoothness += float(diff @ diff)
-
-    # Manipulability — compute per-arm with the correct Jacobian function
-    manip_cost = 0.0
-    for robot_id, cfgs in (
-        (transfer_robot_id, transfer_configs),
-        (receiver_robot_id, receiver_configs),
-    ):
-        if not cfgs:
-            continue
-        arr = np.array(cfgs)
-        if arr.ndim == 1:
-            arr = arr.reshape(1, -1)
-        jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
-        manip_vals = compute_trajectory_manipulability(
-            arr,
-            use_jacobian=(jac_fn is not None),
-            jacobian_fn=jac_fn,
-        )
-        manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
-
+    # --- Cost ---
+    smoothness = _compute_smoothness(transfer_configs) + _compute_smoothness(receiver_configs)
+    manip_cost = (
+        _compute_manipulability_cost(transfer_configs, transfer_robot_id, epsilon, jacobian_fns)
+        + _compute_manipulability_cost(receiver_configs, receiver_robot_id, epsilon, jacobian_fns)
+    )
     cost = alpha * smoothness + beta * manip_cost
-    # Add penalty for each intermediate IK failure, weighted by how far
-    # off the best seed was.  This lets the DP distinguish near-miss
-    # failures (1 cm off) from far misses (10 cm off).
-    if n_total_failed > 0:
-        cost += (constants.HANDOVER_IK_PARTIAL_PENALTY * n_total_failed
-                 + constants.HANDOVER_IK_RESIDUAL_WEIGHT * total_residual)
-    # Add penalty for each collision step.
     if n_collision_steps > 0:
         cost += constants.HANDOVER_COLLISION_STEP_PENALTY * n_collision_steps
+
     logger.debug(
         "Handover primitive cost: smoothness=%.4f, manip=%.4f, total=%.4f "
-        "(transfer=robot%d, receiver=robot%d, ik_failures=%d, "
-        "ik_residual=%.4f, collisions=%d)",
+        "(transfer=robot%d, receiver=robot%d, collisions=%d)",
         smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
-        n_total_failed, total_residual, n_collision_steps,
+        n_collision_steps,
     )
     return cost, True
+
+
+def _select_handover_configs(
+    handover_trajectory: Dict[str, List[StampedPose]],
+    transfer_candidates: List[List[np.ndarray]],
+    receiver_candidates: List[List[np.ndarray]],
+    transfer_robot_id: int,
+    receiver_robot_id: int,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]],
+) -> Tuple[List[np.ndarray], List[np.ndarray], int]:
+    """Select one config per waypoint for both arms, preferring collision-free.
+
+    Phase 1: receiver approaches while transfer holds at hold pose.
+    Phase 2: transfer retreats while receiver stays at final approach.
+
+    Returns:
+        ``(transfer_configs, receiver_configs, n_collision_steps)``
+    """
+    if collision_check_fn is None or not transfer_candidates or not receiver_candidates:
+        return (
+            [c[0] for c in transfer_candidates if c],
+            [c[0] for c in receiver_candidates if c],
+            0,
+        )
+
+    n_collision_steps = 0
+    n_hold = len(handover_trajectory.get("transfer_hold", []))
+    transfer_configs = [c[0] for c in transfer_candidates]
+
+    # Phase 1: receiver vs transfer hold
+    q_transfer_hold = transfer_configs[0]
+    receiver_configs, n_col_p1 = _select_collision_free_configs(
+        receiver_candidates, q_transfer_hold,
+        receiver_robot_id, collision_check_fn,
+    )
+    n_collision_steps += n_col_p1
+
+    # Phase 2: transfer retreat vs receiver final
+    if receiver_configs:
+        q_receiver_final = receiver_configs[-1]
+        retreat_candidates = transfer_candidates[n_hold:]
+        if retreat_candidates:
+            retreat_configs, n_col_p2 = _select_collision_free_configs(
+                retreat_candidates, q_receiver_final,
+                transfer_robot_id, collision_check_fn,
+            )
+            n_collision_steps += n_col_p2
+            transfer_configs = transfer_configs[:n_hold] + retreat_configs
+
+    if n_collision_steps > 0:
+        logger.debug(
+            "Handover has %d colliding steps (transfer=robot%d, receiver=robot%d)",
+            n_collision_steps, transfer_robot_id, receiver_robot_id,
+        )
+    return transfer_configs, receiver_configs, n_collision_steps
 
 
 # ---------------------------------------------------------------------------

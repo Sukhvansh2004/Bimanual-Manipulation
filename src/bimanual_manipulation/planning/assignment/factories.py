@@ -58,10 +58,13 @@ def make_ik_solver_fn(
         robot_id: int,
         q_warm_start: Optional[np.ndarray] = None,
     ) -> tuple:
-        """Return ``(solution_or_None, residual)``.
+        """Return ``(solutions_list, residual)``.
 
         Uses EAIK analytical IK for fast offline solving.
-        *residual* is 0.0 when a solution is found, ``inf`` otherwise.
+        Returns all valid solutions (ranked by proximity to
+        *q_warm_start* when given) so the caller can evaluate
+        multiple candidates.  *residual* is 0.0 when at least one
+        solution is found, ``inf`` otherwise.
         """
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
@@ -73,8 +76,8 @@ def make_ik_solver_fn(
             q_reference=q_warm_start,
         )
         if solutions:
-            return solutions[0], 0.0
-        return None, float("inf")
+            return solutions
+        return None
 
     return _ik_solver
 

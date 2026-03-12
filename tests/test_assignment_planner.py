@@ -422,10 +422,8 @@ class TestHandoverPrimitiveCost:
         assert np.isinf(cost)
         assert ok is False
 
-    def test_partial_ik_failure_returns_finite_with_penalty(self):
-        """When some IK calls fail but at least one succeeds, cost should be
-        finite and include a per-failure penalty."""
-        from bimanual_manipulation import constants as C
+    def test_partial_ik_failure_returns_inf(self):
+        """When any IK call fails, cost should be inf (hard failure)."""
 
         call_count = [0]
 
@@ -433,7 +431,7 @@ class TestHandoverPrimitiveCost:
             """Fail on even-numbered calls, succeed on odd."""
             call_count[0] += 1
             if call_count[0] % 2 == 0:
-                return None, 0.1  # near-miss residual
+                return None, float("inf")
             return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
 
         poses = [
@@ -447,55 +445,38 @@ class TestHandoverPrimitiveCost:
         cost, ok = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _partial_ik,
         )
-        assert ok is True, "Should succeed when some IK calls succeed"
-        assert np.isfinite(cost), "Cost should be finite"
-        # Cost should include penalty for partial failures
-        assert cost >= C.HANDOVER_IK_PARTIAL_PENALTY, (
-            f"Cost {cost} should include at least one partial penalty "
-            f"({C.HANDOVER_IK_PARTIAL_PENALTY})"
-        )
+        assert ok is False, "Should fail when any IK call fails"
+        assert cost == np.inf, "Cost should be inf on partial IK failure"
 
-    def test_residual_weighted_penalty_differentiates_near_and_far_misses(self):
-        """Near-miss IK failures (small residual) should produce lower cost
-        than far-miss failures (large residual) for the same number of failures."""
-        from bimanual_manipulation import constants as C
+    def test_collision_aware_config_selection(self):
+        """When the closest-to-warm-start config collides, an alternative
+        candidate should be selected instead."""
 
-        def _make_partial_ik(residual_on_fail: float):
-            call_count = [0]
-            def _ik(pose, robot_id, q_warm_start=None):
-                call_count[0] += 1
-                if call_count[0] % 2 == 0:
-                    return None, residual_on_fail  # fail with specified residual
-                return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
-            return _ik
+        def _multi_ik(pose, robot_id, q_warm_start=None):
+            """Return two candidates: the first one will collide, the second won't."""
+            q_colliding = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            q_free = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            return [q_colliding, q_free], 0.0
+
+        def _collision_check(q0, q1):
+            """Collide if robot0 config is all zeros."""
+            return not np.allclose(q0, 0.0)
 
         poses = [
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
-            for i in range(5)
+            for i in range(3)
         ]
         h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_approach": poses[2:],
+            "transfer_hold": poses[:1],
+            "receiver_approach": poses[1:],
         }
-
-        # Near-miss: residual = 0.02 (≈ 2 cm position error)
-        cost_near, ok_near = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.02),
+        cost, ok = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _multi_ik,
+            collision_check_fn=_collision_check,
+            transfer_robot_id=0, receiver_robot_id=1,
         )
-        # Far-miss: residual = 0.5 (≈ 50 cm position error)
-        cost_far, ok_far = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.5),
-        )
-
-        assert ok_near and ok_far, "Both should succeed with partial failures"
-        assert cost_near < cost_far, (
-            f"Near-miss cost ({cost_near:.2f}) should be lower than "
-            f"far-miss cost ({cost_far:.2f})"
-        )
-        # The difference should be driven by HANDOVER_IK_RESIDUAL_WEIGHT
-        assert cost_far - cost_near > C.HANDOVER_IK_RESIDUAL_WEIGHT * 0.1, (
-            "Residual weight should produce meaningful cost difference"
-        )
+        assert ok is True
+        assert np.isfinite(cost), "Should find collision-free alternative"
 
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""
@@ -915,7 +896,9 @@ class TestFactoryFunctions:
         result, residual = ik_fn(pose, robot_id=0)
 
         assert result is not None
-        assert result.shape == (7,)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].shape == (7,)
         assert residual == 0.0
         mock_correction.assert_called_once()
         mock_ik.assert_called_once()
