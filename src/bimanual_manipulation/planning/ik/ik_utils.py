@@ -156,6 +156,11 @@ def compute_arm_jacobian(
     )
 
 
+# Pre-built constant rotations (avoids R.from_euler on every call)
+_R_CORR_NEG90Z = R.from_euler('z', -90, degrees=True)
+_R_CORR_POS90Z = R.from_euler('z', 90, degrees=True)
+
+
 def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame.
 
@@ -163,9 +168,8 @@ def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     Used before IK solving.
     """
     corrected = pose.copy()
-    r_corr = R.from_euler('z', -90, degrees=True)
     r_pose = R.from_quat(corrected.quaternion)
-    corrected.quaternion = (r_pose * r_corr).as_quat()
+    corrected.quaternion = (r_pose * _R_CORR_NEG90Z).as_quat()
     return corrected
 
 
@@ -177,7 +181,6 @@ def reverse_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     for use with move_to_pose / follow_trajectory.
     """
     corrected = pose.copy()
-    r_corr = R.from_euler('z', 90, degrees=True)
     r_pose = R.from_quat(corrected.quaternion)
-    corrected.quaternion = (r_pose * r_corr).as_quat()
+    corrected.quaternion = (r_pose * _R_CORR_POS90Z).as_quat()
     return corrected

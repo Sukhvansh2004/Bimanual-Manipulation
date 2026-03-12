@@ -262,7 +262,7 @@ class TestPlanningModule:
                 mujoco_utils.set_qpos(data, joint_qpos_idx, q_sol)
                 mujoco.mj_fwdPosition(model_native, data_native)
                 pos_err, rot_err = _fk_error(
-                    data_native, site_id, target_pos, target_quat,
+                    data_native, site_id, target_pos, R.from_quat(target_quat),
                 )
                 assert pos_err <= constants.EAIK_FK_POS_TOLERANCE, (
                     f"FK pos error {pos_err:.6f} m > {constants.EAIK_FK_POS_TOLERANCE}"
@@ -336,7 +336,7 @@ class TestPlanningModule:
                 mujoco_utils.set_qpos(data, joint_qpos_idx, q_sol)
                 mujoco.mj_fwdPosition(model_native, data_native)
                 pos_err, rot_err = _fk_error(
-                    data_native, site_id, target_pos, target_quat,
+                    data_native, site_id, target_pos, R.from_quat(target_quat),
                 )
                 assert pos_err <= constants.EAIK_FK_POS_TOLERANCE, (
                     f"FK pos error {pos_err:.6f} m exceeds tolerance"
@@ -464,7 +464,7 @@ class TestPlanningModule:
                     mujoco_utils.set_qpos(data, joint_qpos_idx, q_sol)
                     mujoco.mj_fwdPosition(model_native, data_native)
                     pos_err, rot_err = _fk_error(
-                        data_native, site_id, target_pos, target_quat,
+                        data_native, site_id, target_pos, R.from_quat(target_quat),
                     )
                     assert pos_err <= constants.EAIK_FK_POS_TOLERANCE, (
                         f"robot{robot_id}: FK pos err {pos_err:.6f} m"
@@ -574,13 +574,14 @@ class TestPlanningModule:
             mat = np.array(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
             quat = R.from_matrix(mat).as_quat()
 
-            pos_err, rot_err = _fk_error(data_native, site_id, pos, quat)
+            R_target = R.from_quat(quat)
+            pos_err, rot_err = _fk_error(data_native, site_id, pos, R_target)
             assert pos_err < 1e-10, f"Expected ~0 pos error, got {pos_err}"
             assert rot_err < 1e-10, f"Expected ~0 rot error, got {rot_err}"
 
             # Perturbed target should produce non-zero error
             pos_err2, rot_err2 = _fk_error(
-                data_native, site_id, pos + [0.05, 0, 0], quat,
+                data_native, site_id, pos + [0.05, 0, 0], R_target,
             )
             assert pos_err2 > 0.04, f"Expected significant pos error, got {pos_err2}"
         finally:

@@ -13,11 +13,11 @@ continuity (warm-starting).
 """
 
 import logging
+from dataclasses import dataclass, field
 from functools import lru_cache
-from pathlib import Path
 import threading
 from contextlib import nullcontext
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import mujoco
 import numpy as np
@@ -33,6 +33,113 @@ from bimanual_manipulation.planning.utils import mujoco_utils
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Per-robot cached data (computed once, reused across all IK calls)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _RobotIKCache:
+    """Cached MuJoCo model data and EEF offset for a single robot."""
+    joint_qpos_idx: np.ndarray
+    joint_dof_idx: np.ndarray
+    joint_lo: np.ndarray
+    joint_hi: np.ndarray
+    site_id: int
+    site_name: str
+    model_native: mujoco.MjModel
+    base_body_name: str
+    T_eaik_to_site: np.ndarray  # Fixed offset from EAIK EEF to MuJoCo site
+    T_eaik_to_site_inv: np.ndarray  # Precomputed inverse
+
+
+_robot_cache: Dict[int, _RobotIKCache] = {}
+
+
+def _get_robot_cache(
+    env: DualArmEnvironment,
+    robot_id: int,
+    arm: str = "right",
+    site_name: Optional[str] = None,
+) -> _RobotIKCache:
+    """Get or build per-robot cached data.
+
+    Queries MuJoCo model once for joint indices, limits, site IDs,
+    and computes the fixed EAIK-to-MuJoCo EEF offset.
+    """
+    if robot_id in _robot_cache:
+        return _robot_cache[robot_id]
+
+    model = env.sim.model
+    data = env.sim.data
+
+    joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
+    if len(joint_ids) != constants.FRANKA_ARM_DOF:
+        raise RuntimeError(
+            f"Expected {constants.FRANKA_ARM_DOF} arm joints for "
+            f"robot{robot_id}, found {len(joint_ids)}."
+        )
+
+    joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
+    joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
+    joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
+
+    if site_name is None:
+        site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
+
+    model_native = mujoco_utils.get_native_mj_object(model)
+    data_native = mujoco_utils.get_native_mj_object(data)
+
+    s_id = mujoco.mj_name2id(model_native, mujoco.mjtObj.mjOBJ_SITE, site_name)
+    if s_id < 0:
+        raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
+
+    # Compute fixed EEF offset
+    robot = env.robots[robot_id]
+    base_body_name = robot.robot_model.root_body
+
+    q_current = np.array(data.qpos, dtype=float).ravel()[joint_qpos_idx]
+    bot_fk = _build_eaik_robot(0, round(float(q_current[0]), 6))
+    if bot_fk is None:
+        raise RuntimeError("Failed to build EAIK robot for FK offset")
+    T_eaik_current = np.array(bot_fk.fwdKin(list(q_current)))
+
+    base_pos_w = np.array(data.get_body_xpos(base_body_name), dtype=float)
+    base_rot_w = np.array(
+        data.get_body_xmat(base_body_name), dtype=float,
+    ).reshape(3, 3)
+    base_rot_inv = base_rot_w.T
+
+    site_pos_w = np.array(data_native.site_xpos[s_id], dtype=float)
+    site_mat_w = np.array(data_native.site_xmat[s_id], dtype=float).reshape(3, 3)
+
+    T_site_base = np.eye(4)
+    T_site_base[:3, :3] = base_rot_inv @ site_mat_w
+    T_site_base[:3, 3] = base_rot_inv @ (site_pos_w - base_pos_w)
+
+    T_eaik_to_site = np.linalg.inv(T_eaik_current) @ T_site_base
+    T_eaik_to_site_inv = np.linalg.inv(T_eaik_to_site)
+
+    cache = _RobotIKCache(
+        joint_qpos_idx=joint_qpos_idx,
+        joint_dof_idx=joint_dof_idx,
+        joint_lo=joint_lo,
+        joint_hi=joint_hi,
+        site_id=s_id,
+        site_name=site_name,
+        model_native=model_native,
+        base_body_name=base_body_name,
+        T_eaik_to_site=T_eaik_to_site,
+        T_eaik_to_site_inv=T_eaik_to_site_inv,
+    )
+    _robot_cache[robot_id] = cache
+    return cache
+
+
+def clear_robot_cache() -> None:
+    """Clear the per-robot IK cache (e.g. when the environment changes)."""
+    _robot_cache.clear()
 
 
 def _get_urdf_path() -> str:
@@ -211,20 +318,24 @@ def _fk_error(
     data_native: mujoco.MjData,
     site_id: int,
     target_pos_world: np.ndarray,
-    target_quat_world: np.ndarray,
+    R_target: R,
 ) -> Tuple[float, float]:
     """Compute position and orientation FK error after ``mj_fwdPosition``.
+
+    Args:
+        R_target: Pre-constructed ``scipy.spatial.transform.Rotation``
+            for the target orientation (avoids repeated ``R.from_quat``).
 
     Returns:
         ``(pos_err, rot_err)`` — Euclidean position error (m) and
         geodesic rotation error (rad).
     """
-    achieved_pos = np.asarray(data_native.site_xpos[site_id], dtype=float)
+    achieved_pos = data_native.site_xpos[site_id]
     achieved_mat = np.asarray(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
     pos_err = float(np.linalg.norm(achieved_pos - target_pos_world))
     rot_err = float(
         np.linalg.norm(
-            (R.from_quat(target_quat_world) * R.from_matrix(achieved_mat).inv()).as_rotvec()
+            (R_target * R.from_matrix(achieved_mat).inv()).as_rotvec()
         )
     )
     return pos_err, rot_err
@@ -278,11 +389,18 @@ def _filter_and_rank_solutions(
     if not solutions:
         return []
 
-    # De-duplicate
-    unique: List[np.ndarray] = []
-    for q in solutions:
-        if not any(np.allclose(q, u, atol=unique_atol, rtol=0.0) for u in unique):
-            unique.append(q)
+    # De-duplicate (vectorised: sort by first joint, compare neighbours)
+    sol_arr = np.array(solutions)  # (N, 7)
+    order = np.lexsort(sol_arr[:, ::-1].T)  # sort by joint 0, then 1, ...
+    sorted_sols = sol_arr[order]
+    mask = np.ones(len(sorted_sols), dtype=bool)
+    for i in range(1, len(sorted_sols)):
+        if np.allclose(sorted_sols[i], sorted_sols[i - 1], atol=unique_atol, rtol=0.0):
+            mask[i] = False
+    unique: List[np.ndarray] = [sorted_sols[i] for i in range(len(sorted_sols)) if mask[i]]
+
+    # Precompute target rotation for FK error checks
+    R_target = R.from_quat(target_quat_world)
 
     # Score by manipulability, with FK verification
     scored: List[Tuple[float, np.ndarray]] = []
@@ -296,7 +414,7 @@ def _filter_and_rank_solutions(
 
         # FK verification: reject solutions that don't reach the target
         pos_err, rot_err = _fk_error(
-            data_native, site_id, target_pos_world, target_quat_world,
+            data_native, site_id, target_pos_world, R_target,
         )
         if pos_err > fk_pos_tol or rot_err > fk_rot_tol:
             logger.debug(
@@ -372,30 +490,11 @@ def enumerate_ik_solutions_eaik(
 
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:
-        model = env.sim.model
         data = env.sim.data
 
-        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
-        if len(joint_ids) != constants.FRANKA_ARM_DOF:
-            raise RuntimeError(
-                f"Expected {constants.FRANKA_ARM_DOF} arm joints for "
-                f"robot{robot_id}, found {len(joint_ids)}."
-            )
-
-        joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
-        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
-        joint_lo, joint_hi = mujoco_utils.get_joint_limits(model, joint_ids)
-
-        if site_name is None:
-            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-
-        model_native = mujoco_utils.get_native_mj_object(model)
+        # Use per-robot cache for model queries and EEF offset
+        rc = _get_robot_cache(env, robot_id, arm=arm, site_name=site_name)
         data_native = mujoco_utils.get_native_mj_object(data)
-
-        # Get site ID for Jacobian computation and FK verification
-        site_id = mujoco.mj_name2id(model_native, mujoco.mjtObj.mjOBJ_SITE, site_name)
-        if site_id < 0:
-            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
 
         # --- World-frame target (for FK verification) ---
         pose_world = target_pose
@@ -405,7 +504,6 @@ def enumerate_ik_solutions_eaik(
         target_quat_world = np.asarray(pose_world.quaternion, dtype=float)
 
         # --- Base-frame target (for EAIK) ---
-        # EAIK solves IK in the URDF base frame (panda_link0 = robot_base).
         base_frame = f"robot{robot_id}_base"
         pose_base = target_pose
         if pose_base.frame_id != base_frame:
@@ -414,43 +512,12 @@ def enumerate_ik_solutions_eaik(
         target_pos = np.asarray(pose_base.position, dtype=float)
         target_quat = np.asarray(pose_base.quaternion, dtype=float)
 
-        # --- Pre-compensate for EAIK EEF ↔ MuJoCo site mismatch ---
-        # EAIK's kinematic chain ends at a different point/orientation
-        # than MuJoCo's grip_site (different frame conventions and the
-        # fixed joint8 / gripper offset).  Compute the transform from
-        # EAIK's EEF to MuJoCo's site using EAIK FK at the current
-        # joint config, so frame conventions are consistent.
-        q_current = np.array(data.qpos, dtype=float).ravel()[joint_qpos_idx]
-        bot_fk = _build_eaik_robot(0, round(float(q_current[0]), 6))
-        if bot_fk is None:
-            raise RuntimeError("Failed to build EAIK robot for FK offset")
-        T_eaik_current = np.array(bot_fk.fwdKin(list(q_current)))
-
-        # MuJoCo site pose in robot base frame
-        robot = env.robots[robot_id]
-        base_body_name = robot.robot_model.root_body
-        base_pos_w = np.array(data.get_body_xpos(base_body_name), dtype=float)
-        base_rot_w = np.array(
-            data.get_body_xmat(base_body_name), dtype=float,
-        ).reshape(3, 3)
-        base_rot_inv = base_rot_w.T
-
-        site_pos_w = np.array(data_native.site_xpos[site_id], dtype=float)
-        site_mat_w = np.array(data_native.site_xmat[site_id], dtype=float).reshape(3, 3)
-
-        T_site_base = np.eye(4)
-        T_site_base[:3, :3] = base_rot_inv @ site_mat_w
-        T_site_base[:3, 3] = base_rot_inv @ (site_pos_w - base_pos_w)
-
-        # Offset from EAIK EEF to MuJoCo site (in EAIK's frame)
-        T_eaik_to_site = np.linalg.inv(T_eaik_current) @ T_site_base
-
-        # EAIK target = desired_site_base @ inv(offset)
+        # --- Apply cached EEF offset ---
         T_site_desired = np.eye(4)
         T_site_desired[:3, :3] = R.from_quat(target_quat).as_matrix()
         T_site_desired[:3, 3] = target_pos
 
-        T_eaik_target = T_site_desired @ np.linalg.inv(T_eaik_to_site)
+        T_eaik_target = T_site_desired @ rc.T_eaik_to_site_inv
         target_pos = T_eaik_target[:3, 3]
         target_quat = R.from_matrix(T_eaik_target[:3, :3]).as_quat()
 
@@ -464,7 +531,7 @@ def enumerate_ik_solutions_eaik(
             # Get all analytical solutions via multi-joint sweep
             raw_solutions = solve_ik_eaik(
                 target_pos, target_quat,
-                joint_lo, joint_hi,
+                rc.joint_lo, rc.joint_hi,
                 num_sweep=num_sweep,
                 q_reference=q_reference,
             )
@@ -477,8 +544,8 @@ def enumerate_ik_solutions_eaik(
             # Filter, de-duplicate, FK-verify, and rank by manipulability
             solutions = _filter_and_rank_solutions(
                 raw_solutions,
-                model_native, data_native, site_id,
-                joint_dof_idx, joint_qpos_idx, full_qpos,
+                rc.model_native, data_native, rc.site_id,
+                rc.joint_dof_idx, rc.joint_qpos_idx, full_qpos,
                 target_pos_world=target_pos_world,
                 target_quat_world=target_quat_world,
                 unique_atol=unique_atol,
@@ -488,7 +555,7 @@ def enumerate_ik_solutions_eaik(
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
-            mujoco.mj_fwdPosition(model_native, data_native)
+            mujoco.mj_fwdPosition(rc.model_native, data_native)
 
         # Re-sort by proximity to reference config for trajectory continuity
         if q_reference is not None and len(solutions) > 1:
@@ -529,37 +596,19 @@ def compute_arm_jacobian(
 
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:
-        model = env.sim.model
         data = env.sim.data
 
-        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
-        if len(joint_ids) != constants.FRANKA_ARM_DOF:
-            raise RuntimeError(
-                f"Expected {constants.FRANKA_ARM_DOF} arm joints for "
-                f"robot{robot_id}, found {len(joint_ids)}."
-            )
-
-        joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
-        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
-
-        if site_name is None:
-            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-
-        model_native = mujoco_utils.get_native_mj_object(model)
+        rc = _get_robot_cache(env, robot_id, arm=arm, site_name=site_name)
         data_native = mujoco_utils.get_native_mj_object(data)
-
-        site_id = mujoco.mj_name2id(model_native, mujoco.mjtObj.mjOBJ_SITE, site_name)
-        if site_id < 0:
-            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
 
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
 
         if q_config is not None:
             q_arm = np.asarray(q_config, dtype=float)
         else:
-            q_arm = full_qpos[joint_qpos_idx]
+            q_arm = full_qpos[rc.joint_qpos_idx]
 
         return _compute_jacobian_mujoco(
-            model_native, data_native, site_id,
-            joint_dof_idx, joint_qpos_idx, q_arm, full_qpos,
+            rc.model_native, data_native, rc.site_id,
+            rc.joint_dof_idx, rc.joint_qpos_idx, q_arm, full_qpos,
         )
