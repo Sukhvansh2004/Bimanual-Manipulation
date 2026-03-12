@@ -449,20 +449,23 @@ class TestHandoverPrimitiveCost:
         assert result.feasible is False, "Should fail when any IK call fails"
         assert result.cost == np.inf, "Cost should be inf on partial IK failure"
 
-    @patch.object(constants, 'HANDOVER_EARLY_EXIT_ON_COLLISION', False)
     def test_collision_aware_config_selection(self):
         """When the closest-to-warm-start config collides, an alternative
-        candidate should be selected instead."""
+        candidate should be selected instead, yielding zero collision steps."""
+
+        q_colliding = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        q_free = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        q_hold = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
 
         def _multi_ik(pose, robot_id, q_warm_start=None):
-            """Return two candidates: the first one will collide, the second won't."""
-            q_colliding = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-            q_free = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+            """Transfer returns a safe hold config; receiver returns two candidates."""
+            if robot_id == 0:
+                return [q_hold], 0.0
             return [q_colliding, q_free], 0.0
 
         def _collision_check(q0, q1):
-            """Collide if robot0 config is all zeros."""
-            return not np.allclose(q0, 0.0)
+            """Collide only when receiver config (q1) is all zeros."""
+            return not np.allclose(q1, 0.0)
 
         poses = [
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
@@ -479,6 +482,7 @@ class TestHandoverPrimitiveCost:
         )
         assert result.feasible is True
         assert np.isfinite(result.cost), "Should find collision-free alternative"
+        assert result.n_collision_steps == 0, "All waypoints should use q_free"
 
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""

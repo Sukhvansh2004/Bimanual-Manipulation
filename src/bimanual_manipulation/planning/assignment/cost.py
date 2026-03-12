@@ -439,9 +439,13 @@ def _compute_handover_primitive_cost(
 
     # Early-exit on collision
     if n_collision_steps > 0:
+        n_hold = len(handover_trajectory.transfer_hold)
+        n_total_checkable = len(receiver_candidates) + max(0, len(transfer_candidates) - n_hold)
+        n_checked = len(r_col_mask) + max(0, len(t_col_mask) - n_hold)
         logger.debug(
-            "Handover infeasible: %d collision steps (transfer=robot%d, receiver=robot%d)",
-            n_collision_steps, transfer_robot_id, receiver_robot_id,
+            "Handover infeasible: %d collisions (%d/%d checked, transfer=robot%d, receiver=robot%d)",
+            n_collision_steps, n_checked, n_total_checkable,
+            transfer_robot_id, receiver_robot_id,
         )
         return HandoverResult(
             cost=np.inf, feasible=False,
@@ -452,7 +456,7 @@ def _compute_handover_primitive_cost(
             n_collision_steps=n_collision_steps,
             transfer_collision_mask=t_col_mask,
             receiver_collision_mask=r_col_mask,
-            rejection_reason=f"collision({n_collision_steps}_steps)",
+            rejection_reason=f"collision({n_collision_steps}_colliding@{n_checked}/{n_total_checkable}_checked)",
         )
 
     # --- Cost ---
@@ -516,6 +520,9 @@ def _select_handover_configs(
     )
     n_collision_steps += sum(receiver_mask)
 
+    if n_collision_steps > 0 and constants.HANDOVER_EARLY_EXIT_ON_COLLISION:
+        return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
+    
     # Phase 2: transfer retreat vs receiver final
     if receiver_configs:
         q_receiver_final = receiver_configs[-1]
@@ -529,6 +536,9 @@ def _select_handover_configs(
             transfer_configs = transfer_configs[:n_hold] + retreat_configs
             transfer_mask = transfer_mask[:n_hold] + retreat_mask
 
+    if n_collision_steps > 0 and constants.HANDOVER_EARLY_EXIT_ON_COLLISION:
+        return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
+    
     if n_collision_steps > 0:
         logger.debug(
             "Handover has %d colliding steps (transfer=robot%d, receiver=robot%d)",
