@@ -1,8 +1,10 @@
-"""Scipy L-BFGS-B IK solver.
+"""Mink QP-based iterative IK solver.
 
-Uses MuJoCo forward kinematics for the cost function and computes IK
-via ``scipy.optimize.minimize`` with the L-BFGS-B method.  Multiple
-random seeds are tried to explore the solution manifold.
+Uses ``mink.solve_ik`` with a ``FrameTask``, ``PostureTask``,
+``DampingTask``, ``DofFreezingTask``, and joint limits to converge on a
+target EEF pose via quadratic-programming differential IK steps.
+
+Multiple random seeds are tried to explore the solution manifold.
 """
 
 import logging
@@ -10,14 +12,14 @@ import threading
 from contextlib import nullcontext
 from typing import List, Optional
 
+import mink
 import mujoco
 import numpy as np
-from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.ik.manipulability import (
     compute_manipulability_from_jacobian,
 )
 from bimanual_manipulation.planning.utils import mujoco_utils
@@ -26,120 +28,119 @@ from bimanual_manipulation.transforms import StampedPose, TransformManager
 logger = logging.getLogger(__name__)
 
 
-def _fk_objective_and_grad(
-    q_arm: np.ndarray,
+def _build_target_se3(target_pos: np.ndarray, target_quat: np.ndarray):
+    """Convert position + quaternion (xyzw) into a ``mink.lie.SE3``."""
+    rot = R.from_quat(target_quat).as_matrix()
+    T = np.eye(4)
+    T[:3, :3] = rot
+    T[:3, 3] = target_pos
+    return mink.SE3.from_matrix(T)
+
+
+def solve_ik_mink(
     model_native: mujoco.MjModel,
-    data_native: mujoco.MjData,
-    site_id: int,
+    full_qpos: np.ndarray,
+    site_name: str,
     arm_qpos_idx: np.ndarray,
     arm_dof_idx: np.ndarray,
-    full_qpos: np.ndarray,
     target_pos: np.ndarray,
     target_quat: np.ndarray,
-) -> tuple:
-    """Return (cost, gradient) for the IK objective.
-
-    Cost is ``||pos_err||^2 + ||rot_err||^2``.  The analytical gradient
-    is ``-2 J^T e`` where *J* is the geometric Jacobian and
-    *e = [pos_err; rot_err]*.
-    """
-    q_full = full_qpos.copy()
-    q_full[arm_qpos_idx] = q_arm
-    data_native.qpos[:] = q_full
-    mujoco.mj_fwdPosition(model_native, data_native)
-
-    pos_err, rot_err = mujoco_utils.compute_site_error(
-        model_native, data_native, site_id, target_pos, target_quat,
-    )
-    err = np.concatenate([pos_err, rot_err])
-    cost = float(np.dot(err, err))
-
-    # Geometric Jacobian at the site
-    jacp = np.zeros((3, model_native.nv))
-    jacr = np.zeros((3, model_native.nv))
-    mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-    J = np.vstack([jacp[:, arm_dof_idx], jacr[:, arm_dof_idx]])
-
-    grad = -2.0 * J.T @ err
-    return cost, grad
-
-
-def solve_ik_scipy(
-    model_native: mujoco.MjModel,
-    data_native: mujoco.MjData,
-    site_id: int,
-    arm_qpos_idx: np.ndarray,
-    arm_dof_idx: np.ndarray,
-    full_qpos: np.ndarray,
-    target_pos: np.ndarray,
-    target_quat: np.ndarray,
-    joint_lo: np.ndarray,
-    joint_hi: np.ndarray,
+    q_init: np.ndarray,
     *,
-    q_seeds: List[np.ndarray],
-    pos_tol: float = constants.SCIPY_IK_POS_TOLERANCE,
-    rot_tol: float = constants.SCIPY_IK_ROT_TOLERANCE,
-    max_iter: int = constants.SCIPY_IK_MAX_ITERS,
-) -> List[np.ndarray]:
-    """Solve IK using L-BFGS-B from multiple seeds.
+    pos_tol: float = constants.MINK_IK_POS_TOLERANCE,
+    ori_tol: float = constants.MINK_IK_ROT_TOLERANCE,
+    max_iters: int = constants.MINK_IK_MAX_ITERS,
+    dt: float = constants.MINK_IK_DT,
+) -> Optional[np.ndarray]:
+    """Solve IK iteratively using mink QP differential IK.
 
     Args:
         model_native: Native MuJoCo model.
-        data_native: Native MuJoCo data (modified in-place, caller should backup).
-        site_id: MuJoCo site ID for the EEF.
-        arm_qpos_idx: qpos indices for arm joints.
-        arm_dof_idx: DOF indices for arm joints.
-        full_qpos: Full model qpos vector.
-        target_pos: Desired position in world frame ``(3,)``.
-        target_quat: Desired quaternion ``(x,y,z,w)`` in world frame.
-        joint_lo: Lower joint limits ``(7,)``.
-        joint_hi: Upper joint limits ``(7,)``.
-        q_seeds: Initial guesses for the optimiser.
-        pos_tol: Max position error to accept a solution.
-        rot_tol: Max orientation error to accept a solution.
-        max_iter: Maximum L-BFGS-B iterations per seed.
+        full_qpos: Full simulation qpos vector.
+        site_name: EEF site name in the model.
+        arm_qpos_idx: qpos indices for the arm joints.
+        arm_dof_idx: DOF indices for the arm joints.
+        target_pos: Desired EEF position in world frame ``(3,)``.
+        target_quat: Desired EEF quaternion ``(x,y,z,w)`` in world frame.
+        q_init: Initial joint configuration ``(7,)``.
+        pos_tol: Position convergence tolerance (m).
+        ori_tol: Orientation convergence tolerance (rad).
+        max_iters: Maximum QP iterations.
+        dt: Integration timestep per iteration.
 
     Returns:
-        List of converged joint configurations.
+        Converged joint configuration ``(7,)`` or ``None``.
     """
-    bounds = list(zip(joint_lo.tolist(), joint_hi.tolist()))
-    solutions: List[np.ndarray] = []
+    q_full = full_qpos.copy()
+    q_full[arm_qpos_idx] = q_init
 
-    for q0 in q_seeds:
-        result = minimize(
-            _fk_objective_and_grad,
-            q0,
-            args=(
-                model_native, data_native, site_id,
-                arm_qpos_idx, arm_dof_idx, full_qpos,
-                target_pos, target_quat,
-            ),
-            method="L-BFGS-B",
-            jac=True,
-            bounds=bounds,
-            options={"maxiter": max_iter, "ftol": 1e-12, "gtol": 1e-8},
+    config = mink.Configuration(model_native, q=q_full)
+
+    # Build the EEF tracking task
+    eef_task = mink.FrameTask(
+        frame_name=site_name,
+        frame_type="site",
+        position_cost=constants.MINK_POSITION_COST,
+        orientation_cost=constants.MINK_ORIENTATION_COST,
+        gain=constants.MINK_FRAME_GAIN,
+        lm_damping=constants.MINK_LM_DAMPING,
+    )
+    target_se3 = _build_target_se3(target_pos, target_quat)
+    eef_task.set_target(target_se3)
+
+    posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
+    damping_task = mink.DampingTask(model=model_native, cost=constants.MINK_DAMPING_COST)
+
+    # Freeze all DOFs except the arm
+    frozen_dofs = mujoco_utils.get_frozen_dof_indices(model_native, arm_dof_idx)
+    freeze_task = None
+    if frozen_dofs:
+        freeze_task = mink.DofFreezingTask(model=model_native, dof_indices=frozen_dofs)
+
+    tasks = [eef_task, posture_task, damping_task]
+    if freeze_task is not None:
+        tasks.append(freeze_task)
+
+    limits = [
+        mink.ConfigurationLimit(model_native),
+    ]
+
+    stall_window = constants.MINK_IK_STALL_WINDOW
+    best_err = float("inf")
+    stall_count = 0
+
+    for _ in range(max_iters):
+        vel = mink.solve_ik(
+            config, tasks, dt,
+            solver=constants.MINK_QP_SOLVER,
+            limits=limits,
         )
-        q_sol = np.clip(result.x, joint_lo, joint_hi)
+        config.integrate_inplace(vel, dt)
 
-        # Verify FK accuracy
-        data_native.qpos[:] = full_qpos.copy()
-        data_native.qpos[arm_qpos_idx] = q_sol
-        mujoco.mj_fwdPosition(model_native, data_native)
-        pos_err, rot_err = mujoco_utils.compute_site_error(
-            model_native, data_native, site_id, target_pos, target_quat,
-        )
-        p_err = float(np.linalg.norm(pos_err))
-        r_err = float(np.linalg.norm(rot_err))
+        # Check convergence
+        T_current = config.get_transform_frame_to_world(site_name, "site")
+        achieved_pos = T_current.translation()
+        achieved_rot = T_current.rotation()
+        pos_err = float(np.linalg.norm(achieved_pos - target_pos))
+        rot_err = float(np.linalg.norm(
+            (R.from_quat(target_quat) * R.from_matrix(achieved_rot.as_matrix()).inv()).as_rotvec()
+        ))
 
-        if p_err <= pos_tol and r_err <= rot_tol:
-            solutions.append(q_sol)
+        if pos_err <= pos_tol and rot_err <= ori_tol:
+            return config.q[arm_qpos_idx].copy()
+
+        total_err = pos_err + rot_err
+        if total_err < best_err - constants.MINK_IK_STALL_TOL:
+            best_err = total_err
+            stall_count = 0
         else:
-            logger.debug(
-                "Scipy IK seed rejected: pos_err=%.4f m, rot_err=%.4f rad",
-                p_err, r_err,
-            )
+            stall_count += 1
+            if stall_count >= stall_window:
+                logger.debug("Mink IK stalled at pos_err=%.4f, rot_err=%.4f", pos_err, rot_err)
+                return None
 
-    return solutions
+    logger.debug("Mink IK did not converge in %d iters", max_iters)
+    return None
 
 
 def _generate_seeds(
@@ -148,11 +149,7 @@ def _generate_seeds(
     joint_hi: np.ndarray,
     n_seeds: int,
 ) -> List[np.ndarray]:
-    """Generate IK seed configurations.
-
-    If *q_reference* is given it is always the first seed, followed by
-    perturbations around it.  Otherwise uniform random seeds are used.
-    """
+    """Generate IK seed configurations."""
     rng = np.random.default_rng()
     seeds: List[np.ndarray] = []
     if q_reference is not None:
@@ -166,7 +163,7 @@ def _generate_seeds(
     return seeds
 
 
-def enumerate_ik_solutions_scipy(
+def enumerate_ik_solutions_mink(
     env: DualArmEnvironment,
     *,
     robot_id: int,
@@ -179,7 +176,7 @@ def enumerate_ik_solutions_scipy(
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
     q_reference: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
-    """Enumerate IK solutions using Scipy L-BFGS-B optimiser.
+    """Enumerate IK solutions using mink QP-based iterative IK.
 
     Same interface as ``enumerate_ik_solutions_eaik``.
     """
@@ -227,19 +224,21 @@ def enumerate_ik_solutions_scipy(
         try:
             seeds = _generate_seeds(
                 q_reference, joint_lo, joint_hi,
-                constants.SCIPY_IK_NUM_SEEDS,
+                constants.MINK_IK_NUM_SEEDS,
             )
 
-            raw_solutions = solve_ik_scipy(
-                model_native, data_native, site_id,
-                joint_qpos_idx, joint_dof_idx, full_qpos,
-                target_pos, target_quat,
-                joint_lo, joint_hi,
-                q_seeds=seeds,
-            )
+            raw_solutions: List[np.ndarray] = []
+            for seed in seeds:
+                result = solve_ik_mink(
+                    model_native, full_qpos, site_name,
+                    joint_qpos_idx, joint_dof_idx,
+                    target_pos, target_quat, seed,
+                )
+                if result is not None:
+                    raw_solutions.append(result)
 
             logger.debug(
-                "Scipy IK: %d raw solutions for robot%d", len(raw_solutions), robot_id,
+                "Mink IK: %d raw solutions for robot%d", len(raw_solutions), robot_id,
             )
 
             # De-duplicate

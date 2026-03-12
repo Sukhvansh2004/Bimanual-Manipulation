@@ -71,7 +71,7 @@ from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
     normalise_trajectory,
     eef_to_joint_trajectory,
 )
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )

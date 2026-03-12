@@ -2,13 +2,15 @@
 
 Subpackages
 -----------
+ik
+    IK solvers (EAIK, Scipy, Mink), manipulability, and IK utilities.
 rrt
     RRT-Connect planners (generic core, SE(3), joint-space), path
     smoothing, and Meshcat visualization.
 visualization
     Robot/object mesh visualization and trajectory plotting.
 utils
-    Low-level shared utilities (IK, collision, MuJoCo helpers, etc.).
+    Low-level shared utilities (collision, MuJoCo helpers, etc.).
 """
 
 from bimanual_manipulation.planning.grasp_generator import GraspGenerator

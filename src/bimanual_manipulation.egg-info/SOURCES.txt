@@ -39,6 +39,12 @@ src/bimanual_manipulation/planning/dual_arm/mink_setup.py
 src/bimanual_manipulation/planning/dual_arm/planner.py
 src/bimanual_manipulation/planning/dual_arm/result.py
 src/bimanual_manipulation/planning/dual_arm/trajectory_helpers.py
+src/bimanual_manipulation/planning/ik/__init__.py
+src/bimanual_manipulation/planning/ik/eaik_solver.py
+src/bimanual_manipulation/planning/ik/ik_utils.py
+src/bimanual_manipulation/planning/ik/manipulability.py
+src/bimanual_manipulation/planning/ik/mink_solver.py
+src/bimanual_manipulation/planning/ik/scipy_solver.py
 src/bimanual_manipulation/planning/rrt/__init__.py
 src/bimanual_manipulation/planning/rrt/core.py
 src/bimanual_manipulation/planning/rrt/path_smoothing.py
@@ -59,9 +65,6 @@ src/bimanual_manipulation/planning/trajectory/generator.py
 src/bimanual_manipulation/planning/trajectory/object_planner.py
 src/bimanual_manipulation/planning/utils/__init__.py
 src/bimanual_manipulation/planning/utils/collision_utils.py
-src/bimanual_manipulation/planning/utils/eaik_solver.py
-src/bimanual_manipulation/planning/utils/ik_utils.py
-src/bimanual_manipulation/planning/utils/manipulability.py
 src/bimanual_manipulation/planning/utils/mujoco_utils.py
 src/bimanual_manipulation/planning/utils/trajectory_utils.py
 src/bimanual_manipulation/planning/visualization/__init__.py

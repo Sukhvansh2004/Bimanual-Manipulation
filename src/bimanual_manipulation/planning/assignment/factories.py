@@ -19,10 +19,10 @@ from bimanual_manipulation.planning.utils.collision_utils import (
     check_inter_arm_collision,
     in_collision,
 )
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     apply_ik_orientation_correction,
 )
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
 )
 from bimanual_manipulation.planning.utils.mujoco_utils import (

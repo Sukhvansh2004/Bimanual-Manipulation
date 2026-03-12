@@ -29,7 +29,7 @@ from bimanual_manipulation.controllers.trajectory_planner import (
     smoothen_trajectory,
 )
 from bimanual_manipulation.controllers.visualization import TrajectoryVisualizer
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )

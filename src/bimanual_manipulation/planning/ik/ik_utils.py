@@ -32,17 +32,17 @@ def _get_enumerate_fn() -> Callable:
     """Return the enumerate function for the configured IK backend."""
     backend = constants.IK_SOLVER_BACKEND
     if backend == "eaik":
-        from bimanual_manipulation.planning.utils.eaik_solver import (
+        from bimanual_manipulation.planning.ik.eaik_solver import (
             enumerate_ik_solutions_eaik,
         )
         return enumerate_ik_solutions_eaik
     elif backend == "scipy":
-        from bimanual_manipulation.planning.utils.scipy_solver import (
+        from bimanual_manipulation.planning.ik.scipy_solver import (
             enumerate_ik_solutions_scipy,
         )
         return enumerate_ik_solutions_scipy
     elif backend == "mink":
-        from bimanual_manipulation.planning.utils.mink_solver import (
+        from bimanual_manipulation.planning.ik.mink_solver import (
             enumerate_ik_solutions_mink,
         )
         return enumerate_ik_solutions_mink
@@ -107,17 +107,17 @@ def _get_jacobian_fn() -> Callable:
     """Return the Jacobian function for the configured IK backend."""
     backend = constants.IK_SOLVER_BACKEND
     if backend == "eaik":
-        from bimanual_manipulation.planning.utils.eaik_solver import (
+        from bimanual_manipulation.planning.ik.eaik_solver import (
             compute_arm_jacobian as _jac,
         )
         return _jac
     elif backend == "scipy":
-        from bimanual_manipulation.planning.utils.scipy_solver import (
+        from bimanual_manipulation.planning.ik.scipy_solver import (
             compute_arm_jacobian as _jac,
         )
         return _jac
     elif backend == "mink":
-        from bimanual_manipulation.planning.utils.mink_solver import (
+        from bimanual_manipulation.planning.ik.mink_solver import (
             compute_arm_jacobian as _jac,
         )
         return _jac

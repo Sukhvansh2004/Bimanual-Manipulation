@@ -11,7 +11,7 @@ import mujoco
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )

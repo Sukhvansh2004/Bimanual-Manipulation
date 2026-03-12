@@ -410,7 +410,7 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
     The dict is JSON-serialisable and designed to be read back by
     ``scripts.evaluation.metrics.PlanningMetrics(**d)``.
     """
-    from bimanual_manipulation.planning.utils.manipulability import (
+    from bimanual_manipulation.planning.ik.manipulability import (
         compute_trajectory_manipulability,
     )
     from pathlib import Path

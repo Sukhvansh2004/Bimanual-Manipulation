@@ -61,13 +61,13 @@ from bimanual_manipulation.planning.assignment import (
     load_assignment_result,
     AssignmentResult,
 )
-from bimanual_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.ik.manipulability import (
     compute_trajectory_manipulability,
     compute_manipulability_from_jacobian,
 )
 from scipy.spatial.transform import Rotation as R
 from bimanual_manipulation.planning.assignment.factories import make_jacobian_fns
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )

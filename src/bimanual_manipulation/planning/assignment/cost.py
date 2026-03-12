@@ -32,7 +32,7 @@ from bimanual_manipulation.planning.assignment.models import (
     RobotTrajectory,
     TrajectoryBundle,
 )
-from bimanual_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.ik.manipulability import (
     compute_trajectory_manipulability,
 )
 from bimanual_manipulation.transforms import StampedPose

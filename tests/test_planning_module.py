@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, patch
 from scipy.spatial.transform import Rotation as R
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.planning.utils import ik_utils, mujoco_utils
-from bimanual_manipulation.planning.utils.eaik_solver import (
+from bimanual_manipulation.planning.ik import ik_utils
+from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.planning.ik.eaik_solver import (
     compute_arm_jacobian,
     _fk_error,
     _sweep_values_for_joint,

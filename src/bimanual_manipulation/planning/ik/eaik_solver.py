@@ -26,7 +26,7 @@ from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.ik.manipulability import (
     compute_manipulability_from_jacobian,
 )
 from bimanual_manipulation.planning.utils import mujoco_utils
