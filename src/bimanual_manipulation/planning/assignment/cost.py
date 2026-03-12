@@ -536,14 +536,6 @@ def _select_handover_configs(
             transfer_configs = transfer_configs[:n_hold] + retreat_configs
             transfer_mask = transfer_mask[:n_hold] + retreat_mask
 
-    if n_collision_steps > 0 and constants.HANDOVER_EARLY_EXIT_ON_COLLISION:
-        return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
-    
-    if n_collision_steps > 0:
-        logger.debug(
-            "Handover has %d colliding steps (transfer=robot%d, receiver=robot%d)",
-            n_collision_steps, transfer_robot_id, receiver_robot_id,
-        )
     return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
 
 
