@@ -323,8 +323,8 @@ def main() -> None:
             tf_stream_thread.start()
             logger.info("TF stream thread started.")
 
-            vis = meshcat.Visualizer()
-            logger.info("Meshcat URL: %s", vis.url())
+            vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+            logger.info("Handover visualizer connected to %s", constants.MESHCAT_ZMQ_URL)
             hv = HandoverVisualizer(
                 vis, tf_manager,
                 object_name=exp_cfg.task.manipulated_object,
