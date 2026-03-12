@@ -173,13 +173,12 @@ def _best_cross_robot_transition(
                 i, pr, cr, pt_prev, ct_curr,
             )
             continue
-        else:
-            logger.debug(
-                "Seg %d: handover robot%d→robot%d traj(%d→%d) sw=%.2f",
-                i, pr, cr, pt_prev, ct_curr, sw,
-            )
 
         total = acc_cost + sw
+        logger.debug(
+            "Seg %d: handover robot%d→robot%d traj(%d→%d) total_cost=%.4f (handover cost=%.4f, acc_cost=%.4f)",
+            i, pr, cr, pt_prev, ct_curr, total, sw, acc_cost,
+        )
         if total < best_cost:
             best_cost = total
             best_prev = ps
@@ -258,6 +257,10 @@ def _forward_pass(
                 seg_ik += n_ik
                 seg_pruned += n_pr
                 if xr_cost < best_cost:
+                    logger.debug(
+                        "Seg %d: cross-robot transition to state %d (robot%d traj%d) is better: %.4f < %.4f",
+                        i, cs, cr, ct, xr_cost, best_cost,
+                    )
                     best_cost = xr_cost
                     best_prev = xr_prev
                     best_sw = xr_sw

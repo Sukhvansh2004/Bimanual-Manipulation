@@ -639,16 +639,25 @@ def compute_switching_cost(
     )
     h_traj = h_planner.generate_trajectory()
 
+    # Abort if either arm's trajectory is infeasible at the handover segment
+    # — the arm can't physically reach that pose, so the handover is moot.
+    if not prev_traj.is_feasible[segment_idx]:
+        logger.debug(
+            "Handover blocked at seg %d: transfer traj (robot%d, traj%d) infeasible",
+            segment_idx, prev_robot_id, prev_traj_idx,
+        )
+        return np.inf
+    if not curr_traj.is_feasible[segment_idx]:
+        logger.debug(
+            "Handover blocked at seg %d: receiver traj (robot%d, traj%d) infeasible",
+            segment_idx, curr_robot_id, curr_traj_idx,
+        )
+        return np.inf
+
     # Extract warm-start joint configs from the trajectories at the
     # handover segment so IK solutions stay close to the planned path.
-    q_ws_transfer = None
-    q_ws_receiver = None
-    if (segment_idx < prev_traj.n_waypoints
-            and prev_traj.is_feasible[segment_idx]):
-        q_ws_transfer = prev_traj.joint_configs[segment_idx]
-    if (segment_idx < curr_traj.n_waypoints
-            and curr_traj.is_feasible[segment_idx]):
-        q_ws_receiver = curr_traj.joint_configs[segment_idx]
+    q_ws_transfer = prev_traj.joint_configs[segment_idx]
+    q_ws_receiver = curr_traj.joint_configs[segment_idx]
 
     result = _compute_handover_primitive_cost(
         h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
