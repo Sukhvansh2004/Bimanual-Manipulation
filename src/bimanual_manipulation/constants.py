@@ -149,6 +149,10 @@ DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 # full redundancy manifold instead of relying on a single wrist joint.
 EAIK_NUM_SWEEP_VALUES = 8        # Sweep values *per joint* (7 joints × 8 = 56 total)
 EAIK_WARM_START_WINDOW = 0.5     # Half-width (rad, ~28.6°) for q_reference-biased sweep
+EAIK_GRID_STEP = 0.05            # Quantisation step (rad) for locked-joint values;
+                                 # snaps sweep values to a fixed grid so UrdfRobot
+                                 # objects are reused across warm-start configs.
+                                 # 0.05 → ≤120 grid pts/joint → ≤840 robots total.
 EAIK_FK_POS_TOLERANCE = 1e-3     # Max FK position error (m) to accept a solution
 EAIK_FK_ROT_TOLERANCE = 5e-3     # Max FK orientation error (rad, ~2.9°) to accept a solution
 

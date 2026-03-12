@@ -46,7 +46,7 @@ def _get_urdf_path() -> str:
     return str(urdf)
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=1024)
 def _build_eaik_robot(locked_joint: int, locked_value: float) -> Optional[UrdfRobot]:
     """Build an EAIK robot with a specific joint locked at a given value.
 
@@ -118,9 +118,14 @@ def _sweep_values_for_joint(
         # Ensure the reference value itself is included
         if not np.any(np.isclose(vals, centre, atol=1e-8)):
             vals = np.sort(np.append(vals, centre))
-        return vals
+    else:
+        vals = np.linspace(lo, hi, num_sweep)
 
-    return np.linspace(lo, hi, num_sweep)
+    # Snap to a fixed grid so UrdfRobot objects are reused across
+    # different q_reference values (avoids expensive URDF re-parsing).
+    step = constants.EAIK_GRID_STEP
+    vals = np.unique(np.clip(np.round(vals / step) * step, lo, hi))
+    return vals
 
 
 def solve_ik_eaik(
