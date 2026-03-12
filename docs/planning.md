@@ -128,19 +128,28 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 
 - **`generate_grasps(object_name, gripper_types, ...)`**: Interacts with the `GraspService` to retrieve 6-DOF grasp candidates for specified grippers (finger and/or suction).
 
-### 5. Planning Utilities (`planning/utils/`)
+### 5. Inverse Kinematics (`planning/ik/`)
 
 | Module | Purpose |
-|--------|---------|
+|--------|--------|
+| `ik_utils.py` | Backend-agnostic IK dispatch (enumerates solutions & Jacobians via `IK_SOLVER_BACKEND`) |
+| `eaik_solver.py` | Analytical closed-form IK via EAIK (fastest, default) |
+| `scipy_solver.py` | Numerical IK via L-BFGS-B with analytical Jacobian |
+| `mink_solver.py` | QP-based iterative differential IK via mink |
+| `manipulability.py` | Yoshikawa manipulability measure and trajectory-level wrappers |
+
+### 6. Planning Utilities (`planning/utils/`)
+
+| Module | Purpose |
+|--------|--------|
 | `collision_utils.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
-| `ik_utils.py` | EAIK analytical IK with multi-solution enumeration |
 | `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
 | `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
 | `visualization_utils.py` | General Meshcat visualization helpers |
 | `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
 | `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
 
-### 6. Dual-Arm Parallel Planner (`dual_arm/`)
+### 7. Dual-Arm Parallel Planner (`dual_arm/`)
 
 Enables **simultaneous** execution of two arm motions with **reactive, online collision avoidance** powered by mink's QP-based differential IK. This replaces the earlier "plan-then-stagger" approach where arms moved sequentially to avoid collisions.
 
@@ -357,7 +366,7 @@ The collision checker (`check_arm_config_collision`) is designed for speed insid
 
 The RRT checks collisions against Arm A at `traj_a[-1]` — the pose Arm A will occupy when both arms are at the handover point.  This is the most restrictive configuration (arms are closest together) and the most relevant for ensuring Arm B can safely arrive at its target without colliding with Arm A.  Transient collisions during the motion are still handled by the reactive mink QP at execution time.
 
-### 7. Segment Assignment Planner (`assignment/`)
+### 8. Segment Assignment Planner (`assignment/`)
 
 Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
 
