@@ -151,17 +151,32 @@ def _generate_seeds(
     joint_lo: np.ndarray,
     joint_hi: np.ndarray,
     n_seeds: int,
+    q_current: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
-    """Generate IK seed configurations."""
+    """Generate IK seed configurations.
+
+    If *q_reference* is given it is always the first seed, followed by
+    perturbations around it.  The current arm configuration *q_current*
+    is always included when provided.  Remaining slots use uniform
+    random seeds for coverage.
+    """
     rng = np.random.default_rng()
     seeds: List[np.ndarray] = []
     if q_reference is not None:
         seeds.append(np.asarray(q_reference, dtype=float).copy())
-        for _ in range(n_seeds - 1):
+        if q_current is not None and not np.allclose(q_reference, q_current, atol=1e-6):
+            seeds.append(np.asarray(q_current, dtype=float).copy())
+        for _ in range(n_seeds - len(seeds)):
             perturbed = q_reference + rng.normal(scale=0.25, size=len(joint_lo))
             seeds.append(np.clip(perturbed, joint_lo, joint_hi))
     else:
-        for _ in range(n_seeds):
+        if q_current is not None:
+            seeds.append(np.asarray(q_current, dtype=float).copy())
+            # Add perturbations around current config
+            for _ in range(min(n_seeds // 3, n_seeds - len(seeds))):
+                perturbed = q_current + rng.normal(scale=0.3, size=len(joint_lo))
+                seeds.append(np.clip(perturbed, joint_lo, joint_hi))
+        for _ in range(n_seeds - len(seeds)):
             seeds.append(rng.uniform(joint_lo, joint_hi))
     return seeds
 
@@ -219,6 +234,7 @@ def enumerate_ik_solutions_mink(
         target_quat = np.asarray(pose_world.quaternion, dtype=float)
 
         full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
+        q_current_arm = full_qpos[joint_qpos_idx].copy()
 
         # Save and restore simulation state
         qpos_backup = np.array(data.qpos, copy=True)
@@ -228,6 +244,7 @@ def enumerate_ik_solutions_mink(
             seeds = _generate_seeds(
                 q_reference, joint_lo, joint_hi,
                 constants.MINK_IK_NUM_SEEDS,
+                q_current=q_current_arm,
             )
 
             raw_solutions: List[np.ndarray] = []
@@ -241,7 +258,9 @@ def enumerate_ik_solutions_mink(
                     raw_solutions.append(result)
 
             logger.debug(
-                "Mink IK: %d raw solutions for robot%d", len(raw_solutions), robot_id,
+                "Mink IK: %d/%d seeds converged for robot%d at pos %s",
+                len(raw_solutions), len(seeds), robot_id,
+                np.array2string(target_pos, precision=3),
             )
 
             # De-duplicate (vectorised: sort then compare neighbours)
