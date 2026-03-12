@@ -183,7 +183,7 @@ MINK_IK_STALL_WINDOW = 10       # Iterations without improvement before bail-out
 MINK_IK_STALL_TOL = 1e-7        # Minimum improvement to reset stall counter
 
 # QP solver backend
-MINK_QP_SOLVER = "daqp"
+MINK_QP_SOLVER = "proxqp"
 
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight

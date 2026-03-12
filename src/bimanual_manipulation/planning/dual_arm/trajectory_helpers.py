@@ -39,7 +39,7 @@ def plan_pose_to_joint_trajectory(
     if target_pose.frame_id != arm.base_frame:
         target_pose = arm.tf_manager.transform_pose(target_pose, arm.base_frame)
 
-    target_joints = arm._solve_ik_for_pose(
+    target_joints = arm.solve_ik_for_pose(
         np.asarray(target_pose.position),
         np.asarray(target_pose.quaternion),
         q_warm_start=q_warm_start,
@@ -90,7 +90,7 @@ def eef_to_joint_trajectory(
                 pose, arm.base_frame,
             )
 
-        q = arm._solve_ik_for_pose(
+        q = arm.solve_ik_for_pose(
             np.asarray(pose.position),
             np.asarray(pose.quaternion),
             q_warm_start=q_ws,

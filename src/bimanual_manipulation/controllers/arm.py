@@ -193,16 +193,18 @@ class RobosuiteArmController:
     # IK
     # ------------------------------------------------------------------
 
-    def _solve_ik_for_pose(
+    def solve_ik_for_pose(
         self,
         target_pos: np.ndarray,
         target_quat: np.ndarray,
+        q_warm_start: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
         """Solve IK for a target EEF pose using EAIK analytical solver.
 
         Args:
             target_pos: Target position ``[x, y, z]`` in robot base frame.
             target_quat: Target quaternion ``[x, y, z, w]`` in robot base frame.
+            q_warm_start: Optional reference configuration for warm-starting.
 
         Returns:
             Joint configuration ``(7,)`` or ``None`` if IK fails.
@@ -225,6 +227,7 @@ class RobosuiteArmController:
             site_name=site_name,
             env_lock=self.env_lock,
             max_solutions=1,
+            q_reference=q_warm_start,
         )
 
         if not solutions:
@@ -266,8 +269,8 @@ class RobosuiteArmController:
             Robot action array or ``None`` if IK fails.
         """
         if self.is_joint_position_controller:
-            target_joints = self._solve_ik_for_pose(
-                target_pos, target_quat,
+            target_joints = self.solve_ik_for_pose(
+                target_pos, target_quat, q_warm_start
             )
             if target_joints is None:
                 return None
