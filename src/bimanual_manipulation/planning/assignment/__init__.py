@@ -37,6 +37,7 @@ from bimanual_manipulation.planning.assignment.cost import (
     compute_segment_cost,
     compute_cost_matrix,
     compute_switching_cost,
+    HandoverResult,
 )
 from bimanual_manipulation.planning.assignment.solver import (
     compute_optimal_robot_assignment,
@@ -61,6 +62,7 @@ __all__ = [
     "compute_segment_cost",
     "compute_cost_matrix",
     "compute_switching_cost",
+    "HandoverResult",
     "compute_optimal_robot_assignment",
     "make_ik_solver_fn",
     "make_jacobian_fns",

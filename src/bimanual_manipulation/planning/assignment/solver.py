@@ -23,6 +23,7 @@ from bimanual_manipulation.planning.assignment.result import (
 from bimanual_manipulation.planning.assignment.cost import (
     compute_cost_matrix,
     compute_switching_cost,
+    HandoverResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,53 +41,27 @@ def _apply_beam_pruning(
     finite_indices = np.where(~np.isinf(row))[0]
     if len(finite_indices) <= beam_width:
         return
-    # Sort finite states by ascending cost; drop everything after beam_width
     sorted_by_cost = finite_indices[np.argsort(row[finite_indices])]
     row[sorted_by_cost[beam_width:]] = np.inf
 
 
 # ---------------------------------------------------------------------------
-# Viterbi DP solver (internal)
+# DP table initialisation
 # ---------------------------------------------------------------------------
 
-def _solve_optimal_assignment(
+def _initialize_dp(
     cost_matrix: np.ndarray,
     trajectory_info: Dict[int, Tuple[int, int]],
-    trajectories: TrajectoryBundle,
-    transfer_feasibility: Optional[Dict[Tuple[int, int, int, int], bool]] = None,
-    alpha: float = constants.ASSIGNMENT_ALPHA,
-    beta: float = constants.ASSIGNMENT_BETA,
-    epsilon: float = constants.ASSIGNMENT_EPSILON,
-    ik_solver_fn: Optional[Callable] = None,
-    jacobian_fns: Optional[Dict[int, Callable]] = None,
-    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
-    handover_clearance_fn: Optional[Callable] = None,
-    initial_robot: Optional[int] = None,
-    beam_width: Optional[int] = None,
-    handover_stride: int = 1,
-) -> AssignmentResult:
-    """Solve the optimal assignment with a Viterbi-style DP.
+    initial_robot: Optional[int],
+    beam_width: Optional[int],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Create DP tables and populate segment 0.
 
-    Enforces that within the same arm the trajectory index must stay constant
-    (only arm-switches may change trajectory).  Switching costs are cached
-    during the forward pass to avoid recomputation during backtracking.
+    Returns:
+        ``(J_star, prev_state, switch_cost_cache)``
 
-    Optimisations (critical when *ik_solver_fn* is provided):
-
-    * **Two-phase transitions** — same-robot transitions (cost = 0) are
-      evaluated first to establish a tight upper bound; cross-robot
-      transitions are then evaluated in ascending order of accumulated
-      cost and pruned as soon as the bound is exceeded.
-    * **Beam search** — when *beam_width* is set, only the top-K states
-      survive each segment, dramatically reducing the number of expensive
-      IK evaluations in subsequent segments.
-    * **Feasibility pre-filter** — blocked handovers are rejected before
-      the costly IK + handover-primitive computation.
-    * **Handover stride** — when *handover_stride* > 1, cross-robot
-      transitions are only evaluated every K-th segment, dramatically
-      reducing the number of IK evaluations.
-    * **Handover clearance** — when *handover_clearance_fn* is set,
-      handover locations near environment obstacles are skipped.
+    Raises:
+        ValueError: If no state is feasible at segment 0.
     """
     n_segments, n_states = cost_matrix.shape
 
@@ -94,46 +69,160 @@ def _solve_optimal_assignment(
     prev_state = np.full((n_segments, n_states), -1, dtype=int)
     switch_cost_cache = np.zeros((n_segments, n_states))
 
-    logger.info(
-        "DP solver: %d segments × %d states, beam_width=%s, "
-        "handover_stride=%d",
-        n_segments, n_states,
-        beam_width if beam_width is not None else "unlimited",
-        handover_stride,
-    )
-
-    # Initialise first segment
     for si in range(n_states):
         robot_id, _ = trajectory_info[si]
         if initial_robot is not None and robot_id != initial_robot:
             continue
         J_star[0, si] = cost_matrix[0, si]
 
-    n_init_alive = int(np.sum(~np.isinf(J_star[0])))
-    logger.info(
-        "Segment 0 initialised: %d/%d alive states", n_init_alive, n_states,
-    )
-    if n_init_alive == 0:
-        logger.error(
-            "No feasible states at segment 0!  All trajectories have "
-            "infeasible waypoints 0→1.  Cannot start DP."
+    n_alive = int(np.sum(~np.isinf(J_star[0])))
+    logger.info("Segment 0 initialised: %d/%d alive states", n_alive, n_states)
+    if n_alive == 0:
+        raise ValueError(
+            "No feasible assignment found — all trajectories infeasible "
+            "at segment 0."
         )
-        raise ValueError("No feasible assignment found — all trajectories infeasible at segment 0.")
 
     if beam_width is not None and beam_width > 0:
         _apply_beam_pruning(J_star, 0, beam_width)
 
-    # ── Forward pass ──────────────────────────────────────────────────
+    return J_star, prev_state, switch_cost_cache
+
+
+# ---------------------------------------------------------------------------
+# Same-robot transition (Phase 1)
+# ---------------------------------------------------------------------------
+
+def _best_same_robot_transition(
+    alive_prev: List[Tuple[float, int]],
+    cr: int,
+    ct: int,
+    trajectory_info: Dict[int, Tuple[int, int]],
+) -> Tuple[float, int, float]:
+    """Find the best same-robot predecessor for state ``(cr, ct)``.
+
+    Returns:
+        ``(best_cost, best_prev_state, switching_cost=0.0)``
+    """
+    for acc_cost, ps in alive_prev:
+        pr, pt = trajectory_info[ps]
+        if pr == cr and pt == ct:
+            return acc_cost, ps, 0.0
+    return np.inf, -1, 0.0
+
+
+# ---------------------------------------------------------------------------
+# Cross-robot transitions (Phase 2)
+# ---------------------------------------------------------------------------
+
+def _best_cross_robot_transition(
+    alive_prev: List[Tuple[float, int]],
+    cr: int,
+    best_cost: float,
+    i: int,
+    trajectories: TrajectoryBundle,
+    cs: int,
+    trajectory_info: Dict[int, Tuple[int, int]],
+    *,
+    transfer_feasibility,
+    alpha: float,
+    beta: float,
+    epsilon: float,
+    ik_solver_fn,
+    jacobian_fns,
+    collision_check_fn,
+    handover_clearance_fn,
+    handover_callback: Optional[Callable[[HandoverResult], None]],
+) -> Tuple[float, int, float, int, int]:
+    """Evaluate cross-robot handover transitions for segment *i*, state *cs*.
+
+    Returns:
+        ``(best_cost, best_prev, best_sw, n_ik_calls, n_pruned)``
+    """
+    n_ik = 0
+    n_pruned = 0
+
+    best_prev = -1
+    best_sw = 0.0
+
+    for acc_cost, ps in alive_prev:
+        if acc_cost >= best_cost:
+            n_pruned += 1
+            break
+        pr, _ = trajectory_info[ps]
+        if pr == cr:
+            continue
+
+        n_ik += 1
+        sw = compute_switching_cost(
+            pr, cr, i, trajectories, ps, cs, trajectory_info,
+            transfer_feasibility=transfer_feasibility,
+            alpha=alpha, beta=beta, epsilon=epsilon,
+            ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
+            collision_check_fn=collision_check_fn,
+            handover_clearance_fn=handover_clearance_fn,
+            handover_callback=handover_callback,
+        )
+
+        pt_prev = trajectory_info[ps][1]
+        ct_curr = trajectory_info[cs][1]
+
+        if np.isinf(sw):
+            logger.debug(
+                "Seg %d: handover robot%d→robot%d traj(%d→%d) rejected (inf)",
+                i, pr, cr, pt_prev, ct_curr,
+            )
+            continue
+        else:
+            logger.debug(
+                "Seg %d: handover robot%d→robot%d traj(%d→%d) sw=%.2f",
+                i, pr, cr, pt_prev, ct_curr, sw,
+            )
+
+        total = acc_cost + sw
+        if total < best_cost:
+            best_cost = total
+            best_prev = ps
+            best_sw = sw
+
+    return best_cost, best_prev, best_sw, n_ik, n_pruned
+
+
+# ---------------------------------------------------------------------------
+# Forward pass
+# ---------------------------------------------------------------------------
+
+def _forward_pass(
+    cost_matrix: np.ndarray,
+    J_star: np.ndarray,
+    prev_state: np.ndarray,
+    switch_cost_cache: np.ndarray,
+    trajectory_info: Dict[int, Tuple[int, int]],
+    trajectories: TrajectoryBundle,
+    *,
+    transfer_feasibility,
+    alpha: float,
+    beta: float,
+    epsilon: float,
+    ik_solver_fn,
+    jacobian_fns,
+    collision_check_fn,
+    handover_clearance_fn,
+    handover_callback: Optional[Callable[[HandoverResult], None]],
+    beam_width: Optional[int],
+    handover_stride: int,
+) -> None:
+    """Run the Viterbi forward pass, filling *J_star* in-place."""
+    n_segments, n_states = cost_matrix.shape
     t_dp_start = time.time()
     total_ik_calls = 0
     total_pruned = 0
 
     for i in range(1, n_segments):
         t_seg_start = time.time()
-        seg_ik_calls = 0
+        seg_ik = 0
         seg_pruned = 0
 
-        # Alive previous states sorted by ascending accumulated cost
         alive_prev = sorted(
             ((float(J_star[i - 1, ps]), ps)
              for ps in range(n_states)
@@ -141,109 +230,63 @@ def _solve_optimal_assignment(
         )
 
         for cs in range(n_states):
-            # Skip infeasible destination states — no point evaluating
-            # transitions into a state whose task cost is already inf.
             if np.isinf(cost_matrix[i, cs]):
                 continue
 
             cr, ct = trajectory_info[cs]
-            best_cost = np.inf
-            best_prev = -1
-            best_sw = 0.0
 
-            # ── Phase 1: Same-robot transition (switching cost = 0) ───
-            # For a given (cr, ct) there is exactly one matching ps;
-            # evaluating it first gives a tight upper bound for pruning.
-            for acc_cost, ps in alive_prev:
-                if acc_cost >= best_cost:
-                    break
-                pr, pt = trajectory_info[ps]
-                if pr != cr or pt != ct:
-                    continue
-                best_cost = acc_cost
-                best_prev = ps
-                best_sw = 0.0
-                break   # unique match
+            # Phase 1: same-robot
+            best_cost, best_prev, best_sw = _best_same_robot_transition(
+                alive_prev, cr, ct, trajectory_info,
+            )
 
-            # ── Phase 2: Cross-robot transitions (may require IK) ─────
-            # Iterate in ascending accumulated-cost order; since
-            # switching cost >= 0, we can prune as soon as the
-            # accumulated cost alone exceeds our current best.
-            # Skip entirely at non-stride segments.
-            if i % handover_stride != 0:
-                if best_prev != -1:
-                    J_star[i, cs] = best_cost + cost_matrix[i, cs]
-                    prev_state[i, cs] = best_prev
-                    switch_cost_cache[i, cs] = best_sw
-                continue
-
-            for acc_cost, ps in alive_prev:
-                if acc_cost >= best_cost:
-                    # All subsequent have equal or higher acc_cost;
-                    # no improvement possible (sw >= 0).
-                    seg_pruned += 1
-                    break
-                pr, pt = trajectory_info[ps]
-                if pr == cr:
-                    continue    # same robot — handled in phase 1
-
-
-                seg_ik_calls += 1
-                sw = compute_switching_cost(
-                    pr, cr, i, trajectories, ps, cs, trajectory_info,
-                    transfer_feasibility=transfer_feasibility,
-                    alpha=alpha, beta=beta, epsilon=epsilon,
-                    ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
-                    collision_check_fn=collision_check_fn,
-                    handover_clearance_fn=handover_clearance_fn,
+            # Phase 2: cross-robot (only at stride boundaries)
+            if i % handover_stride == 0:
+                xr_cost, xr_prev, xr_sw, n_ik, n_pr = (
+                    _best_cross_robot_transition(
+                        alive_prev, cr, best_cost, i,
+                        trajectories, cs, trajectory_info,
+                        transfer_feasibility=transfer_feasibility,
+                        alpha=alpha, beta=beta, epsilon=epsilon,
+                        ik_solver_fn=ik_solver_fn,
+                        jacobian_fns=jacobian_fns,
+                        collision_check_fn=collision_check_fn,
+                        handover_clearance_fn=handover_clearance_fn,
+                        handover_callback=handover_callback,
+                    )
                 )
-                if np.isinf(sw):
-                    logger.debug(
-                        "Seg %d: handover robot%d→robot%d traj(%d→%d) rejected (inf)",
-                        i, pr, cr, pt, ct,
-                    )
-                    continue
-                else:
-                    logger.debug(
-                        "Seg %d: handover robot%d→robot%d traj(%d→%d) sw=%.2f",
-                        i, pr, cr, pt, ct, sw,
-                    )
-
-                total = acc_cost + sw
-                if total < best_cost:
-                    best_cost = total
-                    best_prev = ps
-                    best_sw = sw
+                seg_ik += n_ik
+                seg_pruned += n_pr
+                if xr_cost < best_cost:
+                    best_cost = xr_cost
+                    best_prev = xr_prev
+                    best_sw = xr_sw
 
             if best_prev != -1:
                 J_star[i, cs] = best_cost + cost_matrix[i, cs]
                 prev_state[i, cs] = best_prev
                 switch_cost_cache[i, cs] = best_sw
 
-        # ── Beam pruning: keep only top beam_width states ─────────────
         if beam_width is not None and beam_width > 0:
             _apply_beam_pruning(J_star, i, beam_width)
 
         n_alive = int(np.sum(~np.isinf(J_star[i])))
         t_seg = time.time() - t_seg_start
-        total_ik_calls += seg_ik_calls
+        total_ik_calls += seg_ik
         total_pruned += seg_pruned
 
         elapsed = time.time() - t_dp_start
-        remaining_segs = n_segments - 1 - i
-        eta = (elapsed / i) * remaining_segs if i > 0 else 0
+        remaining = n_segments - 1 - i
+        eta = (elapsed / i) * remaining if i > 0 else 0
 
         logger.info(
-            "Segment %d/%d: %.1fs (IK=%d, pruned=%d, alive=%d) "
-            "ETA %.0fs",
-            i, n_segments - 1, t_seg, seg_ik_calls, seg_pruned,
-            n_alive, eta,
+            "Segment %d/%d: %.1fs (IK=%d, pruned=%d, alive=%d) ETA %.0fs",
+            i, n_segments - 1, t_seg, seg_ik, seg_pruned, n_alive, eta,
         )
 
         if n_alive == 0:
             logger.error(
-                "All states died at segment %d/%d. No feasible path "
-                "can reach beyond this point.", i, n_segments - 1,
+                "All states died at segment %d/%d.", i, n_segments - 1,
             )
             break
 
@@ -252,7 +295,26 @@ def _solve_optimal_assignment(
         total_ik_calls, total_pruned, time.time() - t_dp_start,
     )
 
-    # ── Find best terminal state ──────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Backtracking
+# ---------------------------------------------------------------------------
+
+def _backtrack(
+    cost_matrix: np.ndarray,
+    J_star: np.ndarray,
+    prev_state: np.ndarray,
+    switch_cost_cache: np.ndarray,
+    trajectory_info: Dict[int, Tuple[int, int]],
+    trajectories: TrajectoryBundle,
+) -> AssignmentResult:
+    """Extract the optimal sequence from the filled DP tables.
+
+    Raises:
+        ValueError: If no feasible terminal state exists.
+    """
+    n_segments, n_states = cost_matrix.shape
+
     best_final_cost = np.inf
     best_final_state = -1
     for si in range(n_states):
@@ -261,15 +323,15 @@ def _solve_optimal_assignment(
             best_final_state = si
 
     if best_final_state == -1:
-        logger.error("No feasible assignment found across %d states", n_states)
-        raise ValueError("No feasible assignment found — check trajectory feasibility.")
+        raise ValueError(
+            "No feasible assignment found — check trajectory feasibility."
+        )
 
     logger.info(
         "Best terminal cost=%.4f at state %d",
         best_final_cost, best_final_state,
     )
 
-    # Backtrack using cached switching costs (append + reverse for O(n))
     sequence: List[int] = []
     traj_paths: List[str] = []
     task_costs_list: List[float] = []
@@ -279,9 +341,11 @@ def _solve_optimal_assignment(
     for i in range(n_segments - 1, -1, -1):
         robot_id, traj_idx = trajectory_info[cs]
         sequence.append(robot_id)
-        # Resolve the NPZ filename from the trajectory object
         traj_obj = trajectories.get_trajectory(robot_id, traj_idx)
-        traj_paths.append(traj_obj.source_path or f"robot{robot_id}_trajectory_{traj_idx}.npz")
+        traj_paths.append(
+            traj_obj.source_path
+            or f"robot{robot_id}_trajectory_{traj_idx}.npz"
+        )
         task_costs_list.append(float(cost_matrix[i, cs]))
 
         if i > 0:
@@ -295,10 +359,10 @@ def _solve_optimal_assignment(
     task_costs_list.reverse()
     switch_costs_list.reverse()
 
-    # Handover points
-    handover_points = [i for i in range(1, len(sequence)) if sequence[i] != sequence[i - 1]]
+    handover_points = [
+        i for i in range(1, len(sequence)) if sequence[i] != sequence[i - 1]
+    ]
 
-    # Summary matrices (best cost per robot per segment)
     cost_summary = np.full((n_segments, 2), np.inf)
     traj_summary = np.full((n_segments, 2), -1, dtype=int)
     for seg in range(n_segments):
@@ -320,20 +384,80 @@ def _solve_optimal_assignment(
 
 
 # ---------------------------------------------------------------------------
+# Internal orchestrator
+# ---------------------------------------------------------------------------
+
+def _solve_optimal_assignment(
+    cost_matrix: np.ndarray,
+    trajectory_info: Dict[int, Tuple[int, int]],
+    trajectories: TrajectoryBundle,
+    transfer_feasibility=None,
+    alpha: float = constants.ASSIGNMENT_ALPHA,
+    beta: float = constants.ASSIGNMENT_BETA,
+    epsilon: float = constants.ASSIGNMENT_EPSILON,
+    ik_solver_fn=None,
+    jacobian_fns=None,
+    collision_check_fn=None,
+    handover_clearance_fn=None,
+    handover_callback: Optional[Callable[[HandoverResult], None]] = None,
+    initial_robot: Optional[int] = None,
+    beam_width: Optional[int] = None,
+    handover_stride: int = 1,
+) -> AssignmentResult:
+    """Solve the optimal assignment with a Viterbi-style DP.
+
+    Delegates to :func:`_initialize_dp`, :func:`_forward_pass`, and
+    :func:`_backtrack`.
+    """
+    n_segments, n_states = cost_matrix.shape
+    logger.info(
+        "DP solver: %d segments x %d states, beam_width=%s, "
+        "handover_stride=%d",
+        n_segments, n_states,
+        beam_width if beam_width is not None else "unlimited",
+        handover_stride,
+    )
+
+    J_star, prev_state, switch_cost_cache = _initialize_dp(
+        cost_matrix, trajectory_info, initial_robot, beam_width,
+    )
+
+    _forward_pass(
+        cost_matrix, J_star, prev_state, switch_cost_cache,
+        trajectory_info, trajectories,
+        transfer_feasibility=transfer_feasibility,
+        alpha=alpha, beta=beta, epsilon=epsilon,
+        ik_solver_fn=ik_solver_fn,
+        jacobian_fns=jacobian_fns,
+        collision_check_fn=collision_check_fn,
+        handover_clearance_fn=handover_clearance_fn,
+        handover_callback=handover_callback,
+        beam_width=beam_width,
+        handover_stride=handover_stride,
+    )
+
+    return _backtrack(
+        cost_matrix, J_star, prev_state, switch_cost_cache,
+        trajectory_info, trajectories,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 def compute_optimal_robot_assignment(
     trajectories: TrajectoryBundle,
-    transfer_feasibility: Optional[Dict[Tuple[int, int, int, int], bool]] = None,
+    transfer_feasibility=None,
     initial_robot: Optional[int] = None,
     alpha: float = constants.ASSIGNMENT_ALPHA,
     beta: float = constants.ASSIGNMENT_BETA,
     epsilon: float = constants.ASSIGNMENT_EPSILON,
-    ik_solver_fn: Optional[Callable] = None,
-    jacobian_fns: Optional[Dict[int, Callable]] = None,
-    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
-    handover_clearance_fn: Optional[Callable] = None,
+    ik_solver_fn=None,
+    jacobian_fns=None,
+    collision_check_fn=None,
+    handover_clearance_fn=None,
+    handover_callback: Optional[Callable[[HandoverResult], None]] = None,
     beam_width: Optional[int] = None,
     handover_stride: int = 1,
 ) -> AssignmentResult:
@@ -348,23 +472,14 @@ def compute_optimal_robot_assignment(
         beta: Manipulability weight.
         epsilon: Numerical floor for manipulability reciprocal.
         ik_solver_fn: ``(pose, robot_id) -> q`` for handover cost evaluation.
-        jacobian_fns: ``{robot_id: (q) -> J}`` per-robot Jacobian functions
-            for Yoshikawa manipulability.
-        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
-            for verifying inter-arm clearance at handover meeting points.
-        handover_clearance_fn: Optional ``(object_pose: StampedPose) -> bool``
-            that returns *True* when the object's environment is clear enough
-            for a handover (no nearby shelves, racks, etc.).  When *False*,
-            the handover is skipped without invoking IK.
-        beam_width: Optional maximum number of surviving DP states per
-            segment.  Limits the search space at the expense of global
-            optimality.  Recommended when *ik_solver_fn* is provided:
-            ``beam_width=10`` typically cuts IK evaluations by >90 %
-            while preserving near-optimal solutions.
-        handover_stride: Evaluate cross-robot handover transitions every
-            *handover_stride* segments (default 1 = every segment).
-            Setting to 3 means handovers can only occur at segments
-            0, 3, 6, …, reducing IK evaluations proportionally.
+        jacobian_fns: ``{robot_id: (q) -> J}`` per-robot Jacobian functions.
+        collision_check_fn: ``(q_arm0, q_arm1) -> collision_free``.
+        handover_clearance_fn: ``(object_pose) -> bool`` — environment
+            clearance filter.
+        handover_callback: Called with a :class:`HandoverResult` after every
+            evaluated handover attempt.  Useful for visualization or logging.
+        beam_width: Max surviving DP states per segment.
+        handover_stride: Evaluate handovers every *handover_stride* segments.
 
     Returns:
         :class:`AssignmentResult` with the optimal sequence and cost breakdown.
@@ -378,7 +493,7 @@ def compute_optimal_robot_assignment(
 
     logger.info(
         "Computing assignment for %d segments (%d R0 + %d R1 trajectories, "
-        "α=%.2f, β=%.2f, beam=%s, stride=%d)",
+        "alpha=%.2f, beta=%.2f, beam=%s, stride=%d)",
         n_segments, len(r0), len(r1), alpha, beta,
         beam_width if beam_width is not None else "unlimited",
         handover_stride,
@@ -388,7 +503,7 @@ def compute_optimal_robot_assignment(
         r0, r1, n_segments,
         alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fns=jacobian_fns,
     )
-    logger.info("Cost matrix: %d segments × %d states", *cost_matrix.shape)
+    logger.info("Cost matrix: %d segments x %d states", *cost_matrix.shape)
 
     result = _solve_optimal_assignment(
         cost_matrix, traj_info, trajectories,
@@ -397,6 +512,7 @@ def compute_optimal_robot_assignment(
         ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
         handover_clearance_fn=handover_clearance_fn,
+        handover_callback=handover_callback,
         initial_robot=initial_robot,
         beam_width=beam_width,
         handover_stride=handover_stride,

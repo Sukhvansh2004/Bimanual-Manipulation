@@ -303,6 +303,7 @@ VIS_TRAJECTORY_PATH = "trajectories"  # Subpath for trajectory visualizations
 VIS_ROBOT_CONFIG_PATH = "robot_configs"  # Subpath for robot mesh configurations
 VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
 VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
+VIS_HANDOVER_MESH_SAMPLE_RATIO = 0.5  # Mesh face ratio for handover visualizer (faster)
 
 # Feasibility color palette (hex RGB, shared by robot_mesh & object_mesh visualizers)
 VIS_COLOR_FEASIBLE = 0x00ff00    # Green

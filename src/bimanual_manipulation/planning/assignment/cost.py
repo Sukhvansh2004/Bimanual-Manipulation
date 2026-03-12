@@ -21,6 +21,7 @@ compute_switching_cost
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -39,6 +40,27 @@ from bimanual_manipulation.transforms import StampedPose
 from bimanual_manipulation.utils.primitives import DualArmHandoverPlanner
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Handover result container
+# ---------------------------------------------------------------------------
+
+@dataclass
+class HandoverResult:
+    """Rich result from a handover primitive evaluation."""
+
+    cost: float
+    feasible: bool
+    transfer_robot_id: int = 0
+    receiver_robot_id: int = 1
+    segment_idx: int = -1
+    prev_traj_idx: int = -1
+    curr_traj_idx: int = -1
+    transfer_configs: List[np.ndarray] = field(default_factory=list)
+    receiver_configs: List[np.ndarray] = field(default_factory=list)
+    n_collision_steps: int = 0
+    rejection_reason: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -312,20 +334,12 @@ def _compute_handover_primitive_cost(
     receiver_robot_id: int = 1,
     q_warm_start_transfer: Optional[np.ndarray] = None,
     q_warm_start_receiver: Optional[np.ndarray] = None,
-) -> Tuple[float, bool]:
+) -> HandoverResult:
     """Evaluate cost of a handover primitive using the same C1 + C2 model.
 
-    Args:
-        jacobian_fns: Optional ``{robot_id: (q) -> J}`` for per-arm
-            Yoshikawa manipulability.
-        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
-            to verify inter-arm clearance at critical handover configurations.
-        transfer_robot_id: Robot ID of the arm performing the transfer (holding).
-        receiver_robot_id: Robot ID of the arm receiving the object.
-        q_warm_start_transfer: Joint config of the transfer arm at the
-            handover point in the trajectory, used to warm-start IK.
-        q_warm_start_receiver: Joint config of the receiver arm at the
-            handover point in the trajectory, used to warm-start IK.
+    Returns:
+        :class:`HandoverResult` with cost, feasibility, resolved joint
+        configs, and collision info.
     """
     transfer_poses: List[StampedPose] = []
     receiver_poses: List[StampedPose] = []
@@ -335,7 +349,12 @@ def _compute_handover_primitive_cost(
         receiver_poses.extend(handover_trajectory.get(key, []))
 
     if not transfer_poses and not receiver_poses:
-        return np.inf, False
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            rejection_reason="empty_trajectory",
+        )
 
     # --- IK (early-out on any failure) ---
     transfer_candidates, n_fail_t = _solve_all_ik(
@@ -344,7 +363,12 @@ def _compute_handover_primitive_cost(
     if n_fail_t > 0:
         logger.debug("Handover infeasible: transfer arm (robot%d) — %d/%d IK failures",
                       transfer_robot_id, n_fail_t, len(transfer_poses))
-        return np.inf, False
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            rejection_reason=f"ik_fail_transfer({n_fail_t}/{len(transfer_poses)})",
+        )
 
     receiver_candidates, n_fail_r = _solve_all_ik(
         receiver_poses, receiver_robot_id, ik_solver_fn, q_warm_start_receiver,
@@ -352,7 +376,12 @@ def _compute_handover_primitive_cost(
     if n_fail_r > 0:
         logger.debug("Handover infeasible: receiver arm (robot%d) — %d/%d IK failures",
                       receiver_robot_id, n_fail_r, len(receiver_poses))
-        return np.inf, False
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            rejection_reason=f"ik_fail_receiver({n_fail_r}/{len(receiver_poses)})",
+        )
 
     # --- Collision-aware config selection ---
     transfer_configs, receiver_configs, n_collision_steps = _select_handover_configs(
@@ -376,7 +405,14 @@ def _compute_handover_primitive_cost(
         smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
         n_collision_steps,
     )
-    return cost, True
+    return HandoverResult(
+        cost=cost, feasible=True,
+        transfer_robot_id=transfer_robot_id,
+        receiver_robot_id=receiver_robot_id,
+        transfer_configs=transfer_configs,
+        receiver_configs=receiver_configs,
+        n_collision_steps=n_collision_steps,
+    )
 
 
 def _select_handover_configs(
@@ -454,12 +490,17 @@ def compute_switching_cost(
     jacobian_fns: Optional[Dict[int, Callable]] = None,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
     handover_clearance_fn: Optional[Callable] = None,
+    handover_callback: Optional[Callable[[HandoverResult], None]] = None,
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
     Returns 0 when ``prev_robot == curr_robot``, ``inf`` when the transfer is
     blocked by *transfer_feasibility*, environment clearance, or an inter-arm
     collision, or the handover primitive cost otherwise.
+
+    When *handover_callback* is provided it is called with a
+    :class:`HandoverResult` after every evaluated handover (both successful
+    and rejected).
     """
     if prev_robot == curr_robot:
         return 0.0
@@ -539,7 +580,7 @@ def compute_switching_cost(
             and curr_traj.is_feasible[segment_idx]):
         q_ws_receiver = curr_traj.joint_configs[segment_idx]
 
-    cost, ok = _compute_handover_primitive_cost(
+    result = _compute_handover_primitive_cost(
         h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
         collision_check_fn=collision_check_fn,
         transfer_robot_id=prev_robot_id,
@@ -547,21 +588,24 @@ def compute_switching_cost(
         q_warm_start_transfer=q_ws_transfer,
         q_warm_start_receiver=q_ws_receiver,
     )
+    # Annotate result with trajectory metadata
+    result.segment_idx = segment_idx
+    result.prev_traj_idx = prev_traj_idx
+    result.curr_traj_idx = curr_traj_idx
 
-    if ok:
+    if handover_callback is not None:
+        handover_callback(result)
+
+    if result.feasible:
         logger.debug(
             "Switching cost at seg %d (robot %d→%d): %.4f",
-            segment_idx, prev_robot, curr_robot, cost,
+            segment_idx, prev_robot, curr_robot, result.cost,
         )
-        return cost
+        return result.cost
 
-    # _compute_handover_primitive_cost returns (inf, False) only when
-    # ALL IK calls failed for at least one arm — a truly infeasible
-    # handover at this location.
     logger.debug(
-        "Handover at seg %d (robot %d→%d) is truly infeasible — "
-        "all IK calls failed for at least one arm.",
-        segment_idx, prev_robot, curr_robot,
+        "Handover at seg %d (robot %d→%d) is truly infeasible — %s",
+        segment_idx, prev_robot, curr_robot, result.rejection_reason,
     )
     return np.inf
 

@@ -71,7 +71,10 @@ from bimanual_manipulation.planning.visualization.trajectory import (
 )
 from bimanual_manipulation.transforms import TransformManager
 from bimanual_manipulation.utils.env_utils import env_step
-
+import meshcat
+from bimanual_manipulation.planning.visualization import (
+    HandoverVisualizer,
+)
 
 def setup_logging(level: int = logging.INFO):
     logging.basicConfig(
@@ -178,6 +181,11 @@ def main() -> None:
         help="Path to save the cProfile .prof binary (for snakeviz). "
              "Only used when --profile is set.",
     )
+    parser.add_argument(
+        "--visualize-handovers", action="store_true",
+        help="Visualize each evaluated handover attempt in Meshcat "
+             "(requires --no-env to be off).",
+    )
 
     args = parser.parse_args()
 
@@ -247,6 +255,7 @@ def main() -> None:
     jacobian_fns = None
     collision_check_fn = None
     handover_clearance_fn = None
+    handover_callback = None
 
     if not args.no_env:
         logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
@@ -292,6 +301,13 @@ def main() -> None:
                 "Handover clearance filter active (radius=%.3fm).",
                 clearance_radius,
             )
+
+        if args.visualize_handovers:
+            vis = meshcat.Visualizer()
+            logger.info("Meshcat URL: %s", vis.url())
+            hv = HandoverVisualizer(vis, tf_manager)
+            handover_callback = hv
+            logger.info("Handover visualizer enabled.")
     else:
         logger.warning(
             "Environment creation skipped (--no-env).  Handover costs will use "
@@ -334,6 +350,7 @@ def main() -> None:
         jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
         handover_clearance_fn=handover_clearance_fn,
+        handover_callback=handover_callback,
         beam_width=beam_width,
         handover_stride=handover_stride,
     )

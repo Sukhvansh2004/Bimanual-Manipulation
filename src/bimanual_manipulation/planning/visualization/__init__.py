@@ -23,6 +23,9 @@ from bimanual_manipulation.planning.visualization.robot_mesh import (
 from bimanual_manipulation.planning.visualization.object_mesh import (
     ObjectMeshVisualizer,
 )
+from bimanual_manipulation.planning.visualization.handover import (
+    HandoverVisualizer,
+)
 
 __all__ = [
     "visualize_trajectory",
@@ -31,4 +34,5 @@ __all__ = [
     "visualize_assignment_result",
     "RobotMeshVisualizer",
     "ObjectMeshVisualizer",
+    "HandoverVisualizer",
 ]
