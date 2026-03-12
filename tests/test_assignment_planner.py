@@ -388,11 +388,11 @@ class TestHandoverPrimitiveCost:
         return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
 
     def test_empty_trajectory_returns_inf(self):
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             {}, 1.0, 1.0, 1e-6, self._dummy_ik,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert np.isinf(result.cost)
+        assert result.feasible is False
 
     def test_feasible_handover_returns_finite(self):
         poses = [
@@ -403,12 +403,12 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:2],
             "receiver_pre": poses[1:],
         }
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, self._dummy_ik,
         )
-        assert ok is True
-        assert np.isfinite(cost)
-        assert cost > 0
+        assert result.feasible is True
+        assert np.isfinite(result.cost)
+        assert result.cost > 0
 
     def test_ik_failure_returns_inf(self):
         def _failing_ik(pose, robot_id, q_warm_start=None):
@@ -416,11 +416,11 @@ class TestHandoverPrimitiveCost:
 
         poses = [StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="w")]
         h_traj = {"transfer_hold": poses}
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _failing_ik,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert np.isinf(result.cost)
+        assert result.feasible is False
 
     def test_partial_ik_failure_returns_inf(self):
         """When any IK call fails, cost should be inf (hard failure)."""
@@ -442,11 +442,11 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:2],
             "receiver_approach": poses[2:],
         }
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _partial_ik,
         )
-        assert ok is False, "Should fail when any IK call fails"
-        assert cost == np.inf, "Cost should be inf on partial IK failure"
+        assert result.feasible is False, "Should fail when any IK call fails"
+        assert result.cost == np.inf, "Cost should be inf on partial IK failure"
 
     def test_collision_aware_config_selection(self):
         """When the closest-to-warm-start config collides, an alternative
@@ -470,13 +470,13 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:1],
             "receiver_approach": poses[1:],
         }
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _multi_ik,
             collision_check_fn=_collision_check,
             transfer_robot_id=0, receiver_robot_id=1,
         )
-        assert ok is True
-        assert np.isfinite(cost), "Should find collision-free alternative"
+        assert result.feasible is True
+        assert np.isfinite(result.cost), "Should find collision-free alternative"
 
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""
@@ -501,10 +501,10 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses,
             "receiver_approach": poses,
         }
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik, jacobian_fns=jac_fns,
         )
-        assert ok is True
+        assert result.feasible is True
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
 
@@ -528,25 +528,25 @@ class TestHandoverPrimitiveCost:
         }
 
         # Compute cost with collisions
-        cost_col, ok_col = _compute_handover_primitive_cost(
+        result_col = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_colliding,
         )
-        assert ok_col is True
-        assert np.isfinite(cost_col)
+        assert result_col.feasible is True
+        assert np.isfinite(result_col.cost)
 
         # Compute cost without collisions for comparison
-        cost_free, ok_free = _compute_handover_primitive_cost(
+        result_free = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=lambda q0, q1: True,
         )
-        assert ok_free is True
+        assert result_free.feasible is True
 
         # Colliding cost must exceed collision-free cost by at least one
         # collision step penalty.
-        assert cost_col > cost_free + C.HANDOVER_COLLISION_STEP_PENALTY, (
-            f"Colliding cost ({cost_col:.2f}) should exceed free cost "
-            f"({cost_free:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
+        assert result_col.cost > result_free.cost + C.HANDOVER_COLLISION_STEP_PENALTY, (
+            f"Colliding cost ({result_col.cost:.2f}) should exceed free cost "
+            f"({result_free.cost:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
         )
 
     def test_collision_check_passes_when_free(self):
@@ -565,12 +565,12 @@ class TestHandoverPrimitiveCost:
             "transfer_hold": poses[:1],
             "receiver_approach": poses,
         }
-        cost, ok = _compute_handover_primitive_cost(
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_free,
         )
-        assert ok is True
-        assert np.isfinite(cost)
+        assert result.feasible is True
+        assert np.isfinite(result.cost)
 
     def test_robot_id_passed_correctly(self):
         """Verify transfer_robot_id and receiver_robot_id are forwarded to IK."""

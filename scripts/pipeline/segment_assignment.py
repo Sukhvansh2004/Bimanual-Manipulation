@@ -70,6 +70,10 @@ from bimanual_manipulation.planning.visualization.trajectory import (
     visualize_assignment_result,
 )
 from bimanual_manipulation.transforms import TransformManager
+from bimanual_manipulation.transforms.meshcat_tf_visualizer import (
+    stream_transforms_to_meshcat,
+    MeshcatTFVisualizerConfig,
+)
 from bimanual_manipulation.utils.env_utils import env_step
 import meshcat
 from bimanual_manipulation.planning.visualization import (
@@ -256,6 +260,7 @@ def main() -> None:
     collision_check_fn = None
     handover_clearance_fn = None
     handover_callback = None
+    tf_stop_event = None
 
     if not args.no_env:
         logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
@@ -303,9 +308,27 @@ def main() -> None:
             )
 
         if args.visualize_handovers:
+            tf_stop_event = threading.Event()
+            tf_stream_thread = threading.Thread(
+                target=stream_transforms_to_meshcat,
+                kwargs=dict(
+                    env=env,
+                    env_lock=env_lock,
+                    tf_manager=tf_manager,
+                    config=MeshcatTFVisualizerConfig(clear=True),
+                    stop_event=tf_stop_event,
+                ),
+                daemon=True,
+            )
+            tf_stream_thread.start()
+            logger.info("TF stream thread started.")
+
             vis = meshcat.Visualizer()
             logger.info("Meshcat URL: %s", vis.url())
-            hv = HandoverVisualizer(vis, tf_manager)
+            hv = HandoverVisualizer(
+                vis, tf_manager,
+                object_name=exp_cfg.task.manipulated_object,
+            )
             handover_callback = hv
             logger.info("Handover visualizer enabled.")
     else:
@@ -362,6 +385,10 @@ def main() -> None:
 
     if _restore_fn is not None:
         _restore_fn()
+
+    # Stop the TF stream background thread if it was started
+    if tf_stop_event is not None:
+        tf_stop_event.set()
 
     # --- Print summary ---
     _print_summary(result)

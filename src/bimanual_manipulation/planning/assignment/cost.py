@@ -61,6 +61,7 @@ class HandoverResult:
     receiver_configs: List[np.ndarray] = field(default_factory=list)
     n_collision_steps: int = 0
     rejection_reason: str = ""
+    object_pose: Optional[StampedPose] = None
 
 
 # ---------------------------------------------------------------------------
@@ -592,6 +593,7 @@ def compute_switching_cost(
     result.segment_idx = segment_idx
     result.prev_traj_idx = prev_traj_idx
     result.curr_traj_idx = curr_traj_idx
+    result.object_pose = obj_pose
 
     if handover_callback is not None:
         handover_callback(result)

@@ -7,23 +7,31 @@ Renders each evaluated handover in Meshcat under a structured hierarchy::
             traj_{A}_to_{B}/
                 transfer/  (robot meshes at transfer configs)
                 receiver/  (robot meshes at receiver configs)
+                object/    (object mesh at handover pose)
 
 Colours encode the outcome:
 
 * **Green** — feasible handover (collision-free IK).
 * **Red**   — IK succeeded but inter-arm collision detected.
 * **Orange** — IK failed for one or both arms.
+
+The full MuJoCo scene (tables, shelves, etc.) is also streamed once so
+the handover context is visible.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.planning.visualization.robot_mesh import (
     RobotMeshVisualizer,
 )
+from bimanual_manipulation.planning.visualization.object_mesh import (
+    ObjectMeshVisualizer,
+)
+from bimanual_manipulation.utils.meshcat_mj_utils import MeshcatMjVisualizer
 
 if TYPE_CHECKING:
     from bimanual_manipulation.planning.assignment.cost import HandoverResult
@@ -36,7 +44,7 @@ class HandoverVisualizer:
 
     Usage::
 
-        hv = HandoverVisualizer(vis, tf_manager)
+        hv = HandoverVisualizer(vis, tf_manager, object_name="flatPlate")
         result = compute_optimal_robot_assignment(
             ..., handover_callback=hv,
         )
@@ -46,6 +54,7 @@ class HandoverVisualizer:
         self,
         vis,
         tf_manager,
+        object_name: Optional[str] = None,
     ) -> None:
         self._mesh_vis = RobotMeshVisualizer(
             vis=vis,
@@ -53,7 +62,25 @@ class HandoverVisualizer:
             base_path="handover_debug",
             mesh_sample_ratio=constants.VIS_HANDOVER_MESH_SAMPLE_RATIO,
         )
+        self._obj_vis = ObjectMeshVisualizer(
+            vis=vis,
+            tf_manager=tf_manager,
+            base_path="handover_debug",
+            mesh_sample_ratio=constants.VIS_HANDOVER_MESH_SAMPLE_RATIO,
+        )
         self._vis = vis
+        self._object_name = object_name
+        self._scene_published = False
+        self._tf_manager = tf_manager
+
+    def _publish_scene_once(self) -> None:
+        """Stream the full MuJoCo scene to Meshcat (tables, shelves, etc.)."""
+        if self._scene_published:
+            return
+        mj_vis = MeshcatMjVisualizer(self._vis)
+        mj_vis.publish_environment(self._tf_manager.env.sim)
+        self._scene_published = True
+        logger.info("Published MuJoCo scene to Meshcat.")
 
     # ------------------------------------------------------------------
     # Callable interface  (used as ``handover_callback``)
@@ -61,6 +88,8 @@ class HandoverVisualizer:
 
     def __call__(self, result: HandoverResult) -> None:
         """Visualize a single handover attempt."""
+        self._publish_scene_once()
+
         t_rid = result.transfer_robot_id
         r_rid = result.receiver_robot_id
         seg = result.segment_idx
@@ -102,6 +131,17 @@ class HandoverVisualizer:
                     color=color,
                     opacity=constants.VIS_MESH_OPACITY,
                 )
+
+        # Render object mesh at handover pose
+        if self._object_name and result.object_pose is not None:
+            obj_path = f"{base}/object"
+            self._obj_vis.visualize_object_at_pose(
+                object_name=self._object_name,
+                pose=result.object_pose,
+                path=obj_path,
+                color=color,
+                opacity=constants.VIS_MESH_OPACITY,
+            )
 
     # ------------------------------------------------------------------
     # Internals
