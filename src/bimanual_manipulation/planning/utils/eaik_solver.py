@@ -36,10 +36,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_urdf_path() -> str:
-    """Locate the Franka Panda URDF shipped with robosuite."""
-    import robosuite
-    base = Path(robosuite.__file__).parent
-    urdf = base / "models" / "assets" / "bullet_data" / "panda_description" / "urdf" / "panda_arm.urdf"
+    """Return the Franka Panda URDF path from constants."""
+    urdf = constants.PANDA_URDF_PATH
     if not urdf.exists():
         raise FileNotFoundError(
             f"Panda URDF not found at {urdf}. "

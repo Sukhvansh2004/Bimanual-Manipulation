@@ -79,7 +79,8 @@ def main():
         custom_objects=custom_objects,
         has_renderer=False, 
         has_offscreen_renderer=False, 
-        use_camera_obs=False
+        use_camera_obs=False,
+        table_full_size=exp_cfg.table_full_size,
     )
     for _ in range(10):
         env_step(env)
