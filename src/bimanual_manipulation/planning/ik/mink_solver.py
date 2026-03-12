@@ -89,6 +89,7 @@ def solve_ik_mink(
     eef_task.set_target(target_se3)
 
     posture_task = mink.PostureTask(model=model_native, cost=constants.MINK_POSTURE_COST)
+    posture_task.set_target_from_configuration(config)
     damping_task = mink.DampingTask(model=model_native, cost=constants.MINK_DAMPING_COST)
 
     # Freeze all DOFs except the arm

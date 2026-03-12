@@ -35,7 +35,7 @@ def _fk_objective_and_grad(
     arm_dof_idx: np.ndarray,
     full_qpos: np.ndarray,
     target_pos: np.ndarray,
-    target_quat: np.ndarray,
+    R_target: R,
 ) -> tuple:
     """Return (cost, gradient) for the IK objective.
 
@@ -48,8 +48,8 @@ def _fk_objective_and_grad(
     data_native.qpos[:] = q_full
     mujoco.mj_fwdPosition(model_native, data_native)
 
-    pos_err, rot_err = mujoco_utils.compute_site_error(
-        model_native, data_native, site_id, target_pos, target_quat,
+    pos_err, rot_err = mujoco_utils.compute_site_error_fast(
+        data_native, site_id, target_pos, R_target,
     )
     err = np.concatenate([pos_err, rot_err])
     cost = float(np.dot(err, err))

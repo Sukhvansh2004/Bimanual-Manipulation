@@ -678,7 +678,7 @@ def main():
                 joint_segment = list(joints_cur[current_idx+1 : next_handover_idx+1])
 
                 # Arm B's target: the handover receiver pre-pose
-                receiver_pre_pose = h_traj["receiver_pre"][0]
+                receiver_pre_pose = h_traj.receiver_pre[0]
                 q_warm_start_receiver = (
                     joints_next[next_handover_idx]
                     if joints_next[next_handover_idx] is not None else None
@@ -842,18 +842,18 @@ def main():
                 logger.debug(f"  Object pose:    pos={obj_pose_h.position}, quat={obj_pose_h.quaternion}")
 
                 logger.info(f"Robot {current_robot} moving to handover hold pose...")
-                current_arm.move_to_pose(h_traj["transfer_hold"][0], gripper_action=1.0, num_steps=50)
+                current_arm.move_to_pose(h_traj.transfer_hold[0], gripper_action=1.0, num_steps=50)
 
                 logger.info(f"Robot {1 - current_robot} executing handover approach...")
                 other_gripper.release()
                 receiver_converged = other_arm.follow_trajectory(
-                    h_traj["receiver_approach"], q_warm_start=q_warm_start_receiver,
+                    h_traj.receiver_approach, q_warm_start=q_warm_start_receiver,
                 )
 
                 if not receiver_converged:
                     # Check actual EEF distance to the final approach waypoint
                     recv_pos, _ = other_arm.get_eef_pose_in_base()
-                    target_pose = h_traj["receiver_approach"][-1]
+                    target_pose = h_traj.receiver_approach[-1]
                     target_pos_base = other_arm.tf_manager.transform_pose(
                         target_pose, other_arm.base_frame,
                     ).position if target_pose.frame_id != other_arm.base_frame else target_pose.position
@@ -873,7 +873,7 @@ def main():
                 # release + grasp cycle, the object should be near the
                 # receiver's EEF.
                 logger.info(f"Robot {current_robot} following handover retreat trajectory...")
-                current_arm.follow_trajectory(h_traj["transfer_retreat"])
+                current_arm.follow_trajectory(h_traj.transfer_retreat)
 
                 # Determine if the handover actually succeeded by checking
                 # whether the object remained near the receiver's EEF after
