@@ -60,6 +60,8 @@ class HandoverResult:
     transfer_configs: List[np.ndarray] = field(default_factory=list)
     receiver_configs: List[np.ndarray] = field(default_factory=list)
     n_collision_steps: int = 0
+    transfer_collision_mask: List[bool] = field(default_factory=list)
+    receiver_collision_mask: List[bool] = field(default_factory=list)
     rejection_reason: str = ""
     object_pose: Optional[StampedPose] = None
 
@@ -242,7 +244,7 @@ def _solve_all_ik(
             if result is None:
                 n_failed += 1
                 all_candidates.append([])
-                return all_candidates, n_failed
+                continue
             candidates = result if isinstance(result, list) else [result]
             if q_prev is not None and len(candidates) > 1:
                 candidates = sorted(
@@ -269,10 +271,11 @@ def _select_collision_free_configs(
     *other_config* (the opposing arm's config during that phase).
 
     Returns:
-        ``(selected_configs, n_collision_steps)``
+        ``(selected_configs, collision_mask)`` where *collision_mask* is a
+        list of bools (``True`` = that step is in collision).
     """
     selected: List[np.ndarray] = []
-    n_collision_steps = 0
+    collision_mask: List[bool] = []
     for cands in candidates_list:
         if not cands:
             continue
@@ -281,12 +284,13 @@ def _select_collision_free_configs(
             q0, q1 = (q_cand, other_config) if this_robot_id == 0 else (other_config, q_cand)
             if collision_check_fn(q0, q1):
                 selected.append(q_cand)
+                collision_mask.append(False)
                 found_free = True
                 break
         if not found_free:
             selected.append(cands[0])
-            n_collision_steps += 1
-    return selected, n_collision_steps
+            collision_mask.append(True)
+    return selected, collision_mask
 
 
 def _compute_smoothness(configs: List[np.ndarray]) -> float:
@@ -385,9 +389,11 @@ def _compute_handover_primitive_cost(
         )
 
     # --- Collision-aware config selection ---
-    transfer_configs, receiver_configs, n_collision_steps = _select_handover_configs(
-        handover_trajectory, transfer_candidates, receiver_candidates,
-        transfer_robot_id, receiver_robot_id, collision_check_fn,
+    transfer_configs, receiver_configs, n_collision_steps, t_col_mask, r_col_mask = (
+        _select_handover_configs(
+            handover_trajectory, transfer_candidates, receiver_candidates,
+            transfer_robot_id, receiver_robot_id, collision_check_fn,
+        )
     )
 
     # --- Cost ---
@@ -413,6 +419,8 @@ def _compute_handover_primitive_cost(
         transfer_configs=transfer_configs,
         receiver_configs=receiver_configs,
         n_collision_steps=n_collision_steps,
+        transfer_collision_mask=t_col_mask,
+        receiver_collision_mask=r_col_mask,
     )
 
 
@@ -423,52 +431,53 @@ def _select_handover_configs(
     transfer_robot_id: int,
     receiver_robot_id: int,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]],
-) -> Tuple[List[np.ndarray], List[np.ndarray], int]:
+) -> Tuple[List[np.ndarray], List[np.ndarray], int, List[bool], List[bool]]:
     """Select one config per waypoint for both arms, preferring collision-free.
 
     Phase 1: receiver approaches while transfer holds at hold pose.
     Phase 2: transfer retreats while receiver stays at final approach.
 
     Returns:
-        ``(transfer_configs, receiver_configs, n_collision_steps)``
+        ``(transfer_configs, receiver_configs, n_collision_steps,
+        transfer_collision_mask, receiver_collision_mask)``
     """
     if collision_check_fn is None or not transfer_candidates or not receiver_candidates:
-        return (
-            [c[0] for c in transfer_candidates if c],
-            [c[0] for c in receiver_candidates if c],
-            0,
-        )
+        t_cfgs = [c[0] for c in transfer_candidates if c]
+        r_cfgs = [c[0] for c in receiver_candidates if c]
+        return t_cfgs, r_cfgs, 0, [False] * len(t_cfgs), [False] * len(r_cfgs)
 
     n_collision_steps = 0
     n_hold = len(handover_trajectory.get("transfer_hold", []))
     transfer_configs = [c[0] for c in transfer_candidates]
+    transfer_mask: List[bool] = [False] * len(transfer_configs)
 
     # Phase 1: receiver vs transfer hold
     q_transfer_hold = transfer_configs[0]
-    receiver_configs, n_col_p1 = _select_collision_free_configs(
+    receiver_configs, receiver_mask = _select_collision_free_configs(
         receiver_candidates, q_transfer_hold,
         receiver_robot_id, collision_check_fn,
     )
-    n_collision_steps += n_col_p1
+    n_collision_steps += sum(receiver_mask)
 
     # Phase 2: transfer retreat vs receiver final
     if receiver_configs:
         q_receiver_final = receiver_configs[-1]
         retreat_candidates = transfer_candidates[n_hold:]
         if retreat_candidates:
-            retreat_configs, n_col_p2 = _select_collision_free_configs(
+            retreat_configs, retreat_mask = _select_collision_free_configs(
                 retreat_candidates, q_receiver_final,
                 transfer_robot_id, collision_check_fn,
             )
-            n_collision_steps += n_col_p2
+            n_collision_steps += sum(retreat_mask)
             transfer_configs = transfer_configs[:n_hold] + retreat_configs
+            transfer_mask = transfer_mask[:n_hold] + retreat_mask
 
     if n_collision_steps > 0:
         logger.debug(
             "Handover has %d colliding steps (transfer=robot%d, receiver=robot%d)",
             n_collision_steps, transfer_robot_id, receiver_robot_id,
         )
-    return transfer_configs, receiver_configs, n_collision_steps
+    return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
 
 
 # ---------------------------------------------------------------------------

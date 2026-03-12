@@ -101,45 +101,66 @@ class HandoverVisualizer:
         traj_tag = f"traj_{pt}_to_{ct}"
         base = f"{parent}/{seg_tag}/{traj_tag}"
 
-        color, label = self._outcome_color(result)
-
         logger.debug(
-            "Handover vis: %s  outcome=%s  cost=%.3f",
-            base, label, result.cost,
+            "Handover vis: %s  cost=%.3f  feasible=%s  collisions=%d",
+            base, result.cost, result.feasible, result.n_collision_steps,
         )
+
+        if not result.feasible and "ik_fail" in result.rejection_reason:
+            ik_failed_color = constants.VIS_COLOR_IK_FAILED
+        else:
+            ik_failed_color = None
 
         # Render transfer arm configs (if available)
         if result.transfer_configs:
+            t_mask = result.transfer_collision_mask
             for i, q in enumerate(result.transfer_configs):
                 path = f"{base}/transfer/step_{i:03d}"
+                if ik_failed_color is not None:
+                    step_color = ik_failed_color
+                elif t_mask and i < len(t_mask) and t_mask[i]:
+                    step_color = constants.VIS_COLOR_INFEASIBLE
+                else:
+                    step_color = constants.VIS_COLOR_FEASIBLE
                 self._mesh_vis.visualize_robot_at_config(
                     robot_id=t_rid,
                     joint_config=q,
                     path=path,
-                    color=color,
+                    color=step_color,
                     opacity=constants.VIS_MESH_OPACITY,
                 )
 
         # Render receiver arm configs (if available)
         if result.receiver_configs:
+            r_mask = result.receiver_collision_mask
             for i, q in enumerate(result.receiver_configs):
                 path = f"{base}/receiver/step_{i:03d}"
+                if ik_failed_color is not None:
+                    step_color = ik_failed_color
+                elif r_mask and i < len(r_mask) and r_mask[i]:
+                    step_color = constants.VIS_COLOR_INFEASIBLE
+                else:
+                    step_color = constants.VIS_COLOR_FEASIBLE
                 self._mesh_vis.visualize_robot_at_config(
                     robot_id=r_rid,
                     joint_config=q,
                     path=path,
-                    color=color,
+                    color=step_color,
                     opacity=constants.VIS_MESH_OPACITY,
                 )
 
         # Render object mesh at handover pose
         if self._object_name and result.object_pose is not None:
+            obj_color = (
+                ik_failed_color if ik_failed_color is not None
+                else constants.VIS_COLOR_FEASIBLE
+            )
             obj_path = f"{base}/object"
             self._obj_vis.visualize_object_at_pose(
                 object_name=self._object_name,
                 pose=result.object_pose,
                 path=obj_path,
-                color=color,
+                color=obj_color,
                 opacity=constants.VIS_MESH_OPACITY,
             )
 
