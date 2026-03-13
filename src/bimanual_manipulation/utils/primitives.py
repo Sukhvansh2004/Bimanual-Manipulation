@@ -6,7 +6,7 @@ from typing import List, Dict, Union, Callable, Any, Tuple
 from scipy.spatial.transform import Rotation as R, Slerp
 
 from bimanual_manipulation.transforms import StampedPose, Transform
-
+from bimanual_manipulation import constants
 
 @dataclass
 class HandoverTrajectory:
@@ -201,13 +201,13 @@ class DualArmHandoverPlanner:
         grasp_transfer: StampedPose,
         grasp_receiver: StampedPose,
         handover_object_pose: StampedPose,
-        pre_align_distance: float = 0.10,
-        pre_align_axis: str = '-z',
-        retreat_distance: float = 0.05,
-        approach_steps: int = 50,
-        ramp_steps: int = 60,
-        transfer_retreat_axis: str = '-z',
-        retreat_steps: int = 30,
+        pre_align_distance: float = constants.HANDOVER_PRE_ALIGN_DISTANCE,
+        pre_align_axis: str = constants.HANDOVER_PRE_ALIGN_AXIS,
+        retreat_distance: float = constants.HANDOVER_RETREAT_DISTANCE,
+        approach_steps: int = constants.HANDOVER_APPROACH_STEPS,
+        ramp_steps: int = constants.HANDOVER_RAMP_STEPS,
+        transfer_retreat_axis: str = constants.HANDOVER_RETREAT_AXIS,
+        retreat_steps: int = constants.HANDOVER_RETREAT_STEPS,
     ):
 
         self.G1 = grasp_transfer
@@ -410,10 +410,10 @@ class ObjectGraspPrimitive:
         self,
         object_pose: StampedPose,
         grasp_transform: StampedPose,
-        pregrasp_distance: float = 0.10,
-        approach_axis: str = '-z',
-        approach_steps: int = 50,
-        grasp_steps: int = 25
+        pregrasp_distance: float = constants.HANDOVER_PRE_ALIGN_DISTANCE,
+        approach_axis: str = constants.HANDOVER_PRE_ALIGN_AXIS,
+        approach_steps: int = constants.HANDOVER_APPROACH_STEPS,
+        grasp_steps: int = constants.HANDOVER_GRASP_STEPS
     ):
 
         self.obj_pose = object_pose
@@ -501,10 +501,10 @@ class ReleaseRetreatPrimitive:
 
     def __init__(
         self,
-        retreat_distance: float = 0.05,
-        retreat_axis: str = '-z',
-        retreat_steps: int = 30,
-        settle_time: float = 0.1
+        retreat_distance: float = constants.HANDOVER_RETREAT_DISTANCE,
+        retreat_axis: str = constants.HANDOVER_RETREAT_AXIS,
+        retreat_steps: int = constants.HANDOVER_RETREAT_STEPS,
+        settle_time: float = constants.HANDOVER_SETTLE_TIME
     ):
 
         self.retreat_distance = retreat_distance

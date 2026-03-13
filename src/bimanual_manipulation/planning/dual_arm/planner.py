@@ -49,6 +49,7 @@ from typing import List, Optional, TYPE_CHECKING, Union
 
 import mink
 import numpy as np
+import mujoco
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
@@ -356,6 +357,16 @@ class DualArmParallelPlanner:
             # ── Update mink Configuration with current sim state ──────
             q_full = self.env.sim.data.qpos.copy()
             q_full[m.qpos_idx_a] = target_q_a
+
+            # Clip q_full to joint limits to avoid numerical errors
+            # triggering mink's internal limit checks.
+            nm = m.native_model
+            for j in range(nm.njnt):
+                if nm.jnt_limited[j]:
+                    qadr = nm.jnt_qposadr[j]
+                    if nm.jnt_type[j] in [mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE]:
+                        q_full[qadr] = np.clip(q_full[qadr], nm.jnt_range[j, 0], nm.jnt_range[j, 1])
+
             m.config.update(q=q_full)
 
             # ── Set FrameTask target for arm B ────────────────────────

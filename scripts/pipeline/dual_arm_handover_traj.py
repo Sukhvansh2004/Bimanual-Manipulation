@@ -679,6 +679,8 @@ def main():
                 joint_segment = list(joints_cur[current_idx+1 : next_handover_idx+1])
 
                 # Arm B's target: the handover receiver pre-pose
+                # (But if we had more than 2 arms, we'd need to decide which one moves to home)
+                # With 2 arms, 'other_arm' is always the one that WILL receive the object.
                 receiver_pre_pose = h_traj.receiver_pre[0]
                 q_warm_start_receiver = (
                     joints_next[next_handover_idx]
@@ -901,21 +903,50 @@ def main():
                 current_robot = 1 - current_robot
                 current_arm = other_arm
                 current_gripper = other_gripper
+
+                # --- Move the idle robot (giver) to home in parallel with next segment ---
+                # This logic is integrated into the next loop iteration (either next handover or final segment)
             else:
                 last_idx = find_last_feasible_point(res_cur)
                 # Clamp to assignment boundary
                 if assignment is not None and last_idx is not None:
                     last_idx = min(last_idx, len(assignment.sequence) - 1)
+                
                 if last_idx is not None and last_idx > current_idx:
-                    logger.info(f"Robot {current_robot} following final segment to {last_idx}...")
+                    other_arm = system.right_arm if current_robot == 0 else system.left_arm
+                    other_gripper = system.right_gripper if current_robot == 0 else system.left_gripper
+                    
+                    logger.info(f"PARALLEL: Robot {current_robot} following final segment to {last_idx} "
+                                f"while Robot {1 - current_robot} moves to home position")
+                    
                     joint_segment = list(joints_cur[current_idx+1 : last_idx+1])
-                    # Scale num_steps to segment length; at least 100, cap at 300
-                    n_raw = len(joint_segment)
-                    n_steps = max(100, min(300, n_raw * 5))
-                    current_arm.follow_joint_trajectory(
-                        joint_segment, gripper_action=1.0,
-                        smoothen=exec_cfg.smoothen, num_steps=n_steps,
+                    
+                    parallel_planner = DualArmParallelPlanner(
+                        env=system.env,
+                        arm_a=current_arm,
+                        arm_b=other_arm,
+                        env_lock=system.env_lock,
+                        tf_manager=system.tf_manager,
+                        collision_check=True,
+                        manipulated_object=exp_cfg.task.manipulated_object,
+                        rrt_vis=rrt_vis,
+                        planning_env=system.planning_env,
                     )
+                    
+                    # Move other arm to home position defined in constants
+                    HOME_Q = constants.FRANKA_HOME_JOINT_POSITION
+                    
+                    par_result = parallel_planner.execute_parallel(
+                        traj_a=joint_segment,
+                        target_b=HOME_Q,
+                        gripper_a=1.0,       # keep current arm gripper closed
+                        gripper_b=-1.0,      # keep other arm gripper open
+                        num_steps_override=max(200, len(joint_segment) * 2),
+                    )
+                    
+                    if not par_result.success_a:
+                        logger.warning(f"Arm A did not fully converge on final segment (err={par_result.final_pos_error_a:.4f})")
+                    
                     current_idx = last_idx
                     # Record joint configs for manipulability
                     tracker.record_joint_config(current_robot, current_arm.get_joint_positions())

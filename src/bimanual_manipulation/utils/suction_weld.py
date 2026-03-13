@@ -112,6 +112,9 @@ def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
     
     for name, body_id in env.object_body_ids.items():
         if isinstance(body_id, (int, np.integer)) and body_id > 0:
+            # Skip static objects (cannot be suctioned)
+            if hasattr(env, 'static_object_body_ids') and body_id in env.static_object_body_ids:
+                continue
             valid_ids.add(int(body_id))
             logger.debug(f"Valid suction target: '{name}' -> body_id {body_id}")
 

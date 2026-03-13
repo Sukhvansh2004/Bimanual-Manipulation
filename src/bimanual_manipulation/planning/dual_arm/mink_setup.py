@@ -89,10 +89,22 @@ def build_mink_components(
     jids_b = get_arm_joint_ids(nm, arm_b.robot_id)
     qpos_idx_a = get_joint_qpos_indices(nm, jids_a)
     qpos_idx_b = get_joint_qpos_indices(nm, jids_b)
+    dof_idx_a = [nm.jnt_dofadr[j] for j in jids_a]
     dof_idx_b = [nm.jnt_dofadr[j] for j in jids_b]
 
     # ── mink.Configuration ────────────────────────────────────────────
-    mink_config = mink.Configuration(nm, q=env.sim.data.qpos.copy())
+    # Clip current sim qpos to joint limits before initialising mink config
+    # to avoid numerical errors/QP failures for joints starting exactly
+    # at their limits.
+    q_initial = env.sim.data.qpos.copy()
+    jnt_range = nm.jnt_range
+    for j in range(nm.njnt):
+        if nm.jnt_limited[j]:
+            qadr = nm.jnt_qposadr[j]
+            # Free joints have 7 qpos but we only clip hinges/slides
+            if nm.jnt_type[j] in [mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE]:
+                q_initial[qadr] = np.clip(q_initial[qadr], jnt_range[j, 0], jnt_range[j, 1])
+    mink_config = mink.Configuration(nm, q=q_initial)
 
     # ── FrameTask for arm B's end-effector ────────────────────────────
     eef_body_name = arm_b._eef_body_name()
@@ -118,7 +130,12 @@ def build_mink_components(
         freeze_task = mink.DofFreezingTask(model=nm, dof_indices=frozen_dofs)
 
     # ── Velocity / configuration limits ───────────────────────────────
-    vel_limit = mink.VelocityLimit(nm)
+    # Apply explicit velocity limits for Franka Panda arms.
+    # mink.VelocityLimit expects an array of shape (nv,)
+    max_vel = np.full(nm.nv, 10.0)  # default high value
+    max_vel[dof_idx_a] = constants.FRANKA_VELOCITY_LIMITS
+    max_vel[dof_idx_b] = constants.FRANKA_VELOCITY_LIMITS
+    vel_limit = mink.VelocityLimit(nm, limit=max_vel)
     config_limit = mink.ConfigurationLimit(nm)
 
     # ── Collision avoidance limit ─────────────────────────────────────
