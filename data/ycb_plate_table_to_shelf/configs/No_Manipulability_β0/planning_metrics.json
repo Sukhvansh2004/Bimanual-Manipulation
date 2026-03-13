@@ -1,0 +1,18 @@
+{
+  "experiment": "ycb_plate_table_to_shelf",
+  "config_label": "",
+  "total_cost": 2.595924328189386,
+  "n_segments": 50,
+  "n_handovers": 1,
+  "handover_points": [
+    38
+  ],
+  "mean_task_cost": 0.03275117550079261,
+  "total_switching_cost": 0.958365553149756,
+  "mean_manipulability": 0.08747046179804725,
+  "min_manipulability": 0.037609826264781925,
+  "feasibility_rate_robot0": 0.0,
+  "feasibility_rate_robot1": 0.0,
+  "assigned_feasibility_rate": 1.0,
+  "planning_time_s": 214.39695477485657
+}

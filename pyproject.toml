@@ -52,7 +52,8 @@ dependencies = [
     "addict",  # For configuration
     "torch-geometric",  # For graph neural networks
     "yourdfpy==0.0.56",  # For URDF processing
-    "mink>=1.0.0",  # QP-based differential IK for MuJoCo
+    "mink>=1.0.0",  # QP-based differential IK for MuJoCo (reactive tracking)
+    "EAIK>=1.2.0",  # Analytical closed-form IK for Franka Panda
     "proxsuite",  # Fast QP solver backend (proxqp)
 ]
 

@@ -14,22 +14,16 @@ Usage:
     python trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj
 """
 
-import numpy as np
 import os
 import time
 import threading
 import logging
 import meshcat
-import meshcat.geometry as g
 import argparse
 import sys
 import multiprocessing
 from functools import partial
 
-import meshcat.transformations as tf
-from scipy.spatial.transform import Rotation as R
-
-import robosuite.utils.transform_utils as T
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from bimanual_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
@@ -78,14 +72,14 @@ worker_env = None
 worker_tf_manager = None
 worker_vis = None
 
-def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patterns=None, table_full_size=None, enable_meshcat=True):
+def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patterns=None, table_full_size=None, enable_meshcat=True):
     """Initialize worker process by creating a persistent environment and visualizer.
     
     Args:
         ycb_objects: YCB object specs for the environment.
         custom_objects: Custom object specs for the environment.
         log_level: Logging level.
-        collision_exclude_patterns: List of substrings; geoms whose names contain
+        collision_relevant_patterns: List of substrings; geoms whose names contain
             any of these patterns (or are robot geoms) keep their collisions.
             All other geoms get contype=0 for faster collision checking.
         table_full_size: Optional tuple (x, y, z) to override the default table dimensions.
@@ -93,8 +87,8 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
     """
     setup_logging(log_level)
     global worker_env, worker_tf_manager, worker_vis
-    if collision_exclude_patterns is None:
-        collision_exclude_patterns = []
+    if collision_relevant_patterns is None:
+        collision_relevant_patterns = []
     try:
         worker_env = make_dual_arm_env(
             ycb_objects=ycb_objects,
@@ -112,7 +106,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_exclude_patter
         # Optimization: Disable collisions between environment geoms
         # Anything that isn't a robot or a target object should have contype=0
         _is_relevant = get_collision_filter_fn(
-            type('CF', (), {'exclude_patterns': collision_exclude_patterns})()
+            type('CF', (), {'relevant_patterns': collision_relevant_patterns})()
         )
         model = worker_env.sim.model
         for i in range(model.ngeom):
@@ -211,7 +205,8 @@ def main() -> None:
                         help="Reuse existing object_trajectory.npz from data dir instead of regenerating")
     parser.add_argument("--no-meshcat", action="store_true",
                         help="Disable all Meshcat visualization (useful for batch / headless runs)")
-    
+    parser.add_argument("--enable-grasp-vis", action="store_true",
+                        help="Enable visualization of grasps and EEF trajectories in Meshcat")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -242,7 +237,7 @@ def main() -> None:
     ycb_objects = exp_cfg.ycb_objects
     custom_objects = exp_cfg.custom_objects
     object_name = exp_cfg.task.manipulated_object
-    collision_exclude_patterns = exp_cfg.collision_filter.exclude_patterns
+    collision_relevant_patterns = exp_cfg.collision_filter.relevant_patterns
     table_full_size = exp_cfg.table_full_size
     
     logger.info("Creating planning environment with %d YCB + %d custom objects...",
@@ -394,7 +389,7 @@ def main() -> None:
     # Initialize Grasp Service (it registers itself)
     grasp_service = GraspService(
         tf_manager=tf_manager,
-        visualize=False,
+        visualize=args.enable_grasp_vis,
         use_dpp=plan_cfg.use_dpp,
     )
     grasp_service.start()
@@ -445,7 +440,7 @@ def main() -> None:
     with multiprocessing.Pool(
         processes=num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects, log_level, collision_exclude_patterns, table_full_size, enable_meshcat)
+        initargs=(ycb_objects, custom_objects, log_level, collision_relevant_patterns, table_full_size, enable_meshcat)
     ) as pool:
         
         # Evaluate Robot 0 Grasps

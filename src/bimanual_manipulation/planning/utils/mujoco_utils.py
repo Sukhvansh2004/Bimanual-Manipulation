@@ -97,6 +97,22 @@ def compute_site_error(model, data, site_id: int, target_pos: np.ndarray, target
     return pos_err, rot_err
 
 
+def compute_site_error_fast(
+    data, site_id: int, target_pos: np.ndarray, R_target: R,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute site error with a pre-constructed ``R_target``.
+
+    Same as ``compute_site_error`` but avoids repeated ``R.from_quat``
+    when called in a loop with the same target orientation.
+    """
+    cur_pos = np.asarray(data.site_xpos[site_id], dtype=float)
+    cur_mat = np.asarray(data.site_xmat[site_id], dtype=float).reshape(3, 3)
+    cur_rot = R.from_matrix(cur_mat)
+    rot_err = (R_target * cur_rot.inv()).as_rotvec()
+    pos_err = np.asarray(target_pos, dtype=float) - cur_pos
+    return pos_err, rot_err
+
+
 def geom_belongs_to_robot(geom_name: str) -> Optional[int]:
     """Return robot_id if geom is part of a robot/gripper, else None.
     

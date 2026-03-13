@@ -45,6 +45,7 @@ from bimanual_manipulation.planning.assignment.cost import (
     _compute_handover_primitive_cost,
 )
 from bimanual_manipulation.transforms import StampedPose
+from bimanual_manipulation.utils.primitives import HandoverTrajectory
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -388,44 +389,42 @@ class TestHandoverPrimitiveCost:
         return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
 
     def test_empty_trajectory_returns_inf(self):
-        cost, ok = _compute_handover_primitive_cost(
-            {}, 1.0, 1.0, 1e-6, self._dummy_ik,
+        result = _compute_handover_primitive_cost(
+            HandoverTrajectory(), 1.0, 1.0, 1e-6, self._dummy_ik,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert np.isinf(result.cost)
+        assert result.feasible is False
 
     def test_feasible_handover_returns_finite(self):
         poses = [
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="object")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_pre": poses[1:],
-        }
-        cost, ok = _compute_handover_primitive_cost(
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:2],
+            receiver_pre=poses[1:],
+        )
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, self._dummy_ik,
         )
-        assert ok is True
-        assert np.isfinite(cost)
-        assert cost > 0
+        assert result.feasible is True
+        assert np.isfinite(result.cost)
+        assert result.cost > 0
 
     def test_ik_failure_returns_inf(self):
         def _failing_ik(pose, robot_id, q_warm_start=None):
             return None, 0.5
 
         poses = [StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="w")]
-        h_traj = {"transfer_hold": poses}
-        cost, ok = _compute_handover_primitive_cost(
+        h_traj = HandoverTrajectory(transfer_hold=poses)
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _failing_ik,
         )
-        assert np.isinf(cost)
-        assert ok is False
+        assert np.isinf(result.cost)
+        assert result.feasible is False
 
-    def test_partial_ik_failure_returns_finite_with_penalty(self):
-        """When some IK calls fail but at least one succeeds, cost should be
-        finite and include a per-failure penalty."""
-        from bimanual_manipulation import constants as C
+    def test_partial_ik_failure_returns_inf(self):
+        """When any IK call fails, cost should be inf (hard failure)."""
 
         call_count = [0]
 
@@ -433,69 +432,57 @@ class TestHandoverPrimitiveCost:
             """Fail on even-numbered calls, succeed on odd."""
             call_count[0] += 1
             if call_count[0] % 2 == 0:
-                return None, 0.1  # near-miss residual
+                return None, float("inf")
             return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
 
         poses = [
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(5)
         ]
-        h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_approach": poses[2:],
-        }
-        cost, ok = _compute_handover_primitive_cost(
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:2],
+            receiver_approach=poses[2:],
+        )
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _partial_ik,
         )
-        assert ok is True, "Should succeed when some IK calls succeed"
-        assert np.isfinite(cost), "Cost should be finite"
-        # Cost should include penalty for partial failures
-        assert cost >= C.HANDOVER_IK_PARTIAL_PENALTY, (
-            f"Cost {cost} should include at least one partial penalty "
-            f"({C.HANDOVER_IK_PARTIAL_PENALTY})"
-        )
+        assert result.feasible is False, "Should fail when any IK call fails"
+        assert result.cost == np.inf, "Cost should be inf on partial IK failure"
 
-    def test_residual_weighted_penalty_differentiates_near_and_far_misses(self):
-        """Near-miss IK failures (small residual) should produce lower cost
-        than far-miss failures (large residual) for the same number of failures."""
-        from bimanual_manipulation import constants as C
+    def test_collision_aware_config_selection(self):
+        """When the closest-to-warm-start config collides, an alternative
+        candidate should be selected instead, yielding zero collision steps."""
 
-        def _make_partial_ik(residual_on_fail: float):
-            call_count = [0]
-            def _ik(pose, robot_id, q_warm_start=None):
-                call_count[0] += 1
-                if call_count[0] % 2 == 0:
-                    return None, residual_on_fail  # fail with specified residual
-                return np.array(pose.position.tolist() + [0.1, 0.2, 0.3, 0.4]), 0.0
-            return _ik
+        q_colliding = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        q_free = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        q_hold = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
+
+        def _multi_ik(pose, robot_id, q_warm_start=None):
+            """Transfer returns a safe hold config; receiver returns two candidates."""
+            if robot_id == 0:
+                return [q_hold], 0.0
+            return [q_colliding, q_free], 0.0
+
+        def _collision_check(q0, q1):
+            """Collide only when receiver config (q1) is all zeros."""
+            return not np.allclose(q1, 0.0)
 
         poses = [
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
-            for i in range(5)
+            for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:2],
-            "receiver_approach": poses[2:],
-        }
-
-        # Near-miss: residual = 0.02 (≈ 2 cm position error)
-        cost_near, ok_near = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.02),
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:1],
+            receiver_approach=poses[1:],
         )
-        # Far-miss: residual = 0.5 (≈ 50 cm position error)
-        cost_far, ok_far = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _make_partial_ik(0.5),
+        result = _compute_handover_primitive_cost(
+            h_traj, 1.0, 1.0, 1e-6, _multi_ik,
+            collision_check_fn=_collision_check,
+            transfer_robot_id=0, receiver_robot_id=1,
         )
-
-        assert ok_near and ok_far, "Both should succeed with partial failures"
-        assert cost_near < cost_far, (
-            f"Near-miss cost ({cost_near:.2f}) should be lower than "
-            f"far-miss cost ({cost_far:.2f})"
-        )
-        # The difference should be driven by HANDOVER_IK_RESIDUAL_WEIGHT
-        assert cost_far - cost_near > C.HANDOVER_IK_RESIDUAL_WEIGHT * 0.1, (
-            "Residual weight should produce meaningful cost difference"
-        )
+        assert result.feasible is True
+        assert np.isfinite(result.cost), "Should find collision-free alternative"
+        assert result.n_collision_steps == 0, "All waypoints should use q_free"
 
     def test_per_robot_jacobian_dispatch(self):
         """Each arm's manipulability should use its own Jacobian function."""
@@ -516,57 +503,16 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses,
-            "receiver_approach": poses,
-        }
-        cost, ok = _compute_handover_primitive_cost(
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses,
+            receiver_approach=poses,
+        )
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik, jacobian_fns=jac_fns,
         )
-        assert ok is True
+        assert result.feasible is True
         assert call_log[0] > 0, "Robot-0 Jacobian never called for transfer arm"
         assert call_log[1] > 0, "Robot-1 Jacobian never called for receiver arm"
-
-    def test_collision_check_adds_penalty_for_colliding_handover(self):
-        """Collisions add per-step penalty instead of rejecting the handover."""
-        from bimanual_manipulation import constants as C
-
-        def _ik(pose, robot_id, q_warm_start=None):
-            return np.ones(7) * 0.5, 0.0
-
-        def _always_colliding(q0, q1):
-            return False  # collision detected
-
-        poses = [
-            StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
-            for i in range(3)
-        ]
-        h_traj = {
-            "transfer_hold": poses[:1],
-            "receiver_approach": poses,
-        }
-
-        # Compute cost with collisions
-        cost_col, ok_col = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _ik,
-            collision_check_fn=_always_colliding,
-        )
-        assert ok_col is True
-        assert np.isfinite(cost_col)
-
-        # Compute cost without collisions for comparison
-        cost_free, ok_free = _compute_handover_primitive_cost(
-            h_traj, 1.0, 1.0, 1e-6, _ik,
-            collision_check_fn=lambda q0, q1: True,
-        )
-        assert ok_free is True
-
-        # Colliding cost must exceed collision-free cost by at least one
-        # collision step penalty.
-        assert cost_col > cost_free + C.HANDOVER_COLLISION_STEP_PENALTY, (
-            f"Colliding cost ({cost_col:.2f}) should exceed free cost "
-            f"({cost_free:.2f}) by at least {C.HANDOVER_COLLISION_STEP_PENALTY}"
-        )
 
     def test_collision_check_passes_when_free(self):
         """A collision_check_fn returning True should not affect cost."""
@@ -580,16 +526,16 @@ class TestHandoverPrimitiveCost:
             StampedPose(position=[0.1 * i, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
             for i in range(3)
         ]
-        h_traj = {
-            "transfer_hold": poses[:1],
-            "receiver_approach": poses,
-        }
-        cost, ok = _compute_handover_primitive_cost(
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses[:1],
+            receiver_approach=poses,
+        )
+        result = _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             collision_check_fn=_always_free,
         )
-        assert ok is True
-        assert np.isfinite(cost)
+        assert result.feasible is True
+        assert np.isfinite(result.cost)
 
     def test_robot_id_passed_correctly(self):
         """Verify transfer_robot_id and receiver_robot_id are forwarded to IK."""
@@ -602,10 +548,10 @@ class TestHandoverPrimitiveCost:
         poses = [
             StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="o")
         ]
-        h_traj = {
-            "transfer_hold": poses,
-            "receiver_pre": poses,
-        }
+        h_traj = HandoverTrajectory(
+            transfer_hold=poses,
+            receiver_pre=poses,
+        )
         _compute_handover_primitive_cost(
             h_traj, 1.0, 1.0, 1e-6, _ik,
             transfer_robot_id=1,
@@ -902,65 +848,68 @@ class TestFactoryFunctions:
         tf.transform_pose.side_effect = lambda p, frame: p
         return tf
 
-    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
     @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_calls_ik(
-        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = [np.zeros(7)]
-        mock_cache.return_value = MagicMock()
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager, env_lock=None)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result, residual = ik_fn(pose, robot_id=0)
+        result = ik_fn(pose, robot_id=0)
 
         assert result is not None
-        assert result.shape == (7,)
-        assert residual == 0.0
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].shape == (7,)
         mock_correction.assert_called_once()
         mock_ik.assert_called_once()
-        # Verify robot_id was forwarded
         _, kwargs = mock_ik.call_args
         assert kwargs["robot_id"] == 0
 
-    @patch("bimanual_manipulation.planning.assignment.factories.create_solver_cache")
     @patch("bimanual_manipulation.planning.assignment.factories.enumerate_ik_solutions_for_arm")
     @patch("bimanual_manipulation.planning.assignment.factories.apply_ik_orientation_correction")
     def test_make_ik_solver_fn_returns_none_on_failure(
-        self, mock_correction, mock_ik, mock_cache, mock_env, mock_tf_manager,
+        self, mock_correction, mock_ik, mock_env, mock_tf_manager,
     ):
         mock_correction.side_effect = lambda p: p
         mock_ik.return_value = []  # no solutions
-        mock_cache.return_value = MagicMock(best_residual=0.42)
 
         ik_fn = make_ik_solver_fn(mock_env, mock_tf_manager)
         pose = StampedPose(position=[0, 0, 0], quaternion=[0, 0, 0, 1], frame_id="world")
-        result, residual = ik_fn(pose, robot_id=1)
+        result = ik_fn(pose, robot_id=1)
 
         assert result is None
-        assert residual == 0.42
 
-    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.mujoco")
     @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
     @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_returns_per_robot(
-        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mujoco,
         mock_env,
     ):
         mock_jids.return_value = list(range(7))
         mock_qidx.return_value = np.arange(7)
         mock_didx.return_value = np.arange(7)
         mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
-        mock_native.side_effect = lambda x: x
 
-        mock_config = MagicMock()
-        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
-        mock_mink.Configuration.return_value = mock_config
+        mock_model_native = MagicMock()
+        mock_model_native.nv = 17
+        mock_data_native = MagicMock()
+        mock_data_native.qpos = np.zeros(17)
+        mock_native.side_effect = lambda x: mock_model_native if x is mock_env.sim.model else mock_data_native
+        mock_mujoco.mj_name2id.return_value = 0
+        mock_mujoco.mjtObj.mjOBJ_SITE = 6
+
+        def _mock_jac_site(model, data, jacp, jacr, site_id):
+            jacp[:] = np.ones((3, 17))
+            jacr[:] = np.ones((3, 17))
+        mock_mujoco.mj_jacSite.side_effect = _mock_jac_site
 
         mock_env.sim.data.qpos = np.zeros(17)
 
@@ -975,30 +924,37 @@ class TestFactoryFunctions:
         assert J0.shape == (6, 7)
         assert J1.shape == (6, 7)
 
-        # Verify per-robot site names were resolved
         site_calls = mock_site.call_args_list
         assert site_calls[0][0][0] == 0
         assert site_calls[1][0][0] == 1
 
-    @patch("bimanual_manipulation.planning.assignment.factories.mink")
+    @patch("bimanual_manipulation.planning.assignment.factories.mujoco")
     @patch("bimanual_manipulation.planning.assignment.factories.get_native_mj_object")
     @patch("bimanual_manipulation.planning.assignment.factories.get_eef_site_name")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_dof_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_joint_qpos_indices")
     @patch("bimanual_manipulation.planning.assignment.factories.get_arm_joint_ids")
     def test_make_jacobian_fns_with_lock(
-        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mink,
+        self, mock_jids, mock_qidx, mock_didx, mock_site, mock_native, mock_mujoco,
         mock_env,
     ):
         mock_jids.return_value = list(range(7))
         mock_qidx.return_value = np.arange(7)
         mock_didx.return_value = np.arange(7)
         mock_site.side_effect = lambda rid, arm="right": f"robot{rid}_eef"
-        mock_native.side_effect = lambda x: x
 
-        mock_config = MagicMock()
-        mock_config.get_frame_jacobian.return_value = np.eye(6, 17)
-        mock_mink.Configuration.return_value = mock_config
+        mock_model_native = MagicMock()
+        mock_model_native.nv = 17
+        mock_data_native = MagicMock()
+        mock_data_native.qpos = np.zeros(17)
+        mock_native.side_effect = lambda x: mock_model_native if x is mock_env.sim.model else mock_data_native
+        mock_mujoco.mj_name2id.return_value = 0
+        mock_mujoco.mjtObj.mjOBJ_SITE = 6
+
+        def _mock_jac_site(model, data, jacp, jacr, site_id):
+            jacp[:] = np.ones((3, 17))
+            jacr[:] = np.ones((3, 17))
+        mock_mujoco.mj_jacSite.side_effect = _mock_jac_site
 
         mock_env.sim.data.qpos = np.zeros(17)
 
@@ -1008,9 +964,8 @@ class TestFactoryFunctions:
         fns = make_jacobian_fns(mock_env, env_lock=lock)
         fns[0](np.zeros(7))
 
-        # Verify config.update was called (reuse path)
-        mock_config.update.assert_called()
-        mock_config.get_frame_jacobian.assert_called()
+        mock_mujoco.mj_fwdPosition.assert_called()
+        mock_mujoco.mj_jacSite.assert_called()
 
 
 class TestMakeCollisionCheckFn:

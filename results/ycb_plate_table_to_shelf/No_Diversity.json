@@ -5,18 +5,20 @@
   "planning": {
     "experiment": "ycb_plate_table_to_shelf",
     "config_label": "No Diversity",
-    "total_cost": Infinity,
-    "n_segments": 0,
-    "n_handovers": 0,
-    "handover_points": [],
-    "mean_task_cost": 0.0,
-    "total_switching_cost": 0.0,
-    "mean_manipulability": 0.0,
-    "min_manipulability": 0.0,
+    "total_cost": 1084.952728368604,
+    "n_segments": 50,
+    "n_handovers": 1,
+    "handover_points": [
+      13
+    ],
+    "mean_task_cost": 19.943162188985866,
+    "total_switching_cost": 87.79461891931048,
+    "mean_manipulability": 0.10752686020281434,
+    "min_manipulability": 0.05550275676575828,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
-    "assigned_feasibility_rate": 0.0,
-    "planning_time_s": 14990.076027393341
+    "assigned_feasibility_rate": 1.0,
+    "planning_time_s": 106.94098114967346
   },
   "execution": {
     "task_success": false,
@@ -26,12 +28,12 @@
     "n_handovers_attempted": 1,
     "n_handovers_succeeded": 1,
     "handover_success_rate": 1.0,
-    "n_collision_incidents": 1,
+    "n_collision_incidents": 13,
     "n_switches": 1,
-    "execution_time_s": 320.62072801589966,
-    "mean_manipulability": 0.09171643371760164,
-    "placement_position_error": 0.5065726929364318,
-    "placement_orientation_error": 130.70808073426366,
+    "execution_time_s": 141.09941220283508,
+    "mean_manipulability": 0.08501178480137839,
+    "placement_position_error": 0.5073903836790594,
+    "placement_orientation_error": 98.27629705254834,
     "error_message": ""
   }
 }

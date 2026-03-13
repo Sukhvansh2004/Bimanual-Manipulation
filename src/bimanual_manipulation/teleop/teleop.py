@@ -18,7 +18,7 @@ from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.utils import env_step, get_action_persistence_manager, reset_action_persistence
-from bimanual_manipulation.planning.utils.ik_utils import compute_arm_jacobian
+from bimanual_manipulation.planning.ik.ik_utils import compute_arm_jacobian
 
 import time
 

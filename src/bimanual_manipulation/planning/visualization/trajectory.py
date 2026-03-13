@@ -12,6 +12,7 @@ from bimanual_manipulation.transforms import StampedPose, TransformManager
 from bimanual_manipulation import constants
 from bimanual_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
 from bimanual_manipulation.planning.assignment.models import TrajectoryBundle
+from bimanual_manipulation.utils.primitives import HandoverTrajectory
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ def visualize_trajectory(
 
 def visualize_handover_plan(
     vis: meshcat.Visualizer,
-    handover_data: dict,
+    handover_data: HandoverTrajectory,
     name: str = "handover",
     tf_manager: Optional[TransformManager] = None,
 ) -> None:
@@ -124,11 +125,12 @@ def visualize_handover_plan(
       - object handover pose (yellow sphere, if inferable)
 
     Call *after* ``DualArmHandoverPlanner.generate_trajectory()`` and pass
-    the returned dict.
+    the returned :class:`HandoverTrajectory`.
 
     Args:
         vis: MeshCat visualizer instance.
-        handover_data: Dict returned by ``DualArmHandoverPlanner.generate_trajectory()``.
+        handover_data: :class:`HandoverTrajectory` from
+            ``DualArmHandoverPlanner.generate_trajectory()``.
         name: Group name in MeshCat.
         tf_manager: Optional TransformManager for frame conversion to world.
     """
@@ -183,21 +185,21 @@ def visualize_handover_plan(
     logger.info(f"Visualizing handover plan '{name}':")
 
     # --- Key poses ---
-    if "receiver_pre" in handover_data and handover_data["receiver_pre"]:
-        _draw_pose(f"{root}/receiver_pre", handover_data["receiver_pre"][0],
+    if handover_data.receiver_pre:
+        _draw_pose(f"{root}/receiver_pre", handover_data.receiver_pre[0],
                    color=0x00DDDD, label="receiver_pre")   # cyan
 
-    if "transfer_hold" in handover_data and handover_data["transfer_hold"]:
-        _draw_pose(f"{root}/transfer_hold", handover_data["transfer_hold"][0],
+    if handover_data.transfer_hold:
+        _draw_pose(f"{root}/transfer_hold", handover_data.transfer_hold[0],
                    color=0xDD00DD, label="transfer_hold")  # magenta
 
     # --- Trajectories ---
-    if "receiver_approach" in handover_data and handover_data["receiver_approach"]:
-        _draw_traj(f"{root}/receiver_approach", handover_data["receiver_approach"],
+    if handover_data.receiver_approach:
+        _draw_traj(f"{root}/receiver_approach", handover_data.receiver_approach,
                    color=0x00AAFF, line_color=0x00CCFF, label="receiver_approach")
 
-    if "transfer_retreat" in handover_data and handover_data["transfer_retreat"]:
-        _draw_traj(f"{root}/transfer_retreat", handover_data["transfer_retreat"],
+    if handover_data.transfer_retreat:
+        _draw_traj(f"{root}/transfer_retreat", handover_data.transfer_retreat,
                    color=0xFF6600, line_color=0xFF8800, label="transfer_retreat")
 
     logger.info(f"Handover plan '{name}' visualized in MeshCat.")

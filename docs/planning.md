@@ -128,19 +128,28 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 
 - **`generate_grasps(object_name, gripper_types, ...)`**: Interacts with the `GraspService` to retrieve 6-DOF grasp candidates for specified grippers (finger and/or suction).
 
-### 5. Planning Utilities (`planning/utils/`)
+### 5. Inverse Kinematics (`planning/ik/`)
 
 | Module | Purpose |
-|--------|---------|
+|--------|--------|
+| `ik_utils.py` | Backend-agnostic IK dispatch (enumerates solutions & Jacobians via `IK_SOLVER_BACKEND`) |
+| `eaik_solver.py` | Analytical closed-form IK via EAIK (fastest, default) |
+| `scipy_solver.py` | Numerical IK via L-BFGS-B with analytical Jacobian |
+| `mink_solver.py` | QP-based iterative differential IK via mink |
+| `manipulability.py` | Yoshikawa manipulability measure and trajectory-level wrappers |
+
+### 6. Planning Utilities (`planning/utils/`)
+
+| Module | Purpose |
+|--------|--------|
 | `collision_utils.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
-| `ik_utils.py` | Mink QP-based IK solver with multi-seed enumeration |
 | `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
 | `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
 | `visualization_utils.py` | General Meshcat visualization helpers |
 | `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
 | `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
 
-### 6. Dual-Arm Parallel Planner (`dual_arm/`)
+### 7. Dual-Arm Parallel Planner (`dual_arm/`)
 
 Enables **simultaneous** execution of two arm motions with **reactive, online collision avoidance** powered by mink's QP-based differential IK. This replaces the earlier "plan-then-stagger" approach where arms moved sequentially to avoid collisions.
 
@@ -357,7 +366,7 @@ The collision checker (`check_arm_config_collision`) is designed for speed insid
 
 The RRT checks collisions against Arm A at `traj_a[-1]` — the pose Arm A will occupy when both arms are at the handover point.  This is the most restrictive configuration (arms are closest together) and the most relevant for ensuring Arm B can safely arrive at its target without colliding with Arm A.  Transient collisions during the motion are still handled by the reactive mink QP at execution time.
 
-### 7. Segment Assignment Planner (`assignment/`)
+### 8. Segment Assignment Planner (`assignment/`)
 
 Solves the **optimal robot-to-segment assignment problem** for dual-arm manipulation. Given a discretised object trajectory and a set of pre-generated robot trajectories for each arm, the planner determines which arm should carry the object at every segment, minimising a combined cost of smoothness and manipulability while accounting for handover switching penalties.
 
@@ -638,12 +647,11 @@ else:
 
 ### Inverse Kinematics (IK)
 
-The module uses a mink QP-based differential IK solver (`solve_ik_mink`) wrapped by `enumerate_ik_solutions_for_arm`. This wrapper adds robustness by:
-- Trying multiple random seed configurations (`IK_NUM_SEED_CONFIGS = 48`)
-- Warm-starting from the previous waypoint's solution for trajectory continuity
-- Elbow angle discretization (`IK_ELBOW_DISCRETIZATION = 8`) to handle 7-DOF redundancy
-- Filtering duplicate solutions (`IK_UNIQUE_TOLERANCE = 1e-3`)
-- All QP solver configuration is centralized in `constants.py` (`MINK_*` constants)
+The module uses EAIK (Efficient Analytical Inverse Kinematics) for closed-form IK solving via `enumerate_ik_solutions_eaik`, wrapped by `enumerate_ik_solutions_for_arm`. The 7-DOF Panda is reduced to 6-DOF by sweeping a locked joint across its range, yielding up to 8 exact solutions per locked value. This approach adds robustness by:
+- Sweeping the redundant joint across its range (`EAIK_NUM_SWEEP_VALUES = 20`)
+- Filtering duplicate solutions (`IK_UNIQUE_TOLERANCE = 0.25`)
+- Ranking solutions by manipulability (via raw MuJoCo Jacobians)
+- All EAIK configuration is centralized in `constants.py` (`EAIK_*` constants)
 
 ### Coordinate Frames
 
@@ -651,10 +659,10 @@ All planning functions rely on `StampedPose` and `TransformManager` to ensure co
 
 ### Optimization
 
-- **Warm Starting**: IK solver uses the previous waypoint's solution as seed for the next, ensuring joint-space continuity and faster convergence.
+- **Analytical IK**: EAIK provides exact closed-form solutions (~2μs/call), eliminating iterative convergence and warm-starting.
 - **Dynamic Programming**: When validating grasp pairs for dual-arm tasks, results are cached to avoid re-computing feasibility for the same grasp in different pair combinations.
 - **Multiprocessing**: The trajectory generation scripts (`trajectory_generation.py`, `dual_trajectory_generation.py`) use Python `multiprocessing` with configurable worker pools to evaluate multiple grasp candidates in parallel.
 
 ### Collision Filtering
 
-The experiment config system supports collision filter exclusion patterns via `collision_filter.exclude_patterns`. This allows planning to ignore expected contacts (e.g., the manipulated object touching the shelf during insertion). The function `get_collision_filter_fn()` in `experiment_config.py` constructs the appropriate MuJoCo geom filter.
+The experiment config system supports collision filter patterns via `collision_filter.relevant_patterns`. These patterns identify geoms that are relevant to the task (manipulated objects, support surfaces, etc.) and should keep their collision properties active. Geoms not matching any pattern (and not robot geoms) get their `contype` set to 0, disabling irrelevant geom-to-geom collision checks as an optimisation. The function `get_collision_filter_fn()` in `experiment_config.py` constructs the appropriate MuJoCo geom filter.

@@ -66,6 +66,7 @@ from bimanual_manipulation.utils.mesh_utils import load_mesh_and_sample
 
 from bimanual_manipulation.utils.primitives import (
     DualArmHandoverPlanner,
+    HandoverTrajectory,
     ObjectGraspPrimitive,
     ReleaseRetreatPrimitive,
     compute_ee_pose,
@@ -75,6 +76,12 @@ from bimanual_manipulation.utils.primitives import (
 from bimanual_manipulation.utils.suction_weld import (
     apply_suction_weld,
     clear_suction_cache,
+)
+
+from bimanual_manipulation.utils.trajectory_math import (
+    plan_quintic_joint_trajectory,
+    quintic_scalar,
+    resample_joint_trajectory,
 )
 
 __all__ = [
@@ -106,6 +113,9 @@ __all__ = [
     'reset_action_persistence',
     'get_action_persistence_manager',
     'ActionPersistenceManager',
+    'start_collision_monitor',
+    'stop_collision_monitor',
+    'get_collision_count',
     # YCB utilities
     'get_available_ycb_objects',
     'list_ycb_objects',
@@ -124,4 +134,8 @@ __all__ = [
     # Suction weld utilities
     'apply_suction_weld',
     'clear_suction_cache',
+    # Trajectory math
+    'plan_quintic_joint_trajectory',
+    'quintic_scalar',
+    'resample_joint_trajectory',
 ]

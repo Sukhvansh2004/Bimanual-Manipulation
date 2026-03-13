@@ -10,20 +10,19 @@ import threading
 from contextlib import nullcontext
 from typing import Callable, Dict, Optional
 
-import mink
 import mujoco
 import numpy as np
 import robosuite.utils.transform_utils as T
 
-from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.planning.utils.collision_utils import (
     check_inter_arm_collision,
     in_collision,
 )
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     apply_ik_orientation_correction,
-    create_solver_cache,
+)
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
 )
 from bimanual_manipulation.planning.utils.mujoco_utils import (
@@ -41,47 +40,32 @@ def make_ik_solver_fn(
     env: DualArmEnvironment,
     tf_manager: TransformManager,
     env_lock: Optional[threading.RLock] = None,
-    relaxed: bool = False,
 ) -> Callable[[StampedPose, int], Optional[np.ndarray]]:
     """Create an IK-solver closure compatible with :func:`~solver.compute_optimal_robot_assignment`.
 
     The returned function has signature
     ``(pose: StampedPose, robot_id: int, q_warm_start: Optional[np.ndarray] = None) -> Optional[np.ndarray]``
-    and internally delegates to :func:`~planning.utils.ik_utils.enumerate_ik_solutions_for_arm`,
-    applying the orientation correction beforehand.
+    and internally delegates to EAIK analytical IK, applying the orientation
+    correction beforehand.
 
     Args:
         env: The dual-arm simulation environment.
         tf_manager: Transform manager for frame conversions.
         env_lock: Optional reentrant lock guarding the environment.
-        relaxed: If True, use relaxed IK tolerances suited for handover
-            cost estimation (faster, higher acceptance rate).
     """
-    pos_tol = constants.HANDOVER_IK_POS_TOLERANCE if relaxed else constants.IK_POS_TOLERANCE
-    ori_tol = constants.HANDOVER_IK_ORI_TOLERANCE if relaxed else constants.IK_ORI_TOLERANCE
-
-    # Per-robot solver caches — lazily initialised on first call so that
-    # mink objects (MjData, tasks, limits) are allocated once and reused
-    # across all subsequent IK evaluations.
-    _solver_caches: dict = {}
-
     def _ik_solver(
         pose: StampedPose,
         robot_id: int,
         q_warm_start: Optional[np.ndarray] = None,
     ) -> tuple:
-        """Return ``(solution_or_None, best_residual)``.
+        """Return ``(solutions_list, residual)``.
 
-        *best_residual* is the smallest combined ``pos_err + ori_err``
-        across all IK seeds when no solution was found (``inf`` if a
-        solution was found, i.e. effectively 0 — but we return 0.0
-        explicitly for clarity).
+        Uses EAIK analytical IK for fast offline solving.
+        Returns all valid solutions (ranked by proximity to
+        *q_warm_start* when given) so the caller can evaluate
+        multiple candidates.  *residual* is 0.0 when at least one
+        solution is found, ``inf`` otherwise.
         """
-        if robot_id not in _solver_caches:
-            _solver_caches[robot_id] = create_solver_cache(
-                env, robot_id, env_lock=env_lock,
-            )
-        cache = _solver_caches[robot_id]
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
             env,
@@ -89,17 +73,11 @@ def make_ik_solver_fn(
             target_pose=corrected,
             tf_manager=tf_manager,
             env_lock=env_lock,
-            max_solutions=1,
-            pos_tol=pos_tol,
-            ori_tol=ori_tol,
-            q_warm_start=q_warm_start,
-            solver_cache=cache,
+            q_reference=q_warm_start,
         )
         if solutions:
-            return solutions[0], 0.0
-        # Return the best residual across all seeds — indicates how
-        # close the best seed got to convergence.
-        return None, cache.best_residual
+            return solutions
+        return None
 
     return _ik_solver
 
@@ -129,22 +107,33 @@ def make_jacobian_fns(
             with ctx:
                 if not _cached:
                     model = env.sim.model
-                    data = env.sim.data
                     joint_ids = get_arm_joint_ids(model, robot_id)
                     _cached["qpos_idx"] = get_joint_qpos_indices(model, joint_ids)
                     _cached["dof_idx"] = get_joint_dof_indices(model, joint_ids)
                     _cached["site"] = get_eef_site_name(robot_id, arm="right")
                     model_native = get_native_mj_object(model)
-                    q_init = np.array(data.qpos, copy=True, dtype=float).ravel()
-                    _cached["config"] = mink.Configuration(model_native, q=q_init)
+                    _cached["model_native"] = model_native
+                    _cached["site_id"] = mujoco.mj_name2id(
+                        model_native, mujoco.mjtObj.mjOBJ_SITE, _cached["site"],
+                    )
 
+                model_native = _cached["model_native"]
+                data_native = get_native_mj_object(env.sim.data)
                 q_full = np.array(env.sim.data.qpos, copy=True, dtype=float).ravel()
                 q_full[_cached["qpos_idx"]] = q
-                _cached["config"].update(q=q_full)
-                J_full = _cached["config"].get_frame_jacobian(
-                    _cached["site"], "site",
+
+                data_native.qpos[:] = q_full
+                mujoco.mj_fwdPosition(model_native, data_native)
+
+                jacp = np.zeros((3, model_native.nv))
+                jacr = np.zeros((3, model_native.nv))
+                mujoco.mj_jacSite(
+                    model_native, data_native, jacp, jacr, _cached["site_id"],
                 )
-                return J_full[:, _cached["dof_idx"]]
+                return np.vstack([
+                    jacp[:, _cached["dof_idx"]],
+                    jacr[:, _cached["dof_idx"]],
+                ])
         return _jacobian_fn
 
     return {0: _make_for_robot(0), 1: _make_for_robot(1)}

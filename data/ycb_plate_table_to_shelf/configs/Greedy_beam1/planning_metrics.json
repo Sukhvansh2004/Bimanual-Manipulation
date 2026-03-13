@@ -1,18 +1,18 @@
 {
   "experiment": "ycb_plate_table_to_shelf",
   "config_label": "",
-  "total_cost": 13250.47940423543,
+  "total_cost": 1463.2478150027146,
   "n_segments": 50,
   "n_handovers": 1,
   "handover_points": [
-    40
+    39
   ],
-  "mean_task_cost": 36.64427166798043,
-  "total_switching_cost": 11418.265820836408,
-  "mean_manipulability": 0.0827057930333849,
-  "min_manipulability": 0.028291478287665525,
+  "mean_task_cost": 26.872552464744878,
+  "total_switching_cost": 119.62019176547076,
+  "mean_manipulability": 0.0851156761238397,
+  "min_manipulability": 0.03167703242077731,
   "feasibility_rate_robot0": 0.0,
   "feasibility_rate_robot1": 0.0,
   "assigned_feasibility_rate": 1.0,
-  "planning_time_s": 3022.8044135570526
+  "planning_time_s": 16.47041392326355
 }

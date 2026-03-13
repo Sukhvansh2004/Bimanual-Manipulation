@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 from contextlib import nullcontext
 import threading
 import numpy as np
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.utils import env_step
+from bimanual_manipulation.utils.env_utils import env_step
+
+if TYPE_CHECKING:
+    from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 
 logger = logging.getLogger(__name__)
 

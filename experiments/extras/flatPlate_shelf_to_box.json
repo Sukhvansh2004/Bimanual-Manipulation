@@ -96,7 +96,7 @@
         ]
     },
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "boundary"]
+        "relevant_patterns": ["flatPlate", "plate", "tshelf", "table_shelf", "boundary"]
     },
     "visualization": {
         "visualize_mesh": true,

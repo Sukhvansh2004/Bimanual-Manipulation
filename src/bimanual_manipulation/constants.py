@@ -65,7 +65,7 @@ GRIPPER_GRASP_OFFSETS = {
     },
     'single_suction_cup_30mm': {
         'position': np.array([0.0, 0.0, -0.12]),
-        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),  # 180 deg around Y
+        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),
     },
 }
 
@@ -122,23 +122,12 @@ ENTROPY_ORIENTATION_SCALE = 5
 GRASP_IK_MAX_SOLUTIONS = 5  # Max IK solutions to check for single grasp feasibility
 DUAL_GRASP_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibility (1 = just need existence)
 
-# IK Solver Parameters (grasp feasibility — needs diversity)
-IK_NUM_SEED_CONFIGS = 16  # Number of random seed configurations for IK
-IK_ELBOW_DISCRETIZATION = 4  # Number of elbow angle discretization steps
+# IK Solver Parameters
 IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
-IK_POS_TOLERANCE = 5e-3  # Position tolerance (meters)
-IK_ORI_TOLERANCE = 5e-3  # Orientation tolerance (radians)
-IK_UNIQUE_TOLERANCE = 0.25  # Tolerance for unique solution filtering (~14.3°)
-IK_RANDOM_PERTURBATION_SCALE = 0.25  # Std dev for random seed perturbation
-IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
-# Trajectory Feasibility Check Parameters (warm-start driven — needs speed)
-TRAJ_IK_NUM_SEED_CONFIGS = 6  # Seeds for trajectory waypoints (fewer: warm-start converges quickly)
-TRAJ_IK_MAX_SOLUTIONS = 4
-
-# Relaxed IK tolerances for handover cost evaluation (we only need a rough
-# feasibility check, not a high-precision solution).
-HANDOVER_IK_POS_TOLERANCE = 0.01   # 10 mm (vs. 5 mm for grasp IK)
-HANDOVER_IK_ORI_TOLERANCE = 0.05   # ~3° (vs. 0.29° for grasp IK)
+IK_UNIQUE_TOLERANCE = 0.2  # Tolerance for unique solution filtering
+IK_MIN_MANIPULABILITY = 1e-3  # Reject IK solutions with manipulability below this threshold
+# Trajectory Feasibility Check Parameters
+TRAJ_IK_MAX_SOLUTIONS = 6  # Max IK solutions to check per waypoint during trajectory feasibility checking
 
 # Collision Checking Parameters
 COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
@@ -153,11 +142,48 @@ COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 
 # =============================================================================
+# EAIK Analytical IK Configuration
+# =============================================================================
+# Panda is 7-DOF, EAIK handles up to 6-DOF.  We lock one joint at a time
+# and sweep across its range.  By sweeping ALL 7 joints we explore the
+# full redundancy manifold instead of relying on a single wrist joint.
+EAIK_NUM_SWEEP_VALUES = 8        # Sweep values *per joint* (7 joints × 8 = 56 total)
+EAIK_WARM_START_WINDOW = 0.5     # Half-width (rad, ~28.6°) for q_reference-biased sweep
+EAIK_GRID_STEP = 0.05            # Quantisation step (rad) for locked-joint values;
+                                 # snaps sweep values to a fixed grid so UrdfRobot
+                                 # objects are reused across warm-start configs.
+                                 # 0.05 → ≤120 grid pts/joint → ≤840 robots total.
+EAIK_FK_POS_TOLERANCE = 1e-3     # Max FK position error (m) to accept a solution
+EAIK_FK_ROT_TOLERANCE = 5e-3     # Max FK orientation error (rad, ~2.9°) to accept a solution
+
+# =============================================================================
+# IK Solver Selection
+# =============================================================================
+# Which backend to use for offline IK enumeration.
+# Options: "eaik" (analytical, fastest), "scipy" (L-BFGS-B), "mink" (QP iterative)
+IK_SOLVER_BACKEND = "eaik"
+
+# =============================================================================
+# Scipy L-BFGS-B IK Configuration
+# =============================================================================
+SCIPY_IK_NUM_SEEDS = 48         # Number of seed configs to try
+SCIPY_IK_MAX_ITERS = 200        # Max L-BFGS-B iterations per seed
+SCIPY_IK_POS_TOLERANCE = 5e-3   # Max position error (m) to accept
+SCIPY_IK_ROT_TOLERANCE = 5e-3   # Max orientation error (rad) to accept
+
+# =============================================================================
 # Mink QP-based IK / Reactive Tracking Configuration
 # =============================================================================
+# Mink offline IK solver parameters
+MINK_IK_NUM_SEEDS = 48          # Number of seed configs to try
+MINK_IK_MAX_ITERS = 300         # Max QP iterations per seed
+MINK_IK_POS_TOLERANCE = 5e-3    # Position convergence tolerance (m)
+MINK_IK_ROT_TOLERANCE = 5e-3    # Orientation convergence tolerance (rad)
+MINK_IK_STALL_WINDOW = 20       # Iterations without improvement before bail-out
+MINK_IK_STALL_TOL = 1e-6        # Minimum improvement to reset stall counter
 
 # QP solver backend
-MINK_QP_SOLVER = "daqp"
+MINK_QP_SOLVER = "proxqp"
 
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight
@@ -174,11 +200,6 @@ MINK_DAMPING_COST = 1e-4       # minimum-norm regulariser
 # ── Integration timestep ──
 MINK_DT = 0.01                 # seconds per QP solve (reactive tracking)
 MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
-
-# ── Iterative IK convergence ──
-MINK_IK_MAX_ITERS = 150        # maximum QP iterations per IK seed (converges within ~100 typically)
-MINK_IK_STALL_WINDOW = 10      # iterations to detect stalling (faster bail-out on bad seeds)
-MINK_IK_STALL_TOL = 1e-7       # minimum error improvement to avoid stall
 
 # ── CollisionAvoidanceLimit ──
 MINK_COLLISION_MIN_DIST = 0.005     # minimum distance between geoms (metres)
@@ -237,26 +258,11 @@ COST_EVAL_APPROACH_STEPS = 5      # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
 COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of retreat
 
-# Per-waypoint IK-failure penalty added to handover cost when using
-# partial-success evaluation (some intermediate IK calls fail but enough
-# succeed to compute a meaningful cost).
-HANDOVER_IK_PARTIAL_PENALTY = 500.0
+# Early-exit flags: when True, a single IK failure or collision
+# immediately returns inf cost instead of adding a soft penalty.
+HANDOVER_EARLY_EXIT_ON_IK_FAILURE = True
+HANDOVER_EARLY_EXIT_ON_COLLISION = True
 
-# Multiplier on the accumulated IK residual (pos_err + ori_err) across
-# failed poses.  Two handovers with the same number of IK failures are
-# differentiated by how close the best seed got: a near-miss (1 cm off)
-# incurs a much smaller penalty than a far miss (10 cm off).
-#   residual_penalty = HANDOVER_IK_RESIDUAL_WEIGHT × Σ(pos_err + ori_err)
-# Typical residuals range 0.05 (near-miss) to 0.6 (far miss), so a
-# weight of 5 000 produces ~250–3 000 additional cost per failure.
-HANDOVER_IK_RESIDUAL_WEIGHT = 5000.0
-
-# Per-step penalty added when a pair of (transfer, receiver) IK configs
-# collides during the handover trajectory.  Instead of rejecting the
-# entire handover (inf), we accumulate a finite penalty per colliding
-# step so the DP can still route through the handover but prefers ones
-# that are collision-free.
-HANDOVER_COLLISION_STEP_PENALTY = 1500.0
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -300,6 +306,7 @@ VIS_TRAJECTORY_PATH = "trajectories"  # Subpath for trajectory visualizations
 VIS_ROBOT_CONFIG_PATH = "robot_configs"  # Subpath for robot mesh configurations
 VIS_MESH_STEP_INTERVAL = 10  # Visualize robot mesh every N waypoints
 VIS_MESH_OPACITY = 0.4  # Default opacity for robot mesh visualization
+VIS_HANDOVER_MESH_SAMPLE_RATIO = 0.5  # Mesh face ratio for handover visualizer (faster)
 
 # Feasibility color palette (hex RGB, shared by robot_mesh & object_mesh visualizers)
 VIS_COLOR_FEASIBLE = 0x00ff00    # Green
@@ -469,6 +476,13 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 # =============================================================================
 # Asset Paths
 # =============================================================================
+
+# Path to Franka Panda URDF shipped with robosuite (used by EAIK solver)
+def _get_panda_urdf_path() -> Path:
+    import robosuite
+    return Path(robosuite.__file__).parent / "models" / "assets" / "bullet_data" / "panda_description" / "urdf" / "panda_arm.urdf"
+
+PANDA_URDF_PATH = _get_panda_urdf_path()
 
 # Path to suction gripper XML asset
 SUCTION_GRIPPER_XML_PATH = get_project_root() / "src" / "bimanual_manipulation" / "assets" / "grippers" / "panda_suction.xml"

@@ -1,16 +1,16 @@
 {
   "task_success": false,
-  "grasp_success": true,
-  "transport_success": true,
+  "grasp_success": false,
+  "transport_success": false,
   "place_success": false,
-  "n_handovers_attempted": 2,
-  "n_handovers_succeeded": 2,
+  "n_handovers_attempted": 0,
+  "n_handovers_succeeded": 0,
   "handover_success_rate": 1.0,
-  "n_collision_incidents": 127,
-  "n_switches": 2,
-  "execution_time_s": 370.16381573677063,
-  "mean_manipulability": 0.08649871833389595,
-  "placement_position_error": 1.0232665335298745,
-  "placement_orientation_error": 171.2183867987874,
-  "error_message": ""
+  "n_collision_incidents": 0,
+  "n_switches": 0,
+  "execution_time_s": 8.362310647964478,
+  "mean_manipulability": 0.0,
+  "placement_position_error": null,
+  "placement_orientation_error": null,
+  "error_message": "Robot 1: RRT to pre-grasp failed \u2014 no collision-free approach path found."
 }

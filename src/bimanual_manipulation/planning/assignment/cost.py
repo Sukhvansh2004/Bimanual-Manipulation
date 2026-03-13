@@ -21,6 +21,7 @@ compute_switching_cost
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -32,13 +33,40 @@ from bimanual_manipulation.planning.assignment.models import (
     RobotTrajectory,
     TrajectoryBundle,
 )
-from bimanual_manipulation.planning.utils.manipulability import (
+from bimanual_manipulation.planning.ik.manipulability import (
     compute_trajectory_manipulability,
 )
 from bimanual_manipulation.transforms import StampedPose
-from bimanual_manipulation.utils.primitives import DualArmHandoverPlanner
+from bimanual_manipulation.utils.primitives import (
+    DualArmHandoverPlanner,
+    HandoverTrajectory,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Handover result container
+# ---------------------------------------------------------------------------
+
+@dataclass
+class HandoverResult:
+    """Rich result from a handover primitive evaluation."""
+
+    cost: float
+    feasible: bool
+    transfer_robot_id: int = 0
+    receiver_robot_id: int = 1
+    segment_idx: int = -1
+    prev_traj_idx: int = -1
+    curr_traj_idx: int = -1
+    transfer_configs: List[np.ndarray] = field(default_factory=list)
+    receiver_configs: List[np.ndarray] = field(default_factory=list)
+    n_collision_steps: int = 0
+    transfer_collision_mask: List[bool] = field(default_factory=list)
+    receiver_collision_mask: List[bool] = field(default_factory=list)
+    rejection_reason: str = ""
+    object_pose: Optional[StampedPose] = None
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +217,135 @@ def compute_cost_matrix(
 # Handover primitive cost
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Handover primitive helpers
+# ---------------------------------------------------------------------------
+
+def _solve_all_ik(
+    poses: List[StampedPose],
+    robot_id: int,
+    ik_solver_fn: Callable,
+    q_warm_start: Optional[np.ndarray] = None,
+) -> Tuple[List[List[np.ndarray]], int]:
+    """Solve IK for every pose, returning ALL candidate configs per pose.
+
+    When :data:`constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE` is ``True``
+    iteration stops at the first failure, avoiding unnecessary IK calls.
+
+    Returns:
+        ``(all_candidates, n_failed)`` where ``all_candidates[i]`` is a
+        list of valid joint configs for pose *i* (empty on failure).
+    """
+    early_exit = constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE
+    all_candidates: List[List[np.ndarray]] = []
+    q_prev = q_warm_start
+    n_failed = 0
+    for p in poses:
+        try:
+            raw = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
+            # Accept either plain result or (result, residual) tuple
+            if isinstance(raw, tuple):
+                result = raw[0]
+            else:
+                result = raw
+            if result is None:
+                n_failed += 1
+                all_candidates.append([])
+                if early_exit:
+                    return all_candidates, n_failed
+                continue
+            candidates = result if isinstance(result, list) else [result]
+            if q_prev is not None and len(candidates) > 1:
+                candidates = sorted(
+                    candidates,
+                    key=lambda q: float(np.linalg.norm(q - q_prev)),
+                )
+            all_candidates.append(candidates)
+            q_prev = candidates[0]
+        except Exception:
+            n_failed += 1
+            all_candidates.append([])
+            if early_exit:
+                return all_candidates, n_failed
+    return all_candidates, n_failed
+
+
+def _select_collision_free_configs(
+    candidates_list: List[List[np.ndarray]],
+    other_config: np.ndarray,
+    this_robot_id: int,
+    collision_check_fn: Callable[[np.ndarray, np.ndarray], bool],
+) -> Tuple[List[np.ndarray], List[bool]]:
+    """Pick one config per waypoint, preferring collision-free candidates.
+
+    Each waypoint's candidates are checked against a single fixed
+    *other_config* (the opposing arm's config during that phase).
+
+    When :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION` is ``True``
+    iteration stops at the first colliding waypoint.
+
+    Returns:
+        ``(selected_configs, collision_mask)`` where *collision_mask* is a
+        list of bools (``True`` = that step is in collision).
+    """
+    early_exit = constants.HANDOVER_EARLY_EXIT_ON_COLLISION
+    selected: List[np.ndarray] = []
+    collision_mask: List[bool] = []
+    for cands in candidates_list:
+        if not cands:
+            continue
+        found_free = False
+        for q_cand in cands:
+            q0, q1 = (q_cand, other_config) if this_robot_id == 0 else (other_config, q_cand)
+            if collision_check_fn(q0, q1):
+                selected.append(q_cand)
+                collision_mask.append(False)
+                found_free = True
+                break
+        if not found_free:
+            selected.append(cands[0])
+            collision_mask.append(True)
+            if early_exit:
+                return selected, collision_mask
+    return selected, collision_mask
+
+
+def _compute_smoothness(configs: List[np.ndarray]) -> float:
+    """Squared joint displacement along a config sequence."""
+    if len(configs) < 2:
+        return 0.0
+    arr = np.array(configs)
+    diffs = np.diff(arr, axis=0)
+    return float(np.sum(diffs * diffs))
+
+
+def _compute_manipulability_cost(
+    configs: List[np.ndarray],
+    robot_id: int,
+    epsilon: float,
+    jacobian_fns: Optional[Dict[int, Callable]],
+) -> float:
+    """Reciprocal manipulability cost for one arm's config sequence."""
+    if not configs:
+        return 0.0
+    arr = np.array(configs)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
+    manip_vals = compute_trajectory_manipulability(
+        arr,
+        use_jacobian=(jac_fn is not None),
+        jacobian_fn=jac_fn,
+    )
+    return float(np.sum(1.0 / (manip_vals + epsilon)))
+
+
+# ---------------------------------------------------------------------------
+# Handover primitive cost
+# ---------------------------------------------------------------------------
+
 def _compute_handover_primitive_cost(
-    handover_trajectory: Dict[str, List[StampedPose]],
+    handover_trajectory: HandoverTrajectory,
     alpha: float,
     beta: float,
     epsilon: float,
@@ -201,167 +356,187 @@ def _compute_handover_primitive_cost(
     receiver_robot_id: int = 1,
     q_warm_start_transfer: Optional[np.ndarray] = None,
     q_warm_start_receiver: Optional[np.ndarray] = None,
-) -> Tuple[float, bool]:
+) -> HandoverResult:
     """Evaluate cost of a handover primitive using the same C1 + C2 model.
 
-    Args:
-        jacobian_fns: Optional ``{robot_id: (q) -> J}`` for per-arm
-            Yoshikawa manipulability.
-        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``
-            to verify inter-arm clearance at critical handover configurations.
-        transfer_robot_id: Robot ID of the arm performing the transfer (holding).
-        receiver_robot_id: Robot ID of the arm receiving the object.
-        q_warm_start_transfer: Joint config of the transfer arm at the
-            handover point in the trajectory, used to warm-start IK.
-        q_warm_start_receiver: Joint config of the receiver arm at the
-            handover point in the trajectory, used to warm-start IK.
-    """
-    transfer_poses: List[StampedPose] = []
-    receiver_poses: List[StampedPose] = []
+    Early-exit behaviour is controlled by
+    :data:`constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE` and
+    :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION`.  When enabled the
+    function returns ``inf`` cost on the first IK failure / collision
+    instead of accumulating a soft penalty.
 
-    for key in ("transfer_hold", "transfer_retreat"):
-        transfer_poses.extend(handover_trajectory.get(key, []))
-    for key in ("receiver_pre", "receiver_approach"):
-        receiver_poses.extend(handover_trajectory.get(key, []))
+    Returns:
+        :class:`HandoverResult` with cost, feasibility, resolved joint
+        configs, and collision info.
+    """
+    transfer_poses: List[StampedPose] = (
+        handover_trajectory.transfer_hold + handover_trajectory.transfer_retreat
+    )
+    receiver_poses: List[StampedPose] = (
+        handover_trajectory.receiver_pre + handover_trajectory.receiver_approach
+    )
 
     if not transfer_poses and not receiver_poses:
-        return np.inf, False
-
-    # Solve IK for each phase, chaining warm starts for consistency.
-    # Tolerate individual IK failures: skip unsolved poses and continue
-    # the chain so that partial successes can still produce a meaningful
-    # cost (with per-failure penalty weighted by how far off the IK was).
-    def _solve_all(poses: List[StampedPose], robot_id: int,
-                   q_warm_start: Optional[np.ndarray] = None):
-        configs = []
-        q_prev = q_warm_start
-        n_failed = 0
-        total_residual = 0.0
-        for p in poses:
-            try:
-                q, residual = ik_solver_fn(p, robot_id, q_warm_start=q_prev)
-                if q is None:
-                    n_failed += 1
-                    # Accumulate how far off the best seed was so the DP
-                    # can differentiate near-misses from far misses.
-                    if np.isfinite(residual):
-                        total_residual += residual
-                    continue  # skip this pose but keep trying
-                configs.append(q)
-                q_prev = q
-            except Exception:
-                n_failed += 1
-                continue
-        return configs, n_failed, total_residual
-
-    # Early-out: solve the transfer arm first (fewer poses — typically
-    # just hold + retreat) so we can fail fast before spending time on
-    # the receiver arm's longer approach trajectory.
-    if transfer_poses:
-        transfer_configs, n_fail_transfer, res_transfer = _solve_all(
-            transfer_poses, transfer_robot_id,
-            q_warm_start=q_warm_start_transfer,
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            rejection_reason="empty_trajectory",
         )
-    else:
-        transfer_configs, n_fail_transfer, res_transfer = [], 0, 0.0
-    if not transfer_configs and transfer_poses:
-        logger.debug("Handover IK failure: transfer arm (robot%d) — all poses failed", transfer_robot_id)
-        return np.inf, False
 
-    if receiver_poses:
-        receiver_configs, n_fail_receiver, res_receiver = _solve_all(
-            receiver_poses, receiver_robot_id,
-            q_warm_start=q_warm_start_receiver,
-        )
-    else:
-        receiver_configs, n_fail_receiver, res_receiver = [], 0, 0.0
-    if not receiver_configs and receiver_poses:
-        logger.debug("Handover IK failure: receiver arm (robot%d) — all poses failed", receiver_robot_id)
-        return np.inf, False
-
-    n_total_failed = n_fail_transfer + n_fail_receiver
-    total_residual = res_transfer + res_receiver
-
-    # --- Collision check along the full handover trajectory ---
-    # Phase 1: receiver approaches while transfer holds at hold pose.
-    # Phase 2: transfer retreats while receiver stays at final approach.
-    # Instead of rejecting the handover outright, accumulate a per-step
-    # penalty so the DP can still route through colliding handovers but
-    # prefers collision-free ones.
-    n_collision_steps = 0
-    if collision_check_fn is not None and transfer_configs and receiver_configs:
-        n_hold = len(handover_trajectory.get("transfer_hold", []))
-        q_transfer_hold = transfer_configs[0]      # transfer arm during hold
-        q_receiver_final = receiver_configs[-1]     # receiver at grasp approach
-
-        def _col_free(q_trans, q_recv):
-            if transfer_robot_id == 0:
-                return collision_check_fn(q_trans, q_recv)
-            return collision_check_fn(q_recv, q_trans)
-
-        # Phase 1: check each receiver config against transfer hold
-        for j, q_recv in enumerate(receiver_configs):
-            if not _col_free(q_transfer_hold, q_recv):
-                n_collision_steps += 1
-
-        # Phase 2: check each transfer retreat config against receiver final
-        for i, q_trans in enumerate(transfer_configs[n_hold:], start=n_hold):
-            if not _col_free(q_trans, q_receiver_final):
-                n_collision_steps += 1
-
-        if n_collision_steps > 0:
-            logger.debug(
-                "Handover has %d colliding steps "
-                "(transfer=robot%d, receiver=robot%d)",
-                n_collision_steps, transfer_robot_id, receiver_robot_id,
+    # --- IK ---
+    transfer_candidates, n_fail_t = _solve_all_ik(
+        transfer_poses, transfer_robot_id, ik_solver_fn, q_warm_start_transfer,
+    ) if transfer_poses else ([], 0)
+    if n_fail_t > 0:
+        n_seen_t = len(transfer_candidates)
+        logger.debug("Handover infeasible: transfer arm (robot%d) — %d/%d IK failures (%d/%d seen)",
+                      transfer_robot_id, n_fail_t, len(transfer_poses), n_seen_t, len(transfer_poses))
+        if constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE:
+            return HandoverResult(
+                cost=np.inf, feasible=False,
+                transfer_robot_id=transfer_robot_id,
+                receiver_robot_id=receiver_robot_id,
+                rejection_reason=f"ik_fail_transfer({n_fail_t}_failed@{n_seen_t}/{len(transfer_poses)}_seen)",
             )
 
-    # Smoothness per arm — use squared diff directly (avoid sqrt)
-    smoothness = 0.0
-    for cfgs in (transfer_configs, receiver_configs):
-        if cfgs and len(cfgs) >= 2:
-            arr = np.array(cfgs)
-            for i in range(arr.shape[0] - 1):
-                diff = arr[i + 1] - arr[i]
-                smoothness += float(diff @ diff)
+    receiver_candidates, n_fail_r = _solve_all_ik(
+        receiver_poses, receiver_robot_id, ik_solver_fn, q_warm_start_receiver,
+    ) if receiver_poses else ([], 0)
+    if n_fail_r > 0:
+        n_seen_r = len(receiver_candidates)
+        logger.debug("Handover infeasible: receiver arm (robot%d) — %d/%d IK failures (%d/%d seen)",
+                      receiver_robot_id, n_fail_r, len(receiver_poses), n_seen_r, len(receiver_poses))
+        if constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE:
+            return HandoverResult(
+                cost=np.inf, feasible=False,
+                transfer_robot_id=transfer_robot_id,
+                receiver_robot_id=receiver_robot_id,
+                rejection_reason=f"ik_fail_receiver({n_fail_r}_failed@{n_seen_r}/{len(receiver_poses)}_seen)",
+            )
 
-    # Manipulability — compute per-arm with the correct Jacobian function
-    manip_cost = 0.0
-    for robot_id, cfgs in (
-        (transfer_robot_id, transfer_configs),
-        (receiver_robot_id, receiver_configs),
-    ):
-        if not cfgs:
-            continue
-        arr = np.array(cfgs)
-        if arr.ndim == 1:
-            arr = arr.reshape(1, -1)
-        jac_fn = jacobian_fns.get(robot_id) if jacobian_fns else None
-        manip_vals = compute_trajectory_manipulability(
-            arr,
-            use_jacobian=(jac_fn is not None),
-            jacobian_fn=jac_fn,
+    if n_fail_r > 0 or n_fail_t > 0:
+        logger.debug(
+            "Handover IK failures: transfer=robot%d %d/%d, receiver=robot%d %d/%d",
+            transfer_robot_id, n_fail_t, len(transfer_poses),
+            receiver_robot_id, n_fail_r, len(receiver_poses),
         )
-        manip_cost += float(np.sum(1.0 / (manip_vals + epsilon)))
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            rejection_reason=f"ik_fail_transfer({n_fail_t}/{len(transfer_poses)}) "
+                             f"receiver({n_fail_r}/{len(receiver_poses)})",
+        )
+    
+    # --- Collision-aware config selection ---
+    transfer_configs, receiver_configs, n_collision_steps, t_col_mask, r_col_mask = (
+        _select_handover_configs(
+            handover_trajectory, transfer_candidates, receiver_candidates,
+            transfer_robot_id, receiver_robot_id, collision_check_fn,
+        )
+    )
 
-    cost = alpha * smoothness + beta * manip_cost
-    # Add penalty for each intermediate IK failure, weighted by how far
-    # off the best seed was.  This lets the DP distinguish near-miss
-    # failures (1 cm off) from far misses (10 cm off).
-    if n_total_failed > 0:
-        cost += (constants.HANDOVER_IK_PARTIAL_PENALTY * n_total_failed
-                 + constants.HANDOVER_IK_RESIDUAL_WEIGHT * total_residual)
-    # Add penalty for each collision step.
+    # Early-exit on collision
     if n_collision_steps > 0:
-        cost += constants.HANDOVER_COLLISION_STEP_PENALTY * n_collision_steps
+        n_hold = len(handover_trajectory.transfer_hold)
+        n_total_checkable = len(receiver_candidates) + max(0, len(transfer_candidates) - n_hold)
+        n_checked = len(r_col_mask) + max(0, len(t_col_mask) - n_hold)
+        logger.debug(
+            "Handover infeasible: %d collisions (%d/%d checked, transfer=robot%d, receiver=robot%d)",
+            n_collision_steps, n_checked, n_total_checkable,
+            transfer_robot_id, receiver_robot_id,
+        )
+        return HandoverResult(
+            cost=np.inf, feasible=False,
+            transfer_robot_id=transfer_robot_id,
+            receiver_robot_id=receiver_robot_id,
+            transfer_configs=transfer_configs,
+            receiver_configs=receiver_configs,
+            n_collision_steps=n_collision_steps,
+            transfer_collision_mask=t_col_mask,
+            receiver_collision_mask=r_col_mask,
+            rejection_reason=f"collision({n_collision_steps}_colliding@{n_checked}/{n_total_checkable}_checked)",
+        )
+
+    # --- Cost ---
+    smoothness = _compute_smoothness(transfer_configs) + _compute_smoothness(receiver_configs)
+    manip_cost = (
+        _compute_manipulability_cost(transfer_configs, transfer_robot_id, epsilon, jacobian_fns)
+        + _compute_manipulability_cost(receiver_configs, receiver_robot_id, epsilon, jacobian_fns)
+    )
+    cost = alpha * smoothness + beta * manip_cost
+
     logger.debug(
         "Handover primitive cost: smoothness=%.4f, manip=%.4f, total=%.4f "
-        "(transfer=robot%d, receiver=robot%d, ik_failures=%d, "
-        "ik_residual=%.4f, collisions=%d)",
+        "(transfer=robot%d, receiver=robot%d, collisions=%d)",
         smoothness, manip_cost, cost, transfer_robot_id, receiver_robot_id,
-        n_total_failed, total_residual, n_collision_steps,
+        n_collision_steps,
     )
-    return cost, True
+    return HandoverResult(
+        cost=cost, feasible=True,
+        transfer_robot_id=transfer_robot_id,
+        receiver_robot_id=receiver_robot_id,
+        transfer_configs=transfer_configs,
+        receiver_configs=receiver_configs,
+        n_collision_steps=n_collision_steps,
+        transfer_collision_mask=t_col_mask,
+        receiver_collision_mask=r_col_mask,
+    )
+
+
+def _select_handover_configs(
+    handover_trajectory: HandoverTrajectory,
+    transfer_candidates: List[List[np.ndarray]],
+    receiver_candidates: List[List[np.ndarray]],
+    transfer_robot_id: int,
+    receiver_robot_id: int,
+    collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]],
+) -> Tuple[List[np.ndarray], List[np.ndarray], int, List[bool], List[bool]]:
+    """Select one config per waypoint for both arms, preferring collision-free.
+
+    Phase 1: receiver approaches while transfer holds at hold pose.
+    Phase 2: transfer retreats while receiver stays at final approach.
+
+    Returns:
+        ``(transfer_configs, receiver_configs, n_collision_steps,
+        transfer_collision_mask, receiver_collision_mask)``
+    """
+    if collision_check_fn is None or not transfer_candidates or not receiver_candidates:
+        t_cfgs = [c[0] for c in transfer_candidates if c]
+        r_cfgs = [c[0] for c in receiver_candidates if c]
+        return t_cfgs, r_cfgs, 0, [False] * len(t_cfgs), [False] * len(r_cfgs)
+
+    n_collision_steps = 0
+    n_hold = len(handover_trajectory.transfer_hold)
+    transfer_configs = [c[0] for c in transfer_candidates]
+    transfer_mask: List[bool] = [False] * len(transfer_configs)
+
+    # Phase 1: receiver vs transfer hold
+    q_transfer_hold = transfer_configs[0]
+    receiver_configs, receiver_mask = _select_collision_free_configs(
+        receiver_candidates, q_transfer_hold,
+        receiver_robot_id, collision_check_fn,
+    )
+    n_collision_steps += sum(receiver_mask)
+
+    if n_collision_steps > 0 and constants.HANDOVER_EARLY_EXIT_ON_COLLISION:
+        return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
+    
+    # Phase 2: transfer retreat vs receiver final
+    if receiver_configs:
+        q_receiver_final = receiver_configs[-1]
+        retreat_candidates = transfer_candidates[n_hold:]
+        if retreat_candidates:
+            retreat_configs, retreat_mask = _select_collision_free_configs(
+                retreat_candidates, q_receiver_final,
+                transfer_robot_id, collision_check_fn,
+            )
+            n_collision_steps += sum(retreat_mask)
+            transfer_configs = transfer_configs[:n_hold] + retreat_configs
+            transfer_mask = transfer_mask[:n_hold] + retreat_mask
+
+    return transfer_configs, receiver_configs, n_collision_steps, transfer_mask, receiver_mask
 
 
 # ---------------------------------------------------------------------------
@@ -384,12 +559,17 @@ def compute_switching_cost(
     jacobian_fns: Optional[Dict[int, Callable]] = None,
     collision_check_fn: Optional[Callable[[np.ndarray, np.ndarray], bool]] = None,
     handover_clearance_fn: Optional[Callable] = None,
+    handover_callback: Optional[Callable[[HandoverResult], None]] = None,
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
     Returns 0 when ``prev_robot == curr_robot``, ``inf`` when the transfer is
     blocked by *transfer_feasibility*, environment clearance, or an inter-arm
     collision, or the handover primitive cost otherwise.
+
+    When *handover_callback* is provided it is called with a
+    :class:`HandoverResult` after every evaluated handover (both successful
+    and rejected).
     """
     if prev_robot == curr_robot:
         return 0.0
@@ -437,15 +617,16 @@ def compute_switching_cost(
     if segment_idx >= curr_traj.n_waypoints:
         return np.inf
 
-    # Compute grasp transforms: G = T_obj⁻¹ @ T_ee
+    # Compute grasp transforms: G = T_ee⁻¹ @ T_obj  (ee ← object)
     T_obj = obj_pose.to_matrix()
-    T_obj_inv = np.linalg.inv(T_obj)
+    T_ee_prev = _eef_matrix(prev_traj, segment_idx)
+    T_ee_curr = _eef_matrix(curr_traj, segment_idx)
 
     grasp_transfer = StampedPose.from_matrix(
-        T_obj_inv @ _eef_matrix(prev_traj, segment_idx), "object"
+        np.linalg.inv(T_ee_prev) @ T_obj, "ee"
     )
     grasp_receiver = StampedPose.from_matrix(
-        T_obj_inv @ _eef_matrix(curr_traj, segment_idx), "object"
+        np.linalg.inv(T_ee_curr) @ T_obj, "ee"
     )
 
     h_planner = DualArmHandoverPlanner(
@@ -458,18 +639,27 @@ def compute_switching_cost(
     )
     h_traj = h_planner.generate_trajectory()
 
+    # Abort if either arm's trajectory is infeasible at the handover segment
+    # — the arm can't physically reach that pose, so the handover is moot.
+    if not prev_traj.is_feasible[segment_idx]:
+        logger.debug(
+            "Handover blocked at seg %d: transfer traj (robot%d, traj%d) infeasible",
+            segment_idx, prev_robot_id, prev_traj_idx,
+        )
+        return np.inf
+    if not curr_traj.is_feasible[segment_idx]:
+        logger.debug(
+            "Handover blocked at seg %d: receiver traj (robot%d, traj%d) infeasible",
+            segment_idx, curr_robot_id, curr_traj_idx,
+        )
+        return np.inf
+
     # Extract warm-start joint configs from the trajectories at the
     # handover segment so IK solutions stay close to the planned path.
-    q_ws_transfer = None
-    q_ws_receiver = None
-    if (segment_idx < prev_traj.n_waypoints
-            and prev_traj.is_feasible[segment_idx]):
-        q_ws_transfer = prev_traj.joint_configs[segment_idx]
-    if (segment_idx < curr_traj.n_waypoints
-            and curr_traj.is_feasible[segment_idx]):
-        q_ws_receiver = curr_traj.joint_configs[segment_idx]
+    q_ws_transfer = prev_traj.joint_configs[segment_idx]
+    q_ws_receiver = curr_traj.joint_configs[segment_idx]
 
-    cost, ok = _compute_handover_primitive_cost(
+    result = _compute_handover_primitive_cost(
         h_traj, alpha, beta, epsilon, ik_solver_fn, jacobian_fns,
         collision_check_fn=collision_check_fn,
         transfer_robot_id=prev_robot_id,
@@ -477,21 +667,25 @@ def compute_switching_cost(
         q_warm_start_transfer=q_ws_transfer,
         q_warm_start_receiver=q_ws_receiver,
     )
+    # Annotate result with trajectory metadata
+    result.segment_idx = segment_idx
+    result.prev_traj_idx = prev_traj_idx
+    result.curr_traj_idx = curr_traj_idx
+    result.object_pose = obj_pose
 
-    if ok:
+    if handover_callback is not None:
+        handover_callback(result)
+
+    if result.feasible:
         logger.debug(
             "Switching cost at seg %d (robot %d→%d): %.4f",
-            segment_idx, prev_robot, curr_robot, cost,
+            segment_idx, prev_robot, curr_robot, result.cost,
         )
-        return cost
+        return result.cost
 
-    # _compute_handover_primitive_cost returns (inf, False) only when
-    # ALL IK calls failed for at least one arm — a truly infeasible
-    # handover at this location.
     logger.debug(
-        "Handover at seg %d (robot %d→%d) is truly infeasible — "
-        "all IK calls failed for at least one arm.",
-        segment_idx, prev_robot, curr_robot,
+        "Handover at seg %d (robot %d→%d) is truly infeasible — %s",
+        segment_idx, prev_robot, curr_robot, result.rejection_reason,
     )
     return np.inf
 

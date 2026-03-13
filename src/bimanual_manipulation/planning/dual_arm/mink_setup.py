@@ -14,14 +14,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 import mink
 import mujoco
 import numpy as np
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
@@ -34,6 +33,9 @@ from bimanual_manipulation.planning.utils.mujoco_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
 
 @dataclass

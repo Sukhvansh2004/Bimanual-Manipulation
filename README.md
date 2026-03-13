@@ -98,6 +98,12 @@ pip install -e .
 │   │   │   ├── trajectory_io.py             # Load trajectories from disk → TrajectoryBundle
 │   │   │   └── factories.py                 # IK / Jacobian / collision-check closures
 │   │   ├── dual_arm/                        # Reactive dual-arm parallel execution (mink QP)
+│   │   ├── ik/                              # Inverse kinematics subpackage
+│   │   │   ├── ik_utils.py                  # Backend-agnostic IK dispatch & orientation helpers
+│   │   │   ├── eaik_solver.py               # Analytical IK via EAIK (default)
+│   │   │   ├── scipy_solver.py              # Numerical IK via L-BFGS-B
+│   │   │   ├── mink_solver.py               # QP-based iterative IK via mink
+│   │   │   └── manipulability.py            # Yoshikawa manipulability measures
 │   │   ├── rrt/                             # RRT planners
 │   │   │   ├── core.py                      # Generic bi-directional RRT-Connect
 │   │   │   ├── se3/                         # SE(3) object trajectory planning
@@ -109,7 +115,6 @@ pip install -e .
 │   │   ├── visualization/                   # Meshcat + matplotlib visualization
 │   │   └── utils/                           # Planning sub-utilities
 │   │       ├── collision_utils.py           # MuJoCo collision helpers
-│   │       ├── ik_utils.py                  # Mink QP-based IK solver
 │   │       ├── mujoco_utils.py              # Native MuJoCo object access
 │   │       ├── trajectory_utils.py          # Waypoint feasibility data structures
 │   │       ├── visualization_utils.py       # Meshcat planning visualization
@@ -474,7 +479,7 @@ Experiments are defined as JSON files in the `experiments/` directory. Each conf
     "approach_offset": 0.3
   },
   "collision_filter": {
-    "exclude_patterns": ["flatPlate", "table_shelf"]
+    "relevant_patterns": ["flatPlate", "table_shelf"]
   },
   "visualization": {
     "visualize_mesh": true,

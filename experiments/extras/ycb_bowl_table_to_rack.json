@@ -40,7 +40,7 @@
         ]
     },
     "collision_filter": {
-        "exclude_patterns": ["bowl", "track", "table_rack"]
+        "relevant_patterns": ["bowl", "track", "table_rack"]
     },
     "visualization": {
         "visualize_mesh": true,

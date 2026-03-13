@@ -137,7 +137,6 @@ def generate_end_effector_trajectory(
             tf_manager.transform_pose(p, constants.WORLD_FRAME) for p in object_trajectory
         ]
 
-    # Grasp is already at grip_site frame (no offset needed)
     T_world_grasp = grasp.to_matrix()
 
     # Assumption: object_trajectory[0] corresponds to the object pose at the

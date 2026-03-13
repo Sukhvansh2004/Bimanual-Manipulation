@@ -1,6 +1,6 @@
 [robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
-2026-03-06 10:33:35,127 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
-2026-03-06 10:33:35,147 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-13 12:51:05,076 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-13 12:51:05,084 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
 /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
   warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
 Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
@@ -9,132 +9,125 @@ Unable to load module hid, required to interface with SpaceMouse.
            Only macOS is officially supported. Install the additional
 
            requirements with `pip install -r requirements-extra.txt`
-2026-03-06 10:33:42,966 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'ycb_plate_shelf_to_table' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_plate_shelf_to_table.json
-2026-03-06 10:33:42,966 - __main__ - INFO - Loaded experiment: ycb_plate_shelf_to_table – Move a YCB plate from a tabletop shelf slot back to the table surface.
-2026-03-06 10:33:42,966 - __main__ - INFO - Smoothen override: True (was True)
-2026-03-06 10:33:42,967 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-06 10:33:42,967 - bimanual_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
-2026-03-06 10:33:42,967 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-06 10:33:42,967 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:10,768 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'ycb_plate_shelf_to_table' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/ycb_plate_shelf_to_table.json
+2026-03-13 12:51:10,768 - __main__ - INFO - Loaded experiment: ycb_plate_shelf_to_table – Move a YCB plate from a tabletop shelf slot back to the table surface.
+2026-03-13 12:51:10,768 - __main__ - INFO - Smoothen override: True (was True)
+2026-03-13 12:51:10,768 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 12:51:10,768 - bimanual_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
+2026-03-13 12:51:10,768 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 12:51:10,768 - bimanual_manipulation.system_manager - INFO - 
 1. Creating dual-arm environment...
-2026-03-06 10:33:42,968 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
-2026-03-06 10:33:46,628 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: shelfMount [static]
-2026-03-06 10:33:46,629 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
-2026-03-06 10:33:46,630 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
-2026-03-06 10:34:39,685 - bimanual_manipulation.system_manager - INFO -    ✓ Environment created
-2026-03-06 10:34:39,686 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:10,768 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-13 12:51:13,084 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: shelfMount [static]
+2026-03-13 12:51:13,085 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: table_shelf_0 (table_shelf) [static]
+2026-03-13 12:51:13,085 - bimanual_manipulation.environments.dual_arm - INFO - Added YCB object: plate_0 (plate)
+2026-03-13 12:51:15,501 - bimanual_manipulation.system_manager - INFO -    ✓ Environment created
+2026-03-13 12:51:15,501 - bimanual_manipulation.system_manager - INFO - 
 1a. Creating shared TransformManager...
-2026-03-06 10:34:39,686 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
-2026-03-06 10:34:39,691 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
-2026-03-06 10:34:39,691 - bimanual_manipulation.system_manager - INFO -    ✓ TransformManager created
-2026-03-06 10:34:39,691 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:15,501 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-13 12:51:15,504 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-13 12:51:15,504 - bimanual_manipulation.system_manager - INFO -    ✓ TransformManager created
+2026-03-13 12:51:15,504 - bimanual_manipulation.system_manager - INFO - 
 1b. Loading arm and gripper controllers...
-2026-03-06 10:34:39,692 - bimanual_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
-2026-03-06 10:34:39,692 - bimanual_manipulation.system_manager - INFO -    ✓ Controllers loaded
-2026-03-06 10:34:39,692 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:15,505 - bimanual_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
+2026-03-13 12:51:15,505 - bimanual_manipulation.system_manager - INFO -    ✓ Controllers loaded
+2026-03-13 12:51:15,505 - bimanual_manipulation.system_manager - INFO - 
 2. Starting services...
-2026-03-06 10:34:39,692 - bimanual_manipulation.system_manager - INFO -    Starting Service Manager...
-2026-03-06 10:34:39,696 - bimanual_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
-2026-03-06 10:34:39,696 - bimanual_manipulation.services.services_core - INFO - Starting Service Manager...
-2026-03-06 10:34:39,696 - bimanual_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
-2026-03-06 10:34:39,696 - bimanual_manipulation.services.services_core - INFO - Service Manager started successfully
-2026-03-06 10:34:39,738 - bimanual_manipulation.services.services_core - ERROR - Server loop error: Address already in use (addr='tcp://localhost:5555')
-2026-03-06 10:34:39,738 - bimanual_manipulation.services.services_core - INFO - Server loop stopped
-2026-03-06 10:34:40,239 - bimanual_manipulation.system_manager - INFO -    ✓ Service Manager started
-2026-03-06 10:34:40,239 - bimanual_manipulation.system_manager - INFO -    FastSAM service disabled by flag
-2026-03-06 10:34:40,239 - bimanual_manipulation.system_manager - INFO -    Grasp service disabled by flag
-2026-03-06 10:34:40,239 - bimanual_manipulation.system_manager - INFO -    Starting Move To Pose service...
-2026-03-06 10:34:40,257 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
-2026-03-06 10:34:40,257 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
-2026-03-06 10:34:40,267 - bimanual_manipulation.services.move_to_pose_service - WARNING - Failed to register Move To Pose service: Service move_to_pose_service is already registered
-2026-03-06 10:34:40,768 - bimanual_manipulation.system_manager - INFO -    ✓ Move To Pose service started
-2026-03-06 10:34:40,768 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:15,505 - bimanual_manipulation.system_manager - INFO -    Starting Service Manager...
+2026-03-13 12:51:15,505 - bimanual_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-13 12:51:15,505 - bimanual_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-13 12:51:15,506 - bimanual_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-13 12:51:15,506 - bimanual_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-13 12:51:15,519 - bimanual_manipulation.services.services_core - ERROR - Server loop error: Address already in use (addr='tcp://localhost:5555')
+2026-03-13 12:51:15,519 - bimanual_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-13 12:51:16,019 - bimanual_manipulation.system_manager - INFO -    ✓ Service Manager started
+2026-03-13 12:51:16,019 - bimanual_manipulation.system_manager - INFO -    FastSAM service disabled by flag
+2026-03-13 12:51:16,019 - bimanual_manipulation.system_manager - INFO -    Grasp service disabled by flag
+2026-03-13 12:51:16,019 - bimanual_manipulation.system_manager - INFO -    Starting Move To Pose service...
+2026-03-13 12:51:16,036 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
+2026-03-13 12:51:16,036 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
+2026-03-13 12:51:16,041 - bimanual_manipulation.services.move_to_pose_service - WARNING - Failed to register Move To Pose service: Service move_to_pose_service is already registered
+2026-03-13 12:51:16,542 - bimanual_manipulation.system_manager - INFO -    ✓ Move To Pose service started
+2026-03-13 12:51:16,543 - bimanual_manipulation.system_manager - INFO - 
 3. Preparing teleoperation...
-2026-03-06 10:34:40,774 - bimanual_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
-2026-03-06 10:34:40,774 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:16,544 - bimanual_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
+2026-03-13 12:51:16,544 - bimanual_manipulation.system_manager - INFO - 
 4. Settling environment...
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'shelfMount'
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'table_shelf_0'
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'plate_0'
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'shelfMount'
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'table_shelf_0'
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'plate_0'
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO - 
 ======================================================================
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO - System Ready!
-2026-03-06 10:34:41,999 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-06 10:34:42,001 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
-2026-03-06 10:34:42,001 - __main__ - INFO - Loading assignment result from data/ycb_plate_shelf_to_table/configs/No_Manipulability_β0/assignment_results.npz ...
-2026-03-06 10:34:42,781 - __main__ - INFO - Loaded 2 unique trajectories for assignment: ['robot0_trajectory_3.npz', 'robot1_trajectory_11.npz']
-2026-03-06 10:34:42,781 - __main__ - INFO - Handover points: [25]
-2026-03-06 10:34:42,781 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
-2026-03-06 10:34:42,782 - __main__ - INFO - Robot 0 starting at waypoint 0
-2026-03-06 10:34:42,792 - __main__ - INFO - Robot 0 planning RRT to pre-grasp pose...
-2026-03-06 10:34:42,795 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
-2026-03-06 10:34:42,795 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
-2026-03-06 10:34:42,804 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 12 iterations (tree sizes: 5, 13)
-2026-03-06 10:34:42,805 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (12 iters, 15 raw waypoints).  Phase 1: shortcutting...
-2026-03-06 10:34:42,891 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 15 -> 3 waypoints.  Phase 2: Bézier smoothing...
-2026-03-06 10:34:42,893 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 2/2 segments smoothed, 0 fell back to linear (21 total dense waypoints)
-2026-03-06 10:34:42,895 - __main__ - INFO - RRT to pre-grasp succeeded. Following collision-free joint trajectory...
-2026-03-06 10:34:42,896 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints, max 400 steps)
-2026-03-06 10:35:05,305 - bimanual_manipulation.controllers.arm - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
-2026-03-06 10:35:05,305 - __main__ - INFO - Robot 0 following grasp approach trajectory...
-2026-03-06 10:35:05,305 - bimanual_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot0_right (50 waypoints)
-2026-03-06 10:35:17,891 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 25 while Robot 1 moves to handover pre-pose
-2026-03-06 10:35:17,896 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=5 geoms, env=26 geoms)
-2026-03-06 10:35:17,896 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=daqp)
-2026-03-06 10:35:18,307 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 6 goal candidate(s) for RRT.
-2026-03-06 10:35:18,307 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using last 12/25 arm A configs.
-2026-03-06 10:35:18,307 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 12.
-2026-03-06 10:35:18,312 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
-2026-03-06 10:35:18,312 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
-2026-03-06 10:35:18,416 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 15 iterations (tree sizes: 8, 15)
-2026-03-06 10:35:18,416 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (15 iters, 20 raw waypoints).  Phase 1: shortcutting...
-2026-03-06 10:35:18,776 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 20 -> 3 waypoints.  Phase 2: Bézier smoothing...
-2026-03-06 10:35:18,795 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 2/2 segments smoothed, 0 fell back to linear (21 total dense waypoints)
-2026-03-06 10:35:18,796 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/6).
-2026-03-06 10:35:18,797 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
-2026-03-06 10:36:12,307 - bimanual_manipulation.planning.dual_arm.planner - WARNING - QP failed 30 consecutive steps — aborting parallel execution early (arm B stuck).
-2026-03-06 10:36:12,308 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Timed out after 260 steps (err_a=0.0000, err_b=1.0122, qp_fails=51)
-2026-03-06 10:36:12,308 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 54.42s — success_a=True, success_b=False (err_a=0.0000, err_b=1.0122, collision_free=False)
-2026-03-06 10:36:12,308 - __main__ - WARNING - Arm B did not fully converge (err=1.0122)
-2026-03-06 10:36:12,308 - __main__ - INFO - Arm B (Robot 1) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
-2026-03-06 10:36:12,831 - __main__ - INFO - Recovery: 6 IK goal candidate(s) for arm B.
-2026-03-06 10:36:12,834 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
-2026-03-06 10:36:12,835 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
-2026-03-06 10:36:12,835 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
-2026-03-06 10:36:12,836 - __main__ - INFO - RRT recovery for arm B succeeded (IK candidate 1/6). Moving to receiver pre-pose...
-2026-03-06 10:36:12,837 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints, max 400 steps)
-2026-03-06 10:36:36,456 - bimanual_manipulation.controllers.arm - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
-2026-03-06 10:36:36,456 - __main__ - INFO - Executing handover at waypoint 25 (robot 0 → robot 1)...
-2026-03-06 10:36:36,456 - __main__ - INFO - Robot 0 moving to handover hold pose...
-2026-03-06 10:36:36,457 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right:
-2026-03-06 10:36:36,457 - bimanual_manipulation.controllers.arm - INFO -   Current EEF in base: pos=[    0.63582    0.072857     0.38196]
-2026-03-06 10:36:36,458 - bimanual_manipulation.controllers.arm - INFO -   Target in base: pos=[    0.63605    0.073964     0.38154]
-2026-03-06 10:36:36,458 - bimanual_manipulation.controllers.arm - INFO -   Distance to target: 0.0012m
-2026-03-06 10:36:41,603 - __main__ - INFO - Robot 1 executing handover approach...
-2026-03-06 10:36:41,697 - bimanual_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (50 waypoints)
-2026-03-06 10:36:56,034 - __main__ - INFO - Robot 0 following handover retreat trajectory...
-2026-03-06 10:36:56,034 - bimanual_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot0_right (30 waypoints)
-2026-03-06 10:36:58,430 - __main__ - INFO - Handover at waypoint 25 SUCCEEDED (robot 0 → robot 1). Total handovers: 1/1
-2026-03-06 10:36:58,430 - __main__ - INFO - Robot 1 following final segment to 49...
-2026-03-06 10:36:58,431 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (120 waypoints, max 240 steps)
-2026-03-06 10:37:08,748 - bimanual_manipulation.controllers.arm - INFO - ROBOT 1:right - Joint trajectory converged at step 119 (max err=0.0002 rad)
-2026-03-06 10:37:08,748 - __main__ - WARNING - Collision monitor detected 56 collision step(s) during execution.
-2026-03-06 10:37:08,748 - __main__ - INFO - Robot 1 releasing object and retreating...
-2026-03-06 10:37:13,932 - __main__ - INFO - Robot 1 following retreat trajectory...
-2026-03-06 10:37:13,932 - bimanual_manipulation.controllers.arm - INFO - Following pre-defined trajectory for robot1_right (30 waypoints)
-2026-03-06 10:37:21,283 - __main__ - INFO - Placement verification — position error: 0.3647 m, orientation error: 146.78°
-2026-03-06 10:37:21,284 - __main__ - WARNING - Object did NOT reach target! pos_err=0.3647 m (thresh 0.05), ori_err=146.78° (thresh 30.0°)
-2026-03-06 10:37:21,284 - __main__ - INFO - Done!
-2026-03-06 10:37:21,286 - __main__ - INFO - Execution metrics saved to results/ycb_plate_shelf_to_table/No_Manipulability_β0_exec.json
-2026-03-06 10:37:21,286 - bimanual_manipulation.system_manager - INFO - 
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO - System Ready!
+2026-03-13 12:51:17,402 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 12:51:17,403 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
+2026-03-13 12:51:17,404 - __main__ - INFO - Loading assignment result from data/ycb_plate_shelf_to_table/configs/No_Manipulability_β0/assignment_results.npz ...
+2026-03-13 12:51:17,428 - __main__ - INFO - Loaded 2 unique trajectories for assignment: ['robot0_trajectory_3.npz', 'robot1_trajectory_11.npz']
+2026-03-13 12:51:17,428 - __main__ - INFO - Handover points: [18]
+2026-03-13 12:51:17,429 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
+2026-03-13 12:51:17,429 - __main__ - INFO - Robot 0 starting at waypoint 0
+2026-03-13 12:51:17,578 - __main__ - INFO - Robot 0 planning RRT to pre-grasp pose...
+2026-03-13 12:51:17,583 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-13 12:51:17,584 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-13 12:51:17,603 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 5 iterations (tree sizes: 13, 20)
+2026-03-13 12:51:17,603 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (5 iters, 22 raw waypoints).  Phase 1: shortcutting...
+2026-03-13 12:51:17,810 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 22 -> 3 waypoints.  Phase 2: Bézier smoothing...
+2026-03-13 12:51:17,813 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 2/2 segments smoothed, 0 fell back to linear (21 total dense waypoints)
+2026-03-13 12:51:17,814 - __main__ - INFO - RRT to pre-grasp succeeded. Following collision-free joint trajectory...
+2026-03-13 12:51:17,815 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints)
+2026-03-13 12:51:30,230 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-13 12:51:30,230 - __main__ - INFO - Robot 0 following grasp approach trajectory...
+2026-03-13 12:51:30,230 - bimanual_manipulation.controllers.arm - INFO - Following trajectory for robot0_right (50 waypoints)
+2026-03-13 12:51:38,553 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 18 while Robot 1 moves to handover pre-pose
+2026-03-13 12:51:38,557 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=5 geoms, env=26 geoms)
+2026-03-13 12:51:38,557 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-13 12:51:38,768 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 13 goal candidate(s) for RRT.
+2026-03-13 12:51:38,768 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using last 9/18 arm A configs.
+2026-03-13 12:51:38,768 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 9 sampled arm A configs from trajectory of length 9.
+2026-03-13 12:51:38,827 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-13 12:51:38,828 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-13 12:51:38,828 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-13 12:51:38,828 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/13).
+2026-03-13 12:51:38,829 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
+2026-03-13 12:52:48,682 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Timed out after 400 steps (err_a=0.0000, err_b=1.9877, qp_fails=32)
+2026-03-13 12:52:48,683 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 70.13s — success_a=True, success_b=False (err_a=0.0000, err_b=1.9877, collision_free=False)
+2026-03-13 12:52:48,683 - __main__ - WARNING - Arm B did not fully converge (err=1.9877)
+2026-03-13 12:52:48,683 - __main__ - INFO - Arm B (Robot 1) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-13 12:52:48,692 - __main__ - INFO - Recovery: 13 IK goal candidate(s) for arm B.
+2026-03-13 12:52:48,699 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-13 12:52:48,699 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-13 12:52:48,699 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-13 12:52:48,700 - __main__ - INFO - RRT recovery for arm B succeeded (IK candidate 1/13). Moving to receiver pre-pose...
+2026-03-13 12:52:48,701 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints)
+2026-03-13 12:53:01,953 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-13 12:53:01,953 - __main__ - INFO - Executing handover at waypoint 18 (robot 0 → robot 1)...
+2026-03-13 12:53:01,953 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-13 12:53:01,954 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.67111    0.075757     0.47082], target=[    0.67075    0.075734        0.47], dist=0.0009
+2026-03-13 12:53:04,990 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-13 12:53:05,041 - bimanual_manipulation.controllers.arm - INFO - Following trajectory for robot1_right (50 waypoints)
+2026-03-13 12:53:14,165 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-13 12:53:14,166 - bimanual_manipulation.controllers.arm - INFO - Following trajectory for robot0_right (30 waypoints)
+2026-03-13 12:53:15,742 - __main__ - INFO - Handover at waypoint 18 SUCCEEDED (robot 0 → robot 1). Total handovers: 1/1
+2026-03-13 12:53:15,743 - __main__ - INFO - Robot 1 following final segment to 49...
+2026-03-13 12:53:15,744 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (155 waypoints)
+2026-03-13 12:53:36,223 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 1:right - Joint trajectory did NOT converge after 310 steps (max err=1.8152 rad)
+2026-03-13 12:53:36,224 - __main__ - WARNING - Collision monitor detected 313 collision step(s) during execution.
+2026-03-13 12:53:36,224 - __main__ - INFO - Robot 1 releasing object and retreating...
+2026-03-13 12:53:39,313 - __main__ - INFO - Robot 1 following retreat trajectory...
+2026-03-13 12:53:39,313 - bimanual_manipulation.controllers.arm - INFO - Following trajectory for robot1_right (30 waypoints)
+2026-03-13 12:53:44,063 - __main__ - INFO - Placement verification — position error: 0.5855 m, orientation error: 103.90°
+2026-03-13 12:53:44,063 - __main__ - WARNING - Object did NOT reach target! pos_err=0.5855 m (thresh 0.05), ori_err=103.90° (thresh 30.0°)
+2026-03-13 12:53:44,063 - __main__ - INFO - Done!
+2026-03-13 12:53:44,064 - __main__ - INFO - Execution metrics saved to results/ycb_plate_shelf_to_table/No_Manipulability_β0_exec.json
+2026-03-13 12:53:44,064 - bimanual_manipulation.system_manager - INFO - 
 Stopping system...
-2026-03-06 10:37:21,286 - bimanual_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
-2026-03-06 10:37:21,286 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
-2026-03-06 10:37:21,286 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
-2026-03-06 10:37:21,287 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
-2026-03-06 10:37:21,287 - bimanual_manipulation.services.services_core - INFO - Stopping Service Manager...
-2026-03-06 10:37:21,287 - bimanual_manipulation.services.services_core - INFO - Service Manager stopped
-2026-03-06 10:37:21,562 - bimanual_manipulation.system_manager - INFO - System stopped
+2026-03-13 12:53:44,064 - bimanual_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
+2026-03-13 12:53:44,064 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
+2026-03-13 12:53:44,064 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
+2026-03-13 12:53:44,065 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
+2026-03-13 12:53:44,065 - bimanual_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-13 12:53:44,065 - bimanual_manipulation.services.services_core - INFO - Service Manager stopped
+2026-03-13 12:53:44,268 - bimanual_manipulation.system_manager - INFO - System stopped
 
 Keys                          	Command
 Ctrl+q                        	reset simulation

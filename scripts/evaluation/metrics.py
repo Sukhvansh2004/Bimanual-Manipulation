@@ -130,7 +130,7 @@ def extract_planning_metrics(
     Returns:
         Populated PlanningMetrics.
     """
-    from bimanual_manipulation.planning.utils.manipulability import (
+    from bimanual_manipulation.planning.ik.manipulability import (
         compute_trajectory_manipulability,
     )
 

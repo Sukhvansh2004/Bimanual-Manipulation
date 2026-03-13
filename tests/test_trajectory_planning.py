@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from bimanual_manipulation.controllers import RobosuiteArmController
+from bimanual_manipulation.controllers.trajectory_planner import plan_quintic_trajectory
 from bimanual_manipulation.utils.se3 import (
     skew,
     unskew,
@@ -112,44 +112,32 @@ class TestSE3Utilities:
 class TestTrajectoryPlanning:
     """Test trajectory planning components."""
 
-    @pytest.fixture(scope="class")
-    def controller(self):
-        """Fixture to provide arm controller for trajectory planning tests."""
-        # Create a minimal controller for testing
-        controller = RobosuiteArmController.__new__(RobosuiteArmController)
-        yield controller
-
-    def test_quintic_trajectory_planning(self, controller):
+    def test_quintic_trajectory_planning(self):
         """Test quintic polynomial trajectory planning."""
-        # Define start and end poses
         start_pos = np.array([0.0, 0.0, 0.0])
-        start_quat = np.array([0.0, 0.0, 0.0, 1.0])  # Identity quaternion
+        start_quat = np.array([0.0, 0.0, 0.0, 1.0])
         target_pos = np.array([0.1, 0.2, 0.3])
         target_quat = np.array([0.0, 0.0, 0.0, 1.0])
 
-        # Plan trajectory
-        # Using specific num_points for testing
         num_points = 50
-        positions, quaternions = controller.plan_quintic_trajectory(
+        positions, quaternions = plan_quintic_trajectory(
             start_pos, start_quat, target_pos, target_quat,
             num_points=num_points
         )
 
-        # Check trajectory structure
         assert isinstance(positions, np.ndarray)
         assert isinstance(quaternions, np.ndarray)
         assert len(positions) == num_points
         assert len(quaternions) == num_points
-        assert positions.shape[1] == 3  # 3D positions
-        assert quaternions.shape[1] == 4  # 4D quaternions
+        assert positions.shape[1] == 3
+        assert quaternions.shape[1] == 4
 
-        # Check that trajectory starts and ends at correct poses
         np.testing.assert_array_almost_equal(positions[0], start_pos, decimal=5)
         np.testing.assert_array_almost_equal(positions[-1], target_pos, decimal=5)
         np.testing.assert_array_almost_equal(quaternions[0], start_quat, decimal=5)
         np.testing.assert_array_almost_equal(quaternions[-1], target_quat, decimal=5)
 
-    def test_trajectory_timing(self, controller):
+    def test_trajectory_timing(self):
         """Test that trajectory generates correct number of points."""
         start_pos = np.array([0.0, 0.0, 0.0])
         start_quat = np.array([0.0, 0.0, 0.0, 1.0])
@@ -157,65 +145,56 @@ class TestTrajectoryPlanning:
         target_quat = np.array([0.0, 0.0, 0.0, 1.0])
 
         num_points = 100
-        positions, quaternions = controller.plan_quintic_trajectory(
+        positions, quaternions = plan_quintic_trajectory(
             start_pos, start_quat, target_pos, target_quat, num_points=num_points
         )
 
-        # Check that number of points matches request
         assert len(positions) == num_points
         assert len(quaternions) == num_points
 
-    def test_zero_displacement_trajectory(self, controller):
+    def test_zero_displacement_trajectory(self):
         """Test planning with zero displacement."""
         pos = np.array([0.0, 0.0, 0.0])
         quat = np.array([0.0, 0.0, 0.0, 1.0])
 
-        positions, quaternions = controller.plan_quintic_trajectory(
+        positions, quaternions = plan_quintic_trajectory(
             pos, quat, pos, quat
         )
 
-        # Should return minimal trajectory (just the target point)
         assert len(positions) == 1
         assert len(quaternions) == 1
         np.testing.assert_array_almost_equal(positions[0], pos)
         np.testing.assert_array_almost_equal(quaternions[0], quat)
 
-    def test_quaternion_interpolation_validity(self, controller):
+    def test_quaternion_interpolation_validity(self):
         """Test that quaternion interpolation produces valid quaternions."""
         start_quat = np.array([0.0, 0.0, 0.0, 1.0])
-        target_quat = np.array([0.0, 0.0, np.sin(np.pi/4), np.cos(np.pi/4)])  # 90 degree rotation
+        target_quat = np.array([0.0, 0.0, np.sin(np.pi/4), np.cos(np.pi/4)])
 
-        positions, quaternions = controller.plan_quintic_trajectory(
+        positions, quaternions = plan_quintic_trajectory(
             np.array([0.0, 0.0, 0.0]), start_quat,
             np.array([0.1, 0.0, 0.0]), target_quat
         )
 
-        # Check that all quaternions are valid (unit length)
         for quat in quaternions:
             norm = np.linalg.norm(quat)
             assert abs(norm - 1.0) < 1e-6
 
-    def test_trajectory_smoothness(self, controller):
+    def test_trajectory_smoothness(self):
         """Test that trajectories are smooth (no sudden jumps)."""
         start_pos = np.array([0.0, 0.0, 0.0])
         target_pos = np.array([0.3, 0.2, 0.1])
         
         num_points = 100
-        positions, quaternions = controller.plan_quintic_trajectory(
+        positions, quaternions = plan_quintic_trajectory(
             start_pos, np.array([0.0, 0.0, 0.0, 1.0]),
             target_pos, np.array([0.0, 0.0, 0.0, 1.0]),
             num_points=num_points
         )
 
-        # Check position continuity
         max_displacement = 0
         for i in range(1, len(positions)):
             displacement = np.linalg.norm(positions[i] - positions[i-1])
             max_displacement = max(max_displacement, displacement)
         
-        # Total distance is roughly 0.37m. 
-        # Average step is 0.37 / 100 = 0.0037m.
-        # Max step shouldn't be too much larger than average.
-        # Quintic profile has peak velocity higher than average.
-        # 0.02 is a safe upper bound.
         assert max_displacement < 0.02, f"Max displacement {max_displacement} exceeds limit"

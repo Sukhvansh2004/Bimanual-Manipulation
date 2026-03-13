@@ -52,7 +52,7 @@
         ]
     },
     "collision_filter": {
-        "exclude_patterns": ["plate", "tshelf", "table_shelf"]
+        "relevant_patterns": ["plate", "tshelf", "table_shelf"]
     },
     "visualization": {
         "visualize_mesh": true,

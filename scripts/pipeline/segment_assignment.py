@@ -70,8 +70,15 @@ from bimanual_manipulation.planning.visualization.trajectory import (
     visualize_assignment_result,
 )
 from bimanual_manipulation.transforms import TransformManager
+from bimanual_manipulation.transforms.meshcat_tf_visualizer import (
+    stream_transforms_to_meshcat,
+    MeshcatTFVisualizerConfig,
+)
 from bimanual_manipulation.utils.env_utils import env_step
-
+import meshcat
+from bimanual_manipulation.planning.visualization import (
+    HandoverVisualizer,
+)
 
 def setup_logging(level: int = logging.INFO):
     logging.basicConfig(
@@ -178,6 +185,11 @@ def main() -> None:
         help="Path to save the cProfile .prof binary (for snakeviz). "
              "Only used when --profile is set.",
     )
+    parser.add_argument(
+        "--visualize-handovers", action="store_true",
+        help="Visualize each evaluated handover attempt in Meshcat "
+             "(requires --no-env to be off).",
+    )
 
     args = parser.parse_args()
 
@@ -247,6 +259,8 @@ def main() -> None:
     jacobian_fns = None
     collision_check_fn = None
     handover_clearance_fn = None
+    handover_callback = None
+    tf_stop_event = None
 
     if not args.no_env:
         logger.info("Creating simulation environment for IK and Jacobian evaluation ...")
@@ -273,7 +287,7 @@ def main() -> None:
         env_lock = threading.RLock()
         tf_manager = TransformManager(env, env_lock=env_lock)
 
-        ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock, relaxed=True)
+        ik_solver_fn = make_ik_solver_fn(env, tf_manager, env_lock)
         jacobian_fns = make_jacobian_fns(env, env_lock)
         collision_check_fn = make_collision_check_fn(
             env, env_lock,
@@ -292,6 +306,31 @@ def main() -> None:
                 "Handover clearance filter active (radius=%.3fm).",
                 clearance_radius,
             )
+
+        if args.visualize_handovers:
+            tf_stop_event = threading.Event()
+            tf_stream_thread = threading.Thread(
+                target=stream_transforms_to_meshcat,
+                kwargs=dict(
+                    env=env,
+                    env_lock=env_lock,
+                    tf_manager=tf_manager,
+                    config=MeshcatTFVisualizerConfig(clear=True),
+                    stop_event=tf_stop_event,
+                ),
+                daemon=True,
+            )
+            tf_stream_thread.start()
+            logger.info("TF stream thread started.")
+
+            vis = meshcat.Visualizer(zmq_url=constants.MESHCAT_ZMQ_URL)
+            logger.info("Handover visualizer connected to %s", constants.MESHCAT_ZMQ_URL)
+            hv = HandoverVisualizer(
+                vis, tf_manager,
+                object_name=exp_cfg.task.manipulated_object,
+            )
+            handover_callback = hv
+            logger.info("Handover visualizer enabled.")
     else:
         logger.warning(
             "Environment creation skipped (--no-env).  Handover costs will use "
@@ -334,6 +373,7 @@ def main() -> None:
         jacobian_fns=jacobian_fns,
         collision_check_fn=collision_check_fn,
         handover_clearance_fn=handover_clearance_fn,
+        handover_callback=handover_callback,
         beam_width=beam_width,
         handover_stride=handover_stride,
     )
@@ -345,6 +385,10 @@ def main() -> None:
 
     if _restore_fn is not None:
         _restore_fn()
+
+    # Stop the TF stream background thread if it was started
+    if tf_stop_event is not None:
+        tf_stop_event.set()
 
     # --- Print summary ---
     _print_summary(result)
@@ -410,7 +454,7 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
     The dict is JSON-serialisable and designed to be read back by
     ``scripts.evaluation.metrics.PlanningMetrics(**d)``.
     """
-    from bimanual_manipulation.planning.utils.manipulability import (
+    from bimanual_manipulation.planning.ik.manipulability import (
         compute_trajectory_manipulability,
     )
     from pathlib import Path

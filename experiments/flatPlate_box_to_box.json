@@ -155,7 +155,7 @@
         "_rrt_bounds_comment": "z-max=1.25 matches wall top so trajectories cannot go over the wall and must detour around through the other arm's workspace."
     },
     "collision_filter": {
-        "exclude_patterns": ["flatPlate", "plate", "boxA", "boxB", "boundary", "wall"]
+        "relevant_patterns": ["flatPlate", "plate", "boxA", "boxB", "boundary", "wall"]
     },
     "visualization": {
         "visualize_mesh": true,
@@ -183,6 +183,6 @@
     },
     "runtime": {
         "debug": false,
-        "num_workers": 4
+        "num_workers": 2
     }
 }

@@ -1,10 +1,27 @@
 # TODO: Switch from linear translation → minimum jerk trajectories.
 
 import numpy as np
+from dataclasses import dataclass, field
 from typing import List, Dict, Union, Callable, Any, Tuple
 from scipy.spatial.transform import Rotation as R, Slerp
 
 from bimanual_manipulation.transforms import StampedPose, Transform
+
+
+@dataclass
+class HandoverTrajectory:
+    """Typed container for the output of :meth:`DualArmHandoverPlanner.generate_trajectory`.
+
+    All poses are in world frame.
+    """
+
+    receiver_pre: List[StampedPose] = field(default_factory=list)
+    transfer_hold: List[StampedPose] = field(default_factory=list)
+    receiver_approach: List[StampedPose] = field(default_factory=list)
+    force_ramp_transfer: List[StampedPose] = field(default_factory=list)
+    force_ramp_receiver: List[StampedPose] = field(default_factory=list)
+    force_schedule: List[Dict[str, float]] = field(default_factory=list)
+    transfer_retreat: List[StampedPose] = field(default_factory=list)
 
 
 # Utilities
@@ -337,21 +354,14 @@ class DualArmHandoverPlanner:
 
     # ---------------------------------
 
-    def generate_trajectory(self) -> Dict[str, Any]:
+    def generate_trajectory(self) -> HandoverTrajectory:
         """
-        Generate the full handover trajectory dictionary.
+        Generate the full handover trajectory.
 
         All output poses are in world frame.
 
         Returns:
-            Dict with keys:
-                - receiver_pre: [StampedPose] — standoff pose.
-                - transfer_hold: [StampedPose] — transfer arm hold pose.
-                - receiver_approach: List[StampedPose] — approach trajectory.
-                - force_ramp_transfer: List[StampedPose] — transfer hold during ramp.
-                - force_ramp_receiver: List[StampedPose] — receiver hold during ramp.
-                - force_schedule: List[Dict] — per-step force weights.
-                - transfer_retreat: List[StampedPose] — retreat trajectory.
+            :class:`HandoverTrajectory` with per-phase pose lists.
         """
 
         receiver_pre, transfer_hold = self.plan_pre_alignment()
@@ -364,15 +374,15 @@ class DualArmHandoverPlanner:
 
         retreat_traj = self.plan_retreat()
 
-        return {
-            "receiver_pre": [receiver_pre],
-            "transfer_hold": [transfer_hold],
-            "receiver_approach": receiver_approach,
-            "force_ramp_transfer": transfer_ramp,
-            "force_ramp_receiver": receiver_ramp,
-            "force_schedule": forces,
-            "transfer_retreat": retreat_traj
-        }
+        return HandoverTrajectory(
+            receiver_pre=[receiver_pre],
+            transfer_hold=[transfer_hold],
+            receiver_approach=receiver_approach,
+            force_ramp_transfer=transfer_ramp,
+            force_ramp_receiver=receiver_ramp,
+            force_schedule=forces,
+            transfer_retreat=retreat_traj,
+        )
 
 
 class ObjectGraspPrimitive:

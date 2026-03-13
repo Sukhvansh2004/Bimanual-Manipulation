@@ -45,18 +45,15 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import nullcontext
-from typing import List, Optional, Union
+from typing import List, Optional, TYPE_CHECKING, Union
 
 import mink
 import numpy as np
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
-from bimanual_manipulation.planning.utils.trajectory_utils import (
-    resample_joint_trajectory,
-)
+from bimanual_manipulation.utils.trajectory_math import resample_joint_trajectory
 from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
@@ -74,11 +71,13 @@ from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
     normalise_trajectory,
     eef_to_joint_trajectory,
 )
-from bimanual_manipulation.planning.utils.ik_utils import (
+from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
 
+if TYPE_CHECKING:
+    from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
 logger = logging.getLogger(__name__)
 
@@ -615,7 +614,6 @@ class DualArmParallelPlanner:
                 tf_manager=self.arm_b.tf_manager,
                 arm=self.arm_b.arm_id,
                 site_name=site_name,
-                q_warm_start=q_warm_start,
                 env_lock=self.env_lock,
                 max_solutions=constants.IK_MAX_SOLUTIONS,
             )

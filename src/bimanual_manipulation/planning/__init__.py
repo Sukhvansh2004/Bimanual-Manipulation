@@ -2,23 +2,16 @@
 
 Subpackages
 -----------
+ik
+    IK solvers (EAIK, Scipy, Mink), manipulability, and IK utilities.
 rrt
     RRT-Connect planners (generic core, SE(3), joint-space), path
     smoothing, and Meshcat visualization.
 visualization
     Robot/object mesh visualization and trajectory plotting.
 utils
-    Low-level shared utilities (IK, collision, MuJoCo helpers, etc.).
-
-Note
-----
-``DualArmParallelPlanner`` and ``ParallelExecutionResult`` are imported
-lazily (via ``__getattr__``) because ``dual_arm`` depends on
-``controllers.arm``, which in turn imports ``planning.utils``.  Eager
-importing would create a circular dependency.
+    Low-level shared utilities (collision, MuJoCo helpers, etc.).
 """
-
-import importlib as _importlib
 
 from bimanual_manipulation.planning.grasp_generator import GraspGenerator
 from bimanual_manipulation.planning.collision_checker import (
@@ -73,6 +66,12 @@ from bimanual_manipulation.planning.assignment import (
 
 from bimanual_manipulation.schema import GraspSchema
 from bimanual_manipulation.transforms import StampedPose
+
+# ── Dual-arm execution ───────────────────────────────────────────────────
+from bimanual_manipulation.planning.dual_arm import (
+    DualArmParallelPlanner,
+    ParallelExecutionResult,
+)
 
 # ── Utils / trajectory ────────────────────────────────────────────────────
 from bimanual_manipulation.planning.utils.trajectory_utils import (
@@ -136,17 +135,3 @@ __all__ = [
     'visualize_trajectory',
     'RobotMeshVisualizer',
 ]
-
-
-# ── Lazy loader for dual-arm planner (breaks circular import) ─────────────
-def __getattr__(name: str):
-    _LAZY = {
-        "DualArmParallelPlanner": "dual_arm",
-        "ParallelExecutionResult": "dual_arm",
-    }
-    if name in _LAZY:
-        mod = _importlib.import_module(f".{_LAZY[name]}", __name__)
-        val = getattr(mod, name)
-        globals()[name] = val  # cache for subsequent access
-        return val
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
