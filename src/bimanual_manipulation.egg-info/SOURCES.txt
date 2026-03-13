@@ -68,6 +68,7 @@ src/bimanual_manipulation/planning/utils/collision_utils.py
 src/bimanual_manipulation/planning/utils/mujoco_utils.py
 src/bimanual_manipulation/planning/utils/trajectory_utils.py
 src/bimanual_manipulation/planning/visualization/__init__.py
+src/bimanual_manipulation/planning/visualization/handover.py
 src/bimanual_manipulation/planning/visualization/object_mesh.py
 src/bimanual_manipulation/planning/visualization/robot_mesh.py
 src/bimanual_manipulation/planning/visualization/trajectory.py
