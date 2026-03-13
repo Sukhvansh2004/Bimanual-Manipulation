@@ -1,6 +1,6 @@
 [robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
-2026-03-06 00:25:09,054 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
-2026-03-06 00:25:09,058 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-13 12:18:07,993 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-13 12:18:07,998 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
 /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
   warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
 Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
@@ -9,219 +9,219 @@ Unable to load module hid, required to interface with SpaceMouse.
            Only macOS is officially supported. Install the additional
 
            requirements with `pip install -r requirements-extra.txt`
-2026-03-06 00:25:14,095 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
-2026-03-06 00:25:14,096 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
-2026-03-06 00:25:14,096 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box ...
-2026-03-06 00:25:14,098 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
-2026-03-06 00:25:14,114 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
-2026-03-06 00:25:14,128 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
-2026-03-06 00:25:14,128 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
-2026-03-06 00:25:14,128 - __main__ - INFO - Assignment parameters: α=10.00, β=1.00, ε=1.0e-06, beam=unlimited, stride=1, clearance=0.030m
-2026-03-06 00:25:14,128 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
-2026-03-06 00:25:14,129 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
-2026-03-06 00:25:17,096 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
-2026-03-06 00:25:17,099 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
-2026-03-06 00:25:17,100 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
-2026-03-06 00:25:17,100 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
-2026-03-06 00:25:17,101 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
-2026-03-06 00:25:17,101 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
-2026-03-06 00:25:22,744 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
-2026-03-06 00:25:22,747 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
-2026-03-06 00:25:22,748 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
-2026-03-06 00:25:22,748 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
-2026-03-06 00:25:22,748 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
-2026-03-06 00:25:22,748 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
-2026-03-06 00:25:22,748 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
-2026-03-06 00:25:25,341 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
-2026-03-06 00:25:25,361 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
-2026-03-06 00:25:25,363 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
-2026-03-06 00:25:25,366 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
-2026-03-06 00:25:25,368 - bimanual_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=unlimited, stride=1)
-2026-03-06 00:25:25,538 - bimanual_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1161/3200 finite entries
-2026-03-06 00:25:25,538 - bimanual_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments × 40 states
-2026-03-06 00:25:25,538 - bimanual_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments × 40 states, beam_width=unlimited, handover_stride=1
-2026-03-06 00:25:25,539 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 7/40 alive states
-2026-03-06 00:25:25,539 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
-2026-03-06 00:25:25,539 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:25:25,540 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 00:27:17,565 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 9/79: 112.0s (IK=10, pruned=5, alive=6) ETA 871s
-2026-03-06 00:31:05,894 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 10/79: 228.3s (IK=20, pruned=8, alive=8) ETA 2348s
-2026-03-06 00:34:22,523 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 11/79: 196.6s (IK=20, pruned=8, alive=8) ETA 3320s
-2026-03-06 00:37:15,798 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 12/79: 173.3s (IK=25, pruned=10, alive=10) ETA 3966s
-2026-03-06 00:40:54,359 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 13/79: 218.6s (IK=30, pruned=11, alive=11) ETA 4716s
-2026-03-06 00:43:39,473 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 14/79: 165.1s (IK=35, pruned=12, alive=12) ETA 5079s
-2026-03-06 00:46:58,565 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 15/79: 199.1s (IK=40, pruned=11, alive=12) ETA 5517s
-2026-03-06 00:48:46,873 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 16/79: 108.3s (IK=36, pruned=12, alive=12) ETA 5518s
-2026-03-06 00:50:08,031 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 17/79: 81.2s (IK=36, pruned=15, alive=15) ETA 5407s
-2026-03-06 00:53:37,019 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 18/79: 209.0s (IK=45, pruned=14, alive=17) ETA 5732s
-2026-03-06 00:57:08,128 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 19/79: 211.1s (IK=34, pruned=19, alive=19) ETA 6008s
-2026-03-06 01:01:44,425 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 20/79: 276.3s (IK=34, pruned=19, alive=19) ETA 6428s
-2026-03-06 01:08:20,640 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 21/79: 396.2s (IK=38, pruned=19, alive=19) ETA 7112s
-2026-03-06 01:14:52,932 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 22/79: 392.3s (IK=38, pruned=19, alive=19) ETA 7688s
-2026-03-06 01:20:54,382 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 23/79: 361.4s (IK=38, pruned=19, alive=19) ETA 8105s
-2026-03-06 01:27:00,344 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 24/79: 366.0s (IK=38, pruned=19, alive=19) ETA 8467s
-2026-03-06 01:33:07,564 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 25/79: 367.2s (IK=40, pruned=19, alive=19) ETA 8774s
-2026-03-06 01:39:11,950 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 26/79: 364.4s (IK=40, pruned=18, alive=18) ETA 9023s
-2026-03-06 01:42:18,497 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 27/79: 186.5s (IK=20, pruned=18, alive=18) ETA 8884s
-2026-03-06 01:45:09,502 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 28/79: 171.0s (IK=19, pruned=17, alive=17) ETA 8714s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 29/79: 0.0s (IK=0, pruned=17, alive=17) ETA 8248s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 30/79: 0.0s (IK=0, pruned=17, alive=17) ETA 7814s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 31/79: 0.0s (IK=0, pruned=17, alive=17) ETA 7407s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 32/79: 0.0s (IK=0, pruned=17, alive=17) ETA 7026s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 33/79: 0.0s (IK=0, pruned=17, alive=17) ETA 6669s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 34/79: 0.0s (IK=0, pruned=17, alive=17) ETA 6332s
-2026-03-06 01:45:09,503 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 35/79: 0.0s (IK=0, pruned=17, alive=17) ETA 6014s
-2026-03-06 01:47:20,794 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 36/79: 131.3s (IK=17, pruned=17, alive=17) ETA 5871s
-2026-03-06 01:52:58,023 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 37/79: 337.2s (IK=34, pruned=17, alive=17) ETA 5962s
-2026-03-06 01:58:44,041 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 38/79: 346.0s (IK=34, pruned=17, alive=17) ETA 6040s
-2026-03-06 02:04:21,458 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 39/79: 337.4s (IK=34, pruned=17, alive=17) ETA 6088s
-2026-03-06 02:06:40,945 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 40/79: 139.5s (IK=17, pruned=17, alive=17) ETA 5924s
-2026-03-06 02:08:45,949 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 41/79: 125.0s (IK=17, pruned=17, alive=17) ETA 5747s
-2026-03-06 02:10:53,521 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 42/79: 127.6s (IK=17, pruned=17, alive=17) ETA 5575s
-2026-03-06 02:13:59,777 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 43/79: 186.3s (IK=17, pruned=17, alive=17) ETA 5454s
-2026-03-06 02:17:18,679 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 44/79: 198.9s (IK=17, pruned=17, alive=17) ETA 5340s
-2026-03-06 02:20:41,202 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 45/79: 202.5s (IK=17, pruned=17, alive=17) ETA 5225s
-2026-03-06 02:24:22,332 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 46/79: 221.1s (IK=17, pruned=17, alive=17) ETA 5120s
-2026-03-06 02:26:25,959 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 47/79: 123.6s (IK=10, pruned=18, alive=18) ETA 4943s
-2026-03-06 02:29:10,019 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 48/79: 164.1s (IK=20, pruned=19, alive=21) ETA 4795s
-2026-03-06 02:32:02,557 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 49/79: 172.5s (IK=19, pruned=20, alive=20) ETA 4651s
-2026-03-06 02:34:24,948 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 50/79: 142.4s (IK=19, pruned=20, alive=20) ETA 4489s
-2026-03-06 02:36:21,402 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 51/79: 116.5s (IK=19, pruned=20, alive=20) ETA 4313s
-2026-03-06 02:38:16,548 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 52/79: 115.1s (IK=19, pruned=20, alive=20) ETA 4139s
-2026-03-06 02:39:55,532 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 53/79: 99.0s (IK=19, pruned=20, alive=20) ETA 3959s
-2026-03-06 02:41:16,286 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 54/79: 80.8s (IK=18, pruned=19, alive=19) ETA 3773s
-2026-03-06 02:42:23,182 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 55/79: 66.9s (IK=17, pruned=18, alive=18) ETA 3586s
-2026-03-06 02:47:11,157 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 56/79: 288.0s (IK=34, pruned=18, alive=18) ETA 3493s
-2026-03-06 02:51:25,065 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 57/79: 253.9s (IK=33, pruned=17, alive=17) ETA 3381s
-2026-03-06 02:55:23,725 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 58/79: 238.7s (IK=30, pruned=13, alive=13) ETA 3258s
-2026-03-06 02:58:22,408 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 59/79: 178.7s (IK=22, pruned=11, alive=11) ETA 3111s
-2026-03-06 03:05:17,189 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 60/79: 414.8s (IK=43, pruned=12, alive=12) ETA 3037s
-2026-03-06 03:12:17,804 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 61/79: 420.6s (IK=49, pruned=10, alive=10) ETA 2954s
-2026-03-06 03:19:04,768 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 62/79: 407.0s (IK=37, pruned=8, alive=8) ETA 2857s
-2026-03-06 03:23:26,216 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 63/79: 261.4s (IK=27, pruned=8, alive=8) ETA 2713s
-2026-03-06 03:26:44,134 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 64/79: 197.9s (IK=25, pruned=8, alive=8) ETA 2550s
-2026-03-06 03:29:50,462 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 65/79: 186.3s (IK=25, pruned=7, alive=7) ETA 2383s
-2026-03-06 03:32:17,396 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 66/79: 146.9s (IK=20, pruned=7, alive=7) ETA 2208s
-2026-03-06 03:34:53,377 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 67/79: 156.0s (IK=20, pruned=7, alive=7) ETA 2036s
-2026-03-06 03:37:03,238 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 68/79: 129.9s (IK=17, pruned=5, alive=5) ETA 1860s
-2026-03-06 03:38:24,103 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 69/79: 80.9s (IK=9, pruned=4, alive=5) ETA 1678s
-2026-03-06 03:38:40,486 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 70/79: 16.4s (IK=6, pruned=5, alive=6) ETA 1491s
-2026-03-06 03:38:56,609 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 71/79: 16.1s (IK=4, pruned=5, alive=5) ETA 1308s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 72/79: 0.0s (IK=0, pruned=5, alive=5) ETA 1129s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 73/79: 0.0s (IK=0, pruned=5, alive=5) ETA 954s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 74/79: 0.0s (IK=0, pruned=5, alive=5) ETA 785s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 75/79: 0.0s (IK=0, pruned=5, alive=5) ETA 619s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 76/79: 0.0s (IK=0, pruned=5, alive=5) ETA 458s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 77/79: 0.0s (IK=0, pruned=5, alive=5) ETA 302s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 78/79: 0.0s (IK=0, pruned=5, alive=5) ETA 149s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 79/79: 0.0s (IK=0, pruned=5, alive=5) ETA 0s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=1435, pruned=1000, elapsed=11611.1s
-2026-03-06 03:38:56,610 - bimanual_manipulation.planning.assignment.solver - INFO - Best terminal cost=4382.0512 at state 23
-2026-03-06 03:38:56,621 - bimanual_manipulation.planning.assignment.solver - INFO - Assignment solved: total_cost=4382.0512, handovers=2
-2026-03-06 03:38:56,624 - __main__ - INFO - ============================================================
-2026-03-06 03:38:56,624 - __main__ - INFO - Optimal Assignment Results
-2026-03-06 03:38:56,624 - __main__ - INFO - ============================================================
-2026-03-06 03:38:56,624 - __main__ - INFO -   Total cost     : 4382.0512
-2026-03-06 03:38:56,700 - __main__ - INFO -   Segments       : 80
-2026-03-06 03:38:56,700 - __main__ - INFO -   Handovers      : 2  [18, 60]
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   0: Robot1  traj=robot1_trajectory_12.npz  task=19.9634  switch=0.0000  total=19.9634
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   1: Robot1  traj=robot1_trajectory_12.npz  task=19.7756  switch=0.0000  total=19.7756
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   2: Robot1  traj=robot1_trajectory_12.npz  task=19.6424  switch=0.0000  total=19.6424
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   3: Robot1  traj=robot1_trajectory_12.npz  task=19.5489  switch=0.0000  total=19.5489
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   4: Robot1  traj=robot1_trajectory_12.npz  task=19.4960  switch=0.0000  total=19.4960
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   5: Robot1  traj=robot1_trajectory_12.npz  task=19.4882  switch=0.0000  total=19.4882
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   6: Robot1  traj=robot1_trajectory_12.npz  task=19.5328  switch=0.0000  total=19.5328
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   7: Robot1  traj=robot1_trajectory_12.npz  task=19.6390  switch=0.0000  total=19.6390
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   8: Robot1  traj=robot1_trajectory_12.npz  task=19.8197  switch=0.0000  total=19.8197
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg   9: Robot1  traj=robot1_trajectory_12.npz  task=20.0920  switch=0.0000  total=20.0920
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  10: Robot1  traj=robot1_trajectory_12.npz  task=107.6109  switch=0.0000  total=107.6109
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  11: Robot1  traj=robot1_trajectory_12.npz  task=19.8284  switch=0.0000  total=19.8284
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  12: Robot1  traj=robot1_trajectory_12.npz  task=20.6740  switch=0.0000  total=20.6740
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  13: Robot1  traj=robot1_trajectory_12.npz  task=21.8167  switch=0.0000  total=21.8167
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  14: Robot1  traj=robot1_trajectory_12.npz  task=23.4117  switch=0.0000  total=23.4117
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  15: Robot1  traj=robot1_trajectory_12.npz  task=25.8521  switch=0.0000  total=25.8521
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  16: Robot1  traj=robot1_trajectory_12.npz  task=30.6960  switch=0.0000  total=30.6960
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  17: Robot1  traj=robot1_trajectory_12.npz  task=54.7834  switch=0.0000  total=54.7834
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  18: Robot0  traj=robot0_trajectory_1.npz  task=19.4197  switch=2149.1875  total=2168.6072
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  19: Robot0  traj=robot0_trajectory_1.npz  task=19.2625  switch=0.0000  total=19.2625
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  20: Robot0  traj=robot0_trajectory_1.npz  task=19.1412  switch=0.0000  total=19.1412
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  21: Robot0  traj=robot0_trajectory_1.npz  task=19.0492  switch=0.0000  total=19.0492
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  22: Robot0  traj=robot0_trajectory_1.npz  task=18.9871  switch=0.0000  total=18.9871
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  23: Robot0  traj=robot0_trajectory_1.npz  task=18.9693  switch=0.0000  total=18.9693
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  24: Robot0  traj=robot0_trajectory_1.npz  task=19.0228  switch=0.0000  total=19.0228
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  25: Robot0  traj=robot0_trajectory_1.npz  task=19.1536  switch=0.0000  total=19.1536
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  26: Robot0  traj=robot0_trajectory_1.npz  task=19.3605  switch=0.0000  total=19.3605
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  27: Robot0  traj=robot0_trajectory_1.npz  task=19.6415  switch=0.0000  total=19.6415
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  28: Robot0  traj=robot0_trajectory_1.npz  task=19.9943  switch=0.0000  total=19.9943
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  29: Robot0  traj=robot0_trajectory_1.npz  task=23.8712  switch=0.0000  total=23.8712
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  30: Robot0  traj=robot0_trajectory_1.npz  task=20.7673  switch=0.0000  total=20.7673
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  31: Robot0  traj=robot0_trajectory_1.npz  task=21.1290  switch=0.0000  total=21.1290
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  32: Robot0  traj=robot0_trajectory_1.npz  task=21.6058  switch=0.0000  total=21.6058
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  33: Robot0  traj=robot0_trajectory_1.npz  task=22.1546  switch=0.0000  total=22.1546
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  34: Robot0  traj=robot0_trajectory_1.npz  task=22.7634  switch=0.0000  total=22.7634
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  35: Robot0  traj=robot0_trajectory_1.npz  task=23.4336  switch=0.0000  total=23.4336
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  36: Robot0  traj=robot0_trajectory_1.npz  task=24.1607  switch=0.0000  total=24.1607
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  37: Robot0  traj=robot0_trajectory_1.npz  task=24.9371  switch=0.0000  total=24.9371
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  38: Robot0  traj=robot0_trajectory_1.npz  task=25.7660  switch=0.0000  total=25.7660
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  39: Robot0  traj=robot0_trajectory_1.npz  task=26.6499  switch=0.0000  total=26.6499
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  40: Robot0  traj=robot0_trajectory_1.npz  task=27.5683  switch=0.0000  total=27.5683
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  41: Robot0  traj=robot0_trajectory_1.npz  task=28.5151  switch=0.0000  total=28.5151
-2026-03-06 03:38:56,701 - __main__ - INFO -   Seg  42: Robot0  traj=robot0_trajectory_1.npz  task=29.5042  switch=0.0000  total=29.5042
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  43: Robot0  traj=robot0_trajectory_1.npz  task=30.5009  switch=0.0000  total=30.5009
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  44: Robot0  traj=robot0_trajectory_1.npz  task=31.4805  switch=0.0000  total=31.4805
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  45: Robot0  traj=robot0_trajectory_1.npz  task=32.4613  switch=0.0000  total=32.4613
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  46: Robot0  traj=robot0_trajectory_1.npz  task=33.4094  switch=0.0000  total=33.4094
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  47: Robot0  traj=robot0_trajectory_1.npz  task=34.2742  switch=0.0000  total=34.2742
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  48: Robot0  traj=robot0_trajectory_1.npz  task=35.0666  switch=0.0000  total=35.0666
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  49: Robot0  traj=robot0_trajectory_1.npz  task=35.7747  switch=0.0000  total=35.7747
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  50: Robot0  traj=robot0_trajectory_1.npz  task=36.3202  switch=0.0000  total=36.3202
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  51: Robot0  traj=robot0_trajectory_1.npz  task=36.7055  switch=0.0000  total=36.7055
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  52: Robot0  traj=robot0_trajectory_1.npz  task=36.9681  switch=0.0000  total=36.9681
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  53: Robot0  traj=robot0_trajectory_1.npz  task=37.0116  switch=0.0000  total=37.0116
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  54: Robot0  traj=robot0_trajectory_1.npz  task=36.8326  switch=0.0000  total=36.8326
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  55: Robot0  traj=robot0_trajectory_1.npz  task=36.5381  switch=0.0000  total=36.5381
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  56: Robot0  traj=robot0_trajectory_1.npz  task=35.9627  switch=0.0000  total=35.9627
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  57: Robot0  traj=robot0_trajectory_1.npz  task=35.0098  switch=0.0000  total=35.0098
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  58: Robot0  traj=robot0_trajectory_1.npz  task=33.7610  switch=0.0000  total=33.7610
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  59: Robot0  traj=robot0_trajectory_1.npz  task=32.2653  switch=0.0000  total=32.2653
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  60: Robot1  traj=robot1_trajectory_3.npz  task=39.1712  switch=191.2375  total=230.4087
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  61: Robot1  traj=robot1_trajectory_3.npz  task=28.0772  switch=0.0000  total=28.0772
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  62: Robot1  traj=robot1_trajectory_3.npz  task=26.5696  switch=0.0000  total=26.5696
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  63: Robot1  traj=robot1_trajectory_3.npz  task=23.2376  switch=0.0000  total=23.2376
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  64: Robot1  traj=robot1_trajectory_3.npz  task=20.0677  switch=0.0000  total=20.0677
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  65: Robot1  traj=robot1_trajectory_3.npz  task=19.4902  switch=0.0000  total=19.4902
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  66: Robot1  traj=robot1_trajectory_3.npz  task=18.6975  switch=0.0000  total=18.6975
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  67: Robot1  traj=robot1_trajectory_3.npz  task=18.1624  switch=0.0000  total=18.1624
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  68: Robot1  traj=robot1_trajectory_3.npz  task=19.6018  switch=0.0000  total=19.6018
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  69: Robot1  traj=robot1_trajectory_3.npz  task=16.6395  switch=0.0000  total=16.6395
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  70: Robot1  traj=robot1_trajectory_3.npz  task=16.5184  switch=0.0000  total=16.5184
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  71: Robot1  traj=robot1_trajectory_3.npz  task=16.4321  switch=0.0000  total=16.4321
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  72: Robot1  traj=robot1_trajectory_3.npz  task=16.4039  switch=0.0000  total=16.4039
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  73: Robot1  traj=robot1_trajectory_3.npz  task=16.4295  switch=0.0000  total=16.4295
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  74: Robot1  traj=robot1_trajectory_3.npz  task=16.4602  switch=0.0000  total=16.4602
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  75: Robot1  traj=robot1_trajectory_3.npz  task=16.4987  switch=0.0000  total=16.4987
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  76: Robot1  traj=robot1_trajectory_3.npz  task=16.5320  switch=0.0000  total=16.5320
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  77: Robot1  traj=robot1_trajectory_3.npz  task=16.5643  switch=0.0000  total=16.5643
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  78: Robot1  traj=robot1_trajectory_3.npz  task=16.5977  switch=0.0000  total=16.5977
-2026-03-06 03:38:56,702 - __main__ - INFO -   Seg  79: Robot1  traj=robot1_trajectory_3.npz  task=16.6329  switch=0.0000  total=16.6329
-2026-03-06 03:38:56,708 - __main__ - INFO -   Robot0 — feasible segments: 62/80  cost range: [16.2296, 35.9523]
-2026-03-06 03:38:56,709 - __main__ - INFO -   Robot1 — feasible segments: 72/80  cost range: [16.2448, 98.2152]
-2026-03-06 03:38:56,747 - bimanual_manipulation.planning.assignment.result - INFO - Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box/configs/Proposed/assignment_results.npz
-2026-03-06 03:38:56,839 - __main__ - INFO - Metrics written to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box/configs/Proposed/planning_metrics.json
-2026-03-06 03:38:56,839 - __main__ - INFO - Done. (11611.3s)
+2026-03-13 12:18:14,334 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
+2026-03-13 12:18:14,734 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
+2026-03-13 12:18:14,734 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box ...
+2026-03-13 12:18:15,478 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-13 12:18:17,784 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-13 12:18:17,926 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-13 12:18:17,926 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-13 12:18:17,926 - __main__ - INFO - Assignment parameters: α=10.00, β=1.00, ε=1.0e-06, beam=unlimited, stride=1, clearance=0.030m
+2026-03-13 12:18:17,926 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
+2026-03-13 12:18:17,926 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-13 12:18:23,302 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-13 12:18:23,302 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-13 12:18:23,302 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-13 12:18:23,302 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-13 12:18:23,303 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-13 12:18:23,304 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-13 12:18:24,659 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-13 12:18:24,660 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-13 12:18:25,524 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-13 12:18:25,526 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-13 12:18:25,526 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
+2026-03-13 12:18:25,527 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
+2026-03-13 12:18:25,527 - bimanual_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, alpha=10.00, beta=1.00, beam=unlimited, stride=1)
+2026-03-13 12:18:25,908 - bimanual_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1208/3200 finite entries
+2026-03-13 12:18:25,908 - bimanual_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments x 40 states
+2026-03-13 12:18:25,908 - bimanual_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments x 40 states, beam_width=unlimited, handover_stride=1
+2026-03-13 12:18:25,908 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 13/40 alive states
+2026-03-13 12:18:25,908 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=13, alive=13) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=11, alive=11) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=11, alive=11) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=10, alive=10) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=9, alive=9) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=9, alive=9) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=8, alive=8) ETA 0s
+2026-03-13 12:18:25,909 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=8, alive=8) ETA 0s
+2026-03-13 12:18:25,910 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 9/79: 0.0s (IK=0, pruned=8, alive=8) ETA 0s
+2026-03-13 12:18:25,910 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 10/79: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-13 12:18:25,910 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 11/79: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-13 12:18:25,910 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 12/79: 0.0s (IK=0, pruned=6, alive=6) ETA 0s
+2026-03-13 12:18:28,072 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 13/79: 2.2s (IK=24, pruned=6, alive=8) ETA 11s
+2026-03-13 12:18:30,157 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 14/79: 1.9s (IK=42, pruned=10, alive=10) ETA 20s
+2026-03-13 12:18:31,779 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 15/79: 1.6s (IK=40, pruned=10, alive=10) ETA 25s
+2026-03-13 12:18:33,893 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 16/79: 2.1s (IK=38, pruned=9, alive=11) ETA 31s
+2026-03-13 12:18:35,724 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 17/79: 1.8s (IK=40, pruned=11, alive=11) ETA 36s
+2026-03-13 12:18:37,758 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 18/79: 2.0s (IK=45, pruned=11, alive=11) ETA 40s
+2026-03-13 12:18:40,173 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 19/79: 2.4s (IK=50, pruned=10, alive=11) ETA 45s
+2026-03-13 12:18:43,854 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 20/79: 3.7s (IK=60, pruned=14, alive=14) ETA 53s
+2026-03-13 12:18:47,448 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 21/79: 3.6s (IK=72, pruned=11, alive=11) ETA 59s
+2026-03-13 12:18:48,494 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 22/79: 1.0s (IK=19, pruned=10, alive=10) ETA 59s
+2026-03-13 12:18:48,494 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 23/79: 0.0s (IK=0, pruned=10, alive=10) ETA 55s
+2026-03-13 12:18:48,494 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 24/79: 0.0s (IK=0, pruned=10, alive=10) ETA 52s
+2026-03-13 12:18:48,494 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 25/79: 0.0s (IK=0, pruned=10, alive=10) ETA 49s
+2026-03-13 12:18:48,928 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 26/79: 0.4s (IK=10, pruned=10, alive=10) ETA 47s
+2026-03-13 12:18:49,303 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 27/79: 0.4s (IK=10, pruned=10, alive=10) ETA 45s
+2026-03-13 12:18:49,654 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 28/79: 0.4s (IK=10, pruned=10, alive=10) ETA 43s
+2026-03-13 12:18:49,945 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 29/79: 0.3s (IK=10, pruned=10, alive=10) ETA 41s
+2026-03-13 12:18:50,217 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 30/79: 0.3s (IK=10, pruned=10, alive=10) ETA 40s
+2026-03-13 12:18:50,498 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 31/79: 0.3s (IK=10, pruned=10, alive=10) ETA 38s
+2026-03-13 12:18:50,790 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 32/79: 0.3s (IK=10, pruned=10, alive=10) ETA 37s
+2026-03-13 12:18:51,664 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 33/79: 0.9s (IK=20, pruned=10, alive=10) ETA 36s
+2026-03-13 12:18:52,363 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 34/79: 0.7s (IK=18, pruned=11, alive=11) ETA 35s
+2026-03-13 12:18:53,959 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 35/79: 1.6s (IK=29, pruned=19, alive=19) ETA 35s
+2026-03-13 12:18:58,266 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 36/79: 4.3s (IK=37, pruned=19, alive=19) ETA 39s
+2026-03-13 12:18:59,249 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 37/79: 1.0s (IK=19, pruned=19, alive=19) ETA 38s
+2026-03-13 12:19:00,424 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 38/79: 1.2s (IK=20, pruned=19, alive=19) ETA 37s
+2026-03-13 12:19:01,291 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 39/79: 0.9s (IK=20, pruned=19, alive=19) ETA 36s
+2026-03-13 12:19:02,784 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 40/79: 1.5s (IK=29, pruned=20, alive=20) ETA 36s
+2026-03-13 12:19:05,369 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 41/79: 2.6s (IK=38, pruned=20, alive=20) ETA 37s
+2026-03-13 12:19:07,491 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 42/79: 2.1s (IK=40, pruned=20, alive=20) ETA 37s
+2026-03-13 12:19:09,552 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 43/79: 2.1s (IK=40, pruned=20, alive=20) ETA 37s
+2026-03-13 12:19:11,024 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 44/79: 1.5s (IK=40, pruned=20, alive=20) ETA 36s
+2026-03-13 12:19:12,604 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 45/79: 1.6s (IK=40, pruned=19, alive=19) ETA 35s
+2026-03-13 12:19:13,974 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 46/79: 1.4s (IK=38, pruned=19, alive=19) ETA 34s
+2026-03-13 12:19:15,955 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 47/79: 2.0s (IK=38, pruned=19, alive=20) ETA 34s
+2026-03-13 12:19:17,906 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 48/79: 2.0s (IK=38, pruned=20, alive=21) ETA 34s
+2026-03-13 12:19:19,754 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 49/79: 1.8s (IK=38, pruned=21, alive=21) ETA 33s
+2026-03-13 12:19:20,983 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 50/79: 1.2s (IK=29, pruned=21, alive=21) ETA 32s
+2026-03-13 12:19:22,874 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 51/79: 1.9s (IK=38, pruned=21, alive=21) ETA 31s
+2026-03-13 12:19:24,803 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 52/79: 1.9s (IK=37, pruned=19, alive=19) ETA 31s
+2026-03-13 12:19:26,518 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 53/79: 1.7s (IK=36, pruned=19, alive=19) ETA 30s
+2026-03-13 12:19:28,128 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 54/79: 1.6s (IK=36, pruned=19, alive=19) ETA 29s
+2026-03-13 12:19:29,588 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 55/79: 1.5s (IK=35, pruned=17, alive=17) ETA 28s
+2026-03-13 12:19:33,511 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 56/79: 3.9s (IK=30, pruned=13, alive=13) ETA 28s
+2026-03-13 12:19:34,867 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 57/79: 1.4s (IK=35, pruned=11, alive=11) ETA 27s
+2026-03-13 12:19:35,907 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 58/79: 1.0s (IK=25, pruned=11, alive=11) ETA 25s
+2026-03-13 12:19:37,219 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 59/79: 1.3s (IK=31, pruned=9, alive=10) ETA 24s
+2026-03-13 12:19:38,161 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 60/79: 0.9s (IK=16, pruned=9, alive=9) ETA 23s
+2026-03-13 12:19:39,549 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 61/79: 1.4s (IK=32, pruned=7, alive=7) ETA 22s
+2026-03-13 12:19:40,355 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 62/79: 0.8s (IK=14, pruned=6, alive=8) ETA 20s
+2026-03-13 12:19:41,067 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 63/79: 0.7s (IK=12, pruned=7, alive=8) ETA 19s
+2026-03-13 12:19:41,662 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 64/79: 0.6s (IK=14, pruned=8, alive=8) ETA 18s
+2026-03-13 12:19:42,086 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 65/79: 0.4s (IK=10, pruned=7, alive=7) ETA 16s
+2026-03-13 12:19:42,326 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 66/79: 0.2s (IK=7, pruned=7, alive=7) ETA 15s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 67/79: 0.0s (IK=0, pruned=7, alive=7) ETA 14s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 68/79: 0.0s (IK=0, pruned=7, alive=7) ETA 12s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 69/79: 0.0s (IK=0, pruned=7, alive=7) ETA 11s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 70/79: 0.0s (IK=0, pruned=7, alive=7) ETA 10s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 71/79: 0.0s (IK=0, pruned=7, alive=7) ETA 9s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 72/79: 0.0s (IK=0, pruned=7, alive=7) ETA 7s
+2026-03-13 12:19:42,327 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 73/79: 0.0s (IK=0, pruned=7, alive=7) ETA 6s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 74/79: 0.0s (IK=0, pruned=7, alive=7) ETA 5s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 75/79: 0.0s (IK=0, pruned=7, alive=7) ETA 4s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 76/79: 0.0s (IK=0, pruned=7, alive=7) ETA 3s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 77/79: 0.0s (IK=0, pruned=7, alive=7) ETA 2s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 78/79: 0.0s (IK=0, pruned=7, alive=7) ETA 1s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 79/79: 0.0s (IK=0, pruned=7, alive=7) ETA 0s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=1479, pruned=925, elapsed=76.4s
+2026-03-13 12:19:42,328 - bimanual_manipulation.planning.assignment.solver - INFO - Best terminal cost=1709.6942 at state 33
+2026-03-13 12:19:42,329 - bimanual_manipulation.planning.assignment.solver - INFO - Assignment solved: total_cost=1709.6942, handovers=2
+2026-03-13 12:19:42,329 - __main__ - INFO - ============================================================
+2026-03-13 12:19:42,329 - __main__ - INFO - Optimal Assignment Results
+2026-03-13 12:19:42,329 - __main__ - INFO - ============================================================
+2026-03-13 12:19:42,329 - __main__ - INFO -   Total cost     : 1709.6942
+2026-03-13 12:19:42,330 - __main__ - INFO -   Segments       : 80
+2026-03-13 12:19:42,330 - __main__ - INFO -   Handovers      : 2  [20, 60]
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   0: Robot1  traj=robot1_trajectory_5.npz  task=20.4512  switch=0.0000  total=20.4512
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   1: Robot1  traj=robot1_trajectory_5.npz  task=18.0552  switch=0.0000  total=18.0552
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   2: Robot1  traj=robot1_trajectory_5.npz  task=17.9196  switch=0.0000  total=17.9196
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   3: Robot1  traj=robot1_trajectory_5.npz  task=17.7996  switch=0.0000  total=17.7996
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   4: Robot1  traj=robot1_trajectory_5.npz  task=17.5939  switch=0.0000  total=17.5939
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   5: Robot1  traj=robot1_trajectory_5.npz  task=17.1952  switch=0.0000  total=17.1952
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   6: Robot1  traj=robot1_trajectory_5.npz  task=17.1098  switch=0.0000  total=17.1098
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   7: Robot1  traj=robot1_trajectory_5.npz  task=16.9826  switch=0.0000  total=16.9826
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   8: Robot1  traj=robot1_trajectory_5.npz  task=16.6559  switch=0.0000  total=16.6559
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg   9: Robot1  traj=robot1_trajectory_5.npz  task=16.6226  switch=0.0000  total=16.6226
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  10: Robot1  traj=robot1_trajectory_5.npz  task=16.6200  switch=0.0000  total=16.6200
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  11: Robot1  traj=robot1_trajectory_5.npz  task=16.6100  switch=0.0000  total=16.6100
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  12: Robot1  traj=robot1_trajectory_5.npz  task=16.3925  switch=0.0000  total=16.3925
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  13: Robot1  traj=robot1_trajectory_5.npz  task=16.4778  switch=0.0000  total=16.4778
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  14: Robot1  traj=robot1_trajectory_5.npz  task=16.6016  switch=0.0000  total=16.6016
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  15: Robot1  traj=robot1_trajectory_5.npz  task=16.5134  switch=0.0000  total=16.5134
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  16: Robot1  traj=robot1_trajectory_5.npz  task=16.7600  switch=0.0000  total=16.7600
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  17: Robot1  traj=robot1_trajectory_5.npz  task=17.1069  switch=0.0000  total=17.1069
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  18: Robot1  traj=robot1_trajectory_5.npz  task=17.7612  switch=0.0000  total=17.7612
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  19: Robot1  traj=robot1_trajectory_5.npz  task=18.0582  switch=0.0000  total=18.0582
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  20: Robot0  traj=robot0_trajectory_14.npz  task=18.1257  switch=103.2732  total=121.3989
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  21: Robot0  traj=robot0_trajectory_14.npz  task=17.3105  switch=0.0000  total=17.3105
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  22: Robot0  traj=robot0_trajectory_14.npz  task=17.3110  switch=0.0000  total=17.3110
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  23: Robot0  traj=robot0_trajectory_14.npz  task=17.4625  switch=0.0000  total=17.4625
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  24: Robot0  traj=robot0_trajectory_14.npz  task=16.9983  switch=0.0000  total=16.9983
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  25: Robot0  traj=robot0_trajectory_14.npz  task=16.4845  switch=0.0000  total=16.4845
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  26: Robot0  traj=robot0_trajectory_14.npz  task=16.7249  switch=0.0000  total=16.7249
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  27: Robot0  traj=robot0_trajectory_14.npz  task=17.1586  switch=0.0000  total=17.1586
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  28: Robot0  traj=robot0_trajectory_14.npz  task=16.8763  switch=0.0000  total=16.8763
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  29: Robot0  traj=robot0_trajectory_14.npz  task=17.3422  switch=0.0000  total=17.3422
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  30: Robot0  traj=robot0_trajectory_14.npz  task=17.1698  switch=0.0000  total=17.1698
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  31: Robot0  traj=robot0_trajectory_14.npz  task=17.6684  switch=0.0000  total=17.6684
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  32: Robot0  traj=robot0_trajectory_14.npz  task=17.4740  switch=0.0000  total=17.4740
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  33: Robot0  traj=robot0_trajectory_14.npz  task=17.3621  switch=0.0000  total=17.3621
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  34: Robot0  traj=robot0_trajectory_14.npz  task=17.9078  switch=0.0000  total=17.9078
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  35: Robot0  traj=robot0_trajectory_14.npz  task=17.8212  switch=0.0000  total=17.8212
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  36: Robot0  traj=robot0_trajectory_14.npz  task=18.4087  switch=0.0000  total=18.4087
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  37: Robot0  traj=robot0_trajectory_14.npz  task=18.3133  switch=0.0000  total=18.3133
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  38: Robot0  traj=robot0_trajectory_14.npz  task=19.1274  switch=0.0000  total=19.1274
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  39: Robot0  traj=robot0_trajectory_14.npz  task=20.1241  switch=0.0000  total=20.1241
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  40: Robot0  traj=robot0_trajectory_14.npz  task=20.7130  switch=0.0000  total=20.7130
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  41: Robot0  traj=robot0_trajectory_14.npz  task=20.6810  switch=0.0000  total=20.6810
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  42: Robot0  traj=robot0_trajectory_14.npz  task=21.2634  switch=0.0000  total=21.2634
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  43: Robot0  traj=robot0_trajectory_14.npz  task=21.1631  switch=0.0000  total=21.1631
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  44: Robot0  traj=robot0_trajectory_14.npz  task=21.7080  switch=0.0000  total=21.7080
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  45: Robot0  traj=robot0_trajectory_14.npz  task=21.4974  switch=0.0000  total=21.4974
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  46: Robot0  traj=robot0_trajectory_14.npz  task=22.0188  switch=0.0000  total=22.0188
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  47: Robot0  traj=robot0_trajectory_14.npz  task=21.6379  switch=0.0000  total=21.6379
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  48: Robot0  traj=robot0_trajectory_14.npz  task=22.6735  switch=0.0000  total=22.6735
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  49: Robot0  traj=robot0_trajectory_14.npz  task=22.9087  switch=0.0000  total=22.9087
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  50: Robot0  traj=robot0_trajectory_14.npz  task=23.3758  switch=0.0000  total=23.3758
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  51: Robot0  traj=robot0_trajectory_14.npz  task=21.5376  switch=0.0000  total=21.5376
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  52: Robot0  traj=robot0_trajectory_14.npz  task=20.5805  switch=0.0000  total=20.5805
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  53: Robot0  traj=robot0_trajectory_14.npz  task=21.0536  switch=0.0000  total=21.0536
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  54: Robot0  traj=robot0_trajectory_14.npz  task=19.6595  switch=0.0000  total=19.6595
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  55: Robot0  traj=robot0_trajectory_14.npz  task=19.4718  switch=0.0000  total=19.4718
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  56: Robot0  traj=robot0_trajectory_14.npz  task=26.3165  switch=0.0000  total=26.3165
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  57: Robot0  traj=robot0_trajectory_14.npz  task=20.6022  switch=0.0000  total=20.6022
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  58: Robot0  traj=robot0_trajectory_14.npz  task=20.1432  switch=0.0000  total=20.1432
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  59: Robot0  traj=robot0_trajectory_14.npz  task=19.0656  switch=0.0000  total=19.0656
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  60: Robot1  traj=robot1_trajectory_13.npz  task=23.3785  switch=126.3808  total=149.7593
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  61: Robot1  traj=robot1_trajectory_13.npz  task=21.1627  switch=0.0000  total=21.1627
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  62: Robot1  traj=robot1_trajectory_13.npz  task=19.6285  switch=0.0000  total=19.6285
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  63: Robot1  traj=robot1_trajectory_13.npz  task=19.7393  switch=0.0000  total=19.7393
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  64: Robot1  traj=robot1_trajectory_13.npz  task=17.6870  switch=0.0000  total=17.6870
+2026-03-13 12:19:42,330 - __main__ - INFO -   Seg  65: Robot1  traj=robot1_trajectory_13.npz  task=17.1874  switch=0.0000  total=17.1874
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  66: Robot1  traj=robot1_trajectory_13.npz  task=16.8472  switch=0.0000  total=16.8472
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  67: Robot1  traj=robot1_trajectory_13.npz  task=16.6348  switch=0.0000  total=16.6348
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  68: Robot1  traj=robot1_trajectory_13.npz  task=16.6311  switch=0.0000  total=16.6311
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  69: Robot1  traj=robot1_trajectory_13.npz  task=16.2822  switch=0.0000  total=16.2822
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  70: Robot1  traj=robot1_trajectory_13.npz  task=16.3020  switch=0.0000  total=16.3020
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  71: Robot1  traj=robot1_trajectory_13.npz  task=16.3833  switch=0.0000  total=16.3833
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  72: Robot1  traj=robot1_trajectory_13.npz  task=16.5734  switch=0.0000  total=16.5734
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  73: Robot1  traj=robot1_trajectory_13.npz  task=16.4793  switch=0.0000  total=16.4793
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  74: Robot1  traj=robot1_trajectory_13.npz  task=16.5936  switch=0.0000  total=16.5936
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  75: Robot1  traj=robot1_trajectory_13.npz  task=16.6877  switch=0.0000  total=16.6877
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  76: Robot1  traj=robot1_trajectory_13.npz  task=18.3629  switch=0.0000  total=18.3629
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  77: Robot1  traj=robot1_trajectory_13.npz  task=16.9467  switch=0.0000  total=16.9467
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  78: Robot1  traj=robot1_trajectory_13.npz  task=16.9631  switch=0.0000  total=16.9631
+2026-03-13 12:19:42,331 - __main__ - INFO -   Seg  79: Robot1  traj=robot1_trajectory_13.npz  task=17.0398  switch=0.0000  total=17.0398
+2026-03-13 12:19:42,331 - __main__ - INFO -   Robot0 — feasible segments: 54/80  cost range: [16.4845, 92.2645]
+2026-03-13 12:19:42,331 - __main__ - INFO -   Robot1 — feasible segments: 76/80  cost range: [16.2285, 280.5258]
+2026-03-13 12:19:42,341 - bimanual_manipulation.planning.assignment.result - INFO - Assignment result saved to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box/configs/Proposed/assignment_results.npz
+2026-03-13 12:19:42,400 - __main__ - INFO - Metrics written to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box/configs/Proposed/planning_metrics.json
+2026-03-13 12:19:42,400 - __main__ - INFO - Done. (76.8s)

@@ -1,0 +1,19 @@
+{
+  "experiment": "flatPlate_box_to_box",
+  "config_label": "",
+  "total_cost": 2114.8009867766023,
+  "n_segments": 80,
+  "n_handovers": 2,
+  "handover_points": [
+    17,
+    63
+  ],
+  "mean_task_cost": 23.21826541869502,
+  "total_switching_cost": 257.3397532810009,
+  "mean_manipulability": 0.09460072251240478,
+  "min_manipulability": 0.055960315186079655,
+  "feasibility_rate_robot0": 0.0,
+  "feasibility_rate_robot1": 0.0,
+  "assigned_feasibility_rate": 1.0,
+  "planning_time_s": 77.78186869621277
+}

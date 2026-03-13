@@ -1,6 +1,6 @@
 [robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
-2026-03-06 05:39:50,899 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
-2026-03-06 05:39:50,917 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-13 12:19:30,266 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-13 12:19:30,269 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
 /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
   warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
 Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
@@ -9,87 +9,67 @@ Unable to load module hid, required to interface with SpaceMouse.
            Only macOS is officially supported. Install the additional
 
            requirements with `pip install -r requirements-extra.txt`
-2026-03-06 05:39:58,624 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
-2026-03-06 05:39:58,625 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
-2026-03-06 05:39:58,625 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box ...
-2026-03-06 05:39:58,627 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
-2026-03-06 05:39:58,658 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
-2026-03-06 05:39:58,673 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
-2026-03-06 05:39:58,673 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
-2026-03-06 05:39:58,673 - __main__ - INFO - Assignment parameters: α=10.00, β=1.00, ε=1.0e-06, beam=1, stride=1, clearance=0.030m
-2026-03-06 05:39:58,673 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
-2026-03-06 05:39:58,674 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
-2026-03-06 05:40:02,945 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
-2026-03-06 05:40:02,946 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
-2026-03-06 05:40:02,947 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
-2026-03-06 05:40:02,947 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
-2026-03-06 05:40:02,947 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
-2026-03-06 05:40:02,947 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
-2026-03-06 05:40:02,947 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
-2026-03-06 05:40:04,041 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
-2026-03-06 05:40:04,041 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
-2026-03-06 05:40:04,042 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
-2026-03-06 05:40:04,405 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
-2026-03-06 05:40:04,407 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
-2026-03-06 05:40:04,407 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
-2026-03-06 05:40:04,408 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
-2026-03-06 05:40:04,408 - bimanual_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, α=10.00, β=1.00, beam=1, stride=1)
-2026-03-06 05:40:04,601 - bimanual_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1161/3200 finite entries
-2026-03-06 05:40:04,602 - bimanual_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments × 40 states
-2026-03-06 05:40:04,602 - bimanual_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments × 40 states, beam_width=1, handover_stride=1
-2026-03-06 05:40:04,602 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 7/40 alive states
-2026-03-06 05:40:04,602 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,603 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,603 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,603 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,603 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,604 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,604 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:04,604 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 8/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
-2026-03-06 05:40:38,912 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 9/79: 34.3s (IK=2, pruned=1, alive=1) ETA 267s
-2026-03-06 05:41:28,964 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 10/79: 50.1s (IK=4, pruned=1, alive=1) ETA 582s
-2026-03-06 05:42:12,053 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 11/79: 43.1s (IK=4, pruned=1, alive=1) ETA 788s
-2026-03-06 05:42:53,985 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 12/79: 41.9s (IK=5, pruned=1, alive=1) ETA 946s
-2026-03-06 05:43:44,500 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 13/79: 50.5s (IK=6, pruned=1, alive=1) ETA 1116s
-2026-03-06 05:44:15,118 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 14/79: 30.6s (IK=7, pruned=1, alive=1) ETA 1163s
-2026-03-06 05:44:59,394 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 15/79: 44.3s (IK=8, pruned=1, alive=1) ETA 1258s
-2026-03-06 05:45:38,614 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 16/79: 39.2s (IK=9, pruned=1, alive=1) ETA 1315s
-2026-03-06 05:46:33,699 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 17/79: 55.1s (IK=12, pruned=1, alive=1) ETA 1419s
-2026-03-06 05:47:21,927 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 18/79: 48.2s (IK=15, pruned=1, alive=1) ETA 1482s
-2026-03-06 05:48:11,652 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 19/79: 49.7s (IK=17, pruned=1, alive=1) ETA 1538s
-2026-03-06 05:50:28,471 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 20/79: 136.8s (IK=17, pruned=1, alive=1) ETA 1840s
-2026-03-06 05:54:53,438 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 21/79: 265.0s (IK=19, pruned=1, alive=1) ETA 2455s
-2026-03-06 05:59:13,596 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 22/79: 260.2s (IK=19, pruned=1, alive=1) ETA 2977s
-2026-03-06 06:03:36,745 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 23/79: 263.1s (IK=19, pruned=1, alive=1) ETA 3438s
-2026-03-06 06:07:51,273 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 24/79: 254.5s (IK=19, pruned=1, alive=1) ETA 3819s
-2026-03-06 06:12:17,896 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 25/79: 266.6s (IK=20, pruned=1, alive=1) ETA 4176s
-2026-03-06 06:16:51,046 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 26/79: 273.2s (IK=20, pruned=1, alive=1) ETA 4498s
-2026-03-06 06:21:17,878 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 27/79: 266.8s (IK=20, pruned=1, alive=1) ETA 4763s
-2026-03-06 06:25:35,229 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 28/79: 257.4s (IK=20, pruned=0, alive=0) ETA 4974s
-2026-03-06 06:25:35,229 - bimanual_manipulation.planning.assignment.solver - ERROR - All states died at segment 28/79. No feasible path can reach beyond this point.
-2026-03-06 06:25:35,229 - bimanual_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=262, pruned=27, elapsed=2730.6s
-2026-03-06 06:25:35,229 - bimanual_manipulation.planning.assignment.solver - ERROR - No feasible assignment found across 40 states
+2026-03-13 12:19:38,891 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
+2026-03-13 12:19:38,891 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
+2026-03-13 12:19:38,891 - __main__ - INFO - Loading trajectories from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/data/flatPlate_box_to_box ...
+2026-03-13 12:19:38,892 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded object trajectory: 81 waypoints, shape (81, 3)
+2026-03-13 12:19:38,909 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot0 trajectories (0 fully feasible)
+2026-03-13 12:19:38,925 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - Loaded 20 robot1 trajectories (0 fully feasible)
+2026-03-13 12:19:38,925 - bimanual_manipulation.planning.assignment.trajectory_io - INFO - TrajectoryBundle ready: 80 segments, 20 robot0 + 20 robot1 trajectories
+2026-03-13 12:19:38,925 - __main__ - INFO - Assignment parameters: α=10.00, β=1.00, ε=1.0e-06, beam=1, stride=1, clearance=0.030m
+2026-03-13 12:19:38,925 - __main__ - INFO - Creating simulation environment for IK and Jacobian evaluation ...
+2026-03-13 12:19:38,926 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-13 12:19:40,964 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-13 12:19:40,964 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-13 12:19:40,964 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-13 12:19:40,964 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-13 12:19:40,964 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-13 12:19:40,965 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-13 12:19:40,966 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-13 12:19:42,122 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-13 12:19:42,123 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-13 12:19:42,520 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-13 12:19:42,524 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-13 12:19:42,524 - __main__ - INFO - IK solver, Jacobian functions, and collision checker ready.
+2026-03-13 12:19:42,526 - __main__ - INFO - Handover clearance filter active (radius=0.030m).
+2026-03-13 12:19:42,526 - bimanual_manipulation.planning.assignment.solver - INFO - Computing assignment for 80 segments (20 R0 + 20 R1 trajectories, alpha=10.00, beta=1.00, beam=1, stride=1)
+2026-03-13 12:19:42,881 - bimanual_manipulation.planning.assignment.cost - INFO - Cost matrix built: 80 segments x 40 states, 1208/3200 finite entries
+2026-03-13 12:19:42,881 - bimanual_manipulation.planning.assignment.solver - INFO - Cost matrix: 80 segments x 40 states
+2026-03-13 12:19:42,881 - bimanual_manipulation.planning.assignment.solver - INFO - DP solver: 80 segments x 40 states, beam_width=1, handover_stride=1
+2026-03-13 12:19:42,881 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 0 initialised: 13/40 alive states
+2026-03-13 12:19:42,882 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 1/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,882 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 2/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,882 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 3/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,882 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 4/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,883 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 5/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,883 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 6/79: 0.0s (IK=0, pruned=1, alive=1) ETA 0s
+2026-03-13 12:19:42,883 - bimanual_manipulation.planning.assignment.solver - INFO - Segment 7/79: 0.0s (IK=0, pruned=0, alive=0) ETA 0s
+2026-03-13 12:19:42,883 - bimanual_manipulation.planning.assignment.solver - ERROR - All states died at segment 7/79.
+2026-03-13 12:19:42,883 - bimanual_manipulation.planning.assignment.solver - INFO - Forward pass complete: total IK evals=0, pruned=6, elapsed=0.0s
 Traceback (most recent call last):
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/segment_assignment.py", line 512, in <module>
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/segment_assignment.py", line 556, in <module>
     main()
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/segment_assignment.py", line 326, in main
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/segment_assignment.py", line 365, in main
     result = compute_optimal_robot_assignment(
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/assignment/solver.py", line 393, in compute_optimal_robot_assignment
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/assignment/solver.py", line 511, in compute_optimal_robot_assignment
     result = _solve_optimal_assignment(
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/assignment/solver.py", line 265, in _solve_optimal_assignment
-    raise ValueError("No feasible assignment found — check trajectory feasibility.")
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/assignment/solver.py", line 442, in _solve_optimal_assignment
+    return _backtrack(
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/assignment/solver.py", line 329, in _backtrack
+    raise ValueError(
 ValueError: No feasible assignment found — check trajectory feasibility.
