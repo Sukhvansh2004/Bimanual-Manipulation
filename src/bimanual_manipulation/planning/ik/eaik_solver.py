@@ -323,6 +323,9 @@ def _fk_error(
     """Compute position and orientation FK error after ``mj_fwdPosition``.
 
     Args:
+        data_native: Native MuJoCo data (after calling ``mj_fwdPosition``).
+        site_id: MuJoCo site ID for the EEF.
+        target_pos_world: Target position in world frame ``(3,)``.
         target_mat: Pre-computed 3×3 rotation matrix for the target.
 
     Returns:

@@ -125,7 +125,7 @@ DUAL_GRASP_FEASIBILITY_MAX_PAIRS = 5  # Max pairs to check for dual-arm feasibil
 # IK Solver Parameters
 IK_MAX_SOLUTIONS = 12  # Maximum IK solutions to enumerate
 IK_UNIQUE_TOLERANCE = 0.2  # Tolerance for unique solution filtering
-IK_MIN_MANIPULABILITY = 1e-5  # Reject IK solutions with manipulability below this threshold
+IK_MIN_MANIPULABILITY = 1e-3  # Reject IK solutions with manipulability below this threshold
 # Trajectory Feasibility Check Parameters
 TRAJ_IK_MAX_SOLUTIONS = 6  # Max IK solutions to check per waypoint during trajectory feasibility checking
 
