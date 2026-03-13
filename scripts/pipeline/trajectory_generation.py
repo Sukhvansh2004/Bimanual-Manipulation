@@ -14,22 +14,16 @@ Usage:
     python trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj
 """
 
-import numpy as np
 import os
 import time
 import threading
 import logging
 import meshcat
-import meshcat.geometry as g
 import argparse
 import sys
 import multiprocessing
 from functools import partial
 
-import meshcat.transformations as tf
-from scipy.spatial.transform import Rotation as R
-
-import robosuite.utils.transform_utils as T
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.perception.grasp_predictor import maximize_entropy_grasps
 from bimanual_manipulation.transforms import TransformManager, MeshcatTFVisualizerConfig, stream_transforms_to_meshcat
@@ -211,7 +205,8 @@ def main() -> None:
                         help="Reuse existing object_trajectory.npz from data dir instead of regenerating")
     parser.add_argument("--no-meshcat", action="store_true",
                         help="Disable all Meshcat visualization (useful for batch / headless runs)")
-    
+    parser.add_argument("--enable-grasp-vis", action="store_true",
+                        help="Enable visualization of grasps and EEF trajectories in Meshcat")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -394,7 +389,7 @@ def main() -> None:
     # Initialize Grasp Service (it registers itself)
     grasp_service = GraspService(
         tf_manager=tf_manager,
-        visualize=False,
+        visualize=args.enable_grasp_vis,
         use_dpp=plan_cfg.use_dpp,
     )
     grasp_service.start()

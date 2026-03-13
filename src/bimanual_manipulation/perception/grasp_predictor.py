@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+from functools import lru_cache
 from typing import List,Optional
 import torch
 from scipy.spatial.transform import Rotation as R
@@ -22,6 +23,29 @@ from grasp_gen.robot import get_gripper_info
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+@lru_cache(maxsize=4)
+def _load_gripper_collision_mesh(gripper_type: str) -> trimesh.Trimesh:
+    """Load and cache gripper collision mesh by type (disk I/O happens once)."""
+    try:
+        if gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction']):
+            mesh_path = constants.COBOT_PUMP_MESH_PATH
+            if mesh_path.exists():
+                mesh = trimesh.load(str(mesh_path))
+                T = tra.translation_matrix(-constants.SUCTION_TCP_OFFSET)
+                mesh.apply_transform(T)
+                return mesh
+            else:
+                logger.warning(f"Custom suction mesh not found at {mesh_path}, falling back to default info.")
+                info = get_gripper_info(gripper_type)
+                return info.collision_mesh
+        else:
+            info = get_gripper_info(gripper_type)
+            return info.collision_mesh
+    except Exception as e:
+        logger.error(f"Failed to load gripper collision mesh for {gripper_type}: {e}")
+        raise
+
 
 class GraspPredictor:
     """
@@ -56,26 +80,7 @@ class GraspPredictor:
         """
         Get the collision mesh for the loaded gripper type.
         """
-        try:
-            if self.gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction']):
-                mesh_path = constants.COBOT_PUMP_MESH_PATH
-                if mesh_path.exists():
-                    mesh = trimesh.load(str(mesh_path))
-                    # Shift origin to TCP
-                    # If TCP is at offset relative to base, we translate the mesh by -offset to put TCP at (0,0,0)
-                    T = tra.translation_matrix(-constants.SUCTION_TCP_OFFSET)
-                    mesh.apply_transform(T)
-                    return mesh
-                else:
-                    logger.warning(f"Custom suction mesh not found at {mesh_path}, falling back to default info.")
-                    info = get_gripper_info(self.gripper_type)
-                    return info.collision_mesh
-            else:
-                info = get_gripper_info(self.gripper_type)
-                return info.collision_mesh
-        except Exception as e:
-            logger.error(f"Failed to load gripper collision mesh for {self.gripper_type}: {e}")
-            raise
+        return _load_gripper_collision_mesh(self.gripper_type)
 
     def predict_grasps(self, 
                        object_pose: StampedPose, 

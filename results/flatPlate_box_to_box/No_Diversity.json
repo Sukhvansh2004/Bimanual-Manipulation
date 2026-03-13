@@ -20,5 +20,21 @@
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
     "planning_time_s": 77.78186869621277
+  },
+  "execution": {
+    "task_success": false,
+    "grasp_success": false,
+    "transport_success": false,
+    "place_success": false,
+    "n_handovers_attempted": 0,
+    "n_handovers_succeeded": 0,
+    "handover_success_rate": 1.0,
+    "n_collision_incidents": 0,
+    "n_switches": 0,
+    "execution_time_s": 8.542344570159912,
+    "mean_manipulability": 0.0,
+    "placement_position_error": null,
+    "placement_orientation_error": null,
+    "error_message": "Robot 1: RRT to pre-grasp failed \u2014 no collision-free approach path found."
   }
 }

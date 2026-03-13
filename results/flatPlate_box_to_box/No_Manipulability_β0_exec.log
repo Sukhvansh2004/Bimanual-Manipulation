@@ -1,0 +1,141 @@
+[robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
+2026-03-13 13:07:35,243 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-13 13:07:35,246 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+/home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
+Unable to load module hid, required to interface with SpaceMouse.
+
+           Only macOS is officially supported. Install the additional
+
+           requirements with `pip install -r requirements-extra.txt`
+2026-03-13 13:07:40,364 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
+2026-03-13 13:07:40,364 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
+2026-03-13 13:07:40,364 - __main__ - INFO - Smoothen override: True (was True)
+2026-03-13 13:07:40,365 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 13:07:40,365 - bimanual_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
+2026-03-13 13:07:40,365 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 13:07:40,365 - bimanual_manipulation.system_manager - INFO - 
+1. Creating dual-arm environment...
+2026-03-13 13:07:40,365 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-13 13:07:41,873 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-13 13:07:41,873 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-13 13:07:41,874 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-13 13:07:41,875 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-13 13:07:44,063 - bimanual_manipulation.system_manager - INFO -    ✓ Environment created
+2026-03-13 13:07:44,063 - bimanual_manipulation.system_manager - INFO - 
+1a. Creating shared TransformManager...
+2026-03-13 13:07:44,063 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-13 13:07:44,066 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-13 13:07:44,066 - bimanual_manipulation.system_manager - INFO -    ✓ TransformManager created
+2026-03-13 13:07:44,066 - bimanual_manipulation.system_manager - INFO - 
+1b. Loading arm and gripper controllers...
+2026-03-13 13:07:44,066 - bimanual_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
+2026-03-13 13:07:44,066 - bimanual_manipulation.system_manager - INFO -    ✓ Controllers loaded
+2026-03-13 13:07:44,066 - bimanual_manipulation.system_manager - INFO - 
+2. Starting services...
+2026-03-13 13:07:44,066 - bimanual_manipulation.system_manager - INFO -    Starting Service Manager...
+2026-03-13 13:07:44,066 - bimanual_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-13 13:07:44,067 - bimanual_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-13 13:07:44,067 - bimanual_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-13 13:07:44,067 - bimanual_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-13 13:07:44,580 - bimanual_manipulation.system_manager - INFO -    ✓ Service Manager started
+2026-03-13 13:07:44,580 - bimanual_manipulation.system_manager - INFO -    FastSAM service disabled by flag
+2026-03-13 13:07:44,580 - bimanual_manipulation.system_manager - INFO -    Grasp service disabled by flag
+2026-03-13 13:07:44,580 - bimanual_manipulation.system_manager - INFO -    Starting Move To Pose service...
+2026-03-13 13:07:44,596 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
+2026-03-13 13:07:44,596 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
+2026-03-13 13:07:44,598 - bimanual_manipulation.services.services_core - INFO - Registered service: move_to_pose_service (control) at localhost:5553
+2026-03-13 13:07:44,613 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service started on tcp://localhost:5553
+2026-03-13 13:07:45,114 - bimanual_manipulation.system_manager - INFO -    ✓ Move To Pose service started
+2026-03-13 13:07:45,115 - bimanual_manipulation.system_manager - INFO - 
+3. Preparing teleoperation...
+2026-03-13 13:07:45,116 - bimanual_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
+2026-03-13 13:07:45,116 - bimanual_manipulation.system_manager - INFO - 
+4. Settling environment...
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'flatPlate'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'wallObstacle'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxABottom'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallFront'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallBack'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallLeft'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallRight'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBBottom'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallFront'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallBack'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallLeft'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallRight'
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO - 
+======================================================================
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO - System Ready!
+2026-03-13 13:07:45,883 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-13 13:07:45,884 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
+2026-03-13 13:07:45,884 - __main__ - INFO - Loading assignment result from data/flatPlate_box_to_box/configs/No_Manipulability_β0/assignment_results.npz ...
+2026-03-13 13:07:45,929 - __main__ - INFO - Loaded 3 unique trajectories for assignment: ['robot0_trajectory_3.npz', 'robot1_trajectory_12.npz', 'robot1_trajectory_5.npz']
+2026-03-13 13:07:45,929 - __main__ - INFO - Handover points: [19, 63]
+2026-03-13 13:07:45,930 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
+2026-03-13 13:07:45,930 - __main__ - INFO - Robot 1 starting at waypoint 0
+2026-03-13 13:07:46,086 - __main__ - INFO - Robot 1 planning RRT to pre-grasp pose...
+2026-03-13 13:07:46,091 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-13 13:07:46,091 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-13 13:07:46,178 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=92, tree_b=1)
+2026-03-13 13:07:46,266 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=171, tree_b=1)
+2026-03-13 13:07:46,369 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=255, tree_b=1)
+2026-03-13 13:07:46,483 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=334, tree_b=1)
+2026-03-13 13:07:46,624 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=414, tree_b=1)
+2026-03-13 13:07:46,772 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=496, tree_b=1)
+2026-03-13 13:07:46,947 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=576, tree_b=1)
+2026-03-13 13:07:47,132 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=651, tree_b=1)
+2026-03-13 13:07:47,314 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=726, tree_b=1)
+2026-03-13 13:07:47,519 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=806, tree_b=1)
+2026-03-13 13:07:47,737 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=887, tree_b=1)
+2026-03-13 13:07:47,966 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=971, tree_b=1)
+2026-03-13 13:07:48,202 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1049, tree_b=1)
+2026-03-13 13:07:48,455 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1130, tree_b=1)
+2026-03-13 13:07:48,726 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-13 13:07:48,726 - __main__ - ERROR - An error occurred: Robot 1: RRT to pre-grasp failed — no collision-free approach path found.
+Traceback (most recent call last):
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/dual_arm_handover_traj.py", line 555, in main
+    rrt_traj, rrt_ok = plan_arm_trajectory(
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/trajectory/arm_planner.py", line 169, in plan_arm_trajectory
+    raise RuntimeError(
+RuntimeError: Joint RRT failed — no collision-free path found (tried None iterations).
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/dual_arm_handover_traj.py", line 573, in main
+    raise RuntimeError(
+RuntimeError: Robot 1: RRT to pre-grasp failed — no collision-free approach path found.
+2026-03-13 13:07:48,727 - __main__ - INFO - Execution metrics saved to results/flatPlate_box_to_box/No_Manipulability_β0_exec.json
+2026-03-13 13:07:48,727 - bimanual_manipulation.system_manager - INFO - 
+Stopping system...
+2026-03-13 13:07:48,727 - bimanual_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
+2026-03-13 13:07:48,727 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
+2026-03-13 13:07:48,727 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
+2026-03-13 13:07:48,728 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
+2026-03-13 13:07:48,728 - bimanual_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-13 13:07:49,605 - bimanual_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-13 13:07:49,606 - bimanual_manipulation.services.services_core - INFO - Service Manager stopped
+2026-03-13 13:07:49,796 - bimanual_manipulation.system_manager - INFO - System stopped
+
+Keys                          	Command
+Ctrl+q                        	reset simulation
+spacebar                      	toggle gripper (open/close)
+up-right-down-left            	move horizontally in x-y plane
+.-;                           	move vertically
+o-p                           	rotate (yaw)
+y-h                           	rotate (pitch)
+e-r                           	rotate (roll)
+b                             	toggle arm/base mode (if applicable)
+s                             	switch active arm (if multi-armed robot)
+=                             	switch active robot (if multi-robot environment)
+
