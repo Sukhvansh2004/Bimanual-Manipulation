@@ -127,8 +127,10 @@ class DualArmParallelPlanner:
         collision_check: bool = True,
         manipulated_object: Optional[str] = None,
         rrt_vis: Optional[RRTVisualizer] = None,
+        planning_env: Optional[DualArmEnvironment] = None,
     ):
         self.env = env
+        self.planning_env = planning_env or env
         self.env_lock = env_lock
         self.arm_a = arm_a
         self.arm_b = arm_b
@@ -519,7 +521,7 @@ class DualArmParallelPlanner:
             m.config.integrate_inplace(vel, constants.MINK_DT)
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
-            pass  # fall through to relaxed solve
+            logger.warning("Primary mink solve_ik failed: %s", exc_primary,)
 
         # --- Relaxed fallback (drop collision avoidance) --------------
         limits_relaxed = [
@@ -563,6 +565,15 @@ class DualArmParallelPlanner:
             )
         return normalise_trajectory(target_b)
 
+    def _sync_planning_env(self) -> None:
+        """Synchronize planning environment with execution environment."""
+        if self.env is self.planning_env:
+            return
+        with self.env_lock if self.env_lock else nullcontext():
+            self.planning_env.sim.data.qpos[:] = self.env.sim.data.qpos
+            self.planning_env.sim.data.qvel[:] = self.env.sim.data.qvel
+            self.planning_env.sim.forward()
+
     def _plan_collision_free_trajectory_b(
         self,
         target_pose: StampedPose,
@@ -581,6 +592,7 @@ class DualArmParallelPlanner:
 
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
+        self._sync_planning_env()
 
         # --- Resolve IK goal candidates ---
         # Get an initial solution via the normal pipeline (single best).
@@ -650,7 +662,7 @@ class DualArmParallelPlanner:
         for idx, candidate_q in enumerate(goal_candidates):
             try:
                 rrt_traj, rrt_success = plan_arm_trajectory(
-                    env=self.env,
+                    env=self.planning_env,
                     robot_id_b=self.arm_b.robot_id,
                     start_q=start_q,
                     goal_q=candidate_q,

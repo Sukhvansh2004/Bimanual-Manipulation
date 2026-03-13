@@ -51,6 +51,8 @@ def shortcut_joint_path(
     max_iterations: int = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = None,
+    manipulated_object: Optional[str] = None,
+    check_object_collisions: bool = False,
 ) -> List[np.ndarray]:
     """Shortcut-smooth a joint-space path by randomly removing waypoints.
 
@@ -98,12 +100,15 @@ def shortcut_joint_path(
         qpos_idx_b = get_joint_qpos_indices(native_model, jids_b)
 
         _ensure_geom_caches(model)
-        arm_b_geom_ids = np.array(
-            _get_ids_for_prefixes(
-                [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
-            ),
-            dtype=int,
-        )
+        prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
+        arm_b_geom_ids_list = _get_ids_for_prefixes(prefixes)
+        
+        # If arm B is holding the object, include its geoms in the check
+        if check_object_collisions and manipulated_object:
+            obj_geoms = _get_ids_for_prefixes([manipulated_object])
+            arm_b_geom_ids_list.extend(obj_geoms)
+
+        arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
 
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
@@ -190,6 +195,8 @@ def bezier_smooth_joint_path(
     tension: float = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = None,
+    manipulated_object: Optional[str] = None,
+    check_object_collisions: bool = False,
 ) -> List[np.ndarray]:
     """Smooth a joint-space path with per-segment cubic Bézier curves.
 
@@ -240,12 +247,15 @@ def bezier_smooth_joint_path(
         qpos_idx_b = get_joint_qpos_indices(native_model, jids_b)
 
         _ensure_geom_caches(model)
-        arm_b_geom_ids = np.array(
-            _get_ids_for_prefixes(
-                [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
-            ),
-            dtype=int,
-        )
+        prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
+        arm_b_geom_ids_list = _get_ids_for_prefixes(prefixes)
+        
+        # If arm B is holding the object, include its geoms in the check
+        if check_object_collisions and manipulated_object:
+            obj_geoms = _get_ids_for_prefixes([manipulated_object])
+            arm_b_geom_ids_list.extend(obj_geoms)
+
+        arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
 
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)

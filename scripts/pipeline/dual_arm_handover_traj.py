@@ -552,8 +552,10 @@ def main():
         if pregrasp_goal_q is not None:
             logger.info(f"Robot {current_robot} planning RRT to pre-grasp pose...")
             try:
+                # Use dedicated planning environment ("Twin Env") for RRT
+                system.sync_planning_env()
                 rrt_traj, rrt_ok = plan_arm_trajectory(
-                    env=system.env,
+                    env=system.planning_env,
                     robot_id_b=current_robot,
                     start_q=start_q,
                     goal_q=pregrasp_goal_q,
@@ -592,7 +594,6 @@ def main():
         # close-proximity handover approach/release phases.
         start_collision_monitor(
             exp_cfg.task.manipulated_object,
-            ignore_pairs=[("gripper0", "gripper1")],
         )
 
         # Record number of arm switches from assignment
@@ -698,6 +699,7 @@ def main():
                     collision_check=True,
                     manipulated_object=exp_cfg.task.manipulated_object,
                     rrt_vis=rrt_vis,
+                    planning_env=system.planning_env,
                 )
                 par_result = parallel_planner.execute_parallel(
                     traj_a=joint_segment,
@@ -776,10 +778,11 @@ def main():
                     )
 
                     recovery_ok = False
+                    system.sync_planning_env()
                     for gi, goal_q_candidate in enumerate(ik_goals):
                         try:
                             rrt_traj_b, rrt_ok_b = plan_arm_trajectory(
-                                env=system.env,
+                                env=system.planning_env,
                                 robot_id_b=1 - current_robot,
                                 start_q=arm_b_start_q,
                                 goal_q=goal_q_candidate,

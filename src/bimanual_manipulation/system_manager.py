@@ -76,6 +76,7 @@ class DualArmManipulationSystem:
             logger.setLevel(logging.DEBUG)
 
         self.env: DualArmEnvironment = None
+        self.planning_env: Optional[DualArmEnvironment] = None
         self.tf_manager: Optional[TransformManager] = None
         self.teleop: Optional[KeyboardTeleop] = None
         self.teleop_thread: Optional[threading.Thread] = None
@@ -144,7 +145,7 @@ class DualArmManipulationSystem:
         logger.info("Starting Dual-Arm Manipulation System")
         logger.info("="*70)
         
-        # Create environment
+        # Create environments
         logger.info("\n1. Creating dual-arm environment...")
         self.env = make_dual_arm_env(
             custom_objects=self.custom_objects, 
@@ -155,7 +156,17 @@ class DualArmManipulationSystem:
         if self.has_renderer:
             logger.debug("Adding VisualizationWrapper to environment...")
             self.env = VisualizationWrapper(self.env)
-        logger.info("   ✓ Environment created")
+        
+        # Create a separate headless environment for planning (the "Twin Env")
+        # This prevents wild jumping behavior in the viewer during RRT planning.
+        logger.info("   Creating separate planning environment (headless)...")
+        self.planning_env = make_dual_arm_env(
+            custom_objects=self.custom_objects,
+            ycb_objects=self.ycb_objects,
+            has_renderer=False,
+            table_full_size=self.table_full_size,
+        )
+        logger.info("   ✓ Environments created")
 
         # Shared TF manager for the whole system (services + controllers + visualization)
         logger.info("\n1a. Creating shared TransformManager...")
@@ -226,6 +237,31 @@ class DualArmManipulationSystem:
         logger.info("\n" + "="*70)
         logger.info("System Ready!")
         logger.info("="*70)
+
+    def sync_planning_env(self) -> None:
+        """Synchronize the planning environment state with the real environment.
+        
+        Copies all joint positions (qpos), velocities (qvel), and equality 
+        constraints (welds) to ensure that planning correctly reflects 
+        the current system state.
+        """
+        if self.env is None or self.planning_env is None:
+            return
+        
+        with self.env_lock:
+            # Sync core state
+            self.planning_env.sim.data.qpos[:] = self.env.sim.data.qpos
+            self.planning_env.sim.data.qvel[:] = self.env.sim.data.qvel
+            
+            # Sync equality constraints (e.g. suction welds)
+            # Both model (targets) and data (active state) must be synced
+            self.planning_env.sim.model.eq_obj1id[:] = self.env.sim.model.eq_obj1id
+            self.planning_env.sim.model.eq_obj2id[:] = self.env.sim.model.eq_obj2id
+            self.planning_env.sim.model.eq_data[:] = self.env.sim.model.eq_data
+            self.planning_env.sim.data.eq_active[:] = self.env.sim.data.eq_active
+            
+            self.planning_env.sim.forward()
+        logger.debug("Planning environment synchronized with real environment (including welds).")
 
     def _register_object_frames(self):
         """Register dynamic TF frames for every object in the scene."""
@@ -400,6 +436,13 @@ class DualArmManipulationSystem:
             try:
                 if hasattr(self.env, "close"):
                     self.env.close()
+            except Exception:
+                pass
+
+        if self.planning_env is not None:
+            try:
+                if hasattr(self.planning_env, "close"):
+                    self.planning_env.close()
             except Exception:
                 pass
         

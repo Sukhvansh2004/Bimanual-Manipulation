@@ -26,6 +26,11 @@ from bimanual_manipulation.planning.rrt.joint import (
     make_ee_pos_fn,
 )
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
+from bimanual_manipulation.planning.utils.mujoco_utils import (
+    get_native_mj_object,
+    get_arm_joint_ids,
+    get_joint_qpos_indices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,8 @@ def plan_arm_trajectory(
     smoothing_iterations: int = None,
     rrt_vis: Optional[RRTVisualizer] = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
+    manipulated_object: Optional[str] = None,
+    check_object_collisions: bool = False,
 ) -> Tuple[np.ndarray, bool]:
     """Plan a collision-free joint trajectory for arm B — full pipeline.
 
@@ -76,6 +83,9 @@ def plan_arm_trajectory(
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
+        manipulated_object: Name of the object being manipulated.
+        check_object_collisions: If True, include the object in arm B's
+            collision checks (assumes arm B holds it).
 
     Returns:
         Tuple of ``(trajectory, planning_success)`` where trajectory is
@@ -99,6 +109,8 @@ def plan_arm_trajectory(
         goal_bias=goal_bias,
         rrt_vis=rrt_vis,
         q_other_arm_trajectory=q_other_arm_trajectory,
+        manipulated_object=manipulated_object,
+        check_object_collisions=check_object_collisions,
     )
 
     if result.success:
@@ -117,6 +129,8 @@ def plan_arm_trajectory(
             env_lock=env_lock,
             max_iterations=smoothing_iterations,
             q_other_arm_trajectory=q_other_arm_trajectory,
+            manipulated_object=manipulated_object,
+            check_object_collisions=check_object_collisions,
         )
         logger.info(
             "Phase 1 shortcutting: %d -> %d waypoints.  "
@@ -132,16 +146,13 @@ def plan_arm_trajectory(
             robot_id_b=robot_id_b,
             env_lock=env_lock,
             q_other_arm_trajectory=q_other_arm_trajectory,
+            manipulated_object=manipulated_object,
+            check_object_collisions=check_object_collisions,
         )
 
         # Visualize the smoothed path in MeshCat
         if rrt_vis is not None and len(bezier) >= 2:
             try:
-                from bimanual_manipulation.planning.utils.mujoco_utils import (
-                    get_native_mj_object,
-                    get_arm_joint_ids,
-                    get_joint_qpos_indices,
-                )
                 native_model = get_native_mj_object(env.sim.model)
                 native_data = get_native_mj_object(env.sim.data)
                 jids_b = get_arm_joint_ids(native_model, robot_id_b)

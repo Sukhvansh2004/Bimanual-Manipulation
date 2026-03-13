@@ -63,7 +63,11 @@ def check_arm_config_collision(
 
     set_qpos(data, qpos_idx_a, q_a)
     set_qpos(data, qpos_idx_b, q_b)
-    mujoco.mj_fwdPosition(native_model, native_data)
+    
+    # Use mj_forward instead of mj_fwdPosition to resolve equality 
+    # constraints (welds). This is crucial for checking collisions 
+    # of the manipulated object while it is being held.
+    mujoco.mj_forward(native_model, native_data)
 
     ncon = int(data.ncon)
     if ncon <= 0:
