@@ -136,7 +136,7 @@ COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 # MuJoCo ``contact.dist`` is negative for penetration; a threshold of
 # 1e-3 m (1 mm) ignores light touches and only counts contacts with
 # meaningful penetration.
-COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
+COLLISION_MONITOR_MIN_DEPTH = 0.001  # metres (1mm)
 
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility

@@ -53,6 +53,7 @@ import numpy as np
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
+from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.trajectory_math import resample_joint_trajectory
 from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
@@ -396,14 +397,31 @@ class DualArmParallelPlanner:
             else:
                 consecutive_qp_fails = 0
 
-            # ── Move both arms via controller API ─────────────────────
-            # Action persistence keeps the other arm in place.
-            self.arm_a.move_to_joint_config(
-                target_q_a, gripper_action=gripper_a, num_steps=2,
+            # ── Move both arms via unified action (Single env step) ───
+            action_a = self.arm_a.construct_joint_action(
+                target_q_a, gripper_action=gripper_a,
             )
-            self.arm_b.move_to_joint_config(
-                arm_b_joints, gripper_action=gripper_b, num_steps=2,
+            action_b = self.arm_b.construct_joint_action(
+                arm_b_joints, gripper_action=gripper_b,
             )
+
+            # Construct full environment action vector
+            full_action = np.zeros(self.env.action_dim)
+
+            # Offset arm_a robot action
+            offset_a = 0
+            for i in range(self.arm_a.robot_id):
+                offset_a += self.env.robots[i].action_dim
+            full_action[offset_a : offset_a + len(action_a)] = action_a
+
+            # Offset arm_b robot action
+            offset_b = 0
+            for i in range(self.arm_b.robot_id):
+                offset_b += self.env.robots[i].action_dim
+            full_action[offset_b : offset_b + len(action_b)] = action_b
+
+            with ctx:
+                env_step(self.env, full_action)
 
             steps_taken += 1
 
