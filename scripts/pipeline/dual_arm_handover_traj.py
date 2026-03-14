@@ -221,14 +221,6 @@ def _enumerate_ik_goals(
     """Enumerate multiple IK solutions for *pose* and return a de-duplicated list."""
     goals: List[np.ndarray] = []
 
-    # Quintic-based primary solution
-    _, goal_q = plan_pose_to_joint_trajectory(
-        arm, pose, num_steps=100, q_warm_start=q_warm_start,
-    )
-    if goal_q is not None:
-        goals.append(goal_q)
-
-    # Additional analytical / numerical solutions
     try:
         pose_base = pose
         if pose_base.frame_id != arm.base_frame:
@@ -244,6 +236,7 @@ def _enumerate_ik_goals(
             site_name=site_name,
             env_lock=env_lock,
             max_solutions=constants.IK_MAX_SOLUTIONS,
+            q_reference=q_warm_start,
         )
         for sol in extras:
             if not any(np.allclose(sol, g, atol=0.05) for g in goals):
