@@ -842,6 +842,7 @@ def execute_handover_sequence(
     current_idx: int,
     h_traj: HandoverTrajectory,
     q_warm_recv: Optional[np.ndarray],
+    q_warm_transfer: Optional[np.ndarray],
     tracker: ExecutionTracker,
 ) -> bool:
     """Execute the physical handover (hold -> approach -> gripper swap -> retreat).
@@ -856,7 +857,8 @@ def execute_handover_sequence(
 
     # Transfer arm holds position
     logger.info("Robot %d moving to handover hold pose...", current_robot)
-    current_arm.move_to_pose(h_traj.transfer_hold[0], gripper_action=1.0, num_steps=50)
+    current_arm.move_to_pose(h_traj.transfer_hold[0], gripper_action=1.0, num_steps=50,
+                             q_warm_start=q_warm_transfer)
 
     # Receiver approaches
     logger.info("Robot %d executing handover approach...", 1 - current_robot)
@@ -882,7 +884,7 @@ def execute_handover_sequence(
 
     # Transfer arm retreats
     logger.info("Robot %d following handover retreat trajectory...", current_robot)
-    current_arm.follow_trajectory(h_traj.transfer_retreat)
+    current_arm.follow_trajectory(h_traj.transfer_retreat, q_warm_start=q_warm_transfer)
 
     # Report handover outcome
     if receiver_converged:
@@ -1133,11 +1135,17 @@ def run_execution_loop(
             current_idx = handover_idx
 
             # Execute handover sequence
+            cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
+            _, _, joints_cur_ho, _, _ = traj_cache[cur_path]
+            q_warm_transfer = (
+                joints_cur_ho[current_idx]
+                if joints_cur_ho[current_idx] is not None else None
+            )
             execute_handover_sequence(
                 system, current_arm, current_gripper,
                 other_arm, other_gripper,
                 current_robot, current_idx,
-                h_traj, q_warm_recv, tracker,
+                h_traj, q_warm_recv, q_warm_transfer, tracker,
             )
 
             # Swap roles
