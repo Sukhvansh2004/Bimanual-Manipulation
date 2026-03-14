@@ -292,67 +292,6 @@ def _rrt_to_goal(
             )
     return False
 
-
-def _align_to_planned_config(
-    system: DualArmManipulationSystem,
-    current_arm: RobosuiteArmController,
-    other_arm: RobosuiteArmController,
-    current_robot: int,
-    planned_q: np.ndarray,
-    rrt_vis: Optional[RRTVisualizer],
-    smoothen: bool,
-    gripper_action: float = 1.0,
-    label: str = "planned config",
-) -> None:
-    """Align the arm to *planned_q* via collision-free RRT.
-
-    A straight joint-space move could sweep the grasped object through
-    arbitrary Cartesian paths, risking collisions with the environment.
-    RRT plans a collision-aware path so the object stays safe.
-    """
-    actual_q = current_arm.get_joint_positions()
-    q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_q)))
-    if q_err <= 0.05:
-        logger.info(
-            "Joint config already close to %s (q_err=%.4f rad).",
-            label, q_err,
-        )
-        return
-
-    logger.info(
-        "Aligning to %s via RRT (q_err=%.4f rad)...", label, q_err,
-    )
-    other_robot = 1 - current_robot
-    system.sync_planning_env()
-    try:
-        rrt_traj, _ = plan_arm_trajectory(
-            env=system.planning_env,
-            robot_id_b=current_robot,
-            start_q=actual_q,
-            goal_q=planned_q,
-            q_other_arm=other_arm.get_joint_positions(),
-            robot_id_a=other_robot,
-            num_steps=100,
-            env_lock=system.env_lock,
-            rrt_vis=rrt_vis,
-        )
-        current_arm.follow_joint_trajectory(
-            list(rrt_traj), gripper_action=gripper_action,
-            smoothen=smoothen, num_steps=200,
-        )
-        logger.info("RRT alignment to %s succeeded.", label)
-    except RuntimeError:
-        logger.warning(
-            "RRT alignment to %s failed (q_err=%.4f rad). "
-            "Falling back to direct joint move.",
-            label, q_err,
-        )
-        current_arm.follow_joint_trajectory(
-            [planned_q], gripper_action=gripper_action,
-            smoothen=smoothen, num_steps=200,
-        )
-
-
 # ---------------------------------------------------------------------------
 # Visualization helper
 # ---------------------------------------------------------------------------
@@ -707,32 +646,11 @@ def execute_grasp(
     q_warm_start: Optional[np.ndarray],
     tracker: ExecutionTracker,
     assignment: Optional[AssignmentResult],
-    planned_start_q: Optional[np.ndarray] = None,
 ) -> None:
-    """Follow approach trajectory, align to planned config, close gripper.
-
-    If *planned_start_q* is provided the arm is moved to that joint
-    configuration **before** the gripper closes so that the object is
-    grasped in the exact configuration the downstream trajectory expects.
+    """Follow approach trajectory, align to planned config, close gripper, and stabilise.
     """
     logger.info("Robot %d following grasp approach trajectory...", current_robot)
     current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start)
-
-    # Align to the planned joint config BEFORE grasping so the arm
-    # holds the object in the exact configuration the trajectory expects.
-    # The gripper is still open, so this movement is safe.
-    if planned_start_q is not None:
-        actual_q = current_arm.get_joint_positions()
-        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_start_q)))
-        if q_err > 0.05:
-            logger.info(
-                "Pre-grasp alignment to planned config (q_err=%.4f rad).",
-                q_err,
-            )
-            current_arm.follow_joint_trajectory(
-                [planned_start_q], gripper_action=-1.0,
-                smoothen=True, num_steps=200,
-            )
 
     current_gripper.grasp()
     stabilise(system.env, system.env_lock)
@@ -955,21 +873,6 @@ def execute_handover_sequence(
             )
         dist = float(np.linalg.norm(recv_pos - target_pose.position))
         logger.warning("Receiver arm did NOT converge (dist=%.4f m).", dist)
-
-    # Align receiver to planned config BEFORE grasping so the
-    # object is received in the configuration the trajectory expects.
-    if q_warm_recv is not None:
-        actual_q = other_arm.get_joint_positions()
-        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(q_warm_recv)))
-        if q_err > 0.05:
-            logger.info(
-                "Pre-handover alignment of receiver to planned config "
-                "(q_err=%.4f rad).", q_err,
-            )
-            other_arm.follow_joint_trajectory(
-                [q_warm_recv], gripper_action=-1.0,
-                smoothen=True, num_steps=200,
-            )
 
     # Gripper swap: receiver grasps, transfer releases
     other_gripper.grasp()
@@ -1201,7 +1104,6 @@ def run_execution_loop(
     execute_grasp(
         system, current_arm, current_gripper, current_robot,
         grasp_traj_data, q_warm_grasp, tracker, assignment,
-        planned_start_q=q_warm_grasp,
     )
 
     start_collision_monitor(exp_cfg.task.manipulated_object)
