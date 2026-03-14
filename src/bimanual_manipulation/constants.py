@@ -204,6 +204,7 @@ MINK_DAMPING_COST = 1e-4       # minimum-norm regulariser
 # ── Integration timestep ──
 MINK_DT = 0.05                 # seconds per QP solve (reactive tracking)
 MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
+MAX_CONSECUTIVE_QP_FAILS = 30       # Max consecutive QP failures before aborting reactive tracking
 
 # ── CollisionAvoidanceLimit ──
 MINK_COLLISION_MIN_DIST = 0.002     # minimum distance between geoms (metres)

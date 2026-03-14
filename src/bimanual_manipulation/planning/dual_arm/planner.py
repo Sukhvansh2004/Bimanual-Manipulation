@@ -339,7 +339,6 @@ class DualArmParallelPlanner:
         start_time = time.time()
         qp_fail_count = 0
         consecutive_qp_fails = 0
-        MAX_CONSECUTIVE_QP_FAILS = 30
 
         result = ParallelExecutionResult()
 
@@ -398,7 +397,7 @@ class DualArmParallelPlanner:
                 )
                 # Early bail-out when QP fails too many times in a row —
                 # arm B clearly cannot move in this configuration.
-                if consecutive_qp_fails >= MAX_CONSECUTIVE_QP_FAILS:
+                if consecutive_qp_fails >= constants.MAX_CONSECUTIVE_QP_FAILS:
                     logger.warning(
                         "QP failed %d consecutive steps — aborting "
                         "parallel execution early (arm B stuck).",
