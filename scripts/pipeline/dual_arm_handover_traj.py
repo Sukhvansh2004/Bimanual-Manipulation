@@ -31,12 +31,16 @@ import logging
 import numpy as np
 import argparse
 import threading
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import meshcat
 from contextlib import nullcontext
 from bimanual_manipulation import (
     DualArmManipulationSystem, constants
 )
+from bimanual_manipulation.controllers.arm import RobosuiteArmController
+from bimanual_manipulation.controllers.gripper import RobosuiteGripperController
+from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
+from bimanual_manipulation.transforms import StampedPose, TransformManager
 from bimanual_manipulation.utils.env_utils import (
     env_step, register_mesh_extraction_env,
     start_collision_monitor, stop_collision_monitor,
@@ -50,9 +54,11 @@ from bimanual_manipulation.planning.visualization.trajectory import (
     visualize_trajectory, visualize_handover_plan
 )
 from bimanual_manipulation.utils.primitives import (
-    ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive, extract_grasp_transform
+    ObjectGraspPrimitive, DualArmHandoverPlanner, ReleaseRetreatPrimitive,
+    HandoverTrajectory, extract_grasp_transform,
 )
 from bimanual_manipulation.planning.dual_arm import DualArmParallelPlanner
+from bimanual_manipulation.planning.dual_arm.result import ParallelExecutionResult
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
 from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
@@ -61,6 +67,7 @@ from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
 from bimanual_manipulation.planning.assignment import (
     load_assignment_result,
 )
+from bimanual_manipulation.planning.assignment.result import AssignmentResult
 from bimanual_manipulation.planning.ik.manipulability import (
     compute_trajectory_manipulability,
     compute_manipulability_from_jacobian,
@@ -71,6 +78,18 @@ from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
+
+# Type aliases for readability
+TrajCacheEntry = Tuple[
+    List[StampedPose],                       # eef trajectory
+    Optional[List[StampedPose]],              # object trajectory
+    Optional[np.ndarray],                     # joint configs
+    Optional[List[WaypointFeasibilityResult]],# feasibility results
+    str,                                      # filename
+]
+TrajCache = Dict[str, TrajCacheEntry]
+GraspCache = Dict[str, StampedPose]
+ExplicitPaths = Optional[Dict[int, str]]
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +177,7 @@ class ExecutionTracker:
 # Small helpers
 # ---------------------------------------------------------------------------
 
-def setup_logging(level: int = logging.INFO):
+def setup_logging(level: int = logging.INFO) -> None:
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -180,7 +199,8 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
     return None
 
 
-def stabilise(env, env_lock, steps: int = 50):
+def stabilise(env: DualArmEnvironment, env_lock: threading.RLock,
+              steps: int = 50) -> None:
     """Step the environment to stabilise after gripper actions."""
     with env_lock if env_lock else nullcontext():
         for _ in range(steps):
@@ -191,9 +211,15 @@ def stabilise(env, env_lock, steps: int = 50):
 # IK / RRT helpers
 # ---------------------------------------------------------------------------
 
-def _enumerate_ik_goals(arm, env, pose, env_lock, q_warm_start=None):
+def _enumerate_ik_goals(
+    arm: RobosuiteArmController,
+    env: DualArmEnvironment,
+    pose: StampedPose,
+    env_lock: threading.RLock,
+    q_warm_start: Optional[np.ndarray] = None,
+) -> List[np.ndarray]:
     """Enumerate multiple IK solutions for *pose* and return a de-duplicated list."""
-    goals = []
+    goals: List[np.ndarray] = []
 
     # Quintic-based primary solution
     _, goal_q = plan_pose_to_joint_trajectory(
@@ -228,9 +254,20 @@ def _enumerate_ik_goals(arm, env, pose, env_lock, q_warm_start=None):
     return goals
 
 
-def _rrt_to_pose(arm, goals, start_q, q_other_arm, robot_id_self,
-                 robot_id_other, planning_env, env_lock, rrt_vis,
-                 smoothen, label="target"):
+def _rrt_to_goal(
+    arm: RobosuiteArmController,
+    goals: List[np.ndarray],
+    start_q: np.ndarray,
+    q_other_arm: np.ndarray,
+    robot_id_self: int,
+    robot_id_other: int,
+    planning_env: DualArmEnvironment,
+    env_lock: threading.RLock,
+    rrt_vis: Optional[RRTVisualizer],
+    smoothen: bool,
+    gripper_action: float = -1.0,
+    label: str = "target",
+) -> bool:
     """Try RRT to each IK goal candidate. Return True on first success."""
     for gi, goal_q in enumerate(goals):
         try:
@@ -251,7 +288,7 @@ def _rrt_to_pose(arm, goals, start_q, q_other_arm, robot_id_self,
                 label, gi + 1, len(goals),
             )
             arm.follow_joint_trajectory(
-                list(rrt_traj), gripper_action=-1.0,
+                list(rrt_traj), gripper_action=gripper_action,
                 smoothen=smoothen, num_steps=200,
             )
             return True
@@ -263,11 +300,76 @@ def _rrt_to_pose(arm, goals, start_q, q_other_arm, robot_id_self,
     return False
 
 
+def _align_to_planned_config(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    other_arm: RobosuiteArmController,
+    current_robot: int,
+    planned_q: np.ndarray,
+    rrt_vis: Optional[RRTVisualizer],
+    smoothen: bool,
+    gripper_action: float = 1.0,
+    label: str = "planned config",
+) -> None:
+    """Align the arm to *planned_q* via collision-free RRT.
+
+    A straight joint-space move could sweep the grasped object through
+    arbitrary Cartesian paths, risking collisions with the environment.
+    RRT plans a collision-aware path so the object stays safe.
+    """
+    actual_q = current_arm.get_joint_positions()
+    q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_q)))
+    if q_err <= 0.05:
+        logger.info(
+            "Joint config already close to %s (q_err=%.4f rad).",
+            label, q_err,
+        )
+        return
+
+    logger.info(
+        "Aligning to %s via RRT (q_err=%.4f rad)...", label, q_err,
+    )
+    other_robot = 1 - current_robot
+    system.sync_planning_env()
+    try:
+        rrt_traj, _ = plan_arm_trajectory(
+            env=system.planning_env,
+            robot_id_b=current_robot,
+            start_q=actual_q,
+            goal_q=planned_q,
+            q_other_arm=other_arm.get_joint_positions(),
+            robot_id_a=other_robot,
+            num_steps=100,
+            env_lock=system.env_lock,
+            rrt_vis=rrt_vis,
+        )
+        current_arm.follow_joint_trajectory(
+            list(rrt_traj), gripper_action=gripper_action,
+            smoothen=smoothen, num_steps=200,
+        )
+        logger.info("RRT alignment to %s succeeded.", label)
+    except RuntimeError:
+        logger.warning(
+            "RRT alignment to %s failed (q_err=%.4f rad). "
+            "Falling back to direct joint move.",
+            label, q_err,
+        )
+        current_arm.follow_joint_trajectory(
+            [planned_q], gripper_action=gripper_action,
+            smoothen=smoothen, num_steps=200,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Visualization helper
 # ---------------------------------------------------------------------------
 
-def _visualize_assignment_segments(vis, assignment, traj_cache, tf_manager):
+def _visualize_assignment_segments(
+    vis: meshcat.Visualizer,
+    assignment: AssignmentResult,
+    traj_cache: TrajCache,
+    tf_manager: TransformManager,
+) -> None:
     """Visualize only the executed segments grouped by contiguous runs."""
     seq = assignment.sequence
     paths = assignment.trajectory_paths
@@ -303,7 +405,7 @@ def _visualize_assignment_segments(vis, assignment, traj_cache, tf_manager):
 # CLI parsing
 # ---------------------------------------------------------------------------
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config")
@@ -381,11 +483,11 @@ def load_and_configure_experiment(args) -> ExperimentConfig:
 # System / Environment setup
 # ---------------------------------------------------------------------------
 
-def create_system(exp_cfg: ExperimentConfig, headless: bool):
-    """Create and start the dual-arm manipulation system.
-
-    Returns (system, vis, rrt_vis).
-    """
+def create_system(
+    exp_cfg: ExperimentConfig,
+    headless: bool,
+) -> Tuple[DualArmManipulationSystem, Optional[meshcat.Visualizer], Optional[RRTVisualizer]]:
+    """Create and start the dual-arm manipulation system."""
     vis_cfg = exp_cfg.visualization
     exec_cfg = exp_cfg.execution
 
@@ -418,18 +520,14 @@ def create_system(exp_cfg: ExperimentConfig, headless: bool):
 # Trajectory loading
 # ---------------------------------------------------------------------------
 
-def load_trajectories(args, exp_cfg: ExperimentConfig):
-    """Load trajectories and (optionally) the assignment result.
-
-    Returns (assignment, traj_cache, grasp_cache, explicit_paths).
-      - assignment: AssignmentResult or None (explicit mode).
-      - traj_cache: {traj_path: (eef, obj, joints, res, filename)}.
-      - grasp_cache: {traj_path: grasp_transform}.
-      - explicit_paths: {0: name, 1: name} or None.
-    """
-    assignment = None
-    traj_cache: dict = {}
-    explicit_paths = None
+def load_trajectories(
+    args: argparse.Namespace,
+    exp_cfg: ExperimentConfig,
+) -> Tuple[Optional[AssignmentResult], TrajCache, GraspCache, ExplicitPaths]:
+    """Load trajectories and (optionally) the assignment result."""
+    assignment: Optional[AssignmentResult] = None
+    traj_cache: TrajCache = {}
+    explicit_paths: ExplicitPaths = None
 
     def _load_cached(traj_path, directory):
         if traj_path not in traj_cache:
@@ -506,7 +604,12 @@ def load_trajectories(args, exp_cfg: ExperimentConfig):
 # Visualization
 # ---------------------------------------------------------------------------
 
-def visualize_segments(vis, assignment, traj_cache, tf_manager):
+def visualize_segments(
+    vis: meshcat.Visualizer,
+    assignment: Optional[AssignmentResult],
+    traj_cache: TrajCache,
+    tf_manager: TransformManager,
+) -> None:
     """Visualize trajectory segments in MeshCat."""
     if assignment is not None:
         _visualize_assignment_segments(vis, assignment, traj_cache, tf_manager)
@@ -525,7 +628,12 @@ def visualize_segments(vis, assignment, traj_cache, tf_manager):
 # Execution helpers (modular phases)
 # ---------------------------------------------------------------------------
 
-def _get_traj_path(assignment, explicit_paths, robot_id, segment_idx):
+def _get_traj_path(
+    assignment: Optional[AssignmentResult],
+    explicit_paths: ExplicitPaths,
+    robot_id: int,
+    segment_idx: int,
+) -> str:
     """Return the trajectory cache key for a given robot/segment."""
     if assignment is not None:
         idx = min(segment_idx, len(assignment.trajectory_paths) - 1)
@@ -533,25 +641,43 @@ def _get_traj_path(assignment, explicit_paths, robot_id, segment_idx):
     return explicit_paths[robot_id]
 
 
-def _get_arms(system, robot_id):
+def _get_arms(
+    system: DualArmManipulationSystem,
+    robot_id: int,
+) -> Tuple[RobosuiteArmController, RobosuiteGripperController,
+           RobosuiteArmController, RobosuiteGripperController]:
     """Return (active_arm, active_gripper, other_arm, other_gripper) for robot_id."""
     if robot_id == 0:
         return system.left_arm, system.left_gripper, system.right_arm, system.right_gripper
     return system.right_arm, system.right_gripper, system.left_arm, system.left_gripper
 
 
-def plan_pregrasp_approach(system, current_arm, other_arm, current_robot,
-                           grasp_traj_data, rrt_vis, smoothen):
+def plan_pregrasp_approach(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    other_arm: RobosuiteArmController,
+    current_robot: int,
+    grasp_traj_data: Dict[str, Any],
+    rrt_vis: Optional[RRTVisualizer],
+    smoothen: bool,
+    planned_q: Optional[np.ndarray] = None,
+) -> None:
     """Move the active arm to the pre-grasp pose via collision-free RRT.
 
     Enumerates multiple IK solutions and tries each as an RRT goal.
-    Raises RuntimeError if all candidates fail.
+    *planned_q* (the joint config from the trajectory file at the grasp
+    index) is used as a warm-start for IK enumeration, biasing solutions
+    toward the configuration expected by downstream trajectory segments.
+
+    Raises RuntimeError if all RRT candidates fail.
     """
     pregrasp_pose = grasp_traj_data["pregrasp"]
 
-    # Enumerate IK goals for the pre-grasp pose
+    # Enumerate IK goals — warm-start with the planned config so the
+    # arm's resulting configuration is close to what the trajectory expects.
     goals = _enumerate_ik_goals(
         current_arm, system.env, pregrasp_pose, system.env_lock,
+        q_warm_start=planned_q,
     )
     logger.info("Pre-grasp IK: %d goal candidate(s) for RRT.", len(goals))
 
@@ -560,7 +686,7 @@ def plan_pregrasp_approach(system, current_arm, other_arm, current_robot,
     q_other = other_arm.get_joint_positions()
 
     system.sync_planning_env()
-    ok = _rrt_to_pose(
+    ok = _rrt_to_goal(
         arm=current_arm,
         goals=goals,
         start_q=start_q,
@@ -579,9 +705,17 @@ def plan_pregrasp_approach(system, current_arm, other_arm, current_robot,
         )
 
 
-def execute_grasp(system, current_arm, current_gripper, current_robot,
-                  grasp_traj_data, q_warm_start, tracker, assignment):
-    """Follow approach trajectory, close gripper, start monitors."""
+def execute_grasp(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    current_gripper: RobosuiteGripperController,
+    current_robot: int,
+    grasp_traj_data: Dict[str, Any],
+    q_warm_start: Optional[np.ndarray],
+    tracker: ExecutionTracker,
+    assignment: Optional[AssignmentResult],
+) -> None:
+    """Follow approach trajectory, close gripper."""
     logger.info("Robot %d following grasp approach trajectory...", current_robot)
     current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start)
 
@@ -593,8 +727,14 @@ def execute_grasp(system, current_arm, current_gripper, current_robot,
         tracker.n_switches = len(assignment.handover_points)
 
 
-def find_next_handover(assignment, explicit_paths, traj_cache,
-                       current_robot, current_idx, res_cur):
+def find_next_handover(
+    assignment: Optional[AssignmentResult],
+    explicit_paths: ExplicitPaths,
+    traj_cache: TrajCache,
+    current_robot: int,
+    current_idx: int,
+    res_cur: List[WaypointFeasibilityResult],
+) -> int:
     """Return the next handover segment index, or -1 if none."""
     if assignment is not None:
         for seg in range(current_idx + 1, len(assignment.sequence)):
@@ -623,14 +763,25 @@ def find_next_handover(assignment, explicit_paths, traj_cache,
     return -1
 
 
-def execute_parallel_to_handover(system, current_arm, other_arm,
-                                 current_robot, current_idx, handover_idx,
-                                 traj_cache, grasp_cache, assignment,
-                                 explicit_paths, exp_cfg, tracker,
-                                 rrt_vis, vis):
+def execute_parallel_to_handover(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    other_arm: RobosuiteArmController,
+    current_robot: int,
+    current_idx: int,
+    handover_idx: int,
+    traj_cache: TrajCache,
+    grasp_cache: GraspCache,
+    assignment: Optional[AssignmentResult],
+    explicit_paths: ExplicitPaths,
+    exp_cfg: ExperimentConfig,
+    tracker: ExecutionTracker,
+    rrt_vis: Optional[RRTVisualizer],
+    vis: Optional[meshcat.Visualizer],
+) -> Tuple[HandoverTrajectory, Optional[np.ndarray]]:
     """Move arm A to handover while arm B moves to receiver pre-pose.
 
-    Returns (h_traj, q_warm_recv, new_current_idx).
+    Returns (h_traj, q_warm_recv).
     """
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
     next_path = _get_traj_path(assignment, explicit_paths, 1 - current_robot, handover_idx)
@@ -701,8 +852,16 @@ def execute_parallel_to_handover(system, current_arm, other_arm,
     return h_traj, q_warm_recv
 
 
-def _recover_arm_b(system, current_arm, other_arm, current_robot,
-                   target_pose, q_warm_start, rrt_vis, exp_cfg):
+def _recover_arm_b(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    other_arm: RobosuiteArmController,
+    current_robot: int,
+    target_pose: StampedPose,
+    q_warm_start: Optional[np.ndarray],
+    rrt_vis: Optional[RRTVisualizer],
+    exp_cfg: ExperimentConfig,
+) -> None:
     """Attempt independent RRT recovery to get arm B to its target pose."""
     other_robot = 1 - current_robot
     logger.info(
@@ -716,7 +875,7 @@ def _recover_arm_b(system, current_arm, other_arm, current_robot,
     logger.info("Recovery: %d IK goal candidate(s) for arm B.", len(goals))
 
     system.sync_planning_env()
-    ok = _rrt_to_pose(
+    ok = _rrt_to_goal(
         arm=other_arm, goals=goals,
         start_q=other_arm.get_joint_positions(),
         q_other_arm=current_arm.get_joint_positions(),
@@ -740,10 +899,18 @@ def _recover_arm_b(system, current_arm, other_arm, current_robot,
         logger.warning("move_to_pose recovery also failed - handover likely to fail.")
 
 
-def execute_handover_sequence(system, current_arm, current_gripper,
-                              other_arm, other_gripper,
-                              current_robot, current_idx,
-                              h_traj, q_warm_recv, tracker):
+def execute_handover_sequence(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    current_gripper: RobosuiteGripperController,
+    other_arm: RobosuiteArmController,
+    other_gripper: RobosuiteGripperController,
+    current_robot: int,
+    current_idx: int,
+    h_traj: HandoverTrajectory,
+    q_warm_recv: Optional[np.ndarray],
+    tracker: ExecutionTracker,
+) -> bool:
     """Execute the physical handover (hold -> approach -> gripper swap -> retreat).
 
     Returns True if handover succeeded.
@@ -803,9 +970,19 @@ def execute_handover_sequence(system, current_arm, current_gripper,
     return receiver_converged
 
 
-def execute_final_segment(system, current_arm, other_arm, current_robot,
-                          current_idx, joints_cur, res_cur, assignment,
-                          exp_cfg, tracker, rrt_vis):
+def execute_final_segment(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    other_arm: RobosuiteArmController,
+    current_robot: int,
+    current_idx: int,
+    joints_cur: np.ndarray,
+    res_cur: List[WaypointFeasibilityResult],
+    assignment: Optional[AssignmentResult],
+    exp_cfg: ExperimentConfig,
+    tracker: ExecutionTracker,
+    rrt_vis: Optional[RRTVisualizer],
+) -> int:
     """Execute the last trajectory segment while moving the idle arm home.
 
     Returns new current_idx.
@@ -852,7 +1029,7 @@ def execute_final_segment(system, current_arm, other_arm, current_robot,
     return last_idx
 
 
-def stop_monitors(tracker):
+def stop_monitors(tracker: ExecutionTracker) -> None:
     """Stop collision and object monitors, record results."""
     tracker.n_collision_incidents = stop_collision_monitor()
     if tracker.n_collision_incidents > 0:
@@ -868,8 +1045,14 @@ def stop_monitors(tracker):
     tracker.object_max_tracking_error = obj_summary["max_tracking_error"]
 
 
-def release_and_retreat(system, current_arm, current_gripper, current_robot,
-                        eef_cur, current_idx):
+def release_and_retreat(
+    system: DualArmManipulationSystem,
+    current_arm: RobosuiteArmController,
+    current_gripper: RobosuiteGripperController,
+    current_robot: int,
+    eef_cur: List[StampedPose],
+    current_idx: int,
+) -> None:
     """Release the object and retreat the active arm."""
     logger.info("Robot %d releasing object and retreating...", current_robot)
     release_pose = eef_cur[current_idx]
@@ -884,7 +1067,11 @@ def release_and_retreat(system, current_arm, current_gripper, current_robot,
     stabilise(system.env, system.env_lock)
 
 
-def verify_placement(system, exp_cfg, tracker):
+def verify_placement(
+    system: DualArmManipulationSystem,
+    exp_cfg: ExperimentConfig,
+    tracker: ExecutionTracker,
+) -> None:
     """Check whether the object reached its target pose."""
     PLACE_POS_THRESHOLD = 0.05   # metres
     PLACE_ORI_THRESHOLD = 30.0   # degrees
@@ -928,8 +1115,18 @@ def verify_placement(system, exp_cfg, tracker):
 # Main execution loop
 # ---------------------------------------------------------------------------
 
-def run_execution_loop(system, exp_cfg, assignment, traj_cache, grasp_cache,
-                       explicit_paths, tracker, rrt_vis, vis, args):
+def run_execution_loop(
+    system: DualArmManipulationSystem,
+    exp_cfg: ExperimentConfig,
+    assignment: Optional[AssignmentResult],
+    traj_cache: TrajCache,
+    grasp_cache: GraspCache,
+    explicit_paths: ExplicitPaths,
+    tracker: ExecutionTracker,
+    rrt_vis: Optional[RRTVisualizer],
+    vis: Optional[meshcat.Visualizer],
+    args: argparse.Namespace,
+) -> None:
     """Drive the full pick -> transport -> handover(s) -> place pipeline."""
 
     # --- Determine starting robot / index ---
@@ -963,6 +1160,7 @@ def run_execution_loop(system, exp_cfg, assignment, traj_cache, grasp_cache,
     plan_pregrasp_approach(
         system, current_arm, other_arm, current_robot,
         grasp_traj_data, rrt_vis, exp_cfg.execution.smoothen,
+        planned_q=q_warm_grasp,
     )
 
     # Build planned object positions array for object monitor
@@ -974,6 +1172,19 @@ def run_execution_loop(system, exp_cfg, assignment, traj_cache, grasp_cache,
         system, current_arm, current_gripper, current_robot,
         grasp_traj_data, q_warm_grasp, tracker, assignment,
     )
+
+    # Align to the planned joint config so subsequent trajectory segments
+    # start from the expected configuration.  After the RRT + Cartesian
+    # approach the arm's joint config may differ from joints_cur[current_idx]
+    # (due to IK redundancy).  RRT is used instead of a straight joint move
+    # to keep the grasped object on a collision-free path.
+    planned_start_q = joints_cur[current_idx]
+    if planned_start_q is not None:
+        _align_to_planned_config(
+            system, current_arm, other_arm, current_robot,
+            planned_start_q, rrt_vis, exp_cfg.execution.smoothen,
+            gripper_action=1.0, label="post-grasp planned config",
+        )
 
     start_collision_monitor(exp_cfg.task.manipulated_object)
     start_object_monitor(exp_cfg.task.manipulated_object, planned_positions=planned_obj_positions)
@@ -1012,6 +1223,18 @@ def run_execution_loop(system, exp_cfg, assignment, traj_cache, grasp_cache,
             # Swap roles
             current_robot = 1 - current_robot
             current_arm, current_gripper, other_arm, other_gripper = _get_arms(system, current_robot)
+
+            # Post-handover alignment: the new holding arm may not be at the
+            # joint config the planned trajectory expects.  Align via RRT.
+            cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
+            _, _, joints_new, _, _ = traj_cache[cur_path]
+            planned_ho_q = joints_new[current_idx]
+            if planned_ho_q is not None:
+                _align_to_planned_config(
+                    system, current_arm, other_arm, current_robot,
+                    planned_ho_q, rrt_vis, exp_cfg.execution.smoothen,
+                    gripper_action=1.0, label="post-handover planned config",
+                )
         else:
             # No more handovers -- execute final segment
             current_idx = execute_final_segment(
@@ -1054,7 +1277,7 @@ def run_execution_loop(system, exp_cfg, assignment, traj_cache, grasp_cache,
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> None:
     args = parse_args()
     exp_cfg = load_and_configure_experiment(args)
     tracker = ExecutionTracker()
