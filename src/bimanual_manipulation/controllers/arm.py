@@ -409,13 +409,13 @@ class RobosuiteArmController:
                     positions, quaternions,
                     gripper_action=gripper_action,
                     dt=dt, threshold=threshold,
+                    q_warm_start=q_warm_start,
                 )
 
             return self._executor.execute_osc_trajectory(
                 positions, quaternions,
                 gripper_action=gripper_action,
                 dt=dt, threshold=threshold,
-                q_warm_start=q_warm_start,
             )
         finally:
             self.is_moving = False
@@ -486,13 +486,13 @@ class RobosuiteArmController:
                     positions, quaternions,
                     gripper_action=gripper_action,
                     dt=dt, threshold=threshold,
+                    q_warm_start=q_warm_start,
                 )
 
             return self._executor.execute_osc_trajectory(
                 positions, quaternions,
                 gripper_action=gripper_action,
                 dt=dt, threshold=threshold,
-                q_warm_start=q_warm_start,
             )
         finally:
             self.is_moving = False

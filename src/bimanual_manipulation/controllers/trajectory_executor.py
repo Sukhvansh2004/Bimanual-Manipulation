@@ -55,6 +55,7 @@ class TrajectoryExecutor:
         gripper_action: float = 0.0,
         dt: float = constants.TRAJECTORY_TIME_STEP,
         threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+        q_warm_start: Optional[np.ndarray] = None,
     ) -> bool:
         """Execute a trajectory using mink's reactive differential IK.
 
@@ -69,6 +70,8 @@ class TrajectoryExecutor:
             gripper_action: Gripper command during execution.
             dt: Wall-clock time between steps.
             threshold: Convergence threshold on final-waypoint error.
+            q_warm_start: Optional warm-start joint config ``(7,)`` for the
+                posture task.  Biases the QP toward this configuration.
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -127,7 +130,14 @@ class TrajectoryExecutor:
         posture_task = mink.PostureTask(
             model=model_native, cost=constants.MINK_POSTURE_COST,
         )
-        posture_task.set_target(q_full)
+        # Use warm-start config as the posture target so the QP biases
+        # the IK solution toward the desired joint configuration.
+        if q_warm_start is not None:
+            q_posture = q_full.copy()
+            q_posture[arm_qpos_idx] = q_warm_start
+            posture_task.set_target(q_posture)
+        else:
+            posture_task.set_target(q_full)
 
         damping_task = mink.DampingTask(
             model_native, cost=constants.MINK_DAMPING_COST,
@@ -271,7 +281,6 @@ class TrajectoryExecutor:
         gripper_action: float = 0.0,
         dt: float = constants.TRAJECTORY_TIME_STEP,
         threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
-        q_warm_start: Optional[np.ndarray] = None,
     ) -> bool:
         """Execute a trajectory using OSC (delta/absolute) commands.
 
@@ -281,7 +290,6 @@ class TrajectoryExecutor:
             gripper_action: Gripper command during execution.
             dt: Wall-clock time between steps.
             threshold: Convergence threshold.
-            q_warm_start: Optional warm-start joint config for IK.
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -292,7 +300,6 @@ class TrajectoryExecutor:
         current_waypoint_idx = 0
         steps_taken = 0
         start_time = time.time()
-        _ik_ws = q_warm_start
 
         while steps_taken < max_steps:
             if ctrl._stop_event.is_set():
@@ -319,7 +326,6 @@ class TrajectoryExecutor:
                 target_pos_step, target_quat_step,
                 gripper_action=gripper_action,
                 current_pos=current_pos, current_quat=current_quat,
-                q_warm_start=_ik_ws,
             )
 
             if robot_action is None:
@@ -335,7 +341,6 @@ class TrajectoryExecutor:
                     robot_id=ctrl.robot_id, arm=ctrl.arm_id,
                 )
 
-            _ik_ws = None
             steps_taken += 1
 
             elapsed = time.time() - start_time
