@@ -553,30 +553,27 @@ def main():
         # greatly increases the chance of RRT success.
         pregrasp_goal_candidates = []
 
-        # Get additional IK solutions for robustness
-        try:
-            pregrasp_pose_ik = grasp_traj_data["pregrasp"]
-            if pregrasp_pose_ik.frame_id != current_arm.base_frame:
-                pregrasp_pose_ik = current_arm.tf_manager.transform_pose(
-                    pregrasp_pose_ik, current_arm.base_frame,
-                )
-            corrected_pregrasp = apply_ik_orientation_correction(pregrasp_pose_ik)
-            site_name = f"gripper{current_arm.robot_id}_{current_arm.arm_id}_ft_frame"
-            extra_ik = enumerate_ik_solutions_for_arm(
-                system.env,
-                robot_id=current_arm.robot_id,
-                target_pose=corrected_pregrasp,
-                tf_manager=current_arm.tf_manager,
-                arm=current_arm.arm_id,
-                site_name=site_name,
-                env_lock=system.env_lock,
-                max_solutions=constants.IK_MAX_SOLUTIONS,
+        pregrasp_pose_ik = grasp_traj_data["pregrasp"]
+        if pregrasp_pose_ik.frame_id != current_arm.base_frame:
+            pregrasp_pose_ik = current_arm.tf_manager.transform_pose(
+                pregrasp_pose_ik, current_arm.base_frame,
             )
-            for sol in extra_ik:
-                if not any(np.allclose(sol, g, atol=0.05) for g in pregrasp_goal_candidates):
-                    pregrasp_goal_candidates.append(sol)
-        except Exception:
-            pass
+        corrected_pregrasp = apply_ik_orientation_correction(pregrasp_pose_ik)
+        site_name = f"gripper{current_arm.robot_id}_{current_arm.arm_id}_ft_frame"
+        extra_ik = enumerate_ik_solutions_for_arm(
+            system.env,
+            robot_id=current_arm.robot_id,
+            target_pose=corrected_pregrasp,
+            tf_manager=current_arm.tf_manager,
+            arm=current_arm.arm_id,
+            site_name=site_name,
+            env_lock=system.env_lock,
+            max_solutions=constants.IK_MAX_SOLUTIONS,
+        )
+        for sol in extra_ik:
+            if not any(np.allclose(sol, g, atol=0.05) for g in pregrasp_goal_candidates):
+                pregrasp_goal_candidates.append(sol)
+        
 
         logger.info(
             "Pre-grasp IK: %d goal candidate(s) for RRT.",
