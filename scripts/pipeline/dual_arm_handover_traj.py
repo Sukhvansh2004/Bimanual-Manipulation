@@ -740,11 +740,21 @@ def execute_parallel_to_handover(
             tf_manager=system.tf_manager,
         )
 
-    # Arm A's trajectory segment (prepend current position for smooth start)
-    joint_segment = (
-        [current_arm.get_joint_positions()]
-        + list(joints_cur[current_idx + 1 : handover_idx + 1])
-    )
+    # Arm A's trajectory segment (prepend current position + planned config
+    # at current_idx for smooth alignment before following the rest)
+    actual_q = current_arm.get_joint_positions()
+    planned_q = joints_cur[current_idx]
+    joint_segment = [actual_q]
+    if planned_q is not None:
+        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_q)))
+        if q_err > 0.05:
+            logger.info(
+                "Inserting alignment waypoint (q_err=%.4f rad) before "
+                "trajectory segment %d -> %d.",
+                q_err, current_idx, handover_idx,
+            )
+            joint_segment.append(planned_q)
+    joint_segment.extend(joints_cur[current_idx + 1 : handover_idx + 1])
 
     receiver_pre_pose = h_traj.receiver_pre[0]
     q_warm_recv = (
@@ -930,10 +940,19 @@ def execute_final_segment(
         tracker.transport_success = True
         return current_idx
 
-    joint_segment = (
-        [current_arm.get_joint_positions()]
-        + list(joints_cur[current_idx + 1 : last_idx + 1])
-    )
+    actual_q = current_arm.get_joint_positions()
+    planned_q = joints_cur[current_idx]
+    joint_segment = [actual_q]
+    if planned_q is not None:
+        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_q)))
+        if q_err > 0.05:
+            logger.info(
+                "Inserting alignment waypoint (q_err=%.4f rad) before "
+                "final segment %d -> %d.",
+                q_err, current_idx, last_idx,
+            )
+            joint_segment.append(planned_q)
+    joint_segment.extend(joints_cur[current_idx + 1 : last_idx + 1])
 
     logger.info(
         "PARALLEL: Robot %d following final segment to %d "
