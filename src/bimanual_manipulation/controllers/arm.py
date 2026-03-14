@@ -320,7 +320,8 @@ class RobosuiteArmController:
             current_joints = self.get_joint_positions()
 
         joint_delta = target_joints - current_joints
-        max_delta = constants.MAX_JOINT_DELTA_PER_STEP
+        # Per-joint velocity clamping: Franka velocity limits × control dt.
+        max_delta = constants.FRANKA_VELOCITY_LIMITS * constants.TRAJECTORY_TIME_STEP
         clamped_delta = np.clip(joint_delta, -max_delta, max_delta)
         clamped_target = current_joints + clamped_delta
 

@@ -132,7 +132,16 @@ class TrajectoryExecutor:
         damping_task = mink.DampingTask(
             model_native, cost=constants.MINK_DAMPING_COST,
         )
-        vel_limit = mink.VelocityLimit(model_native)
+        # Build per-joint velocity limits from joint names in the model.
+        vel_dict: dict = {}
+        for jid in joint_ids:
+            name = model_native.joint(jid).name
+            try:
+                k = int(name.rsplit("joint", 1)[1])
+                vel_dict[name] = np.array([constants.FRANKA_VELOCITY_LIMITS[k - 1]])
+            except (IndexError, ValueError):
+                pass
+        vel_limit = mink.VelocityLimit(model_native, velocities=vel_dict)
         config_limit = mink.ConfigurationLimit(model_native)
 
         frozen_dofs = _mu.get_frozen_dof_indices(model_native, arm_dof_idx)

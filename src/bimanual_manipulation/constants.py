@@ -138,6 +138,10 @@ COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 # meaningful penetration.
 COLLISION_MONITOR_MIN_DEPTH = 0.001  # metres (1mm)
 
+# Object Trajectory Monitor — tracks actual object pose vs. planned during
+# execution.  Logs every N env_step calls to keep output manageable.
+OBJECT_MONITOR_LOG_INTERVAL = 20     # env steps between debug log entries
+
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
 
@@ -302,12 +306,6 @@ TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movemen
 
 # Joint-space convergence (used by arm controller & dual-arm planner)
 JOINT_CONVERGENCE_THRESHOLD = 0.05  # L-inf joint error (rad) for declaring convergence
-
-# Maximum per-step joint displacement (rad) — clamps commands to prevent
-# violent jerky movements near singularities or with large RRT waypoint gaps.
-# Franka real-world limits are ~2.175 rad/s for joints 1-4 and ~2.61 rad/s
-# for joints 5-7.  At 20 Hz control rate → ~0.1 rad/step is conservative.
-MAX_JOINT_DELTA_PER_STEP = 0.15  # rad (~8.6° per step)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0

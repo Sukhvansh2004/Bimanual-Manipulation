@@ -40,6 +40,7 @@ from bimanual_manipulation import (
 from bimanual_manipulation.utils.env_utils import (
     env_step, register_mesh_extraction_env,
     start_collision_monitor, stop_collision_monitor,
+    start_object_monitor, stop_object_monitor,
 )
 from bimanual_manipulation.experiment_config import load_experiment, ExperimentConfig
 from bimanual_manipulation.planning.utils.trajectory_utils import (
@@ -98,6 +99,8 @@ class ExecutionTracker:
         self.n_switches = 0  # total arm switches (= handovers from assignment)
         self.placement_position_error: Optional[float] = None  # metres (None = not verified)
         self.placement_orientation_error: Optional[float] = None  # degrees (None = not verified)
+        self.object_mean_tracking_error: float = 0.0  # mean nearest-waypoint error (m)
+        self.object_max_tracking_error: float = 0.0   # max nearest-waypoint error (m)
 
     @property
     def handover_success_rate(self) -> float:
@@ -143,6 +146,8 @@ class ExecutionTracker:
             "mean_manipulability": self.mean_manipulability,
             "placement_position_error": self.placement_position_error,
             "placement_orientation_error": self.placement_orientation_error,
+            "object_mean_tracking_error": self.object_mean_tracking_error,
+            "object_max_tracking_error": self.object_max_tracking_error,
             "error_message": self.error_message,
         }
 
@@ -543,42 +548,82 @@ def main():
         start_q = current_arm.get_joint_positions()
         q_other = other_arm_ctrl.get_joint_positions()
 
-        # Solve IK for the pre-grasp target
-        _, pregrasp_goal_q = plan_pose_to_joint_trajectory(
-            current_arm, grasp_traj_data["pregrasp"], num_steps=100,
-            q_warm_start=q_warm_start_grasp,
+        # Enumerate multiple IK solutions for the pre-grasp target.
+        # A single IK solution may be in collision — trying alternatives
+        # greatly increases the chance of RRT success.
+        pregrasp_goal_candidates = []
+
+        # Get additional IK solutions for robustness
+        try:
+            pregrasp_pose_ik = grasp_traj_data["pregrasp"]
+            if pregrasp_pose_ik.frame_id != current_arm.base_frame:
+                pregrasp_pose_ik = current_arm.tf_manager.transform_pose(
+                    pregrasp_pose_ik, current_arm.base_frame,
+                )
+            corrected_pregrasp = apply_ik_orientation_correction(pregrasp_pose_ik)
+            site_name = f"gripper{current_arm.robot_id}_{current_arm.arm_id}_ft_frame"
+            extra_ik = enumerate_ik_solutions_for_arm(
+                system.env,
+                robot_id=current_arm.robot_id,
+                target_pose=corrected_pregrasp,
+                tf_manager=current_arm.tf_manager,
+                arm=current_arm.arm_id,
+                site_name=site_name,
+                env_lock=system.env_lock,
+                max_solutions=constants.IK_MAX_SOLUTIONS,
+            )
+            for sol in extra_ik:
+                if not any(np.allclose(sol, g, atol=0.05) for g in pregrasp_goal_candidates):
+                    pregrasp_goal_candidates.append(sol)
+        except Exception:
+            pass
+
+        logger.info(
+            "Pre-grasp IK: %d goal candidate(s) for RRT.",
+            len(pregrasp_goal_candidates),
         )
 
-        if pregrasp_goal_q is not None:
+        pregrasp_rrt_ok = False
+        if pregrasp_goal_candidates:
             logger.info(f"Robot {current_robot} planning RRT to pre-grasp pose...")
-            try:
-                # Use dedicated planning environment ("Twin Env") for RRT
-                system.sync_planning_env()
-                rrt_traj, rrt_ok = plan_arm_trajectory(
-                    env=system.planning_env,
-                    robot_id_b=current_robot,
-                    start_q=start_q,
-                    goal_q=pregrasp_goal_q,
-                    q_other_arm=q_other,
-                    robot_id_a=other_robot,
-                    num_steps=100,
-                    env_lock=system.env_lock,
-                    rrt_vis=rrt_vis,
-                )
-                logger.info("RRT to pre-grasp succeeded. Following collision-free joint trajectory...")
+            system.sync_planning_env()
+            for gi, goal_q_cand in enumerate(pregrasp_goal_candidates):
+                try:
+                    rrt_traj, rrt_ok = plan_arm_trajectory(
+                        env=system.planning_env,
+                        robot_id_b=current_robot,
+                        start_q=start_q,
+                        goal_q=goal_q_cand,
+                        q_other_arm=q_other,
+                        robot_id_a=other_robot,
+                        num_steps=100,
+                        env_lock=system.env_lock,
+                        rrt_vis=rrt_vis,
+                    )
+                    logger.info(
+                        "RRT to pre-grasp succeeded (IK candidate %d/%d). "
+                        "Following collision-free joint trajectory...",
+                        gi + 1, len(pregrasp_goal_candidates),
+                    )
+                    current_arm.follow_joint_trajectory(
+                        list(rrt_traj), gripper_action=-1.0,
+                        smoothen=exec_cfg.smoothen, num_steps=200,
+                    )
+                    pregrasp_rrt_ok = True
+                    break
+                except RuntimeError:
+                    logger.warning(
+                        "RRT to pre-grasp failed for IK candidate %d/%d.",
+                        gi + 1, len(pregrasp_goal_candidates),
+                    )
 
-                current_arm.follow_joint_trajectory(
-                    list(rrt_traj), gripper_action=-1.0,
-                    smoothen=exec_cfg.smoothen, num_steps=200,
-                )
-            except RuntimeError as exc:
-                raise RuntimeError(
-                    f"Robot {current_robot}: RRT to pre-grasp failed — "
-                    "no collision-free approach path found."
-                ) from exc
-        else:
-            logger.warning("IK failed for pre-grasp — falling back to move_to_pose")
-            current_arm.move_to_pose(grasp_traj_data["pregrasp"], q_warm_start=q_warm_start_grasp)
+        if not pregrasp_rrt_ok:
+            logger.critical(
+                "All RRT attempts for pre-grasp failed (%d candidates). "
+                "Falling back to move_to_pose.",
+                len(pregrasp_goal_candidates),
+            )
+            raise RuntimeError("Pre-grasp RRT failed — cannot safely approach grasp pose.")
 
         logger.info(f"Robot {current_robot} following grasp approach trajectory...")
         current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start_grasp)
@@ -594,6 +639,20 @@ def main():
         # close-proximity handover approach/release phases.
         start_collision_monitor(
             exp_cfg.task.manipulated_object,
+        )
+
+        # Enable object trajectory monitor — logs actual object position
+        # every N steps and detects drops.
+        # Collect planned object positions from the current trajectory
+        # for tracking-error reporting.
+        _planned_obj_positions = None
+        if obj_cur is not None:
+            _planned_obj_positions = np.array(
+                [p.position for p in obj_cur], dtype=np.float64,
+            )
+        start_object_monitor(
+            exp_cfg.task.manipulated_object,
+            planned_positions=_planned_obj_positions,
         )
 
         # Record number of arm switches from assignment
@@ -676,7 +735,11 @@ def main():
                     )
 
                 # Arm A's joint segment (carrying the object)
-                joint_segment = list(joints_cur[current_idx+1 : next_handover_idx+1])
+                # Prepend arm A's current position to ensure smooth start
+                # (the arm may have drifted from joints_cur[current_idx]).
+                arm_a_current_q = current_arm.get_joint_positions()
+                raw_segment = list(joints_cur[current_idx+1 : next_handover_idx+1])
+                joint_segment = [arm_a_current_q] + raw_segment
 
                 # Arm B's target: the handover receiver pre-pose
                 # (But if we had more than 2 arms, we'd need to decide which one moves to home)
@@ -919,7 +982,7 @@ def main():
                     logger.info(f"PARALLEL: Robot {current_robot} following final segment to {last_idx} "
                                 f"while Robot {1 - current_robot} moves to home position")
                     
-                    joint_segment = list(joints_cur[current_idx+1 : last_idx+1])
+                    joint_segment = [current_arm.get_joint_positions()] + list(joints_cur[current_idx+1 : last_idx+1])
                     
                     parallel_planner = DualArmParallelPlanner(
                         env=system.env,
@@ -967,6 +1030,11 @@ def main():
             )
         else:
             logger.info("Execution completed with no collisions detected.")
+
+        # Stop object trajectory monitor and record tracking errors
+        obj_summary = stop_object_monitor()
+        tracker.object_mean_tracking_error = obj_summary["mean_tracking_error"]
+        tracker.object_max_tracking_error = obj_summary["max_tracking_error"]
 
         # 6. Release and Retreat
         logger.info(f"Robot {current_robot} releasing object and retreating...")
