@@ -714,10 +714,32 @@ def execute_grasp(
     q_warm_start: Optional[np.ndarray],
     tracker: ExecutionTracker,
     assignment: Optional[AssignmentResult],
+    planned_start_q: Optional[np.ndarray] = None,
 ) -> None:
-    """Follow approach trajectory, close gripper."""
+    """Follow approach trajectory, align to planned config, close gripper.
+
+    If *planned_start_q* is provided the arm is moved to that joint
+    configuration **before** the gripper closes so that the object is
+    grasped in the exact configuration the downstream trajectory expects.
+    """
     logger.info("Robot %d following grasp approach trajectory...", current_robot)
     current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start)
+
+    # Align to the planned joint config BEFORE grasping so the arm
+    # holds the object in the exact configuration the trajectory expects.
+    # The gripper is still open, so this movement is safe.
+    if planned_start_q is not None:
+        actual_q = current_arm.get_joint_positions()
+        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(planned_start_q)))
+        if q_err > 0.05:
+            logger.info(
+                "Pre-grasp alignment to planned config (q_err=%.4f rad).",
+                q_err,
+            )
+            current_arm.follow_joint_trajectory(
+                [planned_start_q], gripper_action=-1.0,
+                smoothen=True, num_steps=200,
+            )
 
     current_gripper.grasp()
     stabilise(system.env, system.env_lock)
@@ -940,6 +962,21 @@ def execute_handover_sequence(
             )
         dist = float(np.linalg.norm(recv_pos - target_pose.position))
         logger.warning("Receiver arm did NOT converge (dist=%.4f m).", dist)
+
+    # Align receiver to planned config BEFORE grasping so the
+    # object is received in the configuration the trajectory expects.
+    if q_warm_recv is not None:
+        actual_q = other_arm.get_joint_positions()
+        q_err = float(np.linalg.norm(np.asarray(actual_q) - np.asarray(q_warm_recv)))
+        if q_err > 0.05:
+            logger.info(
+                "Pre-handover alignment of receiver to planned config "
+                "(q_err=%.4f rad).", q_err,
+            )
+            other_arm.follow_joint_trajectory(
+                [q_warm_recv], gripper_action=-1.0,
+                smoothen=True, num_steps=200,
+            )
 
     # Gripper swap: receiver grasps, transfer releases
     other_gripper.grasp()
@@ -1171,20 +1208,8 @@ def run_execution_loop(
     execute_grasp(
         system, current_arm, current_gripper, current_robot,
         grasp_traj_data, q_warm_grasp, tracker, assignment,
+        planned_start_q=q_warm_grasp,
     )
-
-    # Align to the planned joint config so subsequent trajectory segments
-    # start from the expected configuration.  After the RRT + Cartesian
-    # approach the arm's joint config may differ from joints_cur[current_idx]
-    # (due to IK redundancy).  RRT is used instead of a straight joint move
-    # to keep the grasped object on a collision-free path.
-    planned_start_q = joints_cur[current_idx]
-    if planned_start_q is not None:
-        _align_to_planned_config(
-            system, current_arm, other_arm, current_robot,
-            planned_start_q, rrt_vis, exp_cfg.execution.smoothen,
-            gripper_action=1.0, label="post-grasp planned config",
-        )
 
     start_collision_monitor(exp_cfg.task.manipulated_object)
     start_object_monitor(exp_cfg.task.manipulated_object, planned_positions=planned_obj_positions)
@@ -1223,18 +1248,6 @@ def run_execution_loop(
             # Swap roles
             current_robot = 1 - current_robot
             current_arm, current_gripper, other_arm, other_gripper = _get_arms(system, current_robot)
-
-            # Post-handover alignment: the new holding arm may not be at the
-            # joint config the planned trajectory expects.  Align via RRT.
-            cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
-            _, _, joints_new, _, _ = traj_cache[cur_path]
-            planned_ho_q = joints_new[current_idx]
-            if planned_ho_q is not None:
-                _align_to_planned_config(
-                    system, current_arm, other_arm, current_robot,
-                    planned_ho_q, rrt_vis, exp_cfg.execution.smoothen,
-                    gripper_action=1.0, label="post-handover planned config",
-                )
         else:
             # No more handovers -- execute final segment
             current_idx = execute_final_segment(
