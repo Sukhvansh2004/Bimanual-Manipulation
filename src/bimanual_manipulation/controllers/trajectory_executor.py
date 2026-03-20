@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Optional
 
 import mink
 from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
+import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -128,7 +129,21 @@ class TrajectoryExecutor:
 
         site_name = f"gripper{ctrl.robot_id}_{ctrl.arm_id}_ft_frame"
 
+        # Clip qpos to joint limits to avoid numerical errors
+        # triggering mink's internal limit checks.
         q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
+        for j in range(model_native.njnt):
+            if model_native.jnt_limited[j]:
+                qadr = model_native.jnt_qposadr[j]
+                if model_native.jnt_type[j] in [
+                    mujoco.mjtJoint.mjJNT_HINGE,
+                    mujoco.mjtJoint.mjJNT_SLIDE,
+                ]:
+                    q_full[qadr] = np.clip(
+                        q_full[qadr],
+                        model_native.jnt_range[j, 0],
+                        model_native.jnt_range[j, 1],
+                    )
         config = mink.Configuration(model_native, q=q_full)
 
         frame_task = mink.FrameTask(
@@ -260,6 +275,19 @@ class TrajectoryExecutor:
             frame_task.set_target(target_se3)
 
             q_actual = np.array(data.qpos, copy=True, dtype=float).ravel()
+            # Clip to joint limits (simulation can drift slightly beyond).
+            for j in range(model_native.njnt):
+                if model_native.jnt_limited[j]:
+                    qadr = model_native.jnt_qposadr[j]
+                    if model_native.jnt_type[j] in [
+                        mujoco.mjtJoint.mjJNT_HINGE,
+                        mujoco.mjtJoint.mjJNT_SLIDE,
+                    ]:
+                        q_actual[qadr] = np.clip(
+                            q_actual[qadr],
+                            model_native.jnt_range[j, 0],
+                            model_native.jnt_range[j, 1],
+                        )
             config.update(q=q_actual)
 
             try:
@@ -313,9 +341,10 @@ class TrajectoryExecutor:
                     positions[current_wp_idx] - current_pos,
                 )
                 logger.debug(
-                    "mink step %d/%d, wp %d/%d, pos_err=%.4f",
+                    "mink step %d/%d, wp %d/%d, pos_err=%.4f, arm_action_norm=%.4f, gripper_action=%d",
                     steps_taken, max_steps,
                     current_wp_idx, num_waypoints - 1, pos_err,
+                    np.linalg.norm(robot_action[:-1]), robot_action[-1],
                 )
 
         # Final report

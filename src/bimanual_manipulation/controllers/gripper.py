@@ -54,6 +54,7 @@ class RobosuiteGripperController:
         """
         if self.is_suction:
             # For suction, "Open" means Release (Suction Off)
+            logger.debug(f"Releasing suction gripper of arm {self.arm_id} of robot {self.robot_id}")
             self._send_gripper_action(-1)
         else:
             # For parallel jaw: map width [0.0, 1.0] to action [1.0, -1.0]
@@ -71,6 +72,7 @@ class RobosuiteGripperController:
         """
         if self.is_suction:
             # For suction, "Close" means Grasp (Suction On)
+            logger.debug(f"Grasping with suction gripper of arm {self.arm_id} of robot {self.robot_id}")
             self._send_gripper_action(1)
         else:
             # For parallel jaw: map width [0.0, 1.0] to action [1.0, -1.0]
