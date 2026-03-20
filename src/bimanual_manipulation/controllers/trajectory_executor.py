@@ -19,6 +19,11 @@ from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.planning.utils import mujoco_utils as mu
+from bimanual_manipulation.planning.utils.mujoco_utils import (
+    get_robot_collision_geoms,
+    get_object_collision_geoms,
+    get_environment_collision_geoms,
+)
 from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
 
@@ -56,6 +61,8 @@ class TrajectoryExecutor:
         dt: float = constants.TRAJECTORY_TIME_STEP,
         threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
         q_warm_start: Optional[np.ndarray] = None,
+        collision_check: bool = False,
+        manipulated_object: Optional[str] = None,
     ) -> bool:
         """Execute a trajectory using mink's reactive differential IK.
 
@@ -72,6 +79,12 @@ class TrajectoryExecutor:
             threshold: Convergence threshold on final-waypoint error.
             q_warm_start: Optional warm-start joint config ``(7,)`` for the
                 posture task.  Biases the QP toward this configuration.
+            collision_check: If ``True``, add a
+                ``mink.CollisionAvoidanceLimit`` to the QP so the arm
+                avoids other robots, the manipulated object, and
+                static environment geometry.
+            manipulated_object: Name of the grasped/manipulated object
+                (used to build object collision geom pairs).
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -161,10 +174,66 @@ class TrajectoryExecutor:
             else None
         )
 
+        # ── Collision avoidance limit ─────────────────────────────────
+        collision_limit: Optional[mink.CollisionAvoidanceLimit] = None
+        if collision_check:
+            self_geoms = get_robot_collision_geoms(model_native, ctrl.robot_id)
+            # Collect geoms of all *other* robots present in the env.
+            other_robot_ids = [
+                i for i in range(len(ctrl.env.robots))
+                if i != ctrl.robot_id
+            ]
+            other_geoms: list[str] = []
+            for rid in other_robot_ids:
+                other_geoms.extend(
+                    get_robot_collision_geoms(model_native, rid),
+                )
+            obj_geoms = get_object_collision_geoms(
+                model_native, manipulated_object,
+            )
+            all_robot_ids = [ctrl.robot_id] + other_robot_ids
+            env_geoms = get_environment_collision_geoms(
+                model_native,
+                robot_ids=all_robot_ids,
+                object_name=manipulated_object,
+            )
+
+            geom_pairs: list[tuple] = []
+            if self_geoms and other_geoms:
+                geom_pairs.append((self_geoms, other_geoms))
+            if self_geoms and obj_geoms:
+                geom_pairs.append((self_geoms, obj_geoms))
+            if self_geoms and env_geoms:
+                geom_pairs.append((self_geoms, env_geoms))
+
+            if geom_pairs:
+                collision_limit = mink.CollisionAvoidanceLimit(
+                    model=model_native,
+                    geom_pairs=geom_pairs,
+                    gain=constants.MINK_COLLISION_GAIN,
+                    minimum_distance_from_collisions=constants.MINK_COLLISION_MIN_DIST,
+                    collision_detection_distance=constants.MINK_COLLISION_DETECT_DIST,
+                )
+                logger.info(
+                    "mink CollisionAvoidanceLimit (traj executor): "
+                    "%d geom-pair groups (self=%d, other=%d, "
+                    "object=%d, env=%d geoms)",
+                    len(geom_pairs), len(self_geoms),
+                    len(other_geoms), len(obj_geoms),
+                    len(env_geoms),
+                )
+            else:
+                logger.warning(
+                    "No collision geom pairs found — "
+                    "collision avoidance disabled for traj executor.",
+                )
+
         tasks: list = [frame_task, posture_task, damping_task]
         if freeze_task is not None:
             tasks.append(freeze_task)
         limits = [vel_limit, config_limit]
+        if collision_limit is not None:
+            limits.append(collision_limit)
 
         # ── Reactive execution loop ───────────────────────────────────
         max_steps = num_waypoints * 2
@@ -199,10 +268,10 @@ class TrajectoryExecutor:
                     solver=constants.MINK_QP_SOLVER,
                     limits=limits,
                 )
-            except Exception:
-                logger.debug(
-                    "mink QP infeasible at step %d, holding position",
-                    steps_taken,
+            except Exception as exc_primary:
+                logger.warning(
+                    "mink.solve_ik failed at step %d, waypoint %d: %s",
+                    steps_taken, current_wp_idx, str(exc_primary),
                 )
                 vel = np.zeros(model_native.nv)
 

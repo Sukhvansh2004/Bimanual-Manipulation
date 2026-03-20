@@ -354,6 +354,8 @@ class RobosuiteArmController:
         dt: float = constants.TRAJECTORY_TIME_STEP,
         num_steps: int = constants.TRAJECTORY_NUM_POINTS,
         q_warm_start: Optional[np.ndarray] = None,
+        collision_check: bool = False,
+        manipulated_object: Optional[str] = None,
     ) -> bool:
         """Move the EEF to a target pose via quintic trajectory.
 
@@ -364,6 +366,9 @@ class RobosuiteArmController:
             dt: Time step between waypoints.
             num_steps: Number of trajectory waypoints.
             q_warm_start: Optional warm-start for IK.
+            collision_check: Enable collision avoidance in the mink QP.
+            manipulated_object: Name of the manipulated object for
+                collision geom pairs.
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -410,6 +415,8 @@ class RobosuiteArmController:
                     gripper_action=gripper_action,
                     dt=dt, threshold=threshold,
                     q_warm_start=q_warm_start,
+                    collision_check=collision_check,
+                    manipulated_object=manipulated_object,
                 )
 
             return self._executor.execute_osc_trajectory(
@@ -429,6 +436,8 @@ class RobosuiteArmController:
         num_steps: Optional[int] = None,
         smoothen: bool = False,
         q_warm_start: Optional[np.ndarray] = None,
+        collision_check: bool = False,
+        manipulated_object: Optional[str] = None,
     ) -> bool:
         """Follow a pre-defined EEF trajectory.
 
@@ -440,6 +449,9 @@ class RobosuiteArmController:
             num_steps: Optional max steps.
             smoothen: Apply quintic smoothing.
             q_warm_start: Optional warm-start for IK.
+            collision_check: Enable collision avoidance in the mink QP.
+            manipulated_object: Name of the manipulated object for
+                collision geom pairs.
 
         Returns:
             ``True`` if reached, ``False`` otherwise.
@@ -487,6 +499,8 @@ class RobosuiteArmController:
                     gripper_action=gripper_action,
                     dt=dt, threshold=threshold,
                     q_warm_start=q_warm_start,
+                    collision_check=collision_check,
+                    manipulated_object=manipulated_object,
                 )
 
             return self._executor.execute_osc_trajectory(
