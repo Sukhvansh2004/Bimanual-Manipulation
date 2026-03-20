@@ -81,6 +81,8 @@ def rrt_connect_joint_space(
     rrt_vis: Optional[RRTVisualizer] = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = None,
+    manipulated_object: Optional[str] = None,
+    check_object_collisions: bool = False,
 ) -> JointRRTResult:
     """Plan a collision-free joint-space path for arm B using RRT-Connect.
 
@@ -171,12 +173,16 @@ def rrt_connect_joint_space(
 
         # ── Arm B geom IDs ────────────────────────────────────────────
         _ensure_geom_caches(model)
-        arm_b_geom_ids = np.array(
-            _get_ids_for_prefixes(
-                [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
-            ),
-            dtype=int,
-        )
+        prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
+        arm_b_geom_ids_list = _get_ids_for_prefixes(prefixes)
+        
+        # If arm B is holding the object, include its geoms in the check
+        if check_object_collisions and manipulated_object:
+            obj_geoms = _get_ids_for_prefixes([manipulated_object])
+            arm_b_geom_ids_list.extend(obj_geoms)
+            logger.info("Including geoms of '%s' in arm B collision checks.", manipulated_object)
+
+        arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
         if len(arm_b_geom_ids) == 0:
             logger.error("No geoms found for robot%d", robot_id_b)
             return JointRRTResult(success=False)

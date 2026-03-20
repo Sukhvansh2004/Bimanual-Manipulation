@@ -49,10 +49,12 @@ from typing import List, Optional, TYPE_CHECKING, Union
 
 import mink
 import numpy as np
+import mujoco
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
+from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.trajectory_math import resample_joint_trajectory
 from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
@@ -127,8 +129,10 @@ class DualArmParallelPlanner:
         collision_check: bool = True,
         manipulated_object: Optional[str] = None,
         rrt_vis: Optional[RRTVisualizer] = None,
+        planning_env: Optional[DualArmEnvironment] = None,
     ):
         self.env = env
+        self.planning_env = planning_env or env
         self.env_lock = env_lock
         self.arm_a = arm_a
         self.arm_b = arm_b
@@ -335,7 +339,6 @@ class DualArmParallelPlanner:
         start_time = time.time()
         qp_fail_count = 0
         consecutive_qp_fails = 0
-        MAX_CONSECUTIVE_QP_FAILS = 30
 
         result = ParallelExecutionResult()
 
@@ -353,6 +356,16 @@ class DualArmParallelPlanner:
             # ── Update mink Configuration with current sim state ──────
             q_full = self.env.sim.data.qpos.copy()
             q_full[m.qpos_idx_a] = target_q_a
+
+            # Clip q_full to joint limits to avoid numerical errors
+            # triggering mink's internal limit checks.
+            nm = m.native_model
+            for j in range(nm.njnt):
+                if nm.jnt_limited[j]:
+                    qadr = nm.jnt_qposadr[j]
+                    if nm.jnt_type[j] in [mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE]:
+                        q_full[qadr] = np.clip(q_full[qadr], nm.jnt_range[j, 0], nm.jnt_range[j, 1])
+
             m.config.update(q=q_full)
 
             # ── Set FrameTask target for arm B ────────────────────────
@@ -384,7 +397,7 @@ class DualArmParallelPlanner:
                 )
                 # Early bail-out when QP fails too many times in a row —
                 # arm B clearly cannot move in this configuration.
-                if consecutive_qp_fails >= MAX_CONSECUTIVE_QP_FAILS:
+                if consecutive_qp_fails >= constants.MAX_CONSECUTIVE_QP_FAILS:
                     logger.warning(
                         "QP failed %d consecutive steps — aborting "
                         "parallel execution early (arm B stuck).",
@@ -394,14 +407,31 @@ class DualArmParallelPlanner:
             else:
                 consecutive_qp_fails = 0
 
-            # ── Move both arms via controller API ─────────────────────
-            # Action persistence keeps the other arm in place.
-            self.arm_a.move_to_joint_config(
-                target_q_a, gripper_action=gripper_a, num_steps=2,
+            # ── Move both arms via unified action (Single env step) ───
+            action_a = self.arm_a.construct_joint_action(
+                target_q_a, gripper_action=gripper_a,
             )
-            self.arm_b.move_to_joint_config(
-                arm_b_joints, gripper_action=gripper_b, num_steps=2,
+            action_b = self.arm_b.construct_joint_action(
+                arm_b_joints, gripper_action=gripper_b,
             )
+
+            # Construct full environment action vector
+            full_action = np.zeros(self.env.action_dim)
+
+            # Offset arm_a robot action
+            offset_a = 0
+            for i in range(self.arm_a.robot_id):
+                offset_a += self.env.robots[i].action_dim
+            full_action[offset_a : offset_a + len(action_a)] = action_a
+
+            # Offset arm_b robot action
+            offset_b = 0
+            for i in range(self.arm_b.robot_id):
+                offset_b += self.env.robots[i].action_dim
+            full_action[offset_b : offset_b + len(action_b)] = action_b
+
+            with ctx:
+                env_step(self.env, full_action)
 
             steps_taken += 1
 
@@ -519,7 +549,7 @@ class DualArmParallelPlanner:
             m.config.integrate_inplace(vel, constants.MINK_DT)
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
-            pass  # fall through to relaxed solve
+            logger.warning("Primary mink solve_ik failed: %s", exc_primary,)
 
         # --- Relaxed fallback (drop collision avoidance) --------------
         limits_relaxed = [
@@ -563,6 +593,15 @@ class DualArmParallelPlanner:
             )
         return normalise_trajectory(target_b)
 
+    def _sync_planning_env(self) -> None:
+        """Synchronize planning environment with execution environment."""
+        if self.env is self.planning_env:
+            return
+        with self.env_lock if self.env_lock else nullcontext():
+            self.planning_env.sim.data.qpos[:] = self.env.sim.data.qpos
+            self.planning_env.sim.data.qvel[:] = self.env.sim.data.qvel
+            self.planning_env.sim.forward()
+
     def _plan_collision_free_trajectory_b(
         self,
         target_pose: StampedPose,
@@ -581,6 +620,7 @@ class DualArmParallelPlanner:
 
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
+        self._sync_planning_env()
 
         # --- Resolve IK goal candidates ---
         # Get an initial solution via the normal pipeline (single best).
@@ -650,7 +690,7 @@ class DualArmParallelPlanner:
         for idx, candidate_q in enumerate(goal_candidates):
             try:
                 rrt_traj, rrt_success = plan_arm_trajectory(
-                    env=self.env,
+                    env=self.planning_env,
                     robot_id_b=self.arm_b.robot_id,
                     start_q=start_q,
                     goal_q=candidate_q,

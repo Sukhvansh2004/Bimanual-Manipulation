@@ -34,6 +34,32 @@ from bimanual_manipulation.planning.utils.mujoco_utils import (
 
 logger = logging.getLogger(__name__)
 
+
+def _build_velocity_dict(
+    model: mujoco.MjModel,
+    joint_ids: List[int],
+) -> dict:
+    """Build a ``{joint_name: max_vel}`` dict for :class:`mink.VelocityLimit`.
+
+    Extracts joint names from the MuJoCo model and maps each to its
+    corresponding Franka velocity limit based on joint index (1-7).
+    """
+    vel_dict: dict = {}
+    for jid in joint_ids:
+        name = model.joint(jid).name
+        # Joint names follow the pattern robot{id}_joint{k} where k=1..7.
+        # Joints 1-4 → 2.175 rad/s, joints 5-7 → 2.610 rad/s.
+        try:
+            k = int(name.rsplit("joint", 1)[1])  # extract joint number
+            vel_dict[name] = np.array([constants.FRANKA_VELOCITY_LIMITS[k - 1]])
+        except (IndexError, ValueError):
+            logger.warning(
+                "Could not determine Franka velocity limit for joint '%s' — skipping.",
+                name,
+            )
+    return vel_dict
+
+
 if TYPE_CHECKING:
     from bimanual_manipulation.controllers.arm import RobosuiteArmController
 
@@ -89,10 +115,22 @@ def build_mink_components(
     jids_b = get_arm_joint_ids(nm, arm_b.robot_id)
     qpos_idx_a = get_joint_qpos_indices(nm, jids_a)
     qpos_idx_b = get_joint_qpos_indices(nm, jids_b)
+    dof_idx_a = [nm.jnt_dofadr[j] for j in jids_a]
     dof_idx_b = [nm.jnt_dofadr[j] for j in jids_b]
 
     # ── mink.Configuration ────────────────────────────────────────────
-    mink_config = mink.Configuration(nm, q=env.sim.data.qpos.copy())
+    # Clip current sim qpos to joint limits before initialising mink config
+    # to avoid numerical errors/QP failures for joints starting exactly
+    # at their limits.
+    q_initial = env.sim.data.qpos.copy()
+    jnt_range = nm.jnt_range
+    for j in range(nm.njnt):
+        if nm.jnt_limited[j]:
+            qadr = nm.jnt_qposadr[j]
+            # Free joints have 7 qpos but we only clip hinges/slides
+            if nm.jnt_type[j] in [mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE]:
+                q_initial[qadr] = np.clip(q_initial[qadr], jnt_range[j, 0], jnt_range[j, 1])
+    mink_config = mink.Configuration(nm, q=q_initial)
 
     # ── FrameTask for arm B's end-effector ────────────────────────────
     eef_body_name = arm_b._eef_body_name()
@@ -118,7 +156,11 @@ def build_mink_components(
         freeze_task = mink.DofFreezingTask(model=nm, dof_indices=frozen_dofs)
 
     # ── Velocity / configuration limits ───────────────────────────────
-    vel_limit = mink.VelocityLimit(nm)
+    # Build a velocity-limit dict from the model's joint names.
+    # mink.VelocityLimit expects a dict mapping joint name → max velocity.
+    vel_dict = _build_velocity_dict(nm, jids_a)
+    vel_dict.update(_build_velocity_dict(nm, jids_b))
+    vel_limit = mink.VelocityLimit(nm, velocities=vel_dict)
     config_limit = mink.ConfigurationLimit(nm)
 
     # ── Collision avoidance limit ─────────────────────────────────────

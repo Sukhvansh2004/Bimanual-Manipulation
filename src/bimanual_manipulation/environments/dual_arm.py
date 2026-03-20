@@ -266,10 +266,14 @@ class DualArmEnvironment(TwoArmEnv):
         # Use robosuite's standard pattern: obj.root_body returns the correctly prefixed name
         # See: robosuite/environments/manipulation/lift.py, pick_place.py, nut_assembly.py
         self.object_body_ids = {}
-        for name, obj, _, _, _ in self._added_objects:
+        self.static_object_body_ids = set()
+        for name, obj, _, _, is_static in self._added_objects:
             try:
-                self.object_body_ids[name] = self.sim.model.body_name2id(obj.root_body)
-                logger.debug(f"Object '{name}' -> body '{obj.root_body}' -> id {self.object_body_ids[name]}")
+                body_id = self.sim.model.body_name2id(obj.root_body)
+                self.object_body_ids[name] = body_id
+                if is_static:
+                    self.static_object_body_ids.add(body_id)
+                logger.debug(f"Object '{name}' -> body '{obj.root_body}' -> id {body_id} (static={is_static})")
             except ValueError as e:
                 logger.warning(f"Could not find body for '{name}' (root_body='{obj.root_body}'): {e}")
 

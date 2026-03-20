@@ -643,9 +643,34 @@ else:
             break
 ```
 
-## Implementation Details
+## Execution Stability and the "Twin Environment"
 
-### Inverse Kinematics (IK)
+To ensure simulation stability and a clean visual experience during execution, the system employs a **Twin Environment** architecture.
+
+### 1. Isolated Planning Environment ("Twin Env")
+
+The `DualArmManipulationSystem` maintains two separate robosuite environment instances:
+- **Execution Environment**: The primary environment where the "real" physics and robot control happen. This environment usually has a renderer attached for visualization.
+- **Planning Environment**: A secondary, headless instance used exclusively for internal planning tasks (like RRT pathfinding and IK enumeration).
+
+**Benefits**:
+- **Visual Stability**: RRT planning involves jumping the robots between many candidate configurations. By performing this in a headless twin env, these "wild" movements are invisible to the user watching the execution env.
+- **State Isolation**: Planning queries can freely modify joint positions and object states without risking side effects on the active controllers or physics monitors in the execution environment.
+
+**Synchronization**:
+Before any planning task starts, the system calls `sync_planning_env()`, which copies the full state (`qpos`, `qvel`, and equality constraints like suction welds) from the execution env to the planning env.
+
+### 2. Constraint-Aware Collision Checking
+
+When checking collisions during planning (e.g., in `check_arm_config_collision`), the system now uses `mujoco.mj_forward` instead of just `mj_fwdPosition`. 
+
+This ensures that:
+- **Equality Constraints (Welds)** are resolved. If a robot is holding an object via a suction weld, the object will correctly move with the robot arm during collision checks.
+- **Object Volume** is accounted for. The RRT planner can be configured to include the held object's geometry in the collision mask, ensuring that the planned path is safe for both the robot and the object it carries.
+
+### 3. Synchronized Parallel Stepping
+
+In the `DualArmParallelPlanner`, the simulation is stepped exactly once per iteration with a combined action vector for both robots. This fixes previous "double-stepping" bugs where each robot's controller would advance the simulation independently, leading to abrupt movements and physics instabilities.
 
 The module uses EAIK (Efficient Analytical Inverse Kinematics) for closed-form IK solving via `enumerate_ik_solutions_eaik`, wrapped by `enumerate_ik_solutions_for_arm`. The 7-DOF Panda is reduced to 6-DOF by sweeping a locked joint across its range, yielding up to 8 exact solutions per locked value. This approach adds robustness by:
 - Sweeping the redundant joint across its range (`EAIK_NUM_SWEEP_VALUES = 20`)

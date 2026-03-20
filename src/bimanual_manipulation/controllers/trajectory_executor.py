@@ -14,11 +14,17 @@ from typing import TYPE_CHECKING, Optional
 
 import mink
 from mink.lie import SE3 as MinkSE3, SO3 as MinkSO3
+import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.utils import mujoco_utils as _mu
+from bimanual_manipulation.planning.utils import mujoco_utils as mu
+from bimanual_manipulation.planning.utils.mujoco_utils import (
+    get_robot_collision_geoms,
+    get_object_collision_geoms,
+    get_environment_collision_geoms,
+)
 from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
 
@@ -55,6 +61,9 @@ class TrajectoryExecutor:
         gripper_action: float = 0.0,
         dt: float = constants.TRAJECTORY_TIME_STEP,
         threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+        q_warm_start: Optional[np.ndarray] = None,
+        collision_check: bool = False,
+        manipulated_object: Optional[str] = None,
     ) -> bool:
         """Execute a trajectory using mink's reactive differential IK.
 
@@ -69,6 +78,14 @@ class TrajectoryExecutor:
             gripper_action: Gripper command during execution.
             dt: Wall-clock time between steps.
             threshold: Convergence threshold on final-waypoint error.
+            q_warm_start: Optional warm-start joint config ``(7,)`` for the
+                posture task.  Biases the QP toward this configuration.
+            collision_check: If ``True``, add a
+                ``mink.CollisionAvoidanceLimit`` to the QP so the arm
+                avoids other robots, the manipulated object, and
+                static environment geometry.
+            manipulated_object: Name of the grasped/manipulated object
+                (used to build object collision geom pairs).
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -104,15 +121,29 @@ class TrajectoryExecutor:
         # ── Build mink objects ────────────────────────────────────────
         model = ctrl.env.sim.model
         data = ctrl.env.sim.data
-        model_native = _mu.get_native_mj_object(model)
+        model_native = mu.get_native_mj_object(model)
 
-        joint_ids = _mu.get_arm_joint_ids(model, ctrl.robot_id)
-        arm_qpos_idx = _mu.get_joint_qpos_indices(model, joint_ids)
-        arm_dof_idx = _mu.get_joint_dof_indices(model, joint_ids)
+        joint_ids = mu.get_arm_joint_ids(model, ctrl.robot_id)
+        arm_qpos_idx = mu.get_joint_qpos_indices(model, joint_ids)
+        arm_dof_idx = mu.get_joint_dof_indices(model, joint_ids)
 
         site_name = f"gripper{ctrl.robot_id}_{ctrl.arm_id}_ft_frame"
 
+        # Clip qpos to joint limits to avoid numerical errors
+        # triggering mink's internal limit checks.
         q_full = np.array(data.qpos, copy=True, dtype=float).ravel()
+        for j in range(model_native.njnt):
+            if model_native.jnt_limited[j]:
+                qadr = model_native.jnt_qposadr[j]
+                if model_native.jnt_type[j] in [
+                    mujoco.mjtJoint.mjJNT_HINGE,
+                    mujoco.mjtJoint.mjJNT_SLIDE,
+                ]:
+                    q_full[qadr] = np.clip(
+                        q_full[qadr],
+                        model_native.jnt_range[j, 0],
+                        model_native.jnt_range[j, 1],
+                    )
         config = mink.Configuration(model_native, q=q_full)
 
         frame_task = mink.FrameTask(
@@ -127,25 +158,97 @@ class TrajectoryExecutor:
         posture_task = mink.PostureTask(
             model=model_native, cost=constants.MINK_POSTURE_COST,
         )
-        posture_task.set_target(q_full)
+        # Use warm-start config as the posture target so the QP biases
+        # the IK solution toward the desired joint configuration.
+        if q_warm_start is not None:
+            q_posture = q_full.copy()
+            q_posture[arm_qpos_idx] = q_warm_start
+            posture_task.set_target(q_posture)
+        else:
+            posture_task.set_target(q_full)
 
         damping_task = mink.DampingTask(
             model_native, cost=constants.MINK_DAMPING_COST,
         )
-        vel_limit = mink.VelocityLimit(model_native)
+        # Build per-joint velocity limits from joint names in the model.
+        vel_dict: dict = {}
+        for jid in joint_ids:
+            name = model_native.joint(jid).name
+            try:
+                k = int(name.rsplit("joint", 1)[1])
+                vel_dict[name] = np.array([constants.FRANKA_VELOCITY_LIMITS[k - 1]])
+            except (IndexError, ValueError):
+                pass
+        vel_limit = mink.VelocityLimit(model_native, velocities=vel_dict)
         config_limit = mink.ConfigurationLimit(model_native)
 
-        frozen_dofs = _mu.get_frozen_dof_indices(model_native, arm_dof_idx)
+        frozen_dofs = mu.get_frozen_dof_indices(model_native, arm_dof_idx)
         freeze_task = (
             mink.DofFreezingTask(model_native, dof_indices=frozen_dofs)
             if frozen_dofs
             else None
         )
 
+        # ── Collision avoidance limit ─────────────────────────────────
+        collision_limit: Optional[mink.CollisionAvoidanceLimit] = None
+        if collision_check:
+            self_geoms = get_robot_collision_geoms(model_native, ctrl.robot_id)
+            # Collect geoms of all *other* robots present in the env.
+            other_robot_ids = [
+                i for i in range(len(ctrl.env.robots))
+                if i != ctrl.robot_id
+            ]
+            other_geoms: list[str] = []
+            for rid in other_robot_ids:
+                other_geoms.extend(
+                    get_robot_collision_geoms(model_native, rid),
+                )
+            obj_geoms = get_object_collision_geoms(
+                model_native, manipulated_object,
+            )
+            all_robot_ids = [ctrl.robot_id] + other_robot_ids
+            env_geoms = get_environment_collision_geoms(
+                model_native,
+                robot_ids=all_robot_ids,
+                object_name=manipulated_object,
+            )
+
+            geom_pairs: list[tuple] = []
+            if self_geoms and other_geoms:
+                geom_pairs.append((self_geoms, other_geoms))
+            if self_geoms and obj_geoms:
+                geom_pairs.append((self_geoms, obj_geoms))
+            if self_geoms and env_geoms:
+                geom_pairs.append((self_geoms, env_geoms))
+
+            if geom_pairs:
+                collision_limit = mink.CollisionAvoidanceLimit(
+                    model=model_native,
+                    geom_pairs=geom_pairs,
+                    gain=constants.MINK_COLLISION_GAIN,
+                    minimum_distance_from_collisions=constants.MINK_COLLISION_MIN_DIST,
+                    collision_detection_distance=constants.MINK_COLLISION_DETECT_DIST,
+                )
+                logger.info(
+                    "mink CollisionAvoidanceLimit (traj executor): "
+                    "%d geom-pair groups (self=%d, other=%d, "
+                    "object=%d, env=%d geoms)",
+                    len(geom_pairs), len(self_geoms),
+                    len(other_geoms), len(obj_geoms),
+                    len(env_geoms),
+                )
+            else:
+                logger.warning(
+                    "No collision geom pairs found — "
+                    "collision avoidance disabled for traj executor.",
+                )
+
         tasks: list = [frame_task, posture_task, damping_task]
         if freeze_task is not None:
             tasks.append(freeze_task)
         limits = [vel_limit, config_limit]
+        if collision_limit is not None:
+            limits.append(collision_limit)
 
         # ── Reactive execution loop ───────────────────────────────────
         max_steps = num_waypoints * 2
@@ -172,6 +275,19 @@ class TrajectoryExecutor:
             frame_task.set_target(target_se3)
 
             q_actual = np.array(data.qpos, copy=True, dtype=float).ravel()
+            # Clip to joint limits (simulation can drift slightly beyond).
+            for j in range(model_native.njnt):
+                if model_native.jnt_limited[j]:
+                    qadr = model_native.jnt_qposadr[j]
+                    if model_native.jnt_type[j] in [
+                        mujoco.mjtJoint.mjJNT_HINGE,
+                        mujoco.mjtJoint.mjJNT_SLIDE,
+                    ]:
+                        q_actual[qadr] = np.clip(
+                            q_actual[qadr],
+                            model_native.jnt_range[j, 0],
+                            model_native.jnt_range[j, 1],
+                        )
             config.update(q=q_actual)
 
             try:
@@ -180,10 +296,10 @@ class TrajectoryExecutor:
                     solver=constants.MINK_QP_SOLVER,
                     limits=limits,
                 )
-            except Exception:
-                logger.debug(
-                    "mink QP infeasible at step %d, holding position",
-                    steps_taken,
+            except Exception as exc_primary:
+                logger.warning(
+                    "mink.solve_ik failed at step %d, waypoint %d: %s",
+                    steps_taken, current_wp_idx, str(exc_primary),
                 )
                 vel = np.zeros(model_native.nv)
 
@@ -225,9 +341,10 @@ class TrajectoryExecutor:
                     positions[current_wp_idx] - current_pos,
                 )
                 logger.debug(
-                    "mink step %d/%d, wp %d/%d, pos_err=%.4f",
+                    "mink step %d/%d, wp %d/%d, pos_err=%.4f, arm_action_norm=%.4f, gripper_action=%d",
                     steps_taken, max_steps,
                     current_wp_idx, num_waypoints - 1, pos_err,
+                    np.linalg.norm(robot_action[:-1]), robot_action[-1],
                 )
 
         # Final report
@@ -262,7 +379,6 @@ class TrajectoryExecutor:
         gripper_action: float = 0.0,
         dt: float = constants.TRAJECTORY_TIME_STEP,
         threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
-        q_warm_start: Optional[np.ndarray] = None,
     ) -> bool:
         """Execute a trajectory using OSC (delta/absolute) commands.
 
@@ -272,7 +388,6 @@ class TrajectoryExecutor:
             gripper_action: Gripper command during execution.
             dt: Wall-clock time between steps.
             threshold: Convergence threshold.
-            q_warm_start: Optional warm-start joint config for IK.
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
@@ -283,7 +398,6 @@ class TrajectoryExecutor:
         current_waypoint_idx = 0
         steps_taken = 0
         start_time = time.time()
-        _ik_ws = q_warm_start
 
         while steps_taken < max_steps:
             if ctrl._stop_event.is_set():
@@ -310,7 +424,6 @@ class TrajectoryExecutor:
                 target_pos_step, target_quat_step,
                 gripper_action=gripper_action,
                 current_pos=current_pos, current_quat=current_quat,
-                q_warm_start=_ik_ws,
             )
 
             if robot_action is None:
@@ -326,7 +439,6 @@ class TrajectoryExecutor:
                     robot_id=ctrl.robot_id, arm=ctrl.arm_id,
                 )
 
-            _ik_ws = None
             steps_taken += 1
 
             elapsed = time.time() - start_time

@@ -136,7 +136,11 @@ COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 # MuJoCo ``contact.dist`` is negative for penetration; a threshold of
 # 1e-3 m (1 mm) ignores light touches and only counts contacts with
 # meaningful penetration.
-COLLISION_MONITOR_MIN_DEPTH = 1e-6  # metres
+COLLISION_MONITOR_MIN_DEPTH = 0.001  # metres (1mm)
+
+# Object Trajectory Monitor — tracks actual object pose vs. planned during
+# execution.  Logs every N env_step calls to keep output manageable.
+OBJECT_MONITOR_LOG_INTERVAL = 20     # env steps between debug log entries
 
 # Dual-Arm Feasibility Parameters
 DUAL_ARM_MAX_PAIRS = 256  # Maximum pairs to check for dual-arm feasibility
@@ -188,7 +192,7 @@ MINK_QP_SOLVER = "proxqp"
 # ── FrameTask ──
 MINK_POSITION_COST = 1.0       # position tracking weight
 MINK_ORIENTATION_COST = 1.0    # orientation tracking weight
-MINK_FRAME_GAIN = 0.5          # convergence gain (0, 1]; lower = smoother
+MINK_FRAME_GAIN = 0.8          # convergence gain (0, 1]; lower = smoother
 MINK_LM_DAMPING = 1.0          # Levenberg-Marquardt singularity damping
 
 # ── PostureTask ──
@@ -198,11 +202,12 @@ MINK_POSTURE_COST = 1e-3       # bias toward a reference configuration
 MINK_DAMPING_COST = 1e-4       # minimum-norm regulariser
 
 # ── Integration timestep ──
-MINK_DT = 0.01                 # seconds per QP solve (reactive tracking)
+MINK_DT = 0.05                 # seconds per QP solve (reactive tracking)
 MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
+MAX_CONSECUTIVE_QP_FAILS = 30       # Max consecutive QP failures before aborting reactive tracking
 
 # ── CollisionAvoidanceLimit ──
-MINK_COLLISION_MIN_DIST = 0.005     # minimum distance between geoms (metres)
+MINK_COLLISION_MIN_DIST = 0.002     # minimum distance between geoms (metres)
 MINK_COLLISION_DETECT_DIST = 0.05   # distance at which constraints activate
 MINK_COLLISION_GAIN = 0.85          # how fast geoms may approach each other
 
@@ -263,6 +268,19 @@ COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of ret
 HANDOVER_EARLY_EXIT_ON_IK_FAILURE = True
 HANDOVER_EARLY_EXIT_ON_COLLISION = True
 
+# =============================================================================
+# Primitives
+# =============================================================================
+
+HANDOVER_PRE_ALIGN_DISTANCE = 0.10  # Distance to pre-align object before handover (meters)
+HANDOVER_RETREAT_DISTANCE = 0.05    # Distance to retreat after handover (meters)
+HANDOVER_APPROACH_STEPS = 50        # Number of steps for handover approach phase
+HANDOVER_RAMP_STEPS = 60             # Number of steps for handover force ramp
+HANDOVER_RETREAT_STEPS = 30          # Number of steps for handover retreat phase
+HANDOVER_PRE_ALIGN_AXIS = '-z'       # Axis along which to pre-align object (e.g. '-z' for vertical)
+HANDOVER_RETREAT_AXIS = '-z'         # Axis along which to retreat after handover
+HANDOVER_GRASP_STEPS = 25            # Number of steps to execute the grasp during handover
+HANDOVER_SETTLE_TIME = 0.1           # Time to wait after handover before retreating (seconds)
 
 # =============================================================================
 # Control and Trajectory Configuration
@@ -289,12 +307,6 @@ TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movemen
 
 # Joint-space convergence (used by arm controller & dual-arm planner)
 JOINT_CONVERGENCE_THRESHOLD = 0.05  # L-inf joint error (rad) for declaring convergence
-
-# Maximum per-step joint displacement (rad) — clamps commands to prevent
-# violent jerky movements near singularities or with large RRT waypoint gaps.
-# Franka real-world limits are ~2.175 rad/s for joints 1-4 and ~2.61 rad/s
-# for joints 5-7.  At 20 Hz control rate → ~0.1 rad/step is conservative.
-MAX_JOINT_DELTA_PER_STEP = 0.15  # rad (~8.6° per step)
 
 # Gripper width limits (normalized)
 GRIPPER_OPEN_WIDTH = 1.0
@@ -413,6 +425,10 @@ CONTROLLER_ACTION_DIMS = {
     ControllerName.OSC_POSE: 6,        # [x, y, z, rx, ry, rz]
     ControllerName.JOINT_POSITION: 7,  # [j1, j2, j3, j4, j5, j6, j7]
 }
+
+# Franka Panda joint velocity limits (rad/s)
+# Joints 1-4: 2.175 rad/s, Joints 5-7: 2.610 rad/s
+FRANKA_VELOCITY_LIMITS = np.array([2.175, 2.175, 2.175, 2.175, 2.610, 2.610, 2.610])
 
 # Default home joint configuration for Franka Panda (radians)
 FRANKA_HOME_JOINT_POSITION = np.array([

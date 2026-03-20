@@ -551,6 +551,151 @@ def get_collision_count() -> int:
     return _collision_monitor.collision_count
 
 
+# =============================================================================
+# Object Trajectory Monitor — logs actual vs planned object pose during execution
+# =============================================================================
+
+class ObjectTrajectoryMonitor:
+    """Tracks the manipulated object's actual trajectory vs the planned one.
+
+    When enabled (via :func:`start_object_monitor`), ``env_step`` calls
+    :meth:`check` after every simulation step.  Every
+    ``constants.OBJECT_MONITOR_LOG_INTERVAL`` steps the monitor emits a
+    DEBUG log with the object's current position and the error relative
+    to the nearest planned waypoint.
+
+    On :meth:`stop`, returns the full recorded actual trajectory, the
+    planned trajectory, and aggregate error statistics.
+    """
+
+    def __init__(self):
+        self._enabled = False
+        self._object_name: Optional[str] = None
+        self._step_count = 0
+        self._planned_positions: Optional[np.ndarray] = None  # (N, 3)
+        self._actual_positions: List[np.ndarray] = []          # recorded (M, 3)
+
+    def start(
+        self,
+        object_name: str,
+        planned_positions: Optional[np.ndarray] = None,
+    ):
+        """Enable monitoring for *object_name*.
+
+        Args:
+            object_name: MuJoCo object name (e.g. ``"flatPlate"``).
+            planned_positions: Optional ``(N, 3)`` array of planned
+                object xyz positions.
+        """
+        self._enabled = True
+        self._object_name = object_name
+        self._step_count = 0
+        self._planned_positions = planned_positions
+        self._actual_positions = []
+
+    def stop(self) -> dict:
+        """Disable monitoring and return a summary dict.
+
+        Returns a dict with:
+            actual_trajectory: (M, 3) recorded positions.
+            planned_trajectory: (N, 3) planned positions (or None).
+            mean_tracking_error: mean nearest-waypoint error (m).
+            max_tracking_error: max nearest-waypoint error (m).
+            total_steps: number of env steps recorded.
+        """
+        self._enabled = False
+
+        actual = np.array(self._actual_positions) if self._actual_positions else np.empty((0, 3))
+        planned = self._planned_positions
+
+        mean_err = 0.0
+        max_err = 0.0
+        if planned is not None and len(planned) > 0 and len(actual) > 0:
+            # For each actual position find the nearest planned waypoint
+            errors = []
+            for pos in actual:
+                dists = np.linalg.norm(planned - pos, axis=1)
+                errors.append(float(np.min(dists)))
+            mean_err = float(np.mean(errors))
+            max_err = float(np.max(errors))
+
+        summary = {
+            "actual_trajectory": actual,
+            "planned_trajectory": planned,
+            "mean_tracking_error": mean_err,
+            "max_tracking_error": max_err,
+            "total_steps": self._step_count,
+        }
+
+        if planned is not None and len(planned) > 0 and len(actual) > 0:
+            logger.info(
+                "Object monitor summary: mean_err=%.4f m, max_err=%.4f m "
+                "over %d steps.",
+                mean_err, max_err, self._step_count,
+            )
+        else:
+            logger.info(
+                "Object monitor summary: %d steps recorded (no planned trajectory for comparison).",
+                self._step_count,
+            )
+        return summary
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def check(self, env: DualArmEnvironment):
+        """Called by ``env_step`` after each simulation step."""
+        if not self._enabled or self._object_name is None:
+            return
+        self._step_count += 1
+
+        pose = env.get_object_pose(self._object_name)
+        if pose is None:
+            return
+        pos = pose[:3, 3].copy()
+        self._actual_positions.append(pos)
+
+        # Periodic debug log
+        if self._step_count % constants.OBJECT_MONITOR_LOG_INTERVAL == 0:
+            msg = (
+                "Object '%s' step %d: pos=[%.4f, %.4f, %.4f]"
+            )
+            args: list = [
+                self._object_name, self._step_count,
+                pos[0], pos[1], pos[2],
+            ]
+            if self._planned_positions is not None and len(self._planned_positions) > 0:
+                dists = np.linalg.norm(self._planned_positions - pos, axis=1)
+                nearest_idx = int(np.argmin(dists))
+                nearest_err = float(dists[nearest_idx])
+                msg += ", nearest_planned_wp=%d (err=%.4f m)"
+                args.extend([nearest_idx, nearest_err])
+            logger.debug(msg, *args)
+
+
+# Global object trajectory monitor instance
+_object_monitor = ObjectTrajectoryMonitor()
+
+
+def start_object_monitor(
+    object_name: str,
+    planned_positions: Optional[np.ndarray] = None,
+):
+    """Enable object trajectory monitoring in ``env_step``.
+
+    Args:
+        object_name: Name of the manipulated object.
+        planned_positions: Optional ``(N, 3)`` planned xyz trajectory.
+    """
+    _object_monitor.start(object_name, planned_positions)
+
+
+def stop_object_monitor() -> dict:
+    """Disable monitoring and return a summary dict."""
+    return _object_monitor.stop()
+
+
 def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
     """Handles full action construction with gripper and arm action persistence.
     
@@ -707,6 +852,9 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
 
     # Collision monitoring (no-op when monitor is disabled)
     _collision_monitor.check(env)
+
+    # Object trajectory monitoring (no-op when monitor is disabled)
+    _object_monitor.check(env)
 
     return obs
 
