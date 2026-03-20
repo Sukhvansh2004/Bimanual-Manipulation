@@ -830,17 +830,7 @@ def _recover_arm_b(
     if ok:
         return
 
-    # Final fallback -- direct move_to_pose
-    logger.info("Attempting move_to_pose fallback for arm B...")
-    fallback_ok = other_arm.move_to_pose(
-        target_pose, gripper_action=-1.0,
-        num_steps=200, q_warm_start=q_warm_start,
-    )
-    if fallback_ok:
-        logger.info("move_to_pose recovery succeeded.")
-    else:
-        logger.warning("move_to_pose recovery also failed - handover likely to fail.")
-
+    logger.warning("Recovery failed: arm B could not reach receiver pre-pose.")
 
 def execute_handover_sequence(
     system: DualArmManipulationSystem,

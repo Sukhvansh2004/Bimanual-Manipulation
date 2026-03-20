@@ -338,7 +338,6 @@ class DualArmParallelPlanner:
         steps_taken = 0
         start_time = time.time()
         qp_fail_count = 0
-        consecutive_qp_fails = 0
 
         result = ParallelExecutionResult()
 
@@ -388,24 +387,12 @@ class DualArmParallelPlanner:
                 # the QP resume once arm A moves away.
                 arm_b_joints = q_full[m.qpos_idx_b].copy()
                 qp_fail_count += 1
-                consecutive_qp_fails += 1
                 logger.debug(
                     "mink QP failed at step %d — holding arm B position "
                     "(ref drift=%.3f rad).",
                     steps_taken,
                     float(np.max(np.abs(arm_b_joints - ref_q_b))),
                 )
-                # Early bail-out when QP fails too many times in a row —
-                # arm B clearly cannot move in this configuration.
-                if consecutive_qp_fails >= constants.MAX_CONSECUTIVE_QP_FAILS:
-                    logger.warning(
-                        "QP failed %d consecutive steps — aborting "
-                        "parallel execution early (arm B stuck).",
-                        consecutive_qp_fails,
-                    )
-                    break
-            else:
-                consecutive_qp_fails = 0
 
             # ── Move both arms via unified action (Single env step) ───
             action_a = self.arm_a.construct_joint_action(
