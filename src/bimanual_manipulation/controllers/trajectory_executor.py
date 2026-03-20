@@ -18,7 +18,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.utils import mujoco_utils as _mu
+from bimanual_manipulation.planning.utils import mujoco_utils as mu
 from bimanual_manipulation.utils.env_utils import env_step
 from bimanual_manipulation.utils.se3 import pose_to_SE3
 
@@ -107,11 +107,11 @@ class TrajectoryExecutor:
         # ── Build mink objects ────────────────────────────────────────
         model = ctrl.env.sim.model
         data = ctrl.env.sim.data
-        model_native = _mu.get_native_mj_object(model)
+        model_native = mu.get_native_mj_object(model)
 
-        joint_ids = _mu.get_arm_joint_ids(model, ctrl.robot_id)
-        arm_qpos_idx = _mu.get_joint_qpos_indices(model, joint_ids)
-        arm_dof_idx = _mu.get_joint_dof_indices(model, joint_ids)
+        joint_ids = mu.get_arm_joint_ids(model, ctrl.robot_id)
+        arm_qpos_idx = mu.get_joint_qpos_indices(model, joint_ids)
+        arm_dof_idx = mu.get_joint_dof_indices(model, joint_ids)
 
         site_name = f"gripper{ctrl.robot_id}_{ctrl.arm_id}_ft_frame"
 
@@ -154,7 +154,7 @@ class TrajectoryExecutor:
         vel_limit = mink.VelocityLimit(model_native, velocities=vel_dict)
         config_limit = mink.ConfigurationLimit(model_native)
 
-        frozen_dofs = _mu.get_frozen_dof_indices(model_native, arm_dof_idx)
+        frozen_dofs = mu.get_frozen_dof_indices(model_native, arm_dof_idx)
         freeze_task = (
             mink.DofFreezingTask(model_native, dof_indices=frozen_dofs)
             if frozen_dofs
