@@ -198,3 +198,113 @@ class TestTrajectoryPlanning:
             max_displacement = max(max_displacement, displacement)
         
         assert max_displacement < 0.02, f"Max displacement {max_displacement} exceeds limit"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Extended SE(3) tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestSE3Extended:
+    """Additional edge-case tests for SE(3) utilities."""
+
+    def test_skew_zeros(self):
+        """Skew of zero vector should be zero matrix."""
+        S = skew(np.zeros(3))
+        np.testing.assert_array_equal(S, np.zeros((3, 3)))
+
+    def test_skew_shape(self):
+        """Skew matrix shape should be 3x3."""
+        S = skew(np.array([1, 2, 3]))
+        assert S.shape == (3, 3)
+
+    def test_se3_to_matrix_shape(self):
+        """se(3) matrix should be 4x4."""
+        twist = np.zeros(6)
+        mat = se3_to_matrix(twist)
+        assert mat.shape == (4, 4)
+
+    def test_SE3_exp_identity(self):
+        """exp(zero twist) should give identity."""
+        T = SE3_exp(np.zeros(6))
+        np.testing.assert_array_almost_equal(T, np.eye(4))
+
+    def test_SE3_log_exp_near_180_degrees(self):
+        """Test log/exp near 180-degree rotation (singularity-prone region)."""
+        T = np.eye(4)
+        T[:3, :3] = R.from_euler('x', 179, degrees=True).as_matrix()
+        T[:3, 3] = [0.1, 0.2, 0.3]
+        twist = SE3_log(T)
+        T_recovered = SE3_exp(twist)
+        np.testing.assert_array_almost_equal(T, T_recovered, decimal=6)
+
+    def test_pose_SE3_identity(self):
+        """Identity pose should give identity matrix."""
+        T = pose_to_SE3(np.zeros(3), np.array([0, 0, 0, 1.0]))
+        np.testing.assert_array_almost_equal(T, np.eye(4))
+
+    def test_se3_distance_symmetry(self):
+        """Distance should not depend on sign convention (d(t) >= 0)."""
+        twist = np.array([0.1, -0.2, 0.3, -0.1, 0.4, -0.5])
+        d = compute_se3_distance(twist)
+        assert d >= 0
+
+    def test_se3_distance_zero(self):
+        """Zero twist should have zero distance."""
+        d = compute_se3_distance(np.zeros(6))
+        assert d == 0.0
+
+    def test_se3_distance_weights(self):
+        """Changing weights should scale the distance appropriately."""
+        twist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0])  # Pure 1m x-translation
+        d1 = compute_se3_distance(twist, translation_weight=1.0, rotation_weight=1.0)
+        d2 = compute_se3_distance(twist, translation_weight=2.0, rotation_weight=1.0)
+        assert d2 > d1
+
+
+class TestTrajectoryPlanningExtended:
+    """Additional trajectory planning tests."""
+
+    def test_large_rotation(self):
+        """Trajectory with large rotation (~90 deg) should work."""
+        start_quat = np.array([0.0, 0.0, 0.0, 1.0])
+        target_quat = R.from_euler('z', 90, degrees=True).as_quat()
+        positions, quaternions = plan_quintic_trajectory(
+            np.zeros(3), start_quat,
+            np.zeros(3), target_quat,
+            num_points=50
+        )
+        assert len(positions) == 50
+        # All quaternions should be unit norm
+        norms = np.linalg.norm(quaternions, axis=1)
+        np.testing.assert_allclose(norms, 1.0, atol=1e-6)
+
+    def test_negative_z_motion(self):
+        """Trajectory going downward should work."""
+        positions, quaternions = plan_quintic_trajectory(
+            np.array([0, 0, 1.0]), np.array([0, 0, 0, 1]),
+            np.array([0, 0, 0.5]), np.array([0, 0, 0, 1]),
+            num_points=30
+        )
+        # Z should be monotonically decreasing
+        z_vals = positions[:, 2]
+        diffs = np.diff(z_vals)
+        assert np.all(diffs <= 1e-10), "Z should be monotonically decreasing"
+
+    def test_combined_rotation_translation(self):
+        """Test trajectory with both rotation and translation."""
+        start_pos = np.array([0.0, 0.0, 0.0])
+        start_quat = np.array([0.0, 0.0, 0.0, 1.0])
+        target_pos = np.array([0.5, 0.3, -0.1])
+        target_quat = R.from_euler('xyz', [15, 30, 45], degrees=True).as_quat()
+
+        positions, quaternions = plan_quintic_trajectory(
+            start_pos, start_quat, target_pos, target_quat,
+            num_points=80
+        )
+
+        np.testing.assert_array_almost_equal(positions[0], start_pos, decimal=5)
+        np.testing.assert_array_almost_equal(positions[-1], target_pos, decimal=5)
+        # Verify smooth (no jumps > reasonable threshold)
+        max_jump = max(np.linalg.norm(positions[i] - positions[i - 1])
+                       for i in range(1, len(positions)))
+        assert max_jump < 0.05

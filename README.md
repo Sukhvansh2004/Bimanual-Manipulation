@@ -10,7 +10,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **RRT-Connect Trajectory Planning**: Collision-aware object trajectory planning in SE(3) with MuJoCo-based collision checking
 - **Bézier Curve Smoothing**: Cubic Bézier spline smoothing for positions (R³) and rotations (SO(3) via De Casteljau SLERP)
 - **SE(3) Lie Algebra Utilities**: Proper coupled rotation-translation interpolation on the SE(3) manifold
-- **Experiment Configuration System**: JSON-driven experiment specification with 12 built-in presets
+- **Experiment Configuration System**: JSON-driven experiment specification with 4 main presets (+ 9 extras)
 - **Transforms Module**: ROS tf/tf2-like coordinate frame management
 - **Motion Primitives**: High-level manipulation primitives (handover, grasp, release-retreat)
 - **Microservices Architecture**: Distributed services (FastSAM, Grasp, MoveToPose) with ZMQ interfaces
@@ -18,7 +18,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 - **Teleoperation**: Keyboard-based manual control with robosuite integration
 - **Interactive Shell**: Python REPL for real-time service queries and control
 - **YCB Object Support**: Load objects from the YCB dataset into simulation environments
-- **Comprehensive Test Suite**: 187 pytest tests covering all modules
+- **Comprehensive Test Suite**: Extensive pytest suite covering all modules
 - **Standalone Operation**: Works out-of-the-box without external ROS dependencies
 
 ## Installation
@@ -136,31 +136,41 @@ pip install -e .
 │   │   ├── mesh_utils.py                    # Mesh loading and sampling
 │   │   ├── meshcat_mj_utils.py              # Meshcat ↔ MuJoCo bridge
 │   │   ├── primitives.py                    # DualArmHandoverPlanner, grasp/release primitives
+│   │   ├── trajectory_math.py               # Quintic profiling, joint-space trajectory math
 │   │   └── suction_weld.py                  # Suction gripper weld constraints
 │   ├── models/grippers/                     # Custom gripper models (suction)
 │   ├── assets/                              # Gripper XMLs and mesh files
 │   └── teleop/                              # Keyboard teleoperation
 ├── scripts/
-│   ├── run_all_experiments.py               # Batch experiment runner (--no-meshcat)
-│   ├── planning/                            # Trajectory planning scripts
+│   ├── generate_all_trajs.py                # Batch trajectory generation for all experiments
+│   ├── pipeline/                            # Core planning pipeline scripts
 │   │   ├── trajectory_generation.py         # Single-mode trajectory generation
 │   │   ├── dual_trajectory_generation.py    # Dual-arm trajectory generation
-│   │   ├── segment_assignment.py            # Optimal robot-to-segment assignment
-│   │   └── visualize_robot_trajectory.py    # Trajectory playback & visualization
-│   ├── demos/                               # Demo scripts
+│   │   ├── object_trajectory_generation.py  # Object-only trajectory planning
+│   │   ├── segment_assignment.py            # Optimal robot-to-segment assignment (Viterbi DP)
+│   │   ├── dual_arm_handover_traj.py        # Dual-arm handover with pre-planned trajectories
+│   │   └── find_feasible_pair.py            # Find feasible dual-arm grasp pairs
+│   ├── utils/                               # Utility & visualization scripts
+│   │   ├── dual_arm_manipulation.py         # Full system: services + interactive shell
+│   │   ├── launch_env.py                    # Environment launcher (with YCB objects)
+│   │   ├── visualize_rrt.py                 # RRT planner visualization demo
+│   │   ├── visualize_robot_trajectory.py    # Trajectory playback & visualization
+│   │   └── transform_visualizer_meshcat.py  # Meshcat transform visualizer
+│   ├── demos/                               # Interactive demo scripts
 │   │   ├── go_to_pose.py                    # Arm position control demo
 │   │   ├── gripper_move.py                  # Gripper open/close demo
-│   │   ├── launch_env.py                    # Environment launcher (with YCB objects)
-│   │   └── visualize_rrt.py                 # RRT planner visualization demo
-│   ├── manipulation/                        # Manipulation execution scripts
-│   │   ├── dual_arm_manipulation.py         # Full system: services + interactive shell
-│   │   └── dual_arm_handover_traj.py        # Dual-arm handover with pre-planned trajectories
-│   ├── teleop/                              # Standalone teleoperation
-│   │   └── teleop_dual_arm.py
-│   └── transforms/
-│       └── transform_visualizer_meshcat.py  # Meshcat transform visualizer
-├── experiments/                             # 13 JSON experiment configurations
-├── tests/                                   # Pytest test suite (187 tests)
+│   │   └── teleop_dual_arm.py               # Keyboard teleoperation
+│   └── evaluation/                          # Evaluation & benchmarking
+│       ├── run_all.py                       # Run all evaluations
+│       ├── run_paper_evaluation.py          # Paper experiment harness
+│       ├── analyze.py                       # Result analysis
+│       ├── paper_metrics.py                 # Paper-specific metrics
+│       ├── profile_assignment.py            # Assignment planner profiling
+│       ├── configs.py                       # Evaluation configurations
+│       ├── metrics.py                       # Metric computation
+│       └── results_store.py                 # Result persistence
+├── experiments/                             # JSON experiment configurations (4 main + extras)
+├── tests/                                   # Pytest test suite
 ├── data/                                    # Pre-recorded trajectory data (NPZ files)
 ├── models/                                  # Pre-trained models (FastSAM-x.pt)
 └── deps/                                    # Dependencies (GraspGen, GraspGenModels, YCB_Dataset)
@@ -172,16 +182,16 @@ Each experiment JSON specifies the environment setup, object to manipulate, targ
 
 ---
 
-### Planning Scripts
+### Pipeline Scripts
 
-#### `scripts/planning/trajectory_generation.py`
+#### `scripts/pipeline/trajectory_generation.py`
 
 Main **single-robot** trajectory planner. Loads an experiment config, builds the environment, plans an object trajectory from start to goal, generates grasps, evaluates feasible EEF trajectories with multiprocessing, visualizes results in Meshcat, and optionally saves trajectories to disk. This is the script invoked by `run_all_experiments.py`.
 
 ```bash
-python scripts/planning/trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
-python scripts/planning/trajectory_generation.py --experiment experiments/ycb_mug_table_to_rack.json --save-traj --no-meshcat
-python scripts/planning/trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --debug
+python scripts/pipeline/trajectory_generation.py --experiment experiments/flatPlate_box_to_box.json
+python scripts/pipeline/trajectory_generation.py --experiment experiments/mug_inversion.json --save-traj --no-meshcat
+python scripts/pipeline/trajectory_generation.py --experiment experiments/ycb_plate_table_to_shelf.json --debug
 ```
 
 | Argument | Default | Description |
@@ -191,13 +201,13 @@ python scripts/planning/trajectory_generation.py --experiment experiments/flatPl
 | `--save-traj` | `False` | Force-save trajectories (overrides JSON) |
 | `--no-meshcat` | `False` | Disable all Meshcat visualization |
 
-#### `scripts/planning/dual_trajectory_generation.py`
+#### `scripts/pipeline/dual_trajectory_generation.py`
 
 Generates and evaluates **dual-arm** manipulation trajectories. Creates grasps for both robots, pairs them (N×M), then evaluates simultaneous feasibility for each grasp pair using multiprocessing with persistent worker environments.
 
 ```bash
-python scripts/planning/dual_trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
-python scripts/planning/dual_trajectory_generation.py --experiment experiments/flatPlate_shelf_to_box.json --save-traj --no-meshcat
+python scripts/pipeline/dual_trajectory_generation.py --experiment experiments/flatPlate_box_to_box.json
+python scripts/pipeline/dual_trajectory_generation.py --experiment experiments/ycb_plate_shelf_to_table.json --save-traj --no-meshcat
 ```
 
 | Argument | Default | Description |
@@ -207,19 +217,19 @@ python scripts/planning/dual_trajectory_generation.py --experiment experiments/f
 | `--save-traj` | `False` | Force-save trajectories (overrides JSON) |
 | `--no-meshcat` | `False` | Disable all Meshcat visualization |
 
-#### `scripts/planning/segment_assignment.py`
+#### `scripts/pipeline/segment_assignment.py`
 
 Solves the **optimal robot-to-segment assignment** problem using Viterbi DP. Loads pre-generated trajectory data (`TrajectoryBundle` from NPZ files), builds a cost matrix over smoothness and manipulability, and finds the globally optimal arm assignment per segment. Optionally displays feasibility heatmaps and cost breakdowns via matplotlib.
 
 ```bash
 # Full run with environment (accurate IK + Jacobian costs)
-python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/pipeline/segment_assignment.py --experiment experiments/flatPlate_box_to_box.json
 
 # Quick dry-run without environment
-python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json --no-env
+python scripts/pipeline/segment_assignment.py --experiment experiments/flatPlate_box_to_box.json --no-env
 
 # Override cost weights
-python scripts/planning/segment_assignment.py --experiment experiments/flatPlate_table_to_shelf.json --alpha 15.0 --beta 2.0
+python scripts/pipeline/segment_assignment.py --experiment experiments/flatPlate_box_to_box.json --alpha 15.0 --beta 2.0
 ```
 
 | Argument | Default | Description |
@@ -231,18 +241,18 @@ python scripts/planning/segment_assignment.py --experiment experiments/flatPlate
 | `--beta` | from config | Override manipulability weight |
 | `--no-plot` | `False` | Skip matplotlib visualizations |
 
-#### `scripts/planning/visualize_robot_trajectory.py`
+#### `scripts/utils/visualize_robot_trajectory.py`
 
 Loads `.npz` trajectory file(s) and visualizes them in Meshcat with feasibility-colored waypoints, optional robot/object mesh overlays. Supports processing a whole directory at once.
 
 ```bash
 # Single trajectory with robot meshes
-python scripts/planning/visualize_robot_trajectory.py data/shelf_to_box/robot0_trajectory_0.npz \
-    --experiment experiments/flatPlate_shelf_to_box.json --robot-mesh-vis --step 5
+python scripts/utils/visualize_robot_trajectory.py data/flatPlate_box_to_box/robot0_trajectory_0.npz \
+    --experiment experiments/flatPlate_box_to_box.json --robot-mesh-vis --step 5
 
 # All trajectories in a directory
-python scripts/planning/visualize_robot_trajectory.py data/shelf_to_box/ \
-    --experiment experiments/flatPlate_shelf_to_box.json --clear --visualize-object-trajectory
+python scripts/utils/visualize_robot_trajectory.py data/flatPlate_box_to_box/ \
+    --experiment experiments/flatPlate_box_to_box.json --clear --visualize-object-trajectory
 ```
 
 | Argument | Default | Description |
@@ -260,14 +270,14 @@ python scripts/planning/visualize_robot_trajectory.py data/shelf_to_box/ \
 | `--clear` | `False` | Clear Meshcat before visualizing |
 | `--zmq-url` | `None` | Meshcat ZMQ URL |
 
-#### `scripts/run_all_experiments.py`
+#### `scripts/generate_all_trajs.py`
 
 Batch runner — sequentially invokes `trajectory_generation.py` for every experiment JSON in `experiments/`. Auto-disables visualization and enables trajectory saving.
 
 ```bash
-python scripts/run_all_experiments.py
-python scripts/run_all_experiments.py --only flatPlate_shelf_to_box flatPlate_table_to_shelf
-python scripts/run_all_experiments.py --workers 4
+python scripts/generate_all_trajs.py
+python scripts/generate_all_trajs.py --only flatPlate_box_to_box mug_inversion
+python scripts/generate_all_trajs.py --workers 4
 ```
 
 | Argument | Default | Description |
@@ -277,16 +287,16 @@ python scripts/run_all_experiments.py --workers 4
 
 ---
 
-### Manipulation Scripts
+### Utility Scripts
 
-#### `scripts/manipulation/dual_arm_manipulation.py`
+#### `scripts/utils/dual_arm_manipulation.py`
 
 Starts the full `DualArmManipulationSystem` (FastSAM, GraspGen, MeshCat TF) and drops into an interactive Python shell exposing helper functions for live experimentation.
 
 ```bash
-python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json
-python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --visualize --meshcat-tf
-python scripts/manipulation/dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json --no-fastsam --no-graspgen
+python scripts/utils/dual_arm_manipulation.py --experiment experiments/flatPlate_box_to_box.json
+python scripts/utils/dual_arm_manipulation.py --experiment experiments/mug_inversion.json --visualize --meshcat-tf
+python scripts/utils/dual_arm_manipulation.py --experiment experiments/flatPlate_box_to_box.json --no-fastsam --no-graspgen
 ```
 
 | Argument | Default | Description |
@@ -314,17 +324,17 @@ system.left_gripper.open()
 system.right_gripper.close()
 ```
 
-#### `scripts/manipulation/dual_arm_handover_traj.py`
+#### `scripts/pipeline/dual_arm_handover_traj.py`
 
 Execute a dual-arm handover using pre-computed trajectory files. By default, loads the optimal assignment result (`assignment_results.npz`) from the experiment's data directory. Use `--traj0` / `--traj1` to specify trajectory files explicitly (bypasses assignment).
 
 ```bash
-python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json
-python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/ycb_mug_rack_to_table.json --debug
+python scripts/pipeline/dual_arm_handover_traj.py --experiment experiments/flatPlate_box_to_box.json
+python scripts/pipeline/dual_arm_handover_traj.py --experiment experiments/mug_inversion.json --debug
 # Explicit trajectories (no assignment):
-python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/flatPlate_table_to_shelf.json \
-    --traj0 data/flatPlate_table_to_shelf/robot0_trajectory_5.npz \
-    --traj1 data/flatPlate_table_to_shelf/robot1_trajectory_1.npz
+python scripts/pipeline/dual_arm_handover_traj.py --experiment experiments/flatPlate_box_to_box.json \
+    --traj0 data/flatPlate_box_to_box/robot0_trajectory_5.npz \
+    --traj1 data/flatPlate_box_to_box/robot1_trajectory_1.npz
 ```
 
 | Argument | Default | Description |
@@ -336,15 +346,15 @@ python scripts/manipulation/dual_arm_handover_traj.py --experiment experiments/f
 
 ### Demo Scripts
 
-#### `scripts/demos/launch_env.py`
+#### `scripts/utils/launch_env.py`
 
 Launch and visualize the dual-arm environment with optional primitive objects and/or YCB dataset objects.
 
 ```bash
-python scripts/demos/launch_env.py --with-objects
-python scripts/demos/launch_env.py --ycb mug apple banana
-python scripts/demos/launch_env.py --list-ycb
-python scripts/demos/launch_env.py --ycb-all 5 --random-actions --steps 500
+python scripts/utils/launch_env.py --with-objects
+python scripts/utils/launch_env.py --ycb mug apple banana
+python scripts/utils/launch_env.py --list-ycb
+python scripts/utils/launch_env.py --ycb-all 5 --random-actions --steps 500
 ```
 
 | Argument | Default | Description |
@@ -358,13 +368,13 @@ python scripts/demos/launch_env.py --ycb-all 5 --random-actions --steps 500
 | `--no-render` | `False` | Disable rendering |
 | `--headless` | `False` | Run in headless mode |
 
-#### `scripts/demos/visualize_rrt.py`
+#### `scripts/utils/visualize_rrt.py`
 
 Visualize RRT-Connect path planning in Meshcat in real time — search bounds, tree edges (cyan/orange), collision-rejected samples (red), raw path (green), and smoothed path (yellow).
 
 ```bash
-python scripts/demos/visualize_rrt.py --experiment experiments/flatPlate_table_to_shelf.json
-python scripts/demos/visualize_rrt.py --experiment experiments/flatPlate_table_to_shelf.json --delay 0.01 --max-iter 2000
+python scripts/utils/visualize_rrt.py --experiment experiments/flatPlate_box_to_box.json
+python scripts/utils/visualize_rrt.py --experiment experiments/flatPlate_box_to_box.json --delay 0.01 --max-iter 2000
 ```
 
 | Argument | Default | Description |
@@ -398,13 +408,13 @@ python scripts/demos/gripper_move.py
 
 ### Teleoperation
 
-#### `scripts/teleop/teleop_dual_arm.py`
+#### `scripts/demos/teleop_dual_arm.py`
 
 Keyboard teleoperation of both Panda robots with configurable sensitivity.
 
 ```bash
-python scripts/teleop/teleop_dual_arm.py
-python scripts/teleop/teleop_dual_arm.py --pos-sensitivity 2.0 --rot-sensitivity 0.5
+python scripts/demos/teleop_dual_arm.py
+python scripts/demos/teleop_dual_arm.py --pos-sensitivity 2.0 --rot-sensitivity 0.5
 ```
 
 | Argument | Default | Description |
@@ -429,7 +439,7 @@ python scripts/teleop/teleop_dual_arm.py --pos-sensitivity 2.0 --rot-sensitivity
 
 ### Transform Visualization
 
-#### `scripts/transforms/transform_visualizer_meshcat.py`
+#### `scripts/utils/transform_visualizer_meshcat.py`
 
 RViz-like TF visualizer for Meshcat. Continuously streams all `TransformManager` frames (coordinate triads + text labels) to a running Meshcat server. Requires `meshcat-server` to be running separately.
 
@@ -438,9 +448,9 @@ RViz-like TF visualizer for Meshcat. Continuously streams all `TransformManager`
 meshcat-server
 
 # Terminal 2: run the visualizer
-python scripts/transforms/transform_visualizer_meshcat.py
-python scripts/transforms/transform_visualizer_meshcat.py --fps 10 --no-labels
-python scripts/transforms/transform_visualizer_meshcat.py --axis-length 0.2 --axis-radius 0.01
+python scripts/utils/transform_visualizer_meshcat.py
+python scripts/utils/transform_visualizer_meshcat.py --fps 10 --no-labels
+python scripts/utils/transform_visualizer_meshcat.py --axis-length 0.2 --axis-radius 0.01
 ```
 
 | Argument | Default | Description |
@@ -507,7 +517,9 @@ Experiments are defined as JSON files in the `experiments/` directory. Each conf
 
 The config is loaded via `load_experiment()` into typed dataclasses (`ExperimentConfig`, `TaskConfig`, `PlanningConfig`, `VisualizationConfig`, `ExecutionConfig`, etc.).
 
-**Available experiments** (13): `flatPlate_shelf_to_box`, `flatPlate_shelf_to_table`, `flatPlate_shelf_to_shelf`, `flatPlate_table_to_shelf`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`, `dual_handover_mug`, `dual_handover_plate`.
+**Available experiments** (4 main + 9 extras):
+- **Main**: `flatPlate_box_to_box`, `mug_inversion`, `ycb_plate_shelf_to_table`, `ycb_plate_table_to_shelf`
+- **Extras** (in `experiments/extras/`): `flatPlate_shelf_to_box`, `flatPlate_shelf_to_shelf`, `flatPlate_shelf_to_table`, `flatPlate_table_to_shelf`, `dual_handover_mug`, `dual_handover_plate`, `ycb_bowl_rack_to_table`, `ycb_bowl_table_to_rack`, `ycb_can_table_to_rack`, `ycb_mug_rack_to_table`, `ycb_mug_table_to_rack`.
 
 ## Microservices Architecture
 
@@ -716,22 +728,26 @@ response = client.call('service_name', {'command': 'CMD', ...})
 ## Testing
 
 ```bash
-# Run all tests (187 tests)
+# Run all tests
 python -m pytest tests/ -v
 
 # Run specific test modules
-python -m pytest tests/test_assignment_planner.py -v   # 52 tests
-python -m pytest tests/test_rrt_joint_planner.py -v    # 41 tests
-python -m pytest tests/test_grasps.py -v               # 24 tests
-python -m pytest tests/test_transforms.py -v           # 17 tests
-python -m pytest tests/test_trajectory_planning.py -v  # 15 tests
-python -m pytest tests/test_dual_arm_planner.py -v     # 10 tests
-python -m pytest tests/test_planning_module.py -v      # 9 tests
-python -m pytest tests/test_arm_controllers.py -v      # 7 tests
-python -m pytest tests/test_environments.py -v         # 3 tests
-python -m pytest tests/test_fastsam_detection.py -v    # 3 tests
-python -m pytest tests/test_services.py -v             # 3 tests
-python -m pytest tests/test_move_to_pose_service.py -v # 2 tests
+python -m pytest tests/test_schema.py -v                 # Pydantic schema validation
+python -m pytest tests/test_assignment_planner.py -v     # Assignment planning
+python -m pytest tests/test_rrt_joint_planner.py -v      # RRT-Connect planner
+python -m pytest tests/test_grasps.py -v                 # Grasp transforms
+python -m pytest tests/test_transforms.py -v             # Coordinate transforms
+python -m pytest tests/test_trajectory_planning.py -v    # SE(3) & trajectory planning
+python -m pytest tests/test_trajectory_math.py -v        # Quintic profiling & resampling
+python -m pytest tests/test_pointcloud.py -v             # Point cloud processing
+python -m pytest tests/test_dual_arm_planner.py -v       # Dual-arm collision avoidance
+python -m pytest tests/test_planning_module.py -v        # IK backends & trajectory feasibility
+python -m pytest tests/test_experiment_config.py -v      # Experiment config loading
+python -m pytest tests/test_arm_controllers.py -v        # Arm controllers
+python -m pytest tests/test_environments.py -v           # Environment setup
+python -m pytest tests/test_fastsam_detection.py -v      # FastSAM service
+python -m pytest tests/test_services.py -v               # Service manager
+python -m pytest tests/test_move_to_pose_service.py -v   # MoveToPose service
 ```
 
 ## Documentation

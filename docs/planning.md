@@ -543,21 +543,21 @@ Results are persisted as `.npz` files:
 
 ```bash
 # Full run with environment (accurate IK + Jacobian costs):
-python scripts/planning/segment_assignment.py \
-    --experiment experiments/flatPlate_table_to_shelf.json
+python scripts/pipeline/segment_assignment.py \
+    --experiment experiments/flatPlate_box_to_box.json
 
 # Quick dry-run without environment:
-python scripts/planning/segment_assignment.py \
-    --experiment experiments/flatPlate_table_to_shelf.json --no-env
+python scripts/pipeline/segment_assignment.py \
+    --experiment experiments/flatPlate_box_to_box.json --no-env
 
 # Override cost weights:
-python scripts/planning/segment_assignment.py \
-    --experiment experiments/flatPlate_table_to_shelf.json \
+python scripts/pipeline/segment_assignment.py \
+    --experiment experiments/flatPlate_box_to_box.json \
     --alpha 15.0 --beta 2.0
 
 # Skip matplotlib plots:
-python scripts/planning/segment_assignment.py \
-    --experiment experiments/flatPlate_table_to_shelf.json --no-plot
+python scripts/pipeline/segment_assignment.py \
+    --experiment experiments/flatPlate_box_to_box.json --no-plot
 ```
 
 #### Structured Logging

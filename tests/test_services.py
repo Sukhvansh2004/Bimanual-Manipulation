@@ -84,3 +84,38 @@ class TestServiceManager:
         assert 'services' in response
         assert 'mock_service' in response['services']
         assert response['services']['mock_service']['name'] == 'mock_service'
+
+    def test_duplicate_registration(self, service_manager, mock_service_fixture):
+        """Re-registering same service should overwrite without error."""
+        client = ServiceClient(
+            manager_host=service_manager.host,
+            manager_port=service_manager.port,
+        )
+        # Register again with different port
+        client.register("mock_service", "localhost", 6666, "mock", "Re-registered")
+        info = client.lookup("mock_service")
+        assert info is not None
+        assert info["port"] == 6666
+
+    def test_multiple_services(self, service_manager, mock_service_fixture):
+        """Multiple distinct services should coexist."""
+        client = ServiceClient(
+            manager_host=service_manager.host,
+            manager_port=service_manager.port,
+        )
+        client.register("service_a", "localhost", 7001, "test", "A")
+        client.register("service_b", "localhost", 7002, "test", "B")
+
+        info_a = client.lookup("service_a")
+        info_b = client.lookup("service_b")
+        assert info_a is not None and info_a["port"] == 7001
+        assert info_b is not None and info_b["port"] == 7002
+
+
+class TestServiceClientUnit:
+    """Unit tests that do NOT need a running manager."""
+
+    def test_client_creation(self):
+        """ServiceClient should be instantiable with host/port."""
+        client = ServiceClient("127.0.0.1", 55550)
+        assert client is not None

@@ -41,7 +41,7 @@ All service implementations live in `src/bimanual_manipulation/services/`:
 The easiest way to start all services is via the main manipulation script:
 
 ```bash
-python scripts/manipulation/dual_arm_manipulation.py --visualize
+python scripts/utils/dual_arm_manipulation.py --visualize
 ```
 
 This starts all services automatically and provides an interactive shell.

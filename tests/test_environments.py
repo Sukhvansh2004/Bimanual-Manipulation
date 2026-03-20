@@ -109,3 +109,71 @@ class TestCollisionMonitor:
         mon._collision_count = 7
         assert mon.stop() == 7
         assert not mon.enabled
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tests — create_ycb_object / create_primitive_object
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestObjectCreation:
+    """Unit tests for object specification helpers."""
+
+    def test_create_ycb_object_defaults(self):
+        from bimanual_manipulation.utils.env_utils import create_ycb_object
+        obj = create_ycb_object("mug")
+        assert obj["type"] == "ycb"
+        assert obj["ycb_name"] == "mug"
+        assert obj["instance_name"] == "mug_0"
+        assert obj["name"] == "mug_0"
+        assert isinstance(obj["pos"], list)
+        assert obj["is_static"] is False
+
+    def test_create_ycb_object_custom_name(self):
+        from bimanual_manipulation.utils.env_utils import create_ycb_object
+        obj = create_ycb_object("apple", instance_name="my_apple")
+        assert obj["instance_name"] == "my_apple"
+        assert obj["name"] == "my_apple"
+
+    def test_create_ycb_object_with_position(self):
+        from bimanual_manipulation.utils.env_utils import create_ycb_object
+        pos = [0.5, -0.3, 1.0]
+        obj = create_ycb_object("banana", position=pos)
+        assert obj["pos"] == pos
+
+    def test_create_ycb_object_static(self):
+        from bimanual_manipulation.utils.env_utils import create_ycb_object
+        obj = create_ycb_object("plate", is_static=True)
+        assert obj["is_static"] is True
+
+    def test_create_primitive_object_box(self):
+        from bimanual_manipulation.utils.env_utils import create_primitive_object
+        obj = create_primitive_object(
+            obj_type="box", name="wall", size=[0.1, 0.3, 0.4]
+        )
+        assert obj["type"] == "box"
+        assert obj["name"] == "wall"
+        assert obj["size"] == [0.1, 0.3, 0.4]
+        assert obj["density"] == 500.0
+
+    def test_create_primitive_object_custom_density(self):
+        from bimanual_manipulation.utils.env_utils import create_primitive_object
+        obj = create_primitive_object(
+            obj_type="cylinder", name="c1", size=[0.05, 0.1], density=2000.0
+        )
+        assert obj["density"] == 2000.0
+
+    def test_create_primitive_object_with_rgba(self):
+        from bimanual_manipulation.utils.env_utils import create_primitive_object
+        rgba = [1.0, 0.0, 0.0, 1.0]
+        obj = create_primitive_object(
+            obj_type="box", name="red_box", size=[0.1, 0.1, 0.1], rgba=rgba
+        )
+        assert obj["rgba"] == rgba
+
+    def test_create_primitive_object_with_friction(self):
+        from bimanual_manipulation.utils.env_utils import create_primitive_object
+        friction = [1.5, 0.5, 0.01]
+        obj = create_primitive_object(
+            obj_type="box", name="grippy", size=[0.1, 0.1, 0.1], friction=friction
+        )
+        assert obj["friction"] == friction

@@ -93,6 +93,7 @@ src/bimanual_manipulation/utils/se3.py
 src/bimanual_manipulation/utils/suction_weld.py
 src/bimanual_manipulation/utils/trajectory_math.py
 tests/test_arm_controllers.py
+tests/test_assignment_models.py
 tests/test_assignment_planner.py
 tests/test_dual_arm_planner.py
 tests/test_environments.py
@@ -101,7 +102,10 @@ tests/test_fastsam_detection.py
 tests/test_grasps.py
 tests/test_move_to_pose_service.py
 tests/test_planning_module.py
+tests/test_pointcloud.py
 tests/test_rrt_joint_planner.py
+tests/test_schema.py
 tests/test_services.py
+tests/test_trajectory_math.py
 tests/test_trajectory_planning.py
 tests/test_transforms.py
