@@ -55,7 +55,10 @@ from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
 from bimanual_manipulation.utils.env_utils import env_step
-from bimanual_manipulation.utils.trajectory_math import resample_joint_trajectory
+from bimanual_manipulation.utils.trajectory_math import (
+    resample_joint_trajectory,
+    plan_quintic_joint_trajectory,
+)
 from bimanual_manipulation.planning.trajectory.arm_planner import (
     plan_arm_trajectory,
 )
@@ -553,7 +556,13 @@ class DualArmParallelPlanner:
             return self._plan_collision_free_trajectory_b(
                 target_b, desired_length, q_warm_start, traj_a,
             )
-        return normalise_trajectory(target_b)
+        traj = normalise_trajectory(target_b)
+        # Single joint config → plan a collision-free path to it
+        if len(traj) == 1:
+            return self._plan_collision_free_trajectory_b_joints(
+                traj[0], desired_length, traj_a,
+            )
+        return traj
 
     def _sync_planning_env(self) -> None:
         """Synchronize planning environment with execution environment."""
@@ -629,21 +638,11 @@ class DualArmParallelPlanner:
             "Arm B IK: %d goal candidate(s) for RRT.", len(goal_candidates),
         )
 
-        # --- Reduce temporal collision aggressiveness ---
-        # Only keep the second half of arm A's trajectory for temporal
-        # checks.  Arm B approaches the pre-pose while arm A is still
-        # in transit; by the time arm B settles, arm A is near the end
-        # of its segment.  Checking against early arm A configs causes
-        # unnecessary RRT failures (the goal config is fine at the
-        # handover instant but collides with arm A at earlier positions).
         traj_a_temporal: Optional[np.ndarray] = traj_a
-        if len(traj_a) > 4:
-            n_keep = max(2, len(traj_a) // 2)
-            traj_a_temporal = traj_a[-n_keep:]
-            logger.info(
-                "Temporal collision: using last %d/%d arm A configs.",
-                n_keep, len(traj_a),
-            )
+        logger.info(
+            "Temporal collision: using all %d arm A configs.",
+            len(traj_a),
+        )
 
         q_arm_a_ref = traj_a[-1]
         start_q = self.arm_b.get_joint_positions()
@@ -682,6 +681,61 @@ class DualArmParallelPlanner:
             len(goal_candidates),
         )
         return None
+
+    def _plan_collision_free_trajectory_b_joints(
+        self,
+        goal_q: np.ndarray,
+        desired_length: int,
+        traj_a: Optional[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        """Plan arm B's reference trajectory to a joint-space goal via RRT.
+
+        Like :meth:`_plan_collision_free_trajectory_b` but takes a direct
+        joint configuration (no IK needed).  Falls back to a quintic
+        interpolation if RRT fails or arm A's trajectory is unavailable.
+        """
+        self._sync_planning_env()
+
+        start_q = self.arm_b.get_joint_positions()
+
+        if traj_a is None or len(traj_a) == 0:
+            return plan_quintic_joint_trajectory(
+                start_q, goal_q, desired_length,
+            )
+
+        q_arm_a_ref = traj_a[-1]
+
+        try:
+            rrt_traj, rrt_success = plan_arm_trajectory(
+                env=self.planning_env,
+                robot_id_b=self.arm_b.robot_id,
+                start_q=start_q,
+                goal_q=goal_q,
+                q_other_arm=q_arm_a_ref,
+                robot_id_a=self.arm_a.robot_id,
+                num_steps=desired_length,
+                env_lock=self.env_lock,
+                rrt_vis=self.rrt_vis,
+                q_other_arm_trajectory=traj_a,
+            )
+            if rrt_success:
+                logger.info(
+                    "Arm B joint-goal reference trajectory planned "
+                    "via collision-free RRT.",
+                )
+                return rrt_traj
+        except Exception as exc:
+            logger.warning(
+                "Joint RRT planning failed for arm B joint goal: %s", exc,
+            )
+
+        logger.warning(
+            "RRT failed for arm B joint goal — "
+            "falling back to quintic trajectory.",
+        )
+        return plan_quintic_joint_trajectory(
+            start_q, goal_q, desired_length,
+        )
 
     # ------------------------------------------------------------------
     # Utility helpers

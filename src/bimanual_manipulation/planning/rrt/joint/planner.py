@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from contextlib import nullcontext
 from dataclasses import dataclass, field
+import threading
 from typing import List, Optional
 
 import mujoco
@@ -74,13 +75,13 @@ def rrt_connect_joint_space(
     goal_q: np.ndarray,
     q_other_arm: np.ndarray,
     robot_id_a: int,
-    env_lock=None,
-    max_iterations: int = None,
-    step_size: float = None,
-    goal_bias: float = None,
+    env_lock: Optional[threading.RLock] = None,
+    max_iterations: int = constants.ARM_RRT_MAX_ITERATIONS,
+    step_size: float = constants.ARM_RRT_STEP_SIZE,
+    goal_bias: float = constants.ARM_RRT_GOAL_BIAS,
     rrt_vis: Optional[RRTVisualizer] = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
-    max_temporal_samples: int = None,
+    max_temporal_samples: int = constants.ARM_RRT_TEMPORAL_SAMPLES,
     manipulated_object: Optional[str] = None,
     check_object_collisions: bool = False,
 ) -> JointRRTResult:
@@ -122,15 +123,6 @@ def rrt_connect_joint_space(
     Returns:
         :class:`JointRRTResult` with success flag and path.
     """
-    if max_iterations is None:
-        max_iterations = constants.ARM_RRT_MAX_ITERATIONS
-    if step_size is None:
-        step_size = constants.ARM_RRT_STEP_SIZE
-    if goal_bias is None:
-        goal_bias = constants.ARM_RRT_GOAL_BIAS
-    if max_temporal_samples is None:
-        max_temporal_samples = constants.ARM_RRT_TEMPORAL_SAMPLES
-
     # ── Build list of arm A configs for collision checking ─────────
     #    When a trajectory is provided, sample representative configs
     #    for conservative temporal collision avoidance.

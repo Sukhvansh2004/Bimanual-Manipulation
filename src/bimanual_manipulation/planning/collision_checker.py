@@ -428,8 +428,11 @@ def check_trajectory_feasibility(
                 if not result.is_feasible:
                     all_feasible = False
                 
-                last_config = new_config
-
+                if result.is_feasible and result.collision_free:
+                    last_config = new_config
+                else:
+                    last_config = None
+                    
         finally:
             data.qpos[:] = qpos_backup
             data.qvel[:] = qvel_backup
