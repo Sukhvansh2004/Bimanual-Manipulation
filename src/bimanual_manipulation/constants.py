@@ -170,7 +170,7 @@ IK_SOLVER_BACKEND = "eaik"
 # =============================================================================
 # Scipy L-BFGS-B IK Configuration
 # =============================================================================
-SCIPY_IK_NUM_SEEDS = 48         # Number of seed configs to try
+SCIPY_IK_NUM_SEEDS = 16         # Number of seed configs to try
 SCIPY_IK_MAX_ITERS = 200        # Max L-BFGS-B iterations per seed
 SCIPY_IK_POS_TOLERANCE = 5e-3   # Max position error (m) to accept
 SCIPY_IK_ROT_TOLERANCE = 5e-3   # Max orientation error (rad) to accept
@@ -179,7 +179,7 @@ SCIPY_IK_ROT_TOLERANCE = 5e-3   # Max orientation error (rad) to accept
 # Mink QP-based IK / Reactive Tracking Configuration
 # =============================================================================
 # Mink offline IK solver parameters
-MINK_IK_NUM_SEEDS = 48          # Number of seed configs to try
+MINK_IK_NUM_SEEDS = 12          # Number of seed configs to try
 MINK_IK_MAX_ITERS = 300         # Max QP iterations per seed
 MINK_IK_POS_TOLERANCE = 5e-3    # Position convergence tolerance (m)
 MINK_IK_ROT_TOLERANCE = 5e-3    # Orientation convergence tolerance (rad)
