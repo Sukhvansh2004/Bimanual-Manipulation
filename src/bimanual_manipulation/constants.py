@@ -258,12 +258,12 @@ ASSIGNMENT_EPSILON = 1e-6     # numerical floor for manipulability reciprocal
 ASSIGNMENT_FALLBACK_SWITCH_COST = 1e6  # switching cost when no IK solver is available
 
 # Coarse handover resolution for cost evaluation (fewer IK calls)
-COST_EVAL_APPROACH_STEPS = 5      # vs 50 default in DualArmHandoverPlanner
+COST_EVAL_APPROACH_STEPS = 15      # vs 50 default in DualArmHandoverPlanner
 COST_EVAL_RAMP_STEPS = 0         # skip force-ramp phase entirely for cost eval
-COST_EVAL_RETREAT_STEPS = 3      # vs 30 default — only check start/end of retreat
+COST_EVAL_RETREAT_STEPS = 9      # vs 30 default — only check start/end of retreat
 
 # Early-exit flags: when True, a single IK failure or collision
-# immediately returns inf cost instead of adding a soft penalty.
+# immediately returns inf cost.
 HANDOVER_EARLY_EXIT_ON_IK_FAILURE = True
 HANDOVER_EARLY_EXIT_ON_COLLISION = True
 

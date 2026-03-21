@@ -523,7 +523,6 @@ class DualArmParallelPlanner:
         if m.freeze_task is not None:
             constraints.append(m.freeze_task)
 
-        # --- Primary solve (with collision avoidance) -----------------
         try:
             vel = mink.solve_ik(
                 configuration=m.config,
@@ -537,30 +536,6 @@ class DualArmParallelPlanner:
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
             logger.warning("Primary mink solve_ik failed: %s", exc_primary,)
-
-        # --- Relaxed fallback (drop collision avoidance) --------------
-        limits_relaxed = [
-            lim for lim in limits_full
-            if lim is not m.collision_limit
-        ]
-        try:
-            vel = mink.solve_ik(
-                configuration=m.config,
-                tasks=tasks,
-                dt=constants.MINK_DT,
-                solver=constants.MINK_QP_SOLVER,
-                limits=limits_relaxed if limits_relaxed else None,
-                constraints=constraints if constraints else None,
-            )
-            logger.debug("Primary QP infeasible — relaxed solve succeeded.")
-            m.config.integrate_inplace(vel, constants.MINK_DT)
-            return m.config.q[m.qpos_idx_b].copy()
-        except Exception as exc_relaxed:
-            logger.debug(
-                "Both primary and relaxed mink solve_ik failed: %s",
-                exc_relaxed,
-            )
-            return None
 
     # ------------------------------------------------------------------
     # Trajectory resolution
