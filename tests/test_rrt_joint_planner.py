@@ -1108,15 +1108,11 @@ class TestTemporalCollisionInDualArmPlanner:
 
             planner._resolve_trajectory_b(target_pose, 50, None, traj_a)
 
-            # Verify q_other_arm_trajectory uses the temporally-reduced
-            # last portion of traj_a (len > 4 → keep last half)
+            # Verify q_other_arm_trajectory passes the full traj_a
             call_kwargs = mock_plan.call_args.kwargs
             assert "q_other_arm_trajectory" in call_kwargs
             temporal_traj = call_kwargs["q_other_arm_trajectory"]
-            n_keep = max(2, len(traj_a) // 2)  # 25 for a 50-long traj
-            np.testing.assert_array_equal(
-                temporal_traj, traj_a[-n_keep:],
-            )
+            np.testing.assert_array_equal(temporal_traj, traj_a)
 
     def test_q_other_arm_uses_traj_a_last(self):
         """q_other_arm (static fallback) should use traj_a[-1]."""
