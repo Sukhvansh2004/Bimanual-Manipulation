@@ -44,6 +44,17 @@ from bimanual_manipulation.utils.trajectory_math import (
     quintic_scalar,
     plan_quintic_joint_trajectory,
 )
+from bimanual_manipulation.planning.utils.assignment_utils import (
+    normalize_joint_angle,
+    normalize_trajectory_configs,
+    compute_smoothness,
+    compute_manipulability_cost,
+    frame_id_at,
+    eef_matrix,
+    apply_beam_pruning,
+    save_assignment_result,
+    load_assignment_result,
+)
 
 __all__ = [
     # Collision utilities
@@ -72,4 +83,14 @@ __all__ = [
     "resample_joint_trajectory",
     "quintic_scalar",
     "plan_quintic_joint_trajectory",
+    # Assignment utilities
+    "normalize_joint_angle",
+    "normalize_trajectory_configs",
+    "compute_smoothness",
+    "compute_manipulability_cost",
+    "frame_id_at",
+    "eef_matrix",
+    "apply_beam_pruning",
+    "save_assignment_result",
+    "load_assignment_result",
 ]

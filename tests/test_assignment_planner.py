@@ -35,11 +35,13 @@ from bimanual_manipulation.planning.assignment import (
     compute_segment_cost,
     compute_switching_cost,
     load_all_trajectories,
-    load_assignment_result,
     make_collision_check_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
+)
+from bimanual_manipulation.planning.utils.assignment_utils import (
     save_assignment_result,
+    load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.cost import (
     _compute_handover_primitive_cost,
@@ -785,6 +787,13 @@ class TestLoadAllTrajectories:
         n_wp = 4
         rng = np.random.default_rng(1)
 
+        def _walk(n, d):
+            q = np.zeros((n, d))
+            q[0] = rng.uniform(-0.5, 0.5, d)
+            for i in range(1, n):
+                q[i] = q[i - 1] + rng.uniform(-0.3, 0.3, d)
+            return q
+
         self._save_npz(
             str(tmp_path / "object_trajectory.npz"),
             object_positions=rng.random((n_wp, 3)),
@@ -803,7 +812,7 @@ class TestLoadAllTrajectories:
                 is_feasible=np.ones(n_wp, dtype=bool),
                 ik_success=np.ones(n_wp, dtype=bool),
                 collision_free=np.ones(n_wp, dtype=bool),
-                joint_configs=rng.random((n_wp, 7)),
+                joint_configs=_walk(n_wp, 7),
             )
 
         trajs = load_all_trajectories(str(tmp_path))

@@ -30,16 +30,23 @@ from bimanual_manipulation.planning.assignment.models import (
 )
 from bimanual_manipulation.planning.assignment.result import (
     AssignmentResult,
-    save_assignment_result,
-    load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.cost import (
     compute_segment_cost,
     compute_cost_matrix,
     compute_switching_cost,
+    HandoverResult,
+)
+from bimanual_manipulation.planning.utils.assignment_utils import (
     normalize_joint_angle,
     normalize_trajectory_configs,
-    HandoverResult,
+    compute_smoothness,
+    compute_manipulability_cost,
+    frame_id_at,
+    eef_matrix,
+    apply_beam_pruning,
+    save_assignment_result,
+    load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.solver import (
     compute_optimal_robot_assignment,
@@ -66,6 +73,11 @@ __all__ = [
     "compute_switching_cost",
     "normalize_joint_angle",
     "normalize_trajectory_configs",
+    "compute_smoothness",
+    "compute_manipulability_cost",
+    "frame_id_at",
+    "eef_matrix",
+    "apply_beam_pruning",
     "HandoverResult",
     "compute_optimal_robot_assignment",
     "make_ik_solver_fn",

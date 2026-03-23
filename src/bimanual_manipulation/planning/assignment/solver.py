@@ -23,27 +23,14 @@ from bimanual_manipulation.planning.assignment.result import (
 from bimanual_manipulation.planning.assignment.cost import (
     compute_cost_matrix,
     compute_switching_cost,
-    normalize_trajectory_configs,
     HandoverResult,
+)
+from bimanual_manipulation.planning.utils.assignment_utils import (
+    normalize_trajectory_configs,
+    apply_beam_pruning as _apply_beam_pruning,
 )
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Beam-pruning helper
-# ---------------------------------------------------------------------------
-
-def _apply_beam_pruning(
-    J_star: np.ndarray, seg_idx: int, beam_width: int,
-) -> None:
-    """Keep only the top *beam_width* states at *seg_idx*; set rest to inf."""
-    row = J_star[seg_idx]
-    finite_indices = np.where(~np.isinf(row))[0]
-    if len(finite_indices) <= beam_width:
-        return
-    sorted_by_cost = finite_indices[np.argsort(row[finite_indices])]
-    row[sorted_by_cost[beam_width:]] = np.inf
 
 
 # ---------------------------------------------------------------------------

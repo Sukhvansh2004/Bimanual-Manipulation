@@ -63,6 +63,8 @@ from bimanual_manipulation.planning.assignment import (
     make_handover_clearance_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
+)
+from bimanual_manipulation.planning.utils.assignment_utils import (
     save_assignment_result,
 )
 from bimanual_manipulation.planning.visualization.trajectory import (

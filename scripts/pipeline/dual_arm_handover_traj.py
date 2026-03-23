@@ -64,7 +64,7 @@ from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_traje
 from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
     plan_pose_to_joint_trajectory,
 )
-from bimanual_manipulation.planning.assignment import (
+from bimanual_manipulation.planning.utils.assignment_utils import (
     load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.result import AssignmentResult
