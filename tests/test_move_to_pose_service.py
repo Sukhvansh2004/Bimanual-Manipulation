@@ -9,6 +9,7 @@ from bimanual_manipulation import constants
 from bimanual_manipulation.services.move_to_pose_service import MoveToPoseService
 from bimanual_manipulation.services.services_core import ServiceManager, ServiceClient
 from bimanual_manipulation.transforms import StampedPose
+from conftest import find_free_port
 
 class MockController:
     def __init__(self):
@@ -38,7 +39,7 @@ class MockController:
 
 @pytest.fixture(scope="module")
 def service_manager():
-    manager = ServiceManager()
+    manager = ServiceManager(port=find_free_port())
     manager.start()
     time.sleep(0.5)
     yield manager
@@ -46,7 +47,11 @@ def service_manager():
 
 @pytest.fixture(scope="module")
 def move_service_fixture(service_manager):
-    service = MoveToPoseService(manager_host=service_manager.host, manager_port=service_manager.port)
+    service = MoveToPoseService(
+        port=find_free_port(),
+        manager_host=service_manager.host,
+        manager_port=service_manager.port,
+    )
     
     # Register mock controllers
     left_controller = MockController()

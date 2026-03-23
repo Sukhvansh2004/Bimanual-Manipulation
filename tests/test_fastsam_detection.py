@@ -11,18 +11,25 @@ from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.services import ServiceManager, ServiceClient, FastSAMService
 from bimanual_manipulation.transforms import TransformManager
 from bimanual_manipulation import constants
+from conftest import find_free_port
 
 @pytest.fixture(scope="class")
 def perception_services(request):
     """Fixture to provide a running ServiceManager and FastSAMService."""
-    manager = ServiceManager()
+    manager = ServiceManager(port=find_free_port())
     manager.start()
     
     env = make_dual_arm_env(has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False)
     env.reset()
     
     tf_manager = TransformManager(env)
-    fastsam_service = FastSAMService(tf_manager, visualize=False)
+    fastsam_service = FastSAMService(
+        tf_manager,
+        port=find_free_port(),
+        manager_host=manager.host,
+        manager_port=manager.port,
+        visualize=False,
+    )
     fastsam_service.start()
     
     time.sleep(2)  # Allow services to start

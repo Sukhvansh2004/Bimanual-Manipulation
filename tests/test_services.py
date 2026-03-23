@@ -8,6 +8,7 @@ import pytest
 import time
 
 from bimanual_manipulation.services.services_core import ServiceManager, ServiceClient
+from conftest import find_free_port
 
 class MockService:
     """Mock service for testing ServiceManager."""
@@ -15,9 +16,10 @@ class MockService:
         self.service_client = ServiceClient(manager_host, manager_port)
         self.running = False
         
-    def start(self):
+    def start(self, port: int = 15555):
         self.running = True
-        self.service_client.register("mock_service", "localhost", 5555, "mock", "Mock Service")
+        self.port = port
+        self.service_client.register("mock_service", "localhost", port, "mock", "Mock Service")
 
     def stop(self):
         self.running = False
@@ -25,7 +27,7 @@ class MockService:
 @pytest.fixture(scope="class")
 def service_manager(request):
     """Fixture to provide a running ServiceManager."""
-    manager = ServiceManager()
+    manager = ServiceManager(port=find_free_port())
     manager.start()
     time.sleep(0.5)  # Allow manager to start
 
@@ -39,8 +41,9 @@ def service_manager(request):
 @pytest.fixture(scope="class")
 def mock_service_fixture(request, service_manager):
     """Fixture to provide a running MockService."""
+    mock_port = find_free_port()
     service = MockService(manager_host=service_manager.host, manager_port=service_manager.port)
-    service.start()
+    service.start(port=mock_port)
     time.sleep(1)  # Allow service to start and register
 
     def teardown():
@@ -62,7 +65,7 @@ class TestServiceManager:
         assert info is not None
         assert "host" in info
         assert "port" in info
-        assert info["port"] == 5555
+        assert info["port"] == mock_service_fixture.port
 
         # Check for a non-existent service
         non_existent_info = client.lookup("non_existent_service")
@@ -92,10 +95,11 @@ class TestServiceManager:
             manager_port=service_manager.port,
         )
         # Register again with different port
-        client.register("mock_service", "localhost", 6666, "mock", "Re-registered")
+        new_port = find_free_port()
+        client.register("mock_service", "localhost", new_port, "mock", "Re-registered")
         info = client.lookup("mock_service")
         assert info is not None
-        assert info["port"] == 6666
+        assert info["port"] == new_port
 
     def test_multiple_services(self, service_manager, mock_service_fixture):
         """Multiple distinct services should coexist."""
@@ -103,13 +107,15 @@ class TestServiceManager:
             manager_host=service_manager.host,
             manager_port=service_manager.port,
         )
-        client.register("service_a", "localhost", 7001, "test", "A")
-        client.register("service_b", "localhost", 7002, "test", "B")
+        port_a = find_free_port()
+        port_b = find_free_port()
+        client.register("service_a", "localhost", port_a, "test", "A")
+        client.register("service_b", "localhost", port_b, "test", "B")
 
         info_a = client.lookup("service_a")
         info_b = client.lookup("service_b")
-        assert info_a is not None and info_a["port"] == 7001
-        assert info_b is not None and info_b["port"] == 7002
+        assert info_a is not None and info_a["port"] == port_a
+        assert info_b is not None and info_b["port"] == port_b
 
 
 class TestServiceClientUnit:
@@ -117,5 +123,5 @@ class TestServiceClientUnit:
 
     def test_client_creation(self):
         """ServiceClient should be instantiable with host/port."""
-        client = ServiceClient("127.0.0.1", 55550)
+        client = ServiceClient("127.0.0.1", find_free_port())
         assert client is not None
