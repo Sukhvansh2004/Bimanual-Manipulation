@@ -627,12 +627,18 @@ class DualArmParallelPlanner:
                 site_name=site_name,
                 env_lock=self.env_lock,
                 max_solutions=constants.IK_MAX_SOLUTIONS,
+                q_reference=q_warm_start,
             )
             for sol in extra_solutions:
                 if not any(np.allclose(sol, g, atol=0.05) for g in goal_candidates):
                     goal_candidates.append(sol)
         except Exception as exc:
             logger.debug("Extra IK enumeration failed: %s", exc)
+
+        if q_warm_start is not None and len(goal_candidates) > 1:
+            goal_candidates.sort(
+                key=lambda q: float(np.linalg.norm(q - q_warm_start)),
+            )
 
         logger.info(
             "Arm B IK: %d goal candidate(s) for RRT.", len(goal_candidates),

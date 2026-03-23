@@ -58,14 +58,11 @@ from bimanual_manipulation.utils.primitives import (
     HandoverTrajectory, extract_grasp_transform,
 )
 from bimanual_manipulation.planning.dual_arm import DualArmParallelPlanner
-from bimanual_manipulation.planning.dual_arm.result import ParallelExecutionResult
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
-from bimanual_manipulation.planning.dual_arm.trajectory_helpers import (
-    plan_pose_to_joint_trajectory,
-)
 from bimanual_manipulation.planning.utils.assignment_utils import (
     load_assignment_result,
+    normalize_joint_angle,
 )
 from bimanual_manipulation.planning.assignment.result import AssignmentResult
 from bimanual_manipulation.planning.ik.manipulability import (
@@ -78,6 +75,68 @@ from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
+
+def _realign_joint_segment(segment: list) -> list:
+    """Re-normalise each config in *segment* relative to its predecessor.
+
+    The first element (the actual robot state) is kept unchanged.  Every
+    subsequent config is shifted by multiples of 2π per joint to minimise
+    the step from the preceding config, eliminating reflex-angle jumps
+    that can arise when IK returns a valid-but-wrapped solution.
+    """
+    if len(segment) <= 1:
+        return segment
+    result = [segment[0]]
+    prev = np.asarray(segment[0])
+    for cfg in segment[1:]:
+        aligned = np.array(cfg, dtype=float)
+        for j in range(len(aligned)):
+            aligned[j] = normalize_joint_angle(
+                aligned[j], float(prev[j]),
+                float(constants.FRANKA_JOINT_LIMITS_LO[j]),
+                float(constants.FRANKA_JOINT_LIMITS_HI[j]),
+            )
+        result.append(aligned)
+        prev = aligned
+    return result
+
+
+def _normalize_config_to_reference(
+    actual: np.ndarray,
+    reference: np.ndarray,
+) -> np.ndarray:
+    """Return a copy of *actual* shifted per-joint by multiples of 2π to
+    be closest to *reference* within joint limits.
+
+    This fixes the case where IK / mink returns a physically-equivalent
+    config that is 2π away on one or more joints.
+    """
+    out = np.array(actual, dtype=float)
+    for j in range(len(out)):
+        out[j] = normalize_joint_angle(
+            out[j], float(reference[j]),
+            float(constants.FRANKA_JOINT_LIMITS_LO[j]),
+            float(constants.FRANKA_JOINT_LIMITS_HI[j]),
+        )
+    return out
+
+
+def _log_joint_delta(
+    label: str,
+    actual: np.ndarray,
+    expected: np.ndarray,
+) -> float:
+    """Log per-joint delta between *actual* and *expected*; return max |delta|."""
+    delta = np.asarray(actual) - np.asarray(expected)
+    max_d = float(np.max(np.abs(delta)))
+    logger.debug(
+        "JOINT-MONITOR [%s]  max|dq|=%.4f  "
+        "dq=[%s]",
+        label, max_d,
+        ", ".join(f"{d:+.4f}" for d in delta),
+    )
+    return max_d
+
 
 # Type aliases for readability
 TrajCacheEntry = Tuple[
@@ -857,6 +916,10 @@ def execute_parallel_to_handover(
             if joints_cur is not None else None
         )
 
+    # Eliminate 2π reflex-angle jumps between actual position and
+    # planned configs (can occur after IK-based handover motions).
+    joint_segment = _realign_joint_segment(joint_segment)
+
     receiver_pre_pose = h_traj.receiver_pre[0]
     q_warm_recv = (
         joints_next[handover_idx]
@@ -892,6 +955,21 @@ def execute_parallel_to_handover(
     if not par_result.success_b:
         _recover_arm_b(system, current_arm, other_arm, current_robot,
                        receiver_pre_pose, q_warm_recv, rrt_vis, exp_cfg)
+
+    # --- Diagnostic: log receiver arm's actual vs planned config ---
+    recv_actual = other_arm.get_joint_positions()
+    if q_warm_recv is not None:
+        _log_joint_delta(
+            f"recv-post-parallel robot{1-current_robot} wp{handover_idx}",
+            recv_actual, q_warm_recv,
+        )
+    # --- Diagnostic: log transfer arm's actual vs planned config ---
+    xfer_actual = current_arm.get_joint_positions()
+    if q_warm_transfer is not None:
+        _log_joint_delta(
+            f"xfer-post-parallel robot{current_robot} wp{handover_idx}",
+            xfer_actual, q_warm_transfer,
+        )
 
     return h_traj, q_warm_recv, q_warm_transfer
 
@@ -1044,6 +1122,8 @@ def execute_final_segment(
             )
             joint_segment.append(planned_q)
     joint_segment.extend(joints_cur[current_idx + 1 : last_idx + 1])
+    # Eliminate 2π reflex-angle jumps (same rationale as handover path).
+    joint_segment = _realign_joint_segment(joint_segment)
 
     logger.info(
         "PARALLEL: Robot %d following final segment to %d "
@@ -1254,9 +1334,46 @@ def run_execution_loop(
                 h_traj, q_warm_recv, q_warm_transfer, tracker,
             )
 
+            # --- Diagnostic: log both arms after handover ---
+            recv_actual_post = other_arm.get_joint_positions()
+            xfer_actual_post = current_arm.get_joint_positions()
+            if q_warm_recv is not None:
+                _log_joint_delta(
+                    f"recv-post-handover robot{1-current_robot} wp{current_idx}",
+                    recv_actual_post, q_warm_recv,
+                )
+            if q_warm_transfer is not None:
+                _log_joint_delta(
+                    f"xfer-post-handover robot{current_robot} wp{current_idx}",
+                    xfer_actual_post, q_warm_transfer,
+                )
+
             # Swap roles
             current_robot = 1 - current_robot
             current_arm, current_gripper, other_arm, other_gripper = _get_arms(system, current_robot)
+
+            # --- Fix: correct 2π joint offsets on new current arm ---
+            # After handover the receiver (now current_arm) may have
+            # ended up at a 2π-offset solution from IK/mink.  If so,
+            # normalize and physically drive to the expected config.
+            if q_warm_recv is not None:
+                actual_q = current_arm.get_joint_positions()
+                corrected = _normalize_config_to_reference(actual_q, q_warm_recv)
+                corr_err = float(np.max(np.abs(corrected - actual_q)))
+                if corr_err > 0.1:
+                    logger.info(
+                        "Correcting 2π joint offset on robot %d after "
+                        "handover (max correction=%.4f rad).",
+                        current_robot, corr_err,
+                    )
+                    current_arm.follow_joint_trajectory(
+                        [corrected], gripper_action=1.0,
+                        num_steps=100, smoothen=True,
+                    )
+                    _log_joint_delta(
+                        f"post-correction robot{current_robot} wp{current_idx}",
+                        current_arm.get_joint_positions(), q_warm_recv,
+                    )
         else:
             # No more handovers -- execute final segment
             current_idx = execute_final_segment(

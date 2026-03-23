@@ -256,7 +256,7 @@ class MoveToPoseService:
             arm_id = request.arm
             gripper_action = request.gripper_action
             target_pose = request.pose
-            num_steps = request.num_steps
+            num_steps = request.num_steps if request.num_steps is not None else constants.TRAJECTORY_NUM_POINTS
 
             key = (robot_id, arm_id)
             if key not in self.controllers:

@@ -252,11 +252,7 @@ class ServiceManager:
             name = request.name
             
             if name in self.services:
-                logger.warning(f"Service {name} is already registered.")
-                return ResponseStatus(
-                    status='error',
-                    message=f'Service {name} is already registered'
-                ).model_dump()
+                logger.warning(f"Service {name} is already registered. Overwriting.")
 
             service_info = ServiceInfo(
                 name=request.name,

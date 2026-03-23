@@ -493,7 +493,7 @@ class TestDualArmPlannerRRTIntegration:
         arm_b.base_frame = "world"
         arm_b.tf_manager = MagicMock()
         arm_b.get_joint_positions.return_value = np.zeros(7)
-        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+        arm_b.solve_ik_for_pose.return_value = np.ones(7)
 
         planner = DualArmParallelPlanner(
             env=env,
@@ -542,7 +542,7 @@ class TestDualArmPlannerRRTIntegration:
         arm_b.base_frame = "world"
         arm_b.tf_manager = MagicMock()
         arm_b.get_joint_positions.return_value = np.zeros(7)
-        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+        arm_b.solve_ik_for_pose.return_value = np.ones(7)
 
         planner = DualArmParallelPlanner(
             env=env,
@@ -589,7 +589,7 @@ class TestDualArmPlannerRRTIntegration:
         arm_b.base_frame = "world"
         arm_b.tf_manager = MagicMock()
         arm_b.get_joint_positions.return_value = np.zeros(7)
-        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+        arm_b.solve_ik_for_pose.return_value = np.ones(7)
 
         planner = DualArmParallelPlanner(
             env=env,
@@ -1085,7 +1085,7 @@ class TestTemporalCollisionInDualArmPlanner:
         arm_b.base_frame = "world"
         arm_b.tf_manager = MagicMock()
         arm_b.get_joint_positions.return_value = np.zeros(7)
-        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+        arm_b.solve_ik_for_pose.return_value = np.ones(7)
 
         planner = DualArmParallelPlanner(
             env=env,
@@ -1137,7 +1137,7 @@ class TestTemporalCollisionInDualArmPlanner:
         arm_b.base_frame = "world"
         arm_b.tf_manager = MagicMock()
         arm_b.get_joint_positions.return_value = np.zeros(7)
-        arm_b._solve_ik_for_pose.return_value = np.ones(7)
+        arm_b.solve_ik_for_pose.return_value = np.ones(7)
 
         planner = DualArmParallelPlanner(
             env=env,
