@@ -9,8 +9,8 @@ round-trip NPZ serialisation.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 import numpy as np
 
@@ -29,12 +29,15 @@ class AssignmentResult:
     handover_points: List[int]        # segment indices where handovers occur
     cost_matrix: np.ndarray           # (n_segments, 2) – best-per-robot summary
     trajectory_matrix: np.ndarray     # (n_segments, 2) – best trajectory idx per robot
+    normalized_configs: Optional[np.ndarray] = field(default=None, repr=False)
+    """``(n_waypoints, DOF)`` joint configs for the active robot at each
+    waypoint, with angles normalised to minimise per-joint steps and
+    validated against joint limits.  ``None`` when not computed."""
 
 
 def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
     """Persist an :class:`AssignmentResult` to an ``.npz`` file."""
-    np.savez(
-        filepath,
+    kw = dict(
         sequence=np.array(result.sequence),
         trajectory_paths=np.array(result.trajectory_paths, dtype=str),
         total_cost=result.total_cost,
@@ -44,12 +47,16 @@ def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
         cost_matrix=result.cost_matrix,
         trajectory_matrix=result.trajectory_matrix,
     )
+    if result.normalized_configs is not None:
+        kw["normalized_configs"] = result.normalized_configs
+    np.savez(filepath, **kw)
     logger.info("Assignment result saved to %s", filepath)
 
 
 def load_assignment_result(filepath: str) -> AssignmentResult:
     """Load an :class:`AssignmentResult` from an ``.npz`` file."""
     data = np.load(filepath, allow_pickle=True)
+    norm = data["normalized_configs"] if "normalized_configs" in data else None
     return AssignmentResult(
         sequence=data["sequence"].tolist(),
         trajectory_paths=data["trajectory_paths"].tolist(),
@@ -59,4 +66,5 @@ def load_assignment_result(filepath: str) -> AssignmentResult:
         handover_points=data["handover_points"].tolist(),
         cost_matrix=data["cost_matrix"],
         trajectory_matrix=data["trajectory_matrix"],
+        normalized_configs=norm,
     )

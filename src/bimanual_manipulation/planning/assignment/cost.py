@@ -46,6 +46,89 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Joint-angle normalisation helpers
+# ---------------------------------------------------------------------------
+
+def normalize_joint_angle(
+    q: float, q_ref: float, lo: float, hi: float,
+) -> float:
+    """Shift *q* by multiples of 2π to minimise ``|q - q_ref|`` within ``[lo, hi]``.
+
+    Only integer multiples of 2π are tried so that the resulting
+    configuration is physically equivalent.  If no shift improves the
+    distance while respecting limits, *q* is returned unchanged.
+    """
+    best_q = q
+    best_diff = abs(q - q_ref)
+    for k in (-1, 1, -2, 2):
+        q_shifted = q + k * 2.0 * np.pi
+        if lo <= q_shifted <= hi:
+            diff = abs(q_shifted - q_ref)
+            if diff < best_diff:
+                best_q = q_shifted
+                best_diff = diff
+    return best_q
+
+
+def normalize_trajectory_configs(
+    joint_configs: np.ndarray,
+    is_feasible: np.ndarray,
+    joint_limits_lo: np.ndarray = constants.FRANKA_JOINT_LIMITS_LO,
+    joint_limits_hi: np.ndarray = constants.FRANKA_JOINT_LIMITS_HI,
+    max_joint_step: float = constants.ASSIGNMENT_MAX_JOINT_STEP,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Normalize consecutive joint configurations and check step feasibility.
+
+    For each consecutive pair of feasible waypoints, each joint angle is
+    shifted by an integer multiple of 2π to minimise the displacement
+    while staying within joint position limits.  Any remaining per-joint
+    displacement that exceeds *max_joint_step* after normalisation causes
+    that transition to be flagged as infeasible.
+
+    Args:
+        joint_configs: ``(N, DOF)`` joint angles in radians.
+        is_feasible: ``(N,)`` boolean feasibility per waypoint.
+        joint_limits_lo: ``(DOF,)`` lower joint limits (defaults to Franka).
+        joint_limits_hi: ``(DOF,)`` upper joint limits (defaults to Franka).
+        max_joint_step: Maximum per-joint angle change (rad) between
+            consecutive waypoints.  Defaults to
+            :data:`constants.ASSIGNMENT_MAX_JOINT_STEP`.
+
+    Returns:
+        ``(normalized_configs, step_feasible)``
+
+        * ``normalized_configs`` — ``(N, DOF)`` with adjusted angles.
+        * ``step_feasible`` — ``(N,)`` boolean.  ``True`` at index *i*
+          means the transition from waypoint *i − 1* to *i* is within the
+          step threshold.  Index 0 is always ``True``.
+    """
+    N, DOF = joint_configs.shape
+    normalized = joint_configs.copy()
+    step_feasible = np.ones(N, dtype=bool)
+
+    for i in range(1, N):
+        if not is_feasible[i] or not is_feasible[i - 1]:
+            continue
+        feasible = True
+        for j in range(DOF):
+            normalized[i, j] = normalize_joint_angle(
+                normalized[i, j], normalized[i - 1, j],
+                float(joint_limits_lo[j]), float(joint_limits_hi[j]),
+            )
+            if abs(normalized[i, j] - normalized[i - 1, j]) > max_joint_step:
+                feasible = False
+        if not feasible:
+            step_feasible[i] = False
+            logger.debug(
+                "Waypoint %d: joint step exceeds threshold after "
+                "normalisation — marking transition infeasible",
+                i,
+            )
+
+    return normalized, step_feasible
+
+
+# ---------------------------------------------------------------------------
 # Handover result container
 # ---------------------------------------------------------------------------
 
@@ -212,10 +295,6 @@ def compute_cost_matrix(
     )
     return cost_matrix, trajectory_info
 
-
-# ---------------------------------------------------------------------------
-# Handover primitive cost
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Handover primitive helpers

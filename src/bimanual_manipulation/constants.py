@@ -267,6 +267,16 @@ COST_EVAL_RETREAT_STEPS = 9      # vs 30 default — only check start/end of ret
 HANDOVER_EARLY_EXIT_ON_IK_FAILURE = True
 HANDOVER_EARLY_EXIT_ON_COLLISION = True
 
+# Franka Panda joint position limits (radians) — from URDF <limit> tags.
+# Used by the assignment solver for angle normalisation when runtime limits
+# from the MuJoCo model are not provided.
+FRANKA_JOINT_LIMITS_LO = np.array([-2.8973, -1.6628, -2.7973, -3.0718, -2.7973,  0.1175, -2.7973])
+FRANKA_JOINT_LIMITS_HI = np.array([ 2.8973,  1.6628,  2.7973, -0.0698,  2.7973,  3.6525,  2.7973])
+
+# Maximum per-joint angle change allowed between consecutive waypoints (rad).
+# Transitions exceeding this after normalisation are treated as infeasible
+ASSIGNMENT_MAX_JOINT_STEP = 0.5  # radians
+
 # =============================================================================
 # Primitives
 # =============================================================================

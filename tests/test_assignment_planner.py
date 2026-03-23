@@ -61,7 +61,12 @@ def _make_trajectory(
 ) -> RobotTrajectory:
     """Build a minimal RobotTrajectory suitable for the assignment planner."""
     rng = np.random.default_rng(seed)
-    q = rng.uniform(-1, 1, (n_waypoints, n_joints))
+    # Random walk so consecutive configs are close (realistic for IK-solved
+    # trajectories) and the joint-step feasibility check passes.
+    q = np.zeros((n_waypoints, n_joints))
+    q[0] = rng.uniform(-1, 1, n_joints)
+    for i in range(1, n_waypoints):
+        q[i] = q[i - 1] + rng.uniform(-0.3, 0.3, n_joints)
     positions = rng.uniform(-0.5, 0.5, (n_waypoints, 3))
     quats = np.tile([0, 0, 0, 1], (n_waypoints, 1)).astype(float)
     return RobotTrajectory(

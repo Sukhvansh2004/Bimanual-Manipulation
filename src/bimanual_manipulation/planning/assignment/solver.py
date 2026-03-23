@@ -23,6 +23,7 @@ from bimanual_manipulation.planning.assignment.result import (
 from bimanual_manipulation.planning.assignment.cost import (
     compute_cost_matrix,
     compute_switching_cost,
+    normalize_trajectory_configs,
     HandoverResult,
 )
 
@@ -310,8 +311,14 @@ def _backtrack(
     switch_cost_cache: np.ndarray,
     trajectory_info: Dict[int, Tuple[int, int]],
     trajectories: TrajectoryBundle,
+    normalized_configs_cache: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> AssignmentResult:
     """Extract the optimal sequence from the filled DP tables.
+
+    When *normalized_configs_cache* is provided, the result includes a
+    ``normalized_configs`` array of shape ``(n_waypoints, DOF)``
+    containing the active robot's joint configuration at each waypoint,
+    with angles adjusted for continuity within joint limits.
 
     Raises:
         ValueError: If no feasible terminal state exists.
@@ -339,11 +346,13 @@ def _backtrack(
     traj_paths: List[str] = []
     task_costs_list: List[float] = []
     switch_costs_list: List[float] = []
+    segment_keys: List[Tuple[int, int]] = []  # (robot_id, traj_idx) per segment
 
     cs = best_final_state
     for i in range(n_segments - 1, -1, -1):
         robot_id, traj_idx = trajectory_info[cs]
         sequence.append(robot_id)
+        segment_keys.append((robot_id, traj_idx))
         traj_obj = trajectories.get_trajectory(robot_id, traj_idx)
         traj_paths.append(
             traj_obj.source_path
@@ -361,6 +370,7 @@ def _backtrack(
     traj_paths.reverse()
     task_costs_list.reverse()
     switch_costs_list.reverse()
+    segment_keys.reverse()
 
     handover_points = [
         i for i in range(1, len(sequence)) if sequence[i] != sequence[i - 1]
@@ -374,6 +384,29 @@ def _backtrack(
                 cost_summary[seg, rid] = cost_matrix[seg, si]
                 traj_summary[seg, rid] = tidx
 
+    # --- Build normalised config sequence for the assigned path ---
+    assigned_configs: Optional[np.ndarray] = None
+    if normalized_configs_cache:
+        n_waypoints = n_segments + 1
+        first_key = next(iter(normalized_configs_cache))
+        dof = normalized_configs_cache[first_key].shape[1]
+        assigned_configs = np.full((n_waypoints, dof), np.nan)
+
+        for seg_idx, (rid, tidx) in enumerate(segment_keys):
+            norm = normalized_configs_cache.get((rid, tidx))
+            if norm is not None and seg_idx < norm.shape[0]:
+                assigned_configs[seg_idx] = norm[seg_idx]
+                if seg_idx == n_segments - 1 and seg_idx + 1 < norm.shape[0]:
+                    assigned_configs[seg_idx + 1] = norm[seg_idx + 1]
+
+        logger.info(
+            "Built normalised config sequence: shape=%s, "
+            "nan_waypoints=%d/%d",
+            assigned_configs.shape,
+            int(np.any(np.isnan(assigned_configs), axis=1).sum()),
+            n_waypoints,
+        )
+
     return AssignmentResult(
         sequence=sequence,
         trajectory_paths=traj_paths,
@@ -383,6 +416,7 @@ def _backtrack(
         handover_points=handover_points,
         cost_matrix=cost_summary,
         trajectory_matrix=traj_summary,
+        normalized_configs=assigned_configs,
     )
 
 
@@ -406,6 +440,7 @@ def _solve_optimal_assignment(
     initial_robot: Optional[int] = None,
     beam_width: Optional[int] = None,
     handover_stride: int = 1,
+    normalized_configs_cache: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
 
@@ -442,6 +477,7 @@ def _solve_optimal_assignment(
     return _backtrack(
         cost_matrix, J_star, prev_state, switch_cost_cache,
         trajectory_info, trajectories,
+        normalized_configs_cache=normalized_configs_cache,
     )
 
 
@@ -463,6 +499,9 @@ def compute_optimal_robot_assignment(
     handover_callback: Optional[Callable[[HandoverResult], None]] = None,
     beam_width: Optional[int] = None,
     handover_stride: int = 1,
+    joint_limits_lo: np.ndarray = constants.FRANKA_JOINT_LIMITS_LO,
+    joint_limits_hi: np.ndarray = constants.FRANKA_JOINT_LIMITS_HI,
+    max_joint_step: float = constants.ASSIGNMENT_MAX_JOINT_STEP,
 ) -> AssignmentResult:
     """Compute the globally optimal robot-to-segment assignment.
 
@@ -483,9 +522,20 @@ def compute_optimal_robot_assignment(
             evaluated handover attempt.  Useful for visualization or logging.
         beam_width: Max surviving DP states per segment.
         handover_stride: Evaluate handovers every *handover_stride* segments.
+        joint_limits_lo: ``(DOF,)`` lower joint position limits.  Defaults to
+            Franka Panda limits from
+            :data:`constants.FRANKA_JOINT_LIMITS_LO`.
+        joint_limits_hi: ``(DOF,)`` upper joint position limits.  Defaults to
+            Franka Panda limits from
+            :data:`constants.FRANKA_JOINT_LIMITS_HI`.
+        max_joint_step: Maximum per-joint angle change (rad) between
+            consecutive waypoints.  Transitions exceeding this after
+            angle normalisation are marked infeasible.  Defaults to
+            :data:`constants.ASSIGNMENT_MAX_JOINT_STEP`.
 
     Returns:
-        :class:`AssignmentResult` with the optimal sequence and cost breakdown.
+        :class:`AssignmentResult` with the optimal sequence, cost breakdown,
+        and ``normalized_configs`` for direct use by the execution controller.
 
     Raises:
         ValueError: If no feasible assignment exists.
@@ -502,24 +552,88 @@ def compute_optimal_robot_assignment(
         handover_stride,
     )
 
-    cost_matrix, traj_info = compute_cost_matrix(
-        r0, r1, n_segments,
-        alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fns=jacobian_fns,
-    )
-    logger.info("Cost matrix: %d segments x %d states", *cost_matrix.shape)
+    # --- Pre-normalise trajectory joint configs and check step feasibility --
+    normalized_configs_cache: Dict[Tuple[int, int], np.ndarray] = {}
+    step_feasibility: Dict[Tuple[int, int], np.ndarray] = {}
+    # Track original configs by object identity so that shared trajectory
+    # objects (e.g. same object in both robot lists) are handled safely.
+    originals: Dict[int, np.ndarray] = {}  # id(traj) -> original joint_configs
 
-    result = _solve_optimal_assignment(
-        cost_matrix, traj_info, trajectories,
-        transfer_feasibility=transfer_feasibility,
-        alpha=alpha, beta=beta, epsilon=epsilon,
-        ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
-        collision_check_fn=collision_check_fn,
-        handover_clearance_fn=handover_clearance_fn,
-        handover_callback=handover_callback,
-        initial_robot=initial_robot,
-        beam_width=beam_width,
-        handover_stride=handover_stride,
+    for robot_id, trajs in [(0, r0), (1, r1)]:
+        for traj_idx, traj in enumerate(trajs):
+            traj_obj_id = id(traj)
+            if traj_obj_id not in originals:
+                originals[traj_obj_id] = traj.joint_configs
+
+            # Always normalise from the true original so that repeated
+            # processing of a shared trajectory object is idempotent.
+            norm, step_ok = normalize_trajectory_configs(
+                originals[traj_obj_id], traj.is_feasible,
+                joint_limits_lo, joint_limits_hi, max_joint_step,
+            )
+            normalized_configs_cache[(robot_id, traj_idx)] = norm
+            step_feasibility[(robot_id, traj_idx)] = step_ok
+            # Temporarily replace with normalised configs so that
+            # cost computation (smoothness) uses the adjusted angles.
+            traj.joint_configs = norm
+
+    n_infeasible_total = sum(
+        int((~ok[1:]).sum()) for ok in step_feasibility.values()
     )
+    if n_infeasible_total:
+        logger.info(
+            "Joint-step normalisation: %d segment transitions across all "
+            "trajectories exceed the max-step threshold and will be "
+            "marked infeasible.",
+            n_infeasible_total,
+        )
+
+    try:
+        cost_matrix, traj_info = compute_cost_matrix(
+            r0, r1, n_segments,
+            alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fns=jacobian_fns,
+        )
+
+        # Apply step-feasibility constraint to cost matrix.
+        # step_ok[i] indicates whether the transition from waypoint i-1
+        # to waypoint i is within the threshold.  Segment `seg` spans
+        # waypoints [seg, seg+1], so step_ok[seg+1] governs it.
+        for si, (robot_id, traj_idx) in traj_info.items():
+            step_ok = step_feasibility[(robot_id, traj_idx)]
+            for seg in range(n_segments):
+                wp = seg + 1
+                if wp < len(step_ok) and not step_ok[wp]:
+                    if np.isfinite(cost_matrix[seg, si]):
+                        logger.debug(
+                            "State %d (robot%d traj%d) seg %d: joint step "
+                            "exceeds threshold — cost set to inf",
+                            si, robot_id, traj_idx, seg,
+                        )
+                    cost_matrix[seg, si] = np.inf
+
+        logger.info("Cost matrix: %d segments x %d states", *cost_matrix.shape)
+
+        result = _solve_optimal_assignment(
+            cost_matrix, traj_info, trajectories,
+            transfer_feasibility=transfer_feasibility,
+            alpha=alpha, beta=beta, epsilon=epsilon,
+            ik_solver_fn=ik_solver_fn, jacobian_fns=jacobian_fns,
+            collision_check_fn=collision_check_fn,
+            handover_clearance_fn=handover_clearance_fn,
+            handover_callback=handover_callback,
+            initial_robot=initial_robot,
+            beam_width=beam_width,
+            handover_stride=handover_stride,
+            normalized_configs_cache=normalized_configs_cache,
+        )
+    finally:
+        # Restore original joint configs so the caller's objects aren't
+        # permanently mutated.
+        for trajs in (r0, r1):
+            for traj in trajs:
+                orig = originals.get(id(traj))
+                if orig is not None:
+                    traj.joint_configs = orig
 
     logger.info(
         "Assignment solved: total_cost=%.4f, handovers=%d",
