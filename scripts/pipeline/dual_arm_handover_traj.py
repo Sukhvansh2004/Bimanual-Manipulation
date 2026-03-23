@@ -75,6 +75,9 @@ from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
+from bimanual_manipulation.utils.trajectory_math import (
+    velocity_profile_joint_trajectory,
+)
 
 def _realign_joint_segment(segment: list) -> list:
     """Re-normalise each config in *segment* relative to its predecessor.
@@ -786,7 +789,8 @@ def execute_grasp(
     """Follow approach trajectory, align to planned config, close gripper, and stabilise.
     """
     logger.info("Robot %d following grasp approach trajectory...", current_robot)
-    current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start)
+    current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start,
+                                  smoothen=True)
 
     current_gripper.grasp()
     stabilise(system.env, system.env_lock)
@@ -920,6 +924,13 @@ def execute_parallel_to_handover(
     # planned configs (can occur after IK-based handover motions).
     joint_segment = _realign_joint_segment(joint_segment)
 
+    # Apply quintic velocity profiling so the arm accelerates and
+    # decelerates smoothly instead of moving at uniform speed.
+    n_profiled = max(200, len(joint_segment) * 8)
+    joint_segment = velocity_profile_joint_trajectory(
+        np.array(joint_segment), num_steps=n_profiled,
+    )
+
     receiver_pre_pose = h_traj.receiver_pre[0]
     q_warm_recv = (
         joints_next[handover_idx]
@@ -941,7 +952,7 @@ def execute_parallel_to_handover(
     par_result = planner.execute_parallel(
         traj_a=joint_segment, target_b=receiver_pre_pose,
         gripper_a=1.0, gripper_b=-1.0,
-        q_warm_start_b=q_warm_recv, num_steps_override=200,
+        q_warm_start_b=q_warm_recv,
     )
 
     if not par_result.success_a:
@@ -1036,7 +1047,7 @@ def execute_handover_sequence(
 
     # Transfer arm holds position
     logger.info("Robot %d moving to handover hold pose...", current_robot)
-    current_arm.move_to_pose(h_traj.transfer_hold[0], gripper_action=1.0, num_steps=50,
+    current_arm.move_to_pose(h_traj.transfer_hold[0], gripper_action=1.0, num_steps=100,
                              q_warm_start=q_warm_transfer)
 
     # Receiver approaches
@@ -1044,6 +1055,7 @@ def execute_handover_sequence(
     other_gripper.release()
     receiver_converged = other_arm.follow_trajectory(
         h_traj.receiver_approach, q_warm_start=q_warm_recv,
+        smoothen=True,
     )
     if not receiver_converged:
         recv_pos, _ = other_arm.get_eef_pose_in_base()
@@ -1063,7 +1075,8 @@ def execute_handover_sequence(
 
     # Transfer arm retreats
     logger.info("Robot %d following handover retreat trajectory...", current_robot)
-    current_arm.follow_trajectory(h_traj.transfer_retreat, q_warm_start=q_warm_transfer)
+    current_arm.follow_trajectory(h_traj.transfer_retreat, q_warm_start=q_warm_transfer,
+                                  smoothen=True)
 
     # Report handover outcome
     if receiver_converged:
@@ -1125,6 +1138,12 @@ def execute_final_segment(
     # Eliminate 2π reflex-angle jumps (same rationale as handover path).
     joint_segment = _realign_joint_segment(joint_segment)
 
+    # Apply quintic velocity profiling for smooth acceleration/deceleration.
+    n_profiled = max(200, len(joint_segment) * 8)
+    joint_segment = velocity_profile_joint_trajectory(
+        np.array(joint_segment), num_steps=n_profiled,
+    )
+
     logger.info(
         "PARALLEL: Robot %d following final segment to %d "
         "while Robot %d moves to home position",
@@ -1141,7 +1160,6 @@ def execute_final_segment(
         traj_a=joint_segment,
         target_b=constants.FRANKA_HOME_JOINT_POSITION,
         gripper_a=1.0, gripper_b=-1.0,
-        num_steps_override=max(200, len(joint_segment) * 2),
     )
     if not par_result.success_a:
         logger.warning(
@@ -1188,7 +1206,8 @@ def release_and_retreat(
     stabilise(system.env, system.env_lock)
 
     logger.info("Robot %d following retreat trajectory...", current_robot)
-    current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0)
+    current_arm.follow_trajectory(release_traj_data["retreat"], gripper_action=-1.0,
+                                  smoothen=True)
     stabilise(system.env, system.env_lock)
 
 
