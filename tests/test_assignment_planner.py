@@ -136,6 +136,9 @@ class TestAssignmentResult:
     """Test the dataclass and its I/O round-trip."""
 
     def _sample_result(self) -> AssignmentResult:
+        n_wp = 6  # 5 segments → 6 waypoints
+        dof = 7
+        rng = np.random.default_rng(0)
         return AssignmentResult(
             sequence=[0, 0, 1, 1, 0],
             trajectory_paths=[
@@ -149,8 +152,21 @@ class TestAssignmentResult:
             task_costs=np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
             switching_costs=np.array([0.0, 0.0, 10.0, 0.0, 10.0]),
             handover_points=[2, 4],
-            cost_matrix=np.random.rand(5, 2),
+            cost_matrix=rng.random((5, 2)),
             trajectory_matrix=np.array([[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]]),
+            normalized_configs=rng.random((n_wp, dof)),
+            eef_positions=rng.random((n_wp, 3)),
+            eef_quaternions=rng.random((n_wp, 4)),
+            eef_frame_ids=[f"frame_{i}" for i in range(n_wp)],
+            object_positions=rng.random((n_wp, 3)),
+            object_quaternions=rng.random((n_wp, 4)),
+            object_frame_ids=[f"obj_frame_{i}" for i in range(n_wp)],
+            is_feasible=np.ones(n_wp, dtype=bool),
+            grasp_paths=["robot0_trajectory_0.npz", "robot1_trajectory_1.npz"],
+            grasp_positions=rng.random((2, 3)),
+            grasp_quaternions=rng.random((2, 4)),
+            grasp_frame_ids=["grasp_0", "grasp_1"],
+            handover_transfer_configs=rng.random((2, dof)),
         )
 
     def test_fields_accessible(self):
@@ -175,14 +191,30 @@ class TestAssignmentResult:
         assert loaded.handover_points == original.handover_points
         np.testing.assert_allclose(loaded.cost_matrix, original.cost_matrix)
         np.testing.assert_array_equal(loaded.trajectory_matrix, original.trajectory_matrix)
+        # Execution fields
+        np.testing.assert_allclose(loaded.normalized_configs, original.normalized_configs)
+        np.testing.assert_allclose(loaded.eef_positions, original.eef_positions)
+        np.testing.assert_allclose(loaded.eef_quaternions, original.eef_quaternions)
+        assert loaded.eef_frame_ids == original.eef_frame_ids
+        np.testing.assert_allclose(loaded.object_positions, original.object_positions)
+        np.testing.assert_allclose(loaded.object_quaternions, original.object_quaternions)
+        assert loaded.object_frame_ids == original.object_frame_ids
+        np.testing.assert_array_equal(loaded.is_feasible, original.is_feasible)
+        assert loaded.grasp_paths == original.grasp_paths
+        np.testing.assert_allclose(loaded.grasp_positions, original.grasp_positions)
+        np.testing.assert_allclose(loaded.grasp_quaternions, original.grasp_quaternions)
+        assert loaded.grasp_frame_ids == original.grasp_frame_ids
+        np.testing.assert_allclose(loaded.handover_transfer_configs, original.handover_transfer_configs)
 
     def test_save_load_empty_handover_points(self, tmp_path):
         r = self._sample_result()
         r.handover_points = []
+        r.handover_transfer_configs = np.empty((0, 7))
         fpath = str(tmp_path / "no_handover.npz")
         save_assignment_result(r, fpath)
         loaded = load_assignment_result(fpath)
         assert loaded.handover_points == []
+        assert loaded.handover_transfer_configs.shape == (0, 7)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

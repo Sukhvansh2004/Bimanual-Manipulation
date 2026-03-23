@@ -211,7 +211,8 @@ def apply_beam_pruning(
 
 def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
     """Persist an :class:`AssignmentResult` to an ``.npz`` file."""
-    kw = dict(
+    np.savez(
+        filepath,
         sequence=np.array(result.sequence),
         trajectory_paths=np.array(result.trajectory_paths, dtype=str),
         total_cost=result.total_cost,
@@ -220,10 +221,20 @@ def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
         handover_points=np.array(result.handover_points),
         cost_matrix=result.cost_matrix,
         trajectory_matrix=result.trajectory_matrix,
+        normalized_configs=result.normalized_configs,
+        eef_positions=result.eef_positions,
+        eef_quaternions=result.eef_quaternions,
+        eef_frame_ids=np.array(result.eef_frame_ids, dtype=str),
+        object_positions=result.object_positions,
+        object_quaternions=result.object_quaternions,
+        object_frame_ids=np.array(result.object_frame_ids, dtype=str),
+        is_feasible=result.is_feasible,
+        grasp_paths=np.array(result.grasp_paths, dtype=str),
+        grasp_positions=result.grasp_positions,
+        grasp_quaternions=result.grasp_quaternions,
+        grasp_frame_ids=np.array(result.grasp_frame_ids, dtype=str),
+        handover_transfer_configs=result.handover_transfer_configs,
     )
-    if result.normalized_configs is not None:
-        kw["normalized_configs"] = result.normalized_configs
-    np.savez(filepath, **kw)
     logger.info("Assignment result saved to %s", filepath)
 
 
@@ -234,7 +245,7 @@ def load_assignment_result(filepath: str) -> AssignmentResult:
     )
 
     data = np.load(filepath, allow_pickle=True)
-    norm = data["normalized_configs"] if "normalized_configs" in data else None
+
     return _AssignmentResult(
         sequence=data["sequence"].tolist(),
         trajectory_paths=data["trajectory_paths"].tolist(),
@@ -244,5 +255,17 @@ def load_assignment_result(filepath: str) -> AssignmentResult:
         handover_points=data["handover_points"].tolist(),
         cost_matrix=data["cost_matrix"],
         trajectory_matrix=data["trajectory_matrix"],
-        normalized_configs=norm,
+        normalized_configs=data["normalized_configs"],
+        eef_positions=data["eef_positions"],
+        eef_quaternions=data["eef_quaternions"],
+        eef_frame_ids=data["eef_frame_ids"].tolist(),
+        object_positions=data["object_positions"],
+        object_quaternions=data["object_quaternions"],
+        object_frame_ids=data["object_frame_ids"].tolist(),
+        is_feasible=data["is_feasible"],
+        grasp_paths=data["grasp_paths"].tolist(),
+        grasp_positions=data["grasp_positions"],
+        grasp_quaternions=data["grasp_quaternions"],
+        grasp_frame_ids=data["grasp_frame_ids"].tolist(),
+        handover_transfer_configs=data["handover_transfer_configs"],
     )

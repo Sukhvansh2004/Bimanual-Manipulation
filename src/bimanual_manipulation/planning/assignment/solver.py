@@ -29,6 +29,8 @@ from bimanual_manipulation.planning.utils.assignment_utils import (
     normalize_trajectory_configs,
     apply_beam_pruning as _apply_beam_pruning,
 )
+from bimanual_manipulation.transforms import StampedPose
+from bimanual_manipulation.utils.primitives import extract_grasp_transform
 
 logger = logging.getLogger(__name__)
 
@@ -390,27 +392,111 @@ def _backtrack(
                 traj_summary[seg, rid] = tidx
 
     # --- Build normalised config sequence for the assigned path ---
-    assigned_configs: Optional[np.ndarray] = None
-    if normalized_configs_cache:
-        n_waypoints = n_segments + 1
-        first_key = next(iter(normalized_configs_cache))
-        dof = normalized_configs_cache[first_key].shape[1]
-        assigned_configs = np.full((n_waypoints, dof), np.nan)
+    n_waypoints = n_segments + 1
+    first_key = next(iter(normalized_configs_cache))
+    dof = normalized_configs_cache[first_key].shape[1]
+    assigned_configs = np.full((n_waypoints, dof), np.nan)
 
-        for seg_idx, (rid, tidx) in enumerate(segment_keys):
-            norm = normalized_configs_cache.get((rid, tidx))
-            if norm is not None and seg_idx < norm.shape[0]:
-                assigned_configs[seg_idx] = norm[seg_idx]
-                if seg_idx == n_segments - 1 and seg_idx + 1 < norm.shape[0]:
-                    assigned_configs[seg_idx + 1] = norm[seg_idx + 1]
+    for seg_idx, (rid, tidx) in enumerate(segment_keys):
+        norm = normalized_configs_cache.get((rid, tidx))
+        if norm is not None and seg_idx < norm.shape[0]:
+            assigned_configs[seg_idx] = norm[seg_idx]
+            if seg_idx == n_segments - 1 and seg_idx + 1 < norm.shape[0]:
+                assigned_configs[seg_idx + 1] = norm[seg_idx + 1]
 
-        logger.info(
-            "Built normalised config sequence: shape=%s, "
-            "nan_waypoints=%d/%d",
-            assigned_configs.shape,
-            int(np.any(np.isnan(assigned_configs), axis=1).sum()),
-            n_waypoints,
+    logger.info(
+        "Built normalised config sequence: shape=%s, "
+        "nan_waypoints=%d/%d",
+        assigned_configs.shape,
+        int(np.any(np.isnan(assigned_configs), axis=1).sum()),
+        n_waypoints,
+    )
+
+    # --- Build per-waypoint execution data for the assigned path ---
+    n_waypoints = n_segments + 1
+    eef_pos = np.zeros((n_waypoints, 3))
+    eef_quat = np.zeros((n_waypoints, 4))
+    eef_fids: List[str] = [""] * n_waypoints
+    obj_pos = np.zeros((n_waypoints, 3))
+    obj_quat = np.zeros((n_waypoints, 4))
+    obj_fids: List[str] = [""] * n_waypoints
+    is_feasible_arr = np.ones(n_waypoints, dtype=bool)
+
+    for seg_idx, (rid, tidx) in enumerate(segment_keys):
+        traj = trajectories.get_trajectory(rid, tidx)
+        if seg_idx < traj.n_waypoints:
+            eef_pos[seg_idx] = traj.eef_positions[seg_idx]
+            eef_quat[seg_idx] = traj.eef_quaternions[seg_idx]
+            eef_fids[seg_idx] = str(traj.eef_frame_ids[seg_idx])
+            obj_pos[seg_idx] = traj.object_positions[seg_idx]
+            obj_quat[seg_idx] = traj.object_quaternions[seg_idx]
+            obj_fids[seg_idx] = str(traj.object_frame_ids[seg_idx])
+            is_feasible_arr[seg_idx] = bool(traj.is_feasible[seg_idx])
+        # Fill last waypoint from last segment's next waypoint
+        if seg_idx == n_segments - 1:
+            wp = seg_idx + 1
+            if wp < traj.n_waypoints:
+                eef_pos[wp] = traj.eef_positions[wp]
+                eef_quat[wp] = traj.eef_quaternions[wp]
+                eef_fids[wp] = str(traj.eef_frame_ids[wp])
+                obj_pos[wp] = traj.object_positions[wp]
+                obj_quat[wp] = traj.object_quaternions[wp]
+                obj_fids[wp] = str(traj.object_frame_ids[wp])
+                is_feasible_arr[wp] = bool(traj.is_feasible[wp])
+
+    # --- Build per-unique-trajectory grasp transforms ---
+    unique_paths = sorted(set(traj_paths))
+    g_positions = np.zeros((len(unique_paths), 3))
+    g_quaternions = np.zeros((len(unique_paths), 4))
+    g_frame_ids: List[str] = [""] * len(unique_paths)
+
+    # Map trajectory paths to (robot_id, traj_idx) for first occurrence
+    path_to_key: Dict[str, Tuple[int, int]] = {}
+    for seg_idx, (rid, tidx) in enumerate(segment_keys):
+        p = traj_paths[seg_idx]
+        if p not in path_to_key:
+            path_to_key[p] = (rid, tidx)
+
+    for gi, gpath in enumerate(unique_paths):
+        rid, tidx = path_to_key[gpath]
+        traj = trajectories.get_trajectory(rid, tidx)
+        eef0 = StampedPose(
+            position=traj.eef_positions[0],
+            quaternion=traj.eef_quaternions[0],
+            frame_id=str(traj.eef_frame_ids[0]),
         )
+        obj0 = StampedPose(
+            position=traj.object_positions[0],
+            quaternion=traj.object_quaternions[0],
+            frame_id=str(traj.object_frame_ids[0]),
+        )
+        grasp = extract_grasp_transform(eef0, obj0)
+        g_positions[gi] = grasp.position
+        g_quaternions[gi] = grasp.quaternion
+        g_frame_ids[gi] = grasp.frame_id
+
+    logger.info(
+        "Built execution data: %d waypoints, %d grasp transforms",
+        n_waypoints, len(unique_paths),
+    )
+
+    # --- Build handover transfer configs ---
+    # At each handover point, store the *transferring* arm's normalised
+    # config at that waypoint so execution can warm-start the hold/retreat.
+    ho_transfer = np.full((len(handover_points), dof), np.nan)
+    for hi, hp in enumerate(handover_points):
+        # The segment *before* the handover was assigned to the transferor.
+        prev_rid, prev_tidx = segment_keys[hp - 1]
+        norm = normalized_configs_cache.get((prev_rid, prev_tidx))
+        if norm is not None and hp < norm.shape[0]:
+            ho_transfer[hi] = norm[hp]
+
+    logger.info(
+        "Handover transfer configs: %d handovers, nan=%d/%d",
+        len(handover_points),
+        int(np.any(np.isnan(ho_transfer), axis=1).sum()),
+        len(handover_points),
+    )
 
     return AssignmentResult(
         sequence=sequence,
@@ -422,6 +508,18 @@ def _backtrack(
         cost_matrix=cost_summary,
         trajectory_matrix=traj_summary,
         normalized_configs=assigned_configs,
+        eef_positions=eef_pos,
+        eef_quaternions=eef_quat,
+        eef_frame_ids=eef_fids,
+        object_positions=obj_pos,
+        object_quaternions=obj_quat,
+        object_frame_ids=obj_fids,
+        is_feasible=is_feasible_arr,
+        grasp_paths=unique_paths,
+        grasp_positions=g_positions,
+        grasp_quaternions=g_quaternions,
+        grasp_frame_ids=g_frame_ids,
+        handover_transfer_configs=ho_transfer,
     )
 
 

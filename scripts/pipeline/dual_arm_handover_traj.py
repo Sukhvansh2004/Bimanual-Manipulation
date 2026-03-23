@@ -452,6 +452,72 @@ def create_system(
 # Trajectory loading
 # ---------------------------------------------------------------------------
 
+def _reconstruct_from_assignment(
+    assignment: AssignmentResult,
+) -> Tuple[TrajCache, GraspCache]:
+    """Rebuild *traj_cache* and *grasp_cache* from embedded assignment data.
+
+    This allows execution without loading individual trajectory NPZ files.
+    A synthetic traj_cache entry is created for each unique trajectory path
+    referenced in the assignment.
+    """
+    n_wp = len(assignment.is_feasible)
+    eef_poses = [
+        StampedPose(
+            position=assignment.eef_positions[i],
+            quaternion=assignment.eef_quaternions[i],
+            frame_id=assignment.eef_frame_ids[i],
+        )
+        for i in range(n_wp)
+    ]
+    obj_poses = [
+        StampedPose(
+            position=assignment.object_positions[i],
+            quaternion=assignment.object_quaternions[i],
+            frame_id=assignment.object_frame_ids[i],
+        )
+        for i in range(n_wp)
+    ]
+
+    jts = assignment.normalized_configs  # (n_wp, DOF)
+
+    # Build WaypointFeasibilityResult list
+    res: List[WaypointFeasibilityResult] = []
+    for i in range(n_wp):
+        res.append(WaypointFeasibilityResult(
+            waypoint_index=i,
+            eef_pose=eef_poses[i],
+            joint_config=jts[i],
+            is_feasible=bool(assignment.is_feasible[i]),
+            ik_success=bool(assignment.is_feasible[i]),
+            collision_free=bool(assignment.is_feasible[i]),
+        ))
+
+    # Create one traj_cache entry per unique trajectory path.
+    # All entries share the same assigned-path data; the execution code
+    # indexes by waypoint, and the waypoint data comes from the assigned
+    # trajectory at each segment.
+    traj_cache: TrajCache = {}
+    for tpath in sorted(set(assignment.trajectory_paths)):
+        traj_cache[tpath] = (eef_poses, obj_poses, jts, res, tpath)
+
+    # Reconstruct grasp_cache from embedded grasp transforms
+    grasp_cache: GraspCache = {}
+    for gi, gpath in enumerate(assignment.grasp_paths):
+        grasp_cache[gpath] = StampedPose(
+            position=assignment.grasp_positions[gi],
+            quaternion=assignment.grasp_quaternions[gi],
+            frame_id=assignment.grasp_frame_ids[gi],
+        )
+
+    logger.info(
+        "Reconstructed execution data from assignment: "
+        "%d waypoints, %d traj_cache entries, %d grasp transforms",
+        n_wp, len(traj_cache), len(grasp_cache),
+    )
+    return traj_cache, grasp_cache
+
+
 def load_trajectories(
     args: argparse.Namespace,
     exp_cfg: ExperimentConfig,
@@ -460,13 +526,6 @@ def load_trajectories(
     assignment: Optional[AssignmentResult] = None
     traj_cache: TrajCache = {}
     explicit_paths: ExplicitPaths = None
-
-    def _load_cached(traj_path, directory):
-        if traj_path not in traj_cache:
-            fpath = os.path.join(directory, traj_path)
-            eef, obj, jts, res = load_trajectory(fpath)
-            traj_cache[traj_path] = (eef, obj, jts, res, traj_path)
-        return traj_cache[traj_path]
 
     if args.traj0 and args.traj1:
         # --- Explicit trajectory mode ---
@@ -501,15 +560,15 @@ def load_trajectories(
         logger.info("Loading assignment result from %s ...", assignment_file)
         assignment = load_assignment_result(assignment_file)
 
-        for tpath in sorted(set(assignment.trajectory_paths)):
-            _load_cached(tpath, data_dir)
-
+        # All execution data is embedded in the assignment NPZ —
+        # no need to load individual trajectory files.
         logger.info(
-            "Loaded %d unique trajectories for assignment: %s",
-            len(set(assignment.trajectory_paths)),
-            sorted(set(assignment.trajectory_paths)),
+            "Reconstructing execution data from assignment "
+            "(no trajectory files needed)."
         )
+        traj_cache, grasp_cache = _reconstruct_from_assignment(assignment)
         logger.info("Handover points: %s", assignment.handover_points)
+        return assignment, traj_cache, grasp_cache, explicit_paths
 
     # Validate loaded trajectories
     for tpath, (eef, obj, jts, res, fname) in traj_cache.items():
@@ -591,14 +650,11 @@ def _get_joint_configs(
 ) -> Optional[np.ndarray]:
     """Return the joint configs to use during execution.
 
-    When an assignment with ``normalized_configs`` is available the
-    normalised array is returned directly — no per-waypoint merging
-    with the raw trajectory file is needed.  Falls back to the raw
-    trajectory configs when no assignment is loaded (explicit-trajectory
-    mode).
+    When an assignment is available the normalised array is returned
+    directly.  Falls back to the raw trajectory configs when no
+    assignment is loaded (explicit-trajectory mode).
     """
-    if assignment is not None and assignment.normalized_configs is not None:
-        logger.debug("Using assignment normalized_configs for execution.")
+    if assignment is not None:
         return assignment.normalized_configs
     
     logger.debug("Using raw trajectory joint configs for execution.")
@@ -732,15 +788,18 @@ def execute_parallel_to_handover(
     tracker: ExecutionTracker,
     rrt_vis: Optional[RRTVisualizer],
     vis: Optional[meshcat.Visualizer],
-) -> Tuple[HandoverTrajectory, Optional[np.ndarray]]:
+) -> Tuple[HandoverTrajectory, Optional[np.ndarray], Optional[np.ndarray]]:
     """Move arm A to handover while arm B moves to receiver pre-pose.
 
-    Returns (h_traj, q_warm_recv).
+    Returns (h_traj, q_warm_recv, q_warm_transfer).
     """
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
     next_path = _get_traj_path(assignment, explicit_paths, 1 - current_robot, handover_idx)
     _, obj_cur, _, _, _ = traj_cache[cur_path]
     joints_cur = _get_joint_configs(assignment, traj_cache, cur_path)
+    # In assignment mode joints_next is the same array as joints_cur
+    # (normalized_configs); in explicit mode it is the *receiver* robot's
+    # raw trajectory and is needed for q_warm_recv.
     joints_next = _get_joint_configs(assignment, traj_cache, next_path)
 
     grasp_transfer = grasp_cache[cur_path]
@@ -776,14 +835,27 @@ def execute_parallel_to_handover(
                 q_err, current_idx, handover_idx,
             )
             joint_segment.append(planned_q)
-    # When using assignment normalized_configs, the config at
-    # handover_idx belongs to the *receiving* robot — exclude it from
-    # the current arm's segment.  The handover primitive's
-    # transfer_hold pose handles final positioning.
-    if assignment is not None and assignment.normalized_configs is not None:
+    # Build the transfer arm's joint segment and compute q_warm_transfer.
+    q_warm_transfer: Optional[np.ndarray] = None
+    if assignment is not None:
+        # normalized_configs at handover_idx belongs to the *receiving*
+        # robot — exclude it.  Instead, append the transfer arm's own
+        # planned config at the handover waypoint so the arm physically
+        # arrives at the handover position during parallel execution.
         joint_segment.extend(joints_cur[current_idx + 1 : handover_idx])
+        ho_list_idx = assignment.handover_points.index(handover_idx)
+        ho_cfg = assignment.handover_transfer_configs[ho_list_idx]
+        if not np.any(np.isnan(ho_cfg)):
+            joint_segment.append(ho_cfg)
+            q_warm_transfer = ho_cfg
     else:
+        # Explicit-trajectory mode: the transfer arm's own trajectory
+        # includes a valid config at handover_idx.
         joint_segment.extend(joints_cur[current_idx + 1 : handover_idx + 1])
+        q_warm_transfer = (
+            joints_cur[handover_idx]
+            if joints_cur is not None else None
+        )
 
     receiver_pre_pose = h_traj.receiver_pre[0]
     q_warm_recv = (
@@ -821,7 +893,7 @@ def execute_parallel_to_handover(
         _recover_arm_b(system, current_arm, other_arm, current_robot,
                        receiver_pre_pose, q_warm_recv, rrt_vis, exp_cfg)
 
-    return h_traj, q_warm_recv
+    return h_traj, q_warm_recv, q_warm_transfer
 
 
 def _recover_arm_b(
@@ -1166,21 +1238,14 @@ def run_execution_loop(
         )
 
         if handover_idx != -1 and handover_idx > current_idx:
-            # Parallel move to handover point
-            h_traj, q_warm_recv = execute_parallel_to_handover(
+            # Parallel move to handover point (also returns the
+            # transfer arm's warm-start config at the handover waypoint).
+            h_traj, q_warm_recv, q_warm_transfer = execute_parallel_to_handover(
                 system, current_arm, other_arm, current_robot, current_idx,
                 handover_idx, traj_cache, grasp_cache, assignment,
                 explicit_paths, exp_cfg, tracker, rrt_vis, vis,
             )
             current_idx = handover_idx
-
-            # Execute handover sequence
-            cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
-            _, _, joints_cur_ho, _, _ = traj_cache[cur_path]
-            q_warm_transfer = (
-                joints_cur_ho[current_idx]
-                if joints_cur_ho[current_idx] is not None else None
-            )
 
             execute_handover_sequence(
                 system, current_arm, current_gripper,
@@ -1200,9 +1265,6 @@ def run_execution_loop(
                 exp_cfg, tracker, rrt_vis,
             )
             break
-
-    if not tracker.transport_success:
-        tracker.transport_success = True
 
     # --- Phase 3: stop monitors ---
     stop_monitors(tracker)
