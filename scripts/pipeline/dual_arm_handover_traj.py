@@ -584,37 +584,25 @@ def _get_arms(
     return system.right_arm, system.right_gripper, system.left_arm, system.left_gripper
 
 
-def _resolve_joints_for_robot(
-    joints_cur: Optional[np.ndarray],
+def _get_joint_configs(
     assignment: Optional[AssignmentResult],
-    current_robot: int,
+    traj_cache: TrajCache,
+    traj_path: str,
 ) -> Optional[np.ndarray]:
-    """Override raw trajectory joints with normalised configs where available.
+    """Return the joint configs to use during execution.
 
-    ``assignment.normalized_configs[i]`` stores the config for the robot
-    *assigned* at waypoint ``i``.  This helper copies *joints_cur* and
-    replaces entries whose assigned robot matches *current_robot* with
-    the normalised version, leaving other entries (e.g. handover
-    waypoints owned by the other robot) untouched.
+    When an assignment with ``normalized_configs`` is available the
+    normalised array is returned directly — no per-waypoint merging
+    with the raw trajectory file is needed.  Falls back to the raw
+    trajectory configs when no assignment is loaded (explicit-trajectory
+    mode).
     """
-    if joints_cur is None:
-        return None
-    if assignment is None or assignment.normalized_configs is None:
-        return joints_cur
-
-    nc = assignment.normalized_configs
-    seq = assignment.sequence
-    resolved = joints_cur.copy()
-
-    n_seq = len(seq)
-    n = min(len(resolved), len(nc))
-    for i in range(n):
-        if i < n_seq and seq[i] == current_robot and not np.any(np.isnan(nc[i])):
-            resolved[i] = nc[i]
-        elif i == n_seq and n_seq > 0 and seq[-1] == current_robot and not np.any(np.isnan(nc[i])):
-            resolved[i] = nc[i]
-
-    return resolved
+    if assignment is not None and assignment.normalized_configs is not None:
+        logger.debug("Using assignment normalized_configs for execution.")
+        return assignment.normalized_configs
+    
+    logger.debug("Using raw trajectory joint configs for execution.")
+    return traj_cache[traj_path][2]
 
 
 def plan_pregrasp_approach(
@@ -751,10 +739,9 @@ def execute_parallel_to_handover(
     """
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
     next_path = _get_traj_path(assignment, explicit_paths, 1 - current_robot, handover_idx)
-    _, obj_cur, joints_cur, _, _ = traj_cache[cur_path]
-    _, _, joints_next, _, _ = traj_cache[next_path]
-    joints_cur = _resolve_joints_for_robot(joints_cur, assignment, current_robot)
-    joints_next = _resolve_joints_for_robot(joints_next, assignment, 1 - current_robot)
+    _, obj_cur, _, _, _ = traj_cache[cur_path]
+    joints_cur = _get_joint_configs(assignment, traj_cache, cur_path)
+    joints_next = _get_joint_configs(assignment, traj_cache, next_path)
 
     grasp_transfer = grasp_cache[cur_path]
     grasp_receiver = grasp_cache[next_path]
@@ -789,7 +776,14 @@ def execute_parallel_to_handover(
                 q_err, current_idx, handover_idx,
             )
             joint_segment.append(planned_q)
-    joint_segment.extend(joints_cur[current_idx + 1 : handover_idx + 1])
+    # When using assignment normalized_configs, the config at
+    # handover_idx belongs to the *receiving* robot — exclude it from
+    # the current arm's segment.  The handover primitive's
+    # transfer_hold pose handles final positioning.
+    if assignment is not None and assignment.normalized_configs is not None:
+        joint_segment.extend(joints_cur[current_idx + 1 : handover_idx])
+    else:
+        joint_segment.extend(joints_cur[current_idx + 1 : handover_idx + 1])
 
     receiver_pre_pose = h_traj.receiver_pre[0]
     q_warm_recv = (
@@ -1126,8 +1120,8 @@ def run_execution_loop(
 
     current_arm, current_gripper, other_arm, other_gripper = _get_arms(system, current_robot)
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
-    eef_cur, obj_cur, joints_cur, res_cur, _ = traj_cache[cur_path]
-    joints_cur = _resolve_joints_for_robot(joints_cur, assignment, current_robot)
+    eef_cur, obj_cur, _, res_cur, _ = traj_cache[cur_path]
+    joints_cur = _get_joint_configs(assignment, traj_cache, cur_path)
 
     # --- Phase 1: plan pre-grasp approach & grasp ---
     grasp = grasp_cache[cur_path]
@@ -1163,8 +1157,8 @@ def run_execution_loop(
 
     while current_idx < n_segments - 1:
         cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
-        eef_cur, obj_cur, joints_cur, res_cur, _ = traj_cache[cur_path]
-        joints_cur = _resolve_joints_for_robot(joints_cur, assignment, current_robot)
+        eef_cur, obj_cur, _, res_cur, _ = traj_cache[cur_path]
+        joints_cur = _get_joint_configs(assignment, traj_cache, cur_path)
 
         handover_idx = find_next_handover(
             assignment, explicit_paths, traj_cache,
@@ -1183,11 +1177,11 @@ def run_execution_loop(
             # Execute handover sequence
             cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
             _, _, joints_cur_ho, _, _ = traj_cache[cur_path]
-            joints_cur_ho = _resolve_joints_for_robot(joints_cur_ho, assignment, current_robot)
             q_warm_transfer = (
                 joints_cur_ho[current_idx]
                 if joints_cur_ho[current_idx] is not None else None
             )
+
             execute_handover_sequence(
                 system, current_arm, current_gripper,
                 other_arm, other_gripper,

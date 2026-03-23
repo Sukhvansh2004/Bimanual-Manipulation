@@ -198,6 +198,7 @@ def _forward_pass(
     handover_callback: Optional[Callable[[HandoverResult], None]],
     beam_width: Optional[int],
     handover_stride: int,
+    step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> None:
     """Run the Viterbi forward pass, filling *J_star* in-place."""
     n_segments, n_states = cost_matrix.shape
@@ -226,6 +227,23 @@ def _forward_pass(
             best_cost, best_prev, best_sw = _best_same_robot_transition(
                 alive_prev, cr, ct, trajectory_info,
             )
+
+            # Reject same-robot continuation when the joint step from
+            # waypoint i to i+1 exceeds the threshold.  Cross-robot
+            # transitions are unaffected because the handover primitive
+            # allows the receiving robot to reconfigure.
+            if best_prev != -1 and step_feasibility is not None:
+                step_ok = step_feasibility.get((cr, ct))
+                wp = i + 1  # segment i spans waypoints [i, i+1]
+                if step_ok is not None and wp < len(step_ok) and not step_ok[wp]:
+                    logger.debug(
+                        "Seg %d state %d (robot%d traj%d): same-robot "
+                        "transition blocked — joint step exceeds threshold",
+                        i, cs, cr, ct,
+                    )
+                    best_cost = np.inf
+                    best_prev = -1
+                    best_sw = 0.0
 
             # Phase 2: cross-robot (only at stride boundaries)
             if i % handover_stride == 0:
@@ -428,6 +446,7 @@ def _solve_optimal_assignment(
     beam_width: Optional[int] = None,
     handover_stride: int = 1,
     normalized_configs_cache: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
+    step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
 
@@ -459,6 +478,7 @@ def _solve_optimal_assignment(
         handover_callback=handover_callback,
         beam_width=beam_width,
         handover_stride=handover_stride,
+        step_feasibility=step_feasibility,
     )
 
     return _backtrack(
@@ -570,8 +590,9 @@ def compute_optimal_robot_assignment(
     if n_infeasible_total:
         logger.info(
             "Joint-step normalisation: %d segment transitions across all "
-            "trajectories exceed the max-step threshold and will be "
-            "marked infeasible.",
+            "trajectories exceed the max-step threshold — same-robot "
+            "continuations at those segments will be blocked (cross-robot "
+            "handovers remain allowed).",
             n_infeasible_total,
         )
 
@@ -580,23 +601,6 @@ def compute_optimal_robot_assignment(
             r0, r1, n_segments,
             alpha=alpha, beta=beta, epsilon=epsilon, jacobian_fns=jacobian_fns,
         )
-
-        # Apply step-feasibility constraint to cost matrix.
-        # step_ok[i] indicates whether the transition from waypoint i-1
-        # to waypoint i is within the threshold.  Segment `seg` spans
-        # waypoints [seg, seg+1], so step_ok[seg+1] governs it.
-        for si, (robot_id, traj_idx) in traj_info.items():
-            step_ok = step_feasibility[(robot_id, traj_idx)]
-            for seg in range(n_segments):
-                wp = seg + 1
-                if wp < len(step_ok) and not step_ok[wp]:
-                    if np.isfinite(cost_matrix[seg, si]):
-                        logger.debug(
-                            "State %d (robot%d traj%d) seg %d: joint step "
-                            "exceeds threshold — cost set to inf",
-                            si, robot_id, traj_idx, seg,
-                        )
-                    cost_matrix[seg, si] = np.inf
 
         logger.info("Cost matrix: %d segments x %d states", *cost_matrix.shape)
 
@@ -612,6 +616,7 @@ def compute_optimal_robot_assignment(
             beam_width=beam_width,
             handover_stride=handover_stride,
             normalized_configs_cache=normalized_configs_cache,
+            step_feasibility=step_feasibility,
         )
     finally:
         # Restore original joint configs so the caller's objects aren't
