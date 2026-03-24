@@ -5,36 +5,38 @@
   "planning": {
     "experiment": "flatPlate_box_to_box",
     "config_label": "No Diversity",
-    "total_cost": 2114.8009867766023,
+    "total_cost": 3433.1797295535216,
     "n_segments": 80,
     "n_handovers": 2,
     "handover_points": [
-      17,
-      63
+      10,
+      68
     ],
-    "mean_task_cost": 23.21826541869502,
-    "total_switching_cost": 257.3397532810009,
-    "mean_manipulability": 0.09460072251240478,
-    "min_manipulability": 0.055960315186079655,
+    "mean_task_cost": 34.982488506365925,
+    "total_switching_cost": 634.5806490442462,
+    "mean_manipulability": 0.07760365522923993,
+    "min_manipulability": 0.025003550435545426,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 77.78186869621277
+    "planning_time_s": 140.95102095603943
   },
   "execution": {
     "task_success": false,
-    "grasp_success": false,
-    "transport_success": false,
+    "grasp_success": true,
+    "transport_success": true,
     "place_success": false,
-    "n_handovers_attempted": 0,
-    "n_handovers_succeeded": 0,
+    "n_handovers_attempted": 2,
+    "n_handovers_succeeded": 2,
     "handover_success_rate": 1.0,
     "n_collision_incidents": 0,
-    "n_switches": 0,
-    "execution_time_s": 8.542344570159912,
-    "mean_manipulability": 0.0,
-    "placement_position_error": null,
-    "placement_orientation_error": null,
-    "error_message": "Robot 1: RRT to pre-grasp failed \u2014 no collision-free approach path found."
+    "n_switches": 2,
+    "execution_time_s": 210.64040398597717,
+    "mean_manipulability": 0.11888750119635944,
+    "placement_position_error": 0.10352180889371339,
+    "placement_orientation_error": 4.601445131138366,
+    "object_mean_tracking_error": 0.03720475715614362,
+    "object_max_tracking_error": 0.0646425054765274,
+    "error_message": ""
   }
 }

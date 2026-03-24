@@ -22,18 +22,23 @@
       "planning": {
         "experiment": "flatPlate_box_to_box",
         "config_label": "Greedy (beam=1)",
-        "total_cost": Infinity,
-        "n_segments": 0,
-        "n_handovers": 0,
-        "handover_points": [],
-        "mean_task_cost": 0.0,
-        "total_switching_cost": 0.0,
-        "mean_manipulability": 0.0,
-        "min_manipulability": 0.0,
+        "total_cost": 2885.3375333942154,
+        "n_segments": 80,
+        "n_handovers": 4,
+        "handover_points": [
+          16,
+          17,
+          27,
+          63
+        ],
+        "mean_task_cost": 21.37957164570555,
+        "total_switching_cost": 1174.9718017377713,
+        "mean_manipulability": 0.0985542453675847,
+        "min_manipulability": 0.06981566592273263,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
-        "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 16.959017992019653
+        "assigned_feasibility_rate": 1.0,
+        "planning_time_s": 57.23190402984619
       }
     },
     {
@@ -43,21 +48,21 @@
       "planning": {
         "experiment": "flatPlate_box_to_box",
         "config_label": "No Diversity",
-        "total_cost": 2114.8009867766023,
+        "total_cost": 3433.1797295535216,
         "n_segments": 80,
         "n_handovers": 2,
         "handover_points": [
-          17,
-          63
+          10,
+          68
         ],
-        "mean_task_cost": 23.21826541869502,
-        "total_switching_cost": 257.3397532810009,
-        "mean_manipulability": 0.09460072251240478,
-        "min_manipulability": 0.055960315186079655,
+        "mean_task_cost": 34.982488506365925,
+        "total_switching_cost": 634.5806490442462,
+        "mean_manipulability": 0.07760365522923993,
+        "min_manipulability": 0.025003550435545426,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 77.78186869621277
+        "planning_time_s": 140.95102095603943
       }
     },
     {
@@ -67,21 +72,25 @@
       "planning": {
         "experiment": "flatPlate_box_to_box",
         "config_label": "No Manipulability (\u03b2=0)",
-        "total_cost": 25.996955150699314,
+        "total_cost": 21.941530499820196,
         "n_segments": 80,
-        "n_handovers": 2,
+        "n_handovers": 6,
         "handover_points": [
-          19,
-          63
+          13,
+          14,
+          25,
+          63,
+          67,
+          71
         ],
-        "mean_task_cost": 0.1871491070411082,
-        "total_switching_cost": 11.02502658741066,
-        "mean_manipulability": 0.10123534502976991,
-        "min_manipulability": 0.06656833613410719,
+        "mean_task_cost": 0.19986255621476162,
+        "total_switching_cost": 5.9525260026392655,
+        "mean_manipulability": 0.09769859845707664,
+        "min_manipulability": 0.0591755498749226,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 66.32029175758362
+        "planning_time_s": 378.20336294174194
       }
     },
     {
@@ -91,25 +100,29 @@
       "planning": {
         "experiment": "flatPlate_box_to_box",
         "config_label": "No Switching Penalty (Cswitch=0)",
-        "total_cost": 1447.2707643005979,
+        "total_cost": 1496.1183763265456,
         "n_segments": 80,
-        "n_handovers": 6,
+        "n_handovers": 10,
         "handover_points": [
-          14,
-          15,
+          8,
+          9,
           20,
-          40,
-          41,
-          58
+          26,
+          27,
+          59,
+          60,
+          63,
+          70,
+          71
         ],
-        "mean_task_cost": 18.090884553757473,
+        "mean_task_cost": 18.701479704081827,
         "total_switching_cost": 0.0,
-        "mean_manipulability": 0.11367076336439852,
-        "min_manipulability": 0.06591631091955524,
+        "mean_manipulability": 0.11003548483193533,
+        "min_manipulability": 0.05565963512520899,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 54.983957052230835
+        "planning_time_s": 214.59376692771912
       }
     },
     {
@@ -119,21 +132,21 @@
       "planning": {
         "experiment": "flatPlate_box_to_box",
         "config_label": "Proposed",
-        "total_cost": 1709.6941947307953,
+        "total_cost": 2187.655918111024,
         "n_segments": 80,
         "n_handovers": 2,
         "handover_points": [
-          20,
-          60
+          25,
+          63
         ],
-        "mean_task_cost": 18.500502202221988,
-        "total_switching_cost": 229.65401855303747,
-        "mean_manipulability": 0.11150625792458935,
-        "min_manipulability": 0.08392933550734738,
+        "mean_task_cost": 20.44748686850183,
+        "total_switching_cost": 551.8569686308783,
+        "mean_manipulability": 0.10281388817343191,
+        "min_manipulability": 0.07793818056222959,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 76.80177116394043
+        "planning_time_s": 452.93037939071655
       }
     },
     {
@@ -154,7 +167,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 39.286248445510864
+        "planning_time_s": 238.4525489807129
       }
     },
     {
@@ -175,7 +188,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 29.618525505065918
+        "planning_time_s": 31.43473482131958
       }
     },
     {
@@ -185,20 +198,22 @@
       "planning": {
         "experiment": "mug_inversion",
         "config_label": "No Diversity",
-        "total_cost": 1930.8413849647172,
+        "total_cost": 2636.1199548066074,
         "n_segments": 80,
-        "n_handovers": 1,
+        "n_handovers": 3,
         "handover_points": [
-          40
+          28,
+          46,
+          48
         ],
-        "mean_task_cost": 22.797256698840492,
-        "total_switching_cost": 107.0608490574776,
-        "mean_manipulability": 0.09859386742793305,
-        "min_manipulability": 0.06479908565417743,
+        "mean_task_cost": 22.61470137736753,
+        "total_switching_cost": 826.9438446172046,
+        "mean_manipulability": 0.09465683644635178,
+        "min_manipulability": 0.055225168289619715,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 234.7544023990631
+        "planning_time_s": 463.77990102767944
       }
     },
     {
@@ -208,20 +223,22 @@
       "planning": {
         "experiment": "mug_inversion",
         "config_label": "No Manipulability (\u03b2=0)",
-        "total_cost": 19.936338677250543,
+        "total_cost": 23.5929340347733,
         "n_segments": 80,
-        "n_handovers": 1,
+        "n_handovers": 3,
         "handover_points": [
-          36
+          34,
+          44,
+          45
         ],
-        "mean_task_cost": 0.2024768360147325,
-        "total_switching_cost": 3.738191796071946,
-        "mean_manipulability": 0.09321693664441325,
+        "mean_task_cost": 0.20275659443388677,
+        "total_switching_cost": 7.372406480062357,
+        "mean_manipulability": 0.09373421169252627,
         "min_manipulability": 0.07510172838708007,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 231.62739324569702
+        "planning_time_s": 366.2698554992676
       }
     },
     {
@@ -231,7 +248,7 @@
       "planning": {
         "experiment": "mug_inversion",
         "config_label": "No Switching Penalty (Cswitch=0)",
-        "total_cost": 1469.0063990762987,
+        "total_cost": 1675.212841236716,
         "n_segments": 80,
         "n_handovers": 7,
         "handover_points": [
@@ -243,14 +260,14 @@
           44,
           49
         ],
-        "mean_task_cost": 18.362579988453728,
+        "mean_task_cost": 20.940160515458942,
         "total_switching_cost": 0.0,
-        "mean_manipulability": 0.11402587595186628,
-        "min_manipulability": 0.09134093558796069,
+        "mean_manipulability": 0.09929416218624625,
+        "min_manipulability": 0.07510172838708007,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 122.60045504570007
+        "planning_time_s": 207.93769311904907
       }
     },
     {
@@ -260,20 +277,20 @@
       "planning": {
         "experiment": "mug_inversion",
         "config_label": "Proposed",
-        "total_cost": 1636.0047294076548,
+        "total_cost": 2039.5381692916212,
         "n_segments": 80,
         "n_handovers": 1,
         "handover_points": [
-          43
+          41
         ],
-        "mean_task_cost": 19.27697004890596,
-        "total_switching_cost": 93.84712549517802,
-        "mean_manipulability": 0.10916762069053779,
-        "min_manipulability": 0.0846700438732559,
+        "mean_task_cost": 22.163943004902475,
+        "total_switching_cost": 266.4227288994228,
+        "mean_manipulability": 0.09289574385679589,
+        "min_manipulability": 0.07510172838708007,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 239.07238864898682
+        "planning_time_s": 517.2476077079773
       }
     },
     {
@@ -294,7 +311,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 318.05500769615173
+        "planning_time_s": 58.01864409446716
       }
     },
     {
@@ -304,20 +321,18 @@
       "planning": {
         "experiment": "ycb_plate_shelf_to_table",
         "config_label": "Greedy (beam=1)",
-        "total_cost": 1617.6977119669211,
-        "n_segments": 50,
-        "n_handovers": 1,
-        "handover_points": [
-          21
-        ],
-        "mean_task_cost": 30.324893546951714,
-        "total_switching_cost": 101.45303461933548,
-        "mean_manipulability": 0.09804141988171321,
-        "min_manipulability": 0.02921547588971958,
+        "total_cost": Infinity,
+        "n_segments": 0,
+        "n_handovers": 0,
+        "handover_points": [],
+        "mean_task_cost": 0.0,
+        "total_switching_cost": 0.0,
+        "mean_manipulability": 0.0,
+        "min_manipulability": 0.0,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
-        "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 16.021854639053345
+        "assigned_feasibility_rate": 0.0,
+        "planning_time_s": 123.86318373680115
       }
     },
     {
@@ -338,7 +353,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 16.669084310531616
+        "planning_time_s": 22.02923345565796
       }
     },
     {
@@ -348,20 +363,22 @@
       "planning": {
         "experiment": "ycb_plate_shelf_to_table",
         "config_label": "No Manipulability (\u03b2=0)",
-        "total_cost": 361.4300049849945,
+        "total_cost": 5.963676833476085,
         "n_segments": 50,
-        "n_handovers": 1,
+        "n_handovers": 3,
         "handover_points": [
-          18
+          13,
+          37,
+          42
         ],
-        "mean_task_cost": 7.215984351072163,
-        "total_switching_cost": 0.6307874313861973,
-        "mean_manipulability": 0.0962434708015246,
-        "min_manipulability": 0.02921547588971958,
+        "mean_task_cost": 0.09476533555633285,
+        "total_switching_cost": 1.225410055659443,
+        "mean_manipulability": 0.10071112885986318,
+        "min_manipulability": 0.06277112955740544,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 77.80801725387573
+        "planning_time_s": 549.6797878742218
       }
     },
     {
@@ -371,26 +388,28 @@
       "planning": {
         "experiment": "ycb_plate_shelf_to_table",
         "config_label": "No Switching Penalty (Cswitch=0)",
-        "total_cost": 1444.7719717334885,
+        "total_cost": 911.6145990673672,
         "n_segments": 50,
-        "n_handovers": 7,
+        "n_handovers": 9,
         "handover_points": [
-          15,
-          16,
-          26,
-          27,
-          28,
-          41,
-          42
+          8,
+          9,
+          18,
+          19,
+          22,
+          23,
+          34,
+          46,
+          47
         ],
-        "mean_task_cost": 28.895439434669775,
+        "mean_task_cost": 18.232291981347345,
         "total_switching_cost": 0.0,
-        "mean_manipulability": 0.10191223450440758,
-        "min_manipulability": 0.02921547588971958,
+        "mean_manipulability": 0.11236797917039759,
+        "min_manipulability": 0.08426080117991731,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 37.80690240859985
+        "planning_time_s": 194.25494623184204
       }
     },
     {
@@ -400,20 +419,20 @@
       "planning": {
         "experiment": "ycb_plate_shelf_to_table",
         "config_label": "Proposed",
-        "total_cost": 1586.1143777833013,
+        "total_cost": 1238.3755660638406,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          20
+          25
         ],
-        "mean_task_cost": 29.672433809402072,
-        "total_switching_cost": 102.49268731319765,
-        "mean_manipulability": 0.09739292857726342,
-        "min_manipulability": 0.02921547588971958,
+        "mean_task_cost": 19.321309822936133,
+        "total_switching_cost": 272.3100749170342,
+        "mean_manipulability": 0.10662948988543755,
+        "min_manipulability": 0.06277112955740544,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 69.06365633010864
+        "planning_time_s": 634.6697134971619
       }
     },
     {
@@ -434,7 +453,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 35.95536017417908
+        "planning_time_s": 72.63386225700378
       }
     },
     {
@@ -444,20 +463,20 @@
       "planning": {
         "experiment": "ycb_plate_table_to_shelf",
         "config_label": "Greedy (beam=1)",
-        "total_cost": 1463.2478150027146,
+        "total_cost": 1279.6180459885018,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          39
+          40
         ],
-        "mean_task_cost": 26.872552464744878,
-        "total_switching_cost": 119.62019176547076,
-        "mean_manipulability": 0.0851156761238397,
-        "min_manipulability": 0.03167703242077731,
+        "mean_task_cost": 20.057759791116425,
+        "total_switching_cost": 276.7300564326806,
+        "mean_manipulability": 0.10449325883268164,
+        "min_manipulability": 0.07112744974570169,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 16.47041392326355
+        "planning_time_s": 52.89103603363037
       }
     },
     {
@@ -467,20 +486,20 @@
       "planning": {
         "experiment": "ycb_plate_table_to_shelf",
         "config_label": "No Diversity",
-        "total_cost": 1084.952728368604,
+        "total_cost": 1298.2451261931076,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          13
+          26
         ],
-        "mean_task_cost": 19.943162188985866,
-        "total_switching_cost": 87.79461891931048,
-        "mean_manipulability": 0.10752686020281434,
+        "mean_task_cost": 20.764024044312972,
+        "total_switching_cost": 260.0439239774593,
+        "mean_manipulability": 0.09921454691816965,
         "min_manipulability": 0.05550275676575828,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 106.94098114967346
+        "planning_time_s": 302.629513502121
       }
     },
     {
@@ -490,47 +509,55 @@
       "planning": {
         "experiment": "ycb_plate_table_to_shelf",
         "config_label": "No Manipulability (\u03b2=0)",
-        "total_cost": 2.595924328189386,
-        "n_segments": 50,
-        "n_handovers": 1,
-        "handover_points": [
-          38
-        ],
-        "mean_task_cost": 0.03275117550079261,
-        "total_switching_cost": 0.958365553149756,
-        "mean_manipulability": 0.08747046179804725,
-        "min_manipulability": 0.037609826264781925,
-        "feasibility_rate_robot0": 0.0,
-        "feasibility_rate_robot1": 0.0,
-        "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 214.39695477485657
-      }
-    },
-    {
-      "experiment": "ycb_plate_table_to_shelf",
-      "config_label": "No Switching Penalty (Cswitch=0)",
-      "config_id": "No_Switching_Penalty_Cswitch0",
-      "planning": {
-        "experiment": "ycb_plate_table_to_shelf",
-        "config_label": "No Switching Penalty (Cswitch=0)",
-        "total_cost": 883.1493036488392,
+        "total_cost": 13.136987064187782,
         "n_segments": 50,
         "n_handovers": 5,
         "handover_points": [
           4,
           5,
-          14,
-          33,
-          34
+          9,
+          11,
+          43
         ],
-        "mean_task_cost": 17.66298607297678,
-        "total_switching_cost": 0.0,
-        "mean_manipulability": 0.11481594199187686,
-        "min_manipulability": 0.08360648435726797,
+        "mean_task_cost": 0.1253154837965027,
+        "total_switching_cost": 6.871212874362646,
+        "mean_manipulability": 0.09840774295793266,
+        "min_manipulability": 0.061408122297031235,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 54.83586049079895
+        "planning_time_s": 585.1052002906799
+      }
+    },
+    {
+      "experiment": "ycb_plate_table_to_shelf",
+      "config_label": "No Switching Penalty (Cswitch=0)",
+      "config_id": "No_Switching_Penalty_Cswitch0",
+      "planning": {
+        "experiment": "ycb_plate_table_to_shelf",
+        "config_label": "No Switching Penalty (Cswitch=0)",
+        "total_cost": 949.8302975936125,
+        "n_segments": 50,
+        "n_handovers": 9,
+        "handover_points": [
+          21,
+          22,
+          27,
+          28,
+          29,
+          30,
+          31,
+          37,
+          38
+        ],
+        "mean_task_cost": 18.996605951872247,
+        "total_switching_cost": 0.0,
+        "mean_manipulability": 0.10932769430664227,
+        "min_manipulability": 0.07112744974570169,
+        "feasibility_rate_robot0": 0.0,
+        "feasibility_rate_robot1": 0.0,
+        "assigned_feasibility_rate": 1.0,
+        "planning_time_s": 101.48933029174805
       }
     },
     {
@@ -540,20 +567,20 @@
       "planning": {
         "experiment": "ycb_plate_table_to_shelf",
         "config_label": "Proposed",
-        "total_cost": 1004.1525182551318,
+        "total_cost": 1245.6365023708415,
         "n_segments": 50,
         "n_handovers": 1,
         "handover_points": [
-          14
+          38
         ],
-        "mean_task_cost": 18.399308721686676,
-        "total_switching_cost": 84.18708217079839,
-        "mean_manipulability": 0.11123442209843909,
-        "min_manipulability": 0.09474606589458402,
+        "mean_task_cost": 19.852807626048747,
+        "total_switching_cost": 252.99612106840425,
+        "mean_manipulability": 0.10550641116316692,
+        "min_manipulability": 0.07112744974570169,
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 1.0,
-        "planning_time_s": 209.31530833244324
+        "planning_time_s": 533.3894851207733
       }
     },
     {
@@ -574,7 +601,7 @@
         "feasibility_rate_robot0": 0.0,
         "feasibility_rate_robot1": 0.0,
         "assigned_feasibility_rate": 0.0,
-        "planning_time_s": 227.56554579734802
+        "planning_time_s": 378.41296648979187
       }
     }
   ]

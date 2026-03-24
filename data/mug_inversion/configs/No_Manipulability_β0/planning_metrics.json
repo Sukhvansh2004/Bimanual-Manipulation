@@ -1,18 +1,20 @@
 {
   "experiment": "mug_inversion",
   "config_label": "",
-  "total_cost": 19.936338677250543,
+  "total_cost": 23.5929340347733,
   "n_segments": 80,
-  "n_handovers": 1,
+  "n_handovers": 3,
   "handover_points": [
-    36
+    34,
+    44,
+    45
   ],
-  "mean_task_cost": 0.2024768360147325,
-  "total_switching_cost": 3.738191796071946,
-  "mean_manipulability": 0.09321693664441325,
+  "mean_task_cost": 0.20275659443388677,
+  "total_switching_cost": 7.372406480062357,
+  "mean_manipulability": 0.09373421169252627,
   "min_manipulability": 0.07510172838708007,
   "feasibility_rate_robot0": 0.0,
   "feasibility_rate_robot1": 0.0,
   "assigned_feasibility_rate": 1.0,
-  "planning_time_s": 231.62739324569702
+  "planning_time_s": 366.2698554992676
 }

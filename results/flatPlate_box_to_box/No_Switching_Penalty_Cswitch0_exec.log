@@ -1,6 +1,6 @@
 [robosuite WARNING] Could not load the mink-based whole-body IK. Make sure you install related import properly, otherwise you will not be able to use the default IK controller setting for GR1 robot. (__init__.py:40)
-2026-03-13 13:07:14,609 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
-2026-03-13 13:07:14,613 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
+2026-03-25 01:13:31,885 - OpenGL.acceleratesupport - INFO - OpenGL_accelerate module loaded
+2026-03-25 01:13:31,888 - OpenGL.arrays.arraydatatype - INFO - Using accelerated ArrayDatatype
 /home/sukhvansh/anaconda3/envs/dual_arm_manipulation/lib/python3.10/site-packages/timm/models/layers/__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
   warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
 Exception! Unable to load module hid, required to interface with SpaceMouse. Only macOS is officially supported. Install the additional requirements with `pip install -r requirements-extra.txt`
@@ -9,123 +9,624 @@ Unable to load module hid, required to interface with SpaceMouse.
            Only macOS is officially supported. Install the additional
 
            requirements with `pip install -r requirements-extra.txt`
-2026-03-13 13:07:20,868 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
-2026-03-13 13:07:20,869 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box – Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
-2026-03-13 13:07:20,869 - __main__ - INFO - Smoothen override: True (was True)
-2026-03-13 13:07:20,869 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-13 13:07:20,869 - bimanual_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
-2026-03-13 13:07:20,869 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-13 13:07:20,869 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:36,602 - bimanual_manipulation.experiment_config - INFO - Loading experiment 'flatPlate_box_to_box' from /home/sukhvansh/Dual-Arm-Franka-Control-MTP/experiments/flatPlate_box_to_box.json
+2026-03-25 01:13:36,602 - __main__ - INFO - Loaded experiment: flatPlate_box_to_box - Dual-handover box-to-box: Robot-1 (suction gripper) lifts a flat plate from Box-A, but a central wall blocks direct transfer. Robot-0 (finger gripper) takes the plate via handover on the +y side, then hands it back to Robot-1 (suction gripper) who descends and places it flat inside Box-B. The wall is tall enough and the RRT z-bound low enough that the trajectory CANNOT go over the wall — it must detour around through the other arm's workspace.
+2026-03-25 01:13:36,602 - __main__ - INFO - Smoothen override: True (was True)
+2026-03-25 01:13:36,602 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-25 01:13:36,602 - bimanual_manipulation.system_manager - INFO - Starting Dual-Arm Manipulation System
+2026-03-25 01:13:36,602 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-25 01:13:36,602 - bimanual_manipulation.system_manager - INFO - 
 1. Creating dual-arm environment...
-2026-03-13 13:07:20,869 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
-2026-03-13 13:07:22,931 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
-2026-03-13 13:07:22,932 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
-2026-03-13 13:07:22,932 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
-2026-03-13 13:07:22,932 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
-2026-03-13 13:07:22,932 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
-2026-03-13 13:07:22,933 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
-2026-03-13 13:07:25,738 - bimanual_manipulation.system_manager - INFO -    ✓ Environment created
-2026-03-13 13:07:25,739 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:36,602 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-25 01:13:37,843 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-25 01:13:37,844 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-25 01:13:39,659 - bimanual_manipulation.system_manager - INFO -    Creating separate planning environment (headless)...
+2026-03-25 01:13:39,659 - bimanual_manipulation.environments.dual_arm - INFO - Creating dual-arm environment with controller: JOINT_POSITION, input_type: absolute
+2026-03-25 01:13:39,839 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: flatPlate
+2026-03-25 01:13:39,839 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: wallObstacle [static]
+2026-03-25 01:13:39,839 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxABottom [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallFront [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallBack [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallLeft [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxAWallRight [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBBottom [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallFront [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallBack [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallLeft [static]
+2026-03-25 01:13:39,840 - bimanual_manipulation.environments.dual_arm - INFO - Added primitive object: boxBWallRight [static]
+2026-03-25 01:13:41,198 - bimanual_manipulation.system_manager - INFO -    ✓ Environments created
+2026-03-25 01:13:41,199 - bimanual_manipulation.system_manager - INFO - 
 1a. Creating shared TransformManager...
-2026-03-13 13:07:25,739 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
-2026-03-13 13:07:25,743 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
-2026-03-13 13:07:25,743 - bimanual_manipulation.system_manager - INFO -    ✓ TransformManager created
-2026-03-13 13:07:25,743 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:41,199 - bimanual_manipulation.transforms.transform_manager - INFO - Discovering frames from environment...
+2026-03-25 01:13:41,201 - bimanual_manipulation.transforms.transform_manager - INFO - Discovered frames: ['agentview', 'agentview_mj', 'agentview_optical', 'birdview', 'birdview_mj', 'birdview_optical', 'frontview', 'frontview_mj', 'frontview_optical', 'robot0_base', 'robot0_eye_in_hand', 'robot0_eye_in_hand_mj', 'robot0_eye_in_hand_optical', 'robot0_right_eef', 'robot0_robotview', 'robot0_robotview_mj', 'robot0_robotview_optical', 'robot1_base', 'robot1_eye_in_hand', 'robot1_eye_in_hand_mj', 'robot1_eye_in_hand_optical', 'robot1_right_eef', 'robot1_robotview', 'robot1_robotview_mj', 'robot1_robotview_optical', 'sideview', 'sideview_mj', 'sideview_optical', 'world']
+2026-03-25 01:13:41,201 - bimanual_manipulation.system_manager - INFO -    ✓ TransformManager created
+2026-03-25 01:13:41,201 - bimanual_manipulation.system_manager - INFO - 
 1b. Loading arm and gripper controllers...
-2026-03-13 13:07:25,744 - bimanual_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
-2026-03-13 13:07:25,744 - bimanual_manipulation.system_manager - INFO -    ✓ Controllers loaded
-2026-03-13 13:07:25,744 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:41,201 - bimanual_manipulation.controllers.gripper - INFO - GripperController detected Suction/Vacuum gripper for robot 1
+2026-03-25 01:13:41,201 - bimanual_manipulation.system_manager - INFO -    ✓ Controllers loaded
+2026-03-25 01:13:41,201 - bimanual_manipulation.system_manager - INFO - 
 2. Starting services...
-2026-03-13 13:07:25,744 - bimanual_manipulation.system_manager - INFO -    Starting Service Manager...
-2026-03-13 13:07:25,745 - bimanual_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
-2026-03-13 13:07:25,745 - bimanual_manipulation.services.services_core - INFO - Starting Service Manager...
-2026-03-13 13:07:25,745 - bimanual_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
-2026-03-13 13:07:25,745 - bimanual_manipulation.services.services_core - INFO - Service Manager started successfully
-2026-03-13 13:07:26,259 - bimanual_manipulation.system_manager - INFO -    ✓ Service Manager started
-2026-03-13 13:07:26,260 - bimanual_manipulation.system_manager - INFO -    FastSAM service disabled by flag
-2026-03-13 13:07:26,260 - bimanual_manipulation.system_manager - INFO -    Grasp service disabled by flag
-2026-03-13 13:07:26,260 - bimanual_manipulation.system_manager - INFO -    Starting Move To Pose service...
-2026-03-13 13:07:26,288 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
-2026-03-13 13:07:26,288 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
-2026-03-13 13:07:26,305 - bimanual_manipulation.services.services_core - INFO - Registered service: move_to_pose_service (control) at localhost:5553
-2026-03-13 13:07:26,318 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service started on tcp://localhost:5553
-2026-03-13 13:07:26,819 - bimanual_manipulation.system_manager - INFO -    ✓ Move To Pose service started
-2026-03-13 13:07:26,819 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:41,201 - bimanual_manipulation.system_manager - INFO -    Starting Service Manager...
+2026-03-25 01:13:41,202 - bimanual_manipulation.services.services_core - INFO - Service Manager initialized on localhost:5555
+2026-03-25 01:13:41,202 - bimanual_manipulation.services.services_core - INFO - Starting Service Manager...
+2026-03-25 01:13:41,202 - bimanual_manipulation.services.services_core - INFO - Starting ZMQ server on tcp://localhost:5555
+2026-03-25 01:13:41,202 - bimanual_manipulation.services.services_core - INFO - Service Manager started successfully
+2026-03-25 01:13:41,715 - bimanual_manipulation.system_manager - INFO -    ✓ Service Manager started
+2026-03-25 01:13:41,716 - bimanual_manipulation.system_manager - INFO -    FastSAM service disabled by flag
+2026-03-25 01:13:41,716 - bimanual_manipulation.system_manager - INFO -    Grasp service disabled by flag
+2026-03-25 01:13:41,716 - bimanual_manipulation.system_manager - INFO -    Starting Move To Pose service...
+2026-03-25 01:13:41,729 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 0, arm right
+2026-03-25 01:13:41,729 - bimanual_manipulation.services.move_to_pose_service - INFO - Registered controller for robot 1, arm right
+2026-03-25 01:13:41,731 - bimanual_manipulation.services.services_core - INFO - Registered service: move_to_pose_service (control) at localhost:5553
+2026-03-25 01:13:41,744 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service started on tcp://localhost:5553
+2026-03-25 01:13:42,244 - bimanual_manipulation.system_manager - INFO -    ✓ Move To Pose service started
+2026-03-25 01:13:42,244 - bimanual_manipulation.system_manager - INFO - 
 3. Preparing teleoperation...
-2026-03-13 13:07:26,821 - bimanual_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
-2026-03-13 13:07:26,821 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:42,246 - bimanual_manipulation.system_manager - INFO -    Teleoperation ready. Run system.run_teleop() to start.
+2026-03-25 01:13:42,246 - bimanual_manipulation.system_manager - INFO - 
 4. Settling environment...
-2026-03-13 13:07:27,927 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'flatPlate'
-2026-03-13 13:07:27,927 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'wallObstacle'
-2026-03-13 13:07:27,927 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxABottom'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallFront'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallBack'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallLeft'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallRight'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBBottom'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallFront'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallBack'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallLeft'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallRight'
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'flatPlate'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'wallObstacle'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxABottom'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallFront'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallBack'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallLeft'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxAWallRight'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBBottom'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallFront'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallBack'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallLeft'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO -    Registered dynamic TF frame 'boxBWallRight'
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO - 
 ======================================================================
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO - System Ready!
-2026-03-13 13:07:27,928 - bimanual_manipulation.system_manager - INFO - ======================================================================
-2026-03-13 13:07:27,943 - __main__ - INFO - Jacobian functions ready — using Yoshikawa manipulability.
-2026-03-13 13:07:27,944 - __main__ - INFO - Loading assignment result from data/flatPlate_box_to_box/configs/No_Switching_Penalty_Cswitch0/assignment_results.npz ...
-2026-03-13 13:07:28,035 - __main__ - INFO - Loaded 6 unique trajectories for assignment: ['robot0_trajectory_14.npz', 'robot0_trajectory_19.npz', 'robot0_trajectory_7.npz', 'robot1_trajectory_10.npz', 'robot1_trajectory_11.npz', 'robot1_trajectory_5.npz']
-2026-03-13 13:07:28,036 - __main__ - INFO - Handover points: [14, 15, 20, 40, 41, 58]
-2026-03-13 13:07:28,036 - __main__ - INFO - Extracting grasps from trajectory first waypoints...
-2026-03-13 13:07:28,037 - __main__ - INFO - Robot 1 starting at waypoint 0
-2026-03-13 13:07:28,372 - __main__ - INFO - Robot 1 planning RRT to pre-grasp pose...
-2026-03-13 13:07:28,377 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
-2026-03-13 13:07:28,377 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
-2026-03-13 13:07:28,448 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=83, tree_b=1)
-2026-03-13 13:07:28,537 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=168, tree_b=1)
-2026-03-13 13:07:28,647 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=253, tree_b=1)
-2026-03-13 13:07:28,763 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=335, tree_b=1)
-2026-03-13 13:07:28,913 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=420, tree_b=1)
-2026-03-13 13:07:29,063 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=499, tree_b=1)
-2026-03-13 13:07:29,218 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=577, tree_b=1)
-2026-03-13 13:07:29,388 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=653, tree_b=1)
-2026-03-13 13:07:29,581 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=734, tree_b=1)
-2026-03-13 13:07:29,775 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=812, tree_b=1)
-2026-03-13 13:07:29,998 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=903, tree_b=1)
-2026-03-13 13:07:30,217 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=983, tree_b=1)
-2026-03-13 13:07:30,458 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1072, tree_b=1)
-2026-03-13 13:07:30,709 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1156, tree_b=1)
-2026-03-13 13:07:30,973 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
-2026-03-13 13:07:30,974 - __main__ - ERROR - An error occurred: Robot 1: RRT to pre-grasp failed — no collision-free approach path found.
-Traceback (most recent call last):
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/dual_arm_handover_traj.py", line 555, in main
-    rrt_traj, rrt_ok = plan_arm_trajectory(
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/src/bimanual_manipulation/planning/trajectory/arm_planner.py", line 169, in plan_arm_trajectory
-    raise RuntimeError(
-RuntimeError: Joint RRT failed — no collision-free path found (tried None iterations).
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/home/sukhvansh/Dual-Arm-Franka-Control-MTP/scripts/pipeline/dual_arm_handover_traj.py", line 573, in main
-    raise RuntimeError(
-RuntimeError: Robot 1: RRT to pre-grasp failed — no collision-free approach path found.
-2026-03-13 13:07:30,974 - __main__ - INFO - Execution metrics saved to results/flatPlate_box_to_box/No_Switching_Penalty_Cswitch0_exec.json
-2026-03-13 13:07:30,974 - bimanual_manipulation.system_manager - INFO - 
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO - System Ready!
+2026-03-25 01:13:43,270 - bimanual_manipulation.system_manager - INFO - ======================================================================
+2026-03-25 01:13:43,271 - __main__ - INFO - Jacobian functions ready - using Yoshikawa manipulability.
+2026-03-25 01:13:43,271 - __main__ - INFO - Loading assignment result from data/flatPlate_box_to_box/configs/No_Switching_Penalty_Cswitch0/assignment_results.npz ...
+2026-03-25 01:13:43,278 - __main__ - INFO - Reconstructing execution data from assignment (no trajectory files needed).
+2026-03-25 01:13:43,279 - __main__ - INFO - Reconstructed execution data from assignment: 81 waypoints, 8 traj_cache entries, 8 grasp transforms
+2026-03-25 01:13:43,279 - __main__ - INFO - Handover points: [8, 9, 20, 26, 27, 59, 60, 63, 70, 71]
+2026-03-25 01:13:43,279 - __main__ - INFO - Robot 1 starting at waypoint 0
+2026-03-25 01:13:43,282 - __main__ - INFO - Robot 1 planning RRT to pre-grasp pose...
+2026-03-25 01:13:43,535 - __main__ - INFO - Pre-grasp IK: 7 goal candidate(s) for RRT.
+2026-03-25 01:13:43,538 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:13:43,538 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:13:43,556 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 22 iterations (tree sizes: 10, 21)
+2026-03-25 01:13:43,556 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (22 iters, 20 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:13:43,637 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 20 -> 3 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:13:43,639 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 2/2 segments smoothed, 0 fell back to linear (21 total dense waypoints)
+2026-03-25 01:13:43,640 - __main__ - INFO - RRT to pre-grasp succeeded (IK candidate 1/7). Following collision-free joint trajectory...
+2026-03-25 01:13:43,641 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints)
+2026-03-25 01:14:07,374 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-25 01:14:07,375 - __main__ - INFO - Robot 1 following grasp approach trajectory...
+2026-03-25 01:14:07,375 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:14:12,630 - bimanual_manipulation.utils.suction_weld - INFO - Activating suction weld: gripper1_right_eef(36) -> flatPlate_main(42)
+2026-03-25 01:14:17,945 - __main__ - INFO - Inserting alignment waypoint (q_err=0.1538 rad) before trajectory segment 0 -> 8.
+2026-03-25 01:14:17,946 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 8 while Robot 0 moves to handover pre-pose
+2026-03-25 01:14:17,950 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:14:17,950 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:14:18,059 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 12 goal candidate(s) for RRT.
+2026-03-25 01:14:18,059 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:14:18,059 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:14:18,120 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:14:18,120 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:14:18,120 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:14:18,121 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/12).
+2026-03-25 01:14:18,122 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:14:44,939 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 26.99s — success_a=True, success_b=True (err_a=0.0002, err_b=0.0497, collision_free=True)
+2026-03-25 01:14:44,939 - __main__ - INFO - Executing handover at waypoint 8 (robot 1 -> robot 0)...
+2026-03-25 01:14:44,939 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-25 01:14:44,940 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right: current=[    0.64735    -0.26117     0.19649], target=[    0.64739    -0.26117     0.19665], dist=0.0002
+2026-03-25 01:14:55,077 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-25 01:14:55,178 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (50 waypoints)
+2026-03-25 01:15:05,606 - bimanual_manipulation.utils.suction_weld - INFO - Releasing suction weld on body 42
+2026-03-25 01:15:13,517 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-25 01:15:13,517 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:15:16,578 - __main__ - INFO - Handover at waypoint 8 SUCCEEDED (robot 1 -> robot 0). Total handovers: 1/1
+2026-03-25 01:15:16,583 - __main__ - INFO - Inserting alignment waypoint (q_err=0.1402 rad) before trajectory segment 8 -> 9.
+2026-03-25 01:15:16,585 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 9 while Robot 1 moves to handover pre-pose
+2026-03-25 01:15:16,588 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:15:16,588 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:15:16,646 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 13 goal candidate(s) for RRT.
+2026-03-25 01:15:16,646 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:15:16,646 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:15:16,668 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:15:16,669 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:15:16,669 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:15:16,670 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/13).
+2026-03-25 01:15:16,671 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
+2026-03-25 01:15:38,687 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 22.10s — success_a=True, success_b=True (err_a=0.0004, err_b=0.0137, collision_free=True)
+2026-03-25 01:15:38,688 - __main__ - INFO - Executing handover at waypoint 9 (robot 0 -> robot 1)...
+2026-03-25 01:15:38,688 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-25 01:15:38,688 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.40143     0.27765     0.10623], target=[    0.40149     0.27766     0.10635], dist=0.0001
+2026-03-25 01:15:51,601 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-25 01:15:51,713 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:16:07,571 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-25 01:16:07,571 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (30 waypoints)
+2026-03-25 01:16:10,686 - __main__ - INFO - Handover at waypoint 9 SUCCEEDED (robot 0 -> robot 1). Total handovers: 2/2
+2026-03-25 01:16:10,692 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 20 while Robot 0 moves to handover pre-pose
+2026-03-25 01:16:10,697 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:16:10,697 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:16:10,798 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 11 goal candidate(s) for RRT.
+2026-03-25 01:16:10,798 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:16:10,798 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:16:10,798 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-25 01:16:10,799 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:16:10,911 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 13 iterations (tree sizes: 3, 18)
+2026-03-25 01:16:10,911 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (13 iters, 20 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:16:11,210 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 20 -> 3 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:16:11,222 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 1/2 segments smoothed, 1 fell back to linear (21 total dense waypoints)
+2026-03-25 01:16:11,224 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/11).
+2026-03-25 01:16:11,225 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:16:56,525 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Timed out after 400 steps (err_a=0.0000, err_b=2.7531, qp_fails=0)
+2026-03-25 01:16:56,525 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 45.83s — success_a=True, success_b=False (err_a=0.0000, err_b=2.7531, collision_free=True)
+2026-03-25 01:16:56,525 - __main__ - WARNING - Arm B did not fully converge (err=2.7531)
+2026-03-25 01:16:56,525 - __main__ - INFO - Arm B (Robot 0) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-25 01:16:56,529 - __main__ - INFO - Recovery: 11 IK goal candidate(s) for arm B.
+2026-03-25 01:16:56,539 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:16:56,540 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:16:56,540 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:16:56,540 - __main__ - INFO - RRT to receiver pre-pose succeeded (IK candidate 1/11). Following collision-free joint trajectory...
+2026-03-25 01:16:56,542 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints)
+2026-03-25 01:17:16,645 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-25 01:17:16,646 - __main__ - INFO - Executing handover at waypoint 20 (robot 1 -> robot 0)...
+2026-03-25 01:17:16,646 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-25 01:17:16,647 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right: current=[    0.73637    -0.14832     0.28743], target=[    0.73637    -0.14832     0.28743], dist=0.0000
+2026-03-25 01:17:16,647 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-25 01:17:16,746 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (50 waypoints)
+2026-03-25 01:17:29,155 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - mink trajectory did NOT converge: pos_err=0.0057, ori_err=0.0135
+2026-03-25 01:17:29,155 - __main__ - WARNING - Receiver arm did NOT converge (dist=0.0057 m).
+2026-03-25 01:17:39,690 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-25 01:17:39,690 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:17:42,305 - __main__ - WARNING - Handover at waypoint 20 LIKELY FAILED - receiver arm did not converge. Total handovers: 2/3
+2026-03-25 01:17:42,312 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 26 while Robot 1 moves to handover pre-pose
+2026-03-25 01:17:42,315 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:17:42,315 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:17:42,360 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 12 goal candidate(s) for RRT.
+2026-03-25 01:17:42,360 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:17:42,360 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:17:42,372 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:17:42,373 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:17:42,373 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:17:42,374 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/12).
+2026-03-25 01:17:42,374 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
+2026-03-25 01:18:05,333 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 23.02s — success_a=True, success_b=True (err_a=0.0001, err_b=0.0015, collision_free=True)
+2026-03-25 01:18:05,334 - __main__ - INFO - Executing handover at waypoint 26 (robot 0 -> robot 1)...
+2026-03-25 01:18:05,334 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-25 01:18:05,335 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.38071     0.32738     0.15262], target=[    0.38073     0.32736     0.15262], dist=0.0000
+2026-03-25 01:18:14,632 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-25 01:18:14,741 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:18:29,082 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-25 01:18:29,082 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (30 waypoints)
+2026-03-25 01:18:33,599 - __main__ - INFO - Handover at waypoint 26 SUCCEEDED (robot 0 -> robot 1). Total handovers: 3/4
+2026-03-25 01:18:33,605 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 27 while Robot 0 moves to handover pre-pose
+2026-03-25 01:18:33,609 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:18:33,609 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:18:33,662 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 12 goal candidate(s) for RRT.
+2026-03-25 01:18:33,662 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 2 arm A configs.
+2026-03-25 01:18:33,662 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 2 sampled arm A configs from trajectory of length 2.
+2026-03-25 01:18:33,670 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:18:33,670 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:18:33,670 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:18:33,670 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/12).
+2026-03-25 01:18:33,671 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 2 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:18:34,114 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Timed out after 4 steps (err_a=0.0619, err_b=0.5703, qp_fails=0)
+2026-03-25 01:18:34,114 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 0.51s — success_a=False, success_b=False (err_a=0.0619, err_b=0.5703, collision_free=True)
+2026-03-25 01:18:34,114 - __main__ - WARNING - Arm A did not fully converge (err=0.0619)
+2026-03-25 01:18:34,114 - __main__ - WARNING - Arm B did not fully converge (err=0.5703)
+2026-03-25 01:18:34,114 - __main__ - INFO - Arm B (Robot 0) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-25 01:18:34,118 - __main__ - INFO - Recovery: 12 IK goal candidate(s) for arm B.
+2026-03-25 01:18:34,121 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:18:34,121 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:18:34,121 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:18:34,122 - __main__ - INFO - RRT to receiver pre-pose succeeded (IK candidate 1/12). Following collision-free joint trajectory...
+2026-03-25 01:18:34,123 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints)
+2026-03-25 01:18:52,516 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-25 01:18:52,516 - __main__ - INFO - Executing handover at waypoint 27 (robot 1 -> robot 0)...
+2026-03-25 01:18:52,516 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-25 01:18:52,517 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right: current=[    0.77498   -0.068404     0.29044], target=[    0.77424    -0.07273     0.28454], dist=0.0073
+2026-03-25 01:19:02,245 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-25 01:19:02,343 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (50 waypoints)
+2026-03-25 01:19:18,564 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-25 01:19:18,564 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:19:21,384 - __main__ - INFO - Handover at waypoint 27 SUCCEEDED (robot 1 -> robot 0). Total handovers: 4/5
+2026-03-25 01:19:21,392 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 59 while Robot 1 moves to handover pre-pose
+2026-03-25 01:19:21,396 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:19:21,396 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:19:21,472 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 12 goal candidate(s) for RRT.
+2026-03-25 01:19:21,473 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 264 arm A configs.
+2026-03-25 01:19:21,473 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:19:21,501 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:19:21,501 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:19:22,298 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=87)
+2026-03-25 01:19:22,953 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=164)
+2026-03-25 01:19:23,703 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=250)
+2026-03-25 01:19:24,397 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=333)
+2026-03-25 01:19:25,027 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=408)
+2026-03-25 01:19:25,772 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=487)
+2026-03-25 01:19:26,508 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=571)
+2026-03-25 01:19:27,187 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=644)
+2026-03-25 01:19:27,928 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=720)
+2026-03-25 01:19:28,659 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=795)
+2026-03-25 01:19:29,466 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=876)
+2026-03-25 01:19:30,181 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=946)
+2026-03-25 01:19:30,958 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1018)
+2026-03-25 01:19:31,863 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1097)
+2026-03-25 01:19:32,726 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:19:32,726 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 1/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:19:32,727 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:19:32,764 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:19:32,765 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:19:33,565 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=101)
+2026-03-25 01:19:34,176 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=175)
+2026-03-25 01:19:34,856 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=254)
+2026-03-25 01:19:35,541 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=331)
+2026-03-25 01:19:36,211 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=410)
+2026-03-25 01:19:36,908 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=484)
+2026-03-25 01:19:37,671 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=569)
+2026-03-25 01:19:38,336 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=639)
+2026-03-25 01:19:39,054 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=714)
+2026-03-25 01:19:41,790 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=800)
+2026-03-25 01:19:42,584 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=879)
+2026-03-25 01:19:43,378 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=963)
+2026-03-25 01:19:44,200 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1045)
+2026-03-25 01:19:45,040 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1123)
+2026-03-25 01:19:46,027 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:19:46,027 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 2/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:19:46,027 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:19:46,071 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:19:46,071 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:19:46,800 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=86)
+2026-03-25 01:19:47,411 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=161)
+2026-03-25 01:19:48,170 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=249)
+2026-03-25 01:19:48,951 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=328)
+2026-03-25 01:19:49,626 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=405)
+2026-03-25 01:19:50,304 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=482)
+2026-03-25 01:19:51,039 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=561)
+2026-03-25 01:19:51,776 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=634)
+2026-03-25 01:19:52,496 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=709)
+2026-03-25 01:19:53,301 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=791)
+2026-03-25 01:19:54,043 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=862)
+2026-03-25 01:19:54,790 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=936)
+2026-03-25 01:19:55,562 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1011)
+2026-03-25 01:19:56,387 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1095)
+2026-03-25 01:19:57,236 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:19:57,236 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 3/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:19:57,236 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:19:57,237 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:19:57,237 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:19:57,710 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=67)
+2026-03-25 01:19:58,260 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=148)
+2026-03-25 01:19:58,843 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=229)
+2026-03-25 01:19:59,443 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=306)
+2026-03-25 01:20:00,061 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=386)
+2026-03-25 01:20:00,730 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=469)
+2026-03-25 01:20:01,400 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=550)
+2026-03-25 01:20:02,087 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=630)
+2026-03-25 01:20:02,771 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=709)
+2026-03-25 01:20:03,437 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=787)
+2026-03-25 01:20:04,158 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=868)
+2026-03-25 01:20:04,845 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=944)
+2026-03-25 01:20:05,556 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1025)
+2026-03-25 01:20:06,282 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1103)
+2026-03-25 01:20:07,056 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:07,057 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 4/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:07,057 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:07,057 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:07,057 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:07,593 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=83)
+2026-03-25 01:20:08,162 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=162)
+2026-03-25 01:20:08,759 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=247)
+2026-03-25 01:20:09,368 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=330)
+2026-03-25 01:20:09,978 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=408)
+2026-03-25 01:20:10,629 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=487)
+2026-03-25 01:20:11,307 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=566)
+2026-03-25 01:20:11,954 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=643)
+2026-03-25 01:20:12,617 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=717)
+2026-03-25 01:20:13,342 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=800)
+2026-03-25 01:20:15,842 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=878)
+2026-03-25 01:20:16,550 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=960)
+2026-03-25 01:20:17,322 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1041)
+2026-03-25 01:20:18,088 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1116)
+2026-03-25 01:20:18,881 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:18,881 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 5/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:18,881 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:18,882 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:18,882 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:19,373 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=72)
+2026-03-25 01:20:19,855 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=140)
+2026-03-25 01:20:20,460 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=219)
+2026-03-25 01:20:21,089 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=302)
+2026-03-25 01:20:21,669 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=375)
+2026-03-25 01:20:22,329 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=460)
+2026-03-25 01:20:22,932 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=534)
+2026-03-25 01:20:23,572 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=610)
+2026-03-25 01:20:24,211 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=687)
+2026-03-25 01:20:24,909 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=768)
+2026-03-25 01:20:25,619 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=838)
+2026-03-25 01:20:26,291 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=911)
+2026-03-25 01:20:27,019 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=985)
+2026-03-25 01:20:27,713 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1064)
+2026-03-25 01:20:28,413 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:28,413 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 6/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:28,414 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:28,444 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:28,444 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:29,186 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=90)
+2026-03-25 01:20:29,769 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=163)
+2026-03-25 01:20:30,454 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=251)
+2026-03-25 01:20:31,075 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=328)
+2026-03-25 01:20:31,733 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=411)
+2026-03-25 01:20:32,429 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=495)
+2026-03-25 01:20:33,138 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=579)
+2026-03-25 01:20:33,830 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=659)
+2026-03-25 01:20:34,622 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=739)
+2026-03-25 01:20:35,412 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=825)
+2026-03-25 01:20:36,135 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=900)
+2026-03-25 01:20:36,933 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=980)
+2026-03-25 01:20:37,706 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1061)
+2026-03-25 01:20:38,430 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1139)
+2026-03-25 01:20:38,468 - bimanual_manipulation.services.services_core - WARNING - Service move_to_pose_service is already registered. Overwriting.
+2026-03-25 01:20:38,468 - bimanual_manipulation.services.services_core - INFO - Registered service: move_to_pose_service (control) at localhost:5553
+2026-03-25 01:20:39,215 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:39,215 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 7/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:39,479 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:39,525 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:39,525 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:40,302 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=93)
+2026-03-25 01:20:40,947 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=173)
+2026-03-25 01:20:41,714 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=254)
+2026-03-25 01:20:42,375 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=330)
+2026-03-25 01:20:43,069 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=413)
+2026-03-25 01:20:43,778 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=494)
+2026-03-25 01:20:44,529 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=577)
+2026-03-25 01:20:45,390 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=658)
+2026-03-25 01:20:46,120 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=732)
+2026-03-25 01:20:46,881 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=815)
+2026-03-25 01:20:47,686 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=893)
+2026-03-25 01:20:50,232 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=976)
+2026-03-25 01:20:51,049 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1055)
+2026-03-25 01:20:51,916 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1134)
+2026-03-25 01:20:52,761 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:52,761 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 8/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:52,762 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:52,762 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:52,762 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:52,873 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:52,990 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,104 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,220 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,327 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,433 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,550 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,668 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,785 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:53,906 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:54,015 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:54,131 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:54,240 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:54,367 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:54,485 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:20:54,485 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 9/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:20:54,485 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:20:54,486 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:20:54,486 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:20:55,183 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=92)
+2026-03-25 01:20:55,817 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=171)
+2026-03-25 01:20:56,434 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=250)
+2026-03-25 01:20:57,072 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=330)
+2026-03-25 01:20:57,735 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=407)
+2026-03-25 01:20:58,408 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=482)
+2026-03-25 01:20:59,168 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=567)
+2026-03-25 01:20:59,946 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=649)
+2026-03-25 01:21:00,748 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=731)
+2026-03-25 01:21:01,527 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=813)
+2026-03-25 01:21:02,327 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=894)
+2026-03-25 01:21:03,043 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=969)
+2026-03-25 01:21:03,833 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1044)
+2026-03-25 01:21:04,657 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1123)
+2026-03-25 01:21:05,501 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:21:05,501 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 10/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:21:05,501 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:21:05,502 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:21:05,502 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:21:06,136 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=89)
+2026-03-25 01:21:06,824 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=174)
+2026-03-25 01:21:07,458 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=248)
+2026-03-25 01:21:08,128 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=332)
+2026-03-25 01:21:08,813 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=411)
+2026-03-25 01:21:09,491 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=484)
+2026-03-25 01:21:10,281 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=572)
+2026-03-25 01:21:10,952 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=650)
+2026-03-25 01:21:11,629 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=720)
+2026-03-25 01:21:12,373 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=800)
+2026-03-25 01:21:13,154 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=880)
+2026-03-25 01:21:13,936 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=965)
+2026-03-25 01:21:14,688 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1045)
+2026-03-25 01:21:15,494 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1125)
+2026-03-25 01:21:16,314 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:21:16,315 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 11/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:21:16,315 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 264.
+2026-03-25 01:21:16,315 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:21:16,315 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:21:16,886 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 200/3000  (tree_a=1, tree_b=80)
+2026-03-25 01:21:17,467 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 400/3000  (tree_a=1, tree_b=157)
+2026-03-25 01:21:18,091 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 600/3000  (tree_a=1, tree_b=237)
+2026-03-25 01:21:18,742 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 800/3000  (tree_a=1, tree_b=315)
+2026-03-25 01:21:19,432 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1000/3000  (tree_a=1, tree_b=396)
+2026-03-25 01:21:20,100 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1200/3000  (tree_a=1, tree_b=477)
+2026-03-25 01:21:20,829 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1400/3000  (tree_a=1, tree_b=560)
+2026-03-25 01:21:21,517 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1600/3000  (tree_a=1, tree_b=636)
+2026-03-25 01:21:24,049 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 1800/3000  (tree_a=1, tree_b=712)
+2026-03-25 01:21:24,769 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2000/3000  (tree_a=1, tree_b=791)
+2026-03-25 01:21:25,479 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2200/3000  (tree_a=1, tree_b=865)
+2026-03-25 01:21:26,246 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2400/3000  (tree_a=1, tree_b=943)
+2026-03-25 01:21:27,046 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2600/3000  (tree_a=1, tree_b=1025)
+2026-03-25 01:21:27,836 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 2800/3000  (tree_a=1, tree_b=1104)
+2026-03-25 01:21:28,591 - bimanual_manipulation.planning.rrt.joint.planner - WARNING - Joint RRT-Connect failed after 3000 iterations for robot1.
+2026-03-25 01:21:28,591 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Joint RRT planning failed for arm B (candidate 12/12): Joint RRT failed — no collision-free path found (tried 3000 iterations).
+2026-03-25 01:21:28,591 - bimanual_manipulation.planning.dual_arm.planner - WARNING - No collision-free trajectory found for arm B — tried 12 IK goal candidate(s). Returning None.
+2026-03-25 01:21:28,591 - bimanual_manipulation.planning.dual_arm.planner - ERROR - Failed to plan reference trajectory for arm B (robot1_right). Falling back to arm-A-only execution.
+2026-03-25 01:21:28,591 - bimanual_manipulation.planning.dual_arm.planner - INFO - Executing arm A trajectory alone (264 waypoints).
+2026-03-25 01:21:28,592 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (264 waypoints)
+2026-03-25 01:22:21,209 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - Joint trajectory did NOT converge after 528 steps (max err=0.3483 rad)
+2026-03-25 01:22:21,210 - __main__ - WARNING - Arm A did not fully converge (err=0.3483)
+2026-03-25 01:22:21,210 - __main__ - WARNING - Arm B did not fully converge (err=inf)
+2026-03-25 01:22:21,210 - __main__ - INFO - Arm B (Robot 1) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-25 01:22:21,216 - __main__ - INFO - Recovery: 12 IK goal candidate(s) for arm B.
+2026-03-25 01:22:21,217 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot1...
+2026-03-25 01:22:21,217 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:22:21,225 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 1 iterations (tree sizes: 2, 15)
+2026-03-25 01:22:21,225 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (1 iters, 17 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:22:21,254 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 17 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:22:21,255 - __main__ - INFO - RRT to receiver pre-pose succeeded (IK candidate 1/12). Following collision-free joint trajectory...
+2026-03-25 01:22:21,257 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot1_right (200 waypoints)
+2026-03-25 01:22:42,001 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 1:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-25 01:22:42,001 - __main__ - INFO - Executing handover at waypoint 59 (robot 0 -> robot 1)...
+2026-03-25 01:22:42,002 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-25 01:22:42,002 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.55489   -0.036474     0.15386], target=[    0.54953   -0.085092     0.15386], dist=0.0489
+2026-03-25 01:22:51,103 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-25 01:22:51,195 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:23:03,967 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-25 01:23:03,968 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (30 waypoints)
+2026-03-25 01:23:08,354 - __main__ - INFO - Handover at waypoint 59 SUCCEEDED (robot 0 -> robot 1). Total handovers: 5/6
+2026-03-25 01:23:08,360 - __main__ - INFO - Inserting alignment waypoint (q_err=0.0702 rad) before trajectory segment 59 -> 60.
+2026-03-25 01:23:08,361 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 60 while Robot 0 moves to handover pre-pose
+2026-03-25 01:23:08,365 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:23:08,365 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:23:08,421 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 10 goal candidate(s) for RRT.
+2026-03-25 01:23:08,421 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:23:08,421 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:23:08,422 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-25 01:23:08,423 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:23:08,547 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 24 iterations (tree sizes: 9, 15)
+2026-03-25 01:23:08,547 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (24 iters, 23 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:23:08,781 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 23 -> 4 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:23:08,812 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 3/3 segments smoothed, 0 fell back to linear (31 total dense waypoints)
+2026-03-25 01:23:08,813 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/10).
+2026-03-25 01:23:08,813 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:23:28,944 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 20.58s — success_a=True, success_b=True (err_a=0.0001, err_b=0.0489, collision_free=True)
+2026-03-25 01:23:28,945 - __main__ - INFO - Executing handover at waypoint 60 (robot 1 -> robot 0)...
+2026-03-25 01:23:28,945 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-25 01:23:28,945 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right: current=[    0.74701     0.25099     0.26656], target=[    0.74701     0.25099     0.26656], dist=0.0000
+2026-03-25 01:23:40,089 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-25 01:23:40,183 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (50 waypoints)
+2026-03-25 01:23:54,085 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-25 01:23:54,085 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:23:56,916 - __main__ - INFO - Handover at waypoint 60 SUCCEEDED (robot 1 -> robot 0). Total handovers: 6/7
+2026-03-25 01:23:56,922 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 63 while Robot 1 moves to handover pre-pose
+2026-03-25 01:23:56,926 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:23:56,927 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:23:56,976 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 13 goal candidate(s) for RRT.
+2026-03-25 01:23:56,976 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:23:56,976 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:23:57,026 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:23:57,026 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:23:57,026 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:23:57,028 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/13).
+2026-03-25 01:23:57,028 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
+2026-03-25 01:24:20,095 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 23.17s — success_a=True, success_b=True (err_a=0.0001, err_b=0.0467, collision_free=True)
+2026-03-25 01:24:20,096 - __main__ - INFO - Executing handover at waypoint 63 (robot 0 -> robot 1)...
+2026-03-25 01:24:20,096 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-25 01:24:20,096 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.48459   -0.098084     0.13344], target=[     0.4846   -0.098084     0.13344], dist=0.0000
+2026-03-25 01:24:29,036 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-25 01:24:29,132 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:24:43,410 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-25 01:24:43,410 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (30 waypoints)
+2026-03-25 01:24:47,769 - __main__ - INFO - Handover at waypoint 63 SUCCEEDED (robot 0 -> robot 1). Total handovers: 7/8
+2026-03-25 01:24:47,777 - __main__ - INFO - PARALLEL: Robot 1 following segment to handover at 70 while Robot 0 moves to handover pre-pose
+2026-03-25 01:24:47,782 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:24:47,782 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:24:47,852 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 10 goal candidate(s) for RRT.
+2026-03-25 01:24:47,852 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:24:47,853 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:24:47,855 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path blocked.  Running RRT-Connect (max_iter=3000, step=0.250 rad) for robot0...
+2026-03-25 01:24:47,855 - bimanual_manipulation.planning.rrt.core - INFO - RRT iter 0/3000  (tree_a=1, tree_b=1)
+2026-03-25 01:24:48,111 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT-Connect found path in 37 iterations (tree sizes: 25, 22)
+2026-03-25 01:24:48,111 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (37 iters, 38 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:24:48,659 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 38 -> 4 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:24:48,692 - bimanual_manipulation.planning.rrt.path_smoothing - INFO - Bézier smoothing: 3/3 segments smoothed, 0 fell back to linear (31 total dense waypoints)
+2026-03-25 01:24:48,693 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/10).
+2026-03-25 01:24:48,693 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:25:33,198 - bimanual_manipulation.planning.dual_arm.planner - WARNING - Timed out after 400 steps (err_a=0.0000, err_b=2.6715, qp_fails=0)
+2026-03-25 01:25:33,198 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 45.42s — success_a=True, success_b=False (err_a=0.0000, err_b=2.6715, collision_free=True)
+2026-03-25 01:25:33,198 - __main__ - WARNING - Arm B did not fully converge (err=2.6715)
+2026-03-25 01:25:33,198 - __main__ - INFO - Arm B (Robot 0) did not reach receiver pre-pose during parallel execution. Attempting independent recovery...
+2026-03-25 01:25:33,202 - __main__ - INFO - Recovery: 10 IK goal candidate(s) for arm B.
+2026-03-25 01:25:33,211 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:25:33,211 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:25:33,212 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:25:33,213 - __main__ - INFO - RRT to receiver pre-pose succeeded (IK candidate 1/10). Following collision-free joint trajectory...
+2026-03-25 01:25:33,214 - bimanual_manipulation.controllers.arm - INFO - Following joint trajectory for robot0_right (200 waypoints)
+2026-03-25 01:25:51,891 - bimanual_manipulation.controllers.trajectory_executor - INFO - ROBOT 0:right - Joint trajectory converged at step 199 (max err=0.0001 rad)
+2026-03-25 01:25:51,891 - __main__ - INFO - Executing handover at waypoint 70 (robot 1 -> robot 0)...
+2026-03-25 01:25:51,891 - __main__ - INFO - Robot 1 moving to handover hold pose...
+2026-03-25 01:25:51,892 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot1_right: current=[    0.65318      0.1785     0.20259], target=[    0.65318      0.1785     0.20259], dist=0.0000
+2026-03-25 01:25:51,892 - __main__ - INFO - Robot 0 executing handover approach...
+2026-03-25 01:25:51,985 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (50 waypoints)
+2026-03-25 01:26:07,718 - __main__ - INFO - Robot 1 following handover retreat trajectory...
+2026-03-25 01:26:07,718 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:26:10,286 - __main__ - INFO - Handover at waypoint 70 SUCCEEDED (robot 1 -> robot 0). Total handovers: 8/9
+2026-03-25 01:26:10,293 - __main__ - INFO - Inserting alignment waypoint (q_err=0.0713 rad) before trajectory segment 70 -> 71.
+2026-03-25 01:26:10,294 - __main__ - INFO - PARALLEL: Robot 0 following segment to handover at 71 while Robot 1 moves to handover pre-pose
+2026-03-25 01:26:10,297 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=10 geoms, arm_A=13 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:26:10,298 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:26:10,334 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B IK: 12 goal candidate(s) for RRT.
+2026-03-25 01:26:10,334 - bimanual_manipulation.planning.dual_arm.planner - INFO - Temporal collision: using all 200 arm A configs.
+2026-03-25 01:26:10,334 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:26:10,397 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:26:10,397 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:26:10,397 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:26:10,398 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B reference trajectory planned via collision-free joint RRT (IK candidate 1/12).
+2026-03-25 01:26:10,399 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot0_right, arm_b=robot1_right, collision_check=True)
+2026-03-25 01:26:35,961 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 25.67s — success_a=True, success_b=True (err_a=0.0000, err_b=0.0459, collision_free=True)
+2026-03-25 01:26:35,961 - __main__ - INFO - Executing handover at waypoint 71 (robot 0 -> robot 1)...
+2026-03-25 01:26:35,961 - __main__ - INFO - Robot 0 moving to handover hold pose...
+2026-03-25 01:26:35,962 - bimanual_manipulation.controllers.arm - INFO - Planning trajectory for robot0_right: current=[    0.42158    -0.36788    0.091985], target=[    0.42158    -0.36789    0.091982], dist=0.0000
+2026-03-25 01:26:45,044 - __main__ - INFO - Robot 1 executing handover approach...
+2026-03-25 01:26:45,138 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (50 waypoints)
+2026-03-25 01:26:58,804 - __main__ - INFO - Robot 0 following handover retreat trajectory...
+2026-03-25 01:26:58,804 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot0_right (30 waypoints)
+2026-03-25 01:27:01,462 - __main__ - INFO - Handover at waypoint 71 SUCCEEDED (robot 0 -> robot 1). Total handovers: 9/10
+2026-03-25 01:27:01,463 - __main__ - INFO - PARALLEL: Robot 1 following final segment to 79 while Robot 0 moves to home position
+2026-03-25 01:27:01,467 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink CollisionAvoidanceLimit: 3 geom-pair groups (arm_B=13 geoms, arm_A=10 geoms, object=1 geoms, env=22 geoms)
+2026-03-25 01:27:01,467 - bimanual_manipulation.planning.dual_arm.mink_setup - INFO - mink initialised for DualArmParallelPlanner (nq=24, nv=23, frozen_dofs=16, solver=proxqp)
+2026-03-25 01:27:01,468 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Temporal collision checking: using 10 sampled arm A configs from trajectory of length 200.
+2026-03-25 01:27:01,552 - bimanual_manipulation.planning.rrt.joint.planner - INFO - Joint RRT: direct path is collision-free, no RRT needed.
+2026-03-25 01:27:01,553 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Joint RRT succeeded (0 iters, 2 raw waypoints).  Phase 1: shortcutting...
+2026-03-25 01:27:01,553 - bimanual_manipulation.planning.trajectory.arm_planner - INFO - Phase 1 shortcutting: 2 -> 2 waypoints.  Phase 2: Bézier smoothing...
+2026-03-25 01:27:01,554 - bimanual_manipulation.planning.dual_arm.planner - INFO - Arm B joint-goal reference trajectory planned via collision-free RRT.
+2026-03-25 01:27:01,555 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner: executing 200 steps (arm_a=robot1_right, arm_b=robot0_right, collision_check=True)
+2026-03-25 01:27:25,376 - bimanual_manipulation.planning.dual_arm.planner - INFO - DualArmParallelPlanner done in 23.91s — success_a=True, success_b=True (err_a=0.0000, err_b=0.0464, collision_free=True)
+2026-03-25 01:27:25,377 - __main__ - INFO - Execution completed with no collisions detected.
+2026-03-25 01:27:25,419 - bimanual_manipulation.utils.env_utils - INFO - Object monitor summary: mean_err=0.0781 m, max_err=0.1070 m over 6268 steps.
+2026-03-25 01:27:25,420 - __main__ - INFO - Robot 1 releasing object and retreating...
+2026-03-25 01:27:30,307 - __main__ - INFO - Robot 1 following retreat trajectory...
+2026-03-25 01:27:30,307 - bimanual_manipulation.controllers.arm - INFO - Following smoothened trajectory for robot1_right (30 waypoints)
+2026-03-25 01:27:37,220 - __main__ - INFO - Placement verification - position error: 0.4807 m, orientation error: 15.84 deg
+2026-03-25 01:27:37,220 - __main__ - WARNING - Object did NOT reach target! pos_err=0.4807 m (thresh 0.05), ori_err=15.84 deg (thresh 30.0 deg)
+2026-03-25 01:27:37,220 - __main__ - INFO - Done!
+2026-03-25 01:27:37,223 - __main__ - INFO - Execution metrics saved to results/flatPlate_box_to_box/No_Switching_Penalty_Cswitch0_exec.json
+2026-03-25 01:27:37,223 - bimanual_manipulation.system_manager - INFO - 
 Stopping system...
-2026-03-13 13:07:30,975 - bimanual_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
-2026-03-13 13:07:30,975 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
-2026-03-13 13:07:30,975 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
-2026-03-13 13:07:31,008 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
-2026-03-13 13:07:31,009 - bimanual_manipulation.services.services_core - INFO - Stopping Service Manager...
-2026-03-13 13:07:31,311 - bimanual_manipulation.services.services_core - INFO - Server loop stopped
-2026-03-13 13:07:31,311 - bimanual_manipulation.services.services_core - INFO - Service Manager stopped
-2026-03-13 13:07:31,518 - bimanual_manipulation.system_manager - INFO - System stopped
+2026-03-25 01:27:37,223 - bimanual_manipulation.services.move_to_pose_service - INFO - Stopping Move To Pose service: cancelling all active moves
+2026-03-25 01:27:37,223 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot0_right
+2026-03-25 01:27:37,223 - bimanual_manipulation.controllers.arm - INFO - Cancelling movement for robot1_right
+2026-03-25 01:27:39,213 - bimanual_manipulation.services.move_to_pose_service - INFO - Move To Pose service stopped
+2026-03-25 01:27:39,213 - bimanual_manipulation.services.services_core - INFO - Stopping Service Manager...
+2026-03-25 01:27:39,521 - bimanual_manipulation.services.services_core - INFO - Server loop stopped
+2026-03-25 01:27:39,521 - bimanual_manipulation.services.services_core - INFO - Service Manager stopped
+2026-03-25 01:27:39,950 - bimanual_manipulation.system_manager - INFO - System stopped
 
 Keys                          	Command
 Ctrl+q                        	reset simulation

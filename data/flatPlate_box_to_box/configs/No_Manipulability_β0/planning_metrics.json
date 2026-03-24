@@ -1,19 +1,23 @@
 {
   "experiment": "flatPlate_box_to_box",
   "config_label": "",
-  "total_cost": 25.996955150699314,
+  "total_cost": 21.941530499820196,
   "n_segments": 80,
-  "n_handovers": 2,
+  "n_handovers": 6,
   "handover_points": [
-    19,
-    63
+    13,
+    14,
+    25,
+    63,
+    67,
+    71
   ],
-  "mean_task_cost": 0.1871491070411082,
-  "total_switching_cost": 11.02502658741066,
-  "mean_manipulability": 0.10123534502976991,
-  "min_manipulability": 0.06656833613410719,
+  "mean_task_cost": 0.19986255621476162,
+  "total_switching_cost": 5.9525260026392655,
+  "mean_manipulability": 0.09769859845707664,
+  "min_manipulability": 0.0591755498749226,
   "feasibility_rate_robot0": 0.0,
   "feasibility_rate_robot1": 0.0,
   "assigned_feasibility_rate": 1.0,
-  "planning_time_s": 66.32029175758362
+  "planning_time_s": 378.20336294174194
 }

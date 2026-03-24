@@ -1,36 +1,36 @@
-2026-03-13 12:09:28,169 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
-2026-03-13 12:09:28,169 [__main__] INFO  Paper evaluation: 4 experiments × 6 configs
-2026-03-13 12:09:28,169 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'ycb_plate_shelf_to_table', 'mug_inversion', 'flatPlate_box_to_box']
-2026-03-13 12:09:28,169 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Diversity', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
-2026-03-13 12:09:28,169 [__main__] INFO  
+2026-03-25 00:06:28,167 [__main__] INFO  Logging to /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/paper_evaluation.log (level=INFO)
+2026-03-25 00:06:28,167 [__main__] INFO  Paper evaluation: 4 experiments × 6 configs
+2026-03-25 00:06:28,167 [__main__] INFO  Experiments: ['ycb_plate_table_to_shelf', 'ycb_plate_shelf_to_table', 'mug_inversion', 'flatPlate_box_to_box']
+2026-03-25 00:06:28,168 [__main__] INFO  Configs: ['Proposed', 'Greedy (beam=1)', 'Single Robot', 'No Diversity', 'No Switching Penalty (Cswitch=0)', 'No Manipulability (β=0)']
+2026-03-25 00:06:28,168 [__main__] INFO  
 ================================================================================
-2026-03-13 12:09:28,169 [__main__] INFO    PHASE 1: PLANNING
-2026-03-13 12:09:28,169 [__main__] INFO  ================================================================================
-2026-03-13 12:09:28,169 [__main__] INFO  Running 24 jobs (4 experiments × 6 configs, 0 skipped) with 4 parallel workers
-2026-03-13 12:10:16,087 [__main__] INFO      Greedy (beam=1)                           cost=1463.25  [OK]
-2026-03-13 12:11:29,222 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=883.15  [OK]
-2026-03-13 12:11:43,000 [__main__] INFO      No Diversity                              cost=1084.95  [OK]
-2026-03-13 12:13:03,209 [__main__] INFO      Proposed                                  cost=1586.11  [OK]
-2026-03-13 12:13:15,870 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-13 12:13:27,779 [__main__] INFO      Proposed                                  cost=1004.15  [OK]
-2026-03-13 12:13:34,866 [__main__] INFO      Greedy (beam=1)                           cost=1617.70  [OK]
-2026-03-13 12:13:44,500 [__main__] INFO      No Diversity                              cost=inf  [FAILED (inf)]
-2026-03-13 12:13:51,868 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-13 12:14:28,215 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1444.77  [OK]
-2026-03-13 12:14:57,843 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
-2026-03-13 12:15:15,255 [__main__] INFO      No Manipulability (β=0)                   cost=361.43  [OK]
-2026-03-13 12:15:15,756 [__main__] INFO      No Manipulability (β=0)                   cost=2.60  [OK]
-2026-03-13 12:17:34,756 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1469.01  [OK]
-2026-03-13 12:18:04,606 [__main__] INFO      Proposed                                  cost=1636.00  [OK]
-2026-03-13 12:19:27,145 [__main__] INFO      No Diversity                              cost=1930.84  [OK]
-2026-03-13 12:19:43,693 [__main__] INFO      Proposed                                  cost=1709.69  [OK]
-2026-03-13 12:19:44,159 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
-2026-03-13 12:20:15,914 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-13 12:20:22,984 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
-2026-03-13 12:21:15,218 [__main__] INFO      No Diversity                              cost=2114.80  [OK]
-2026-03-13 12:21:24,734 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1447.27  [OK]
-2026-03-13 12:21:42,050 [__main__] INFO      No Manipulability (β=0)                   cost=19.94  [OK]
-2026-03-13 12:21:43,180 [__main__] INFO      No Manipulability (β=0)                   cost=26.00  [OK]
-2026-03-13 12:21:43,228 [__main__] INFO  
-Total evaluation time: 735.1 seconds
-2026-03-13 12:21:43,263 [scripts.evaluation.results_store] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (24 results)
+2026-03-25 00:06:28,168 [__main__] INFO    PHASE 1: PLANNING
+2026-03-25 00:06:28,168 [__main__] INFO  ================================================================================
+2026-03-25 00:06:28,168 [__main__] INFO  Running 24 jobs (4 experiments × 6 configs, 0 skipped) with 4 parallel workers
+2026-03-25 00:07:41,106 [__main__] INFO      Greedy (beam=1)                           cost=1279.62  [OK]
+2026-03-25 00:09:39,480 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=949.83  [OK]
+2026-03-25 00:11:59,085 [__main__] INFO      No Diversity                              cost=1298.25  [OK]
+2026-03-25 00:12:47,094 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-25 00:14:51,313 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-25 00:15:45,601 [__main__] INFO      Proposed                                  cost=1245.64  [OK]
+2026-03-25 00:16:03,959 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-25 00:16:07,731 [__main__] INFO      No Diversity                              cost=inf  [FAILED (inf)]
+2026-03-25 00:19:33,701 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=911.61  [OK]
+2026-03-25 00:19:52,844 [__main__] INFO      No Manipulability (β=0)                   cost=13.14  [OK]
+2026-03-25 00:20:24,333 [__main__] INFO      Greedy (beam=1)                           cost=inf  [FAILED (inf)]
+2026-03-25 00:21:22,371 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-25 00:23:14,172 [__main__] INFO      Proposed                                  cost=1238.38  [OK]
+2026-03-25 00:25:36,763 [__main__] INFO      No Manipulability (β=0)                   cost=5.96  [OK]
+2026-03-25 00:27:02,222 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1675.21  [OK]
+2026-03-25 00:28:25,075 [__main__] INFO      Proposed                                  cost=2039.54  [OK]
+2026-03-25 00:29:19,202 [__main__] INFO      No Diversity                              cost=2636.12  [OK]
+2026-03-25 00:29:39,615 [__main__] INFO      Greedy (beam=1)                           cost=2885.34  [OK]
+2026-03-25 00:31:59,106 [__main__] INFO      No Manipulability (β=0)                   cost=23.59  [OK]
+2026-03-25 00:32:15,541 [__main__] INFO      No Diversity                              cost=3433.18  [OK]
+2026-03-25 00:33:17,663 [__main__] INFO      Single Robot                              cost=inf  [FAILED (inf)]
+2026-03-25 00:34:46,174 [__main__] INFO      Proposed                                  cost=2187.66  [OK]
+2026-03-25 00:35:47,277 [__main__] INFO      No Switching Penalty (Cswitch=0)          cost=1496.12  [OK]
+2026-03-25 00:38:45,822 [__main__] INFO      No Manipulability (β=0)                   cost=21.94  [OK]
+2026-03-25 00:38:45,857 [__main__] INFO  
+Total evaluation time: 1937.7 seconds
+2026-03-25 00:38:45,884 [scripts.evaluation.results_store] INFO  Summary saved: /home/sukhvansh/Dual-Arm-Franka-Control-MTP/results/summary.json (24 results)

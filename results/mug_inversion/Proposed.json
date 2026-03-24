@@ -5,35 +5,37 @@
   "planning": {
     "experiment": "mug_inversion",
     "config_label": "Proposed",
-    "total_cost": 1636.0047294076548,
+    "total_cost": 2039.5381692916212,
     "n_segments": 80,
     "n_handovers": 1,
     "handover_points": [
-      43
+      41
     ],
-    "mean_task_cost": 19.27697004890596,
-    "total_switching_cost": 93.84712549517802,
-    "mean_manipulability": 0.10916762069053779,
-    "min_manipulability": 0.0846700438732559,
+    "mean_task_cost": 22.163943004902475,
+    "total_switching_cost": 266.4227288994228,
+    "mean_manipulability": 0.09289574385679589,
+    "min_manipulability": 0.07510172838708007,
     "feasibility_rate_robot0": 0.0,
     "feasibility_rate_robot1": 0.0,
     "assigned_feasibility_rate": 1.0,
-    "planning_time_s": 239.07238864898682
+    "planning_time_s": 517.2476077079773
   },
   "execution": {
-    "task_success": false,
+    "task_success": true,
     "grasp_success": true,
     "transport_success": true,
-    "place_success": false,
+    "place_success": true,
     "n_handovers_attempted": 1,
     "n_handovers_succeeded": 1,
     "handover_success_rate": 1.0,
-    "n_collision_incidents": 2,
+    "n_collision_incidents": 0,
     "n_switches": 1,
-    "execution_time_s": 101.72688174247742,
-    "mean_manipulability": 0.10106063488406539,
-    "placement_position_error": 0.010164095279241822,
-    "placement_orientation_error": 30.53141441771665,
+    "execution_time_s": 95.10781264305115,
+    "mean_manipulability": 0.09851721315410641,
+    "placement_position_error": 0.010438448502332002,
+    "placement_orientation_error": 14.32225820785992,
+    "object_mean_tracking_error": 0.011650232432954804,
+    "object_max_tracking_error": 0.030364158792813813,
     "error_message": ""
   }
 }
