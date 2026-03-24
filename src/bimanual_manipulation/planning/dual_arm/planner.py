@@ -584,10 +584,7 @@ class DualArmParallelPlanner:
 
         Tries multiple IK solutions for the goal configuration to
         increase the chance of finding one that is collision-free
-        against arm A's trajectory.  Only the temporally-relevant
-        portion of *traj_a* (second half onward) is used for temporal
-        collision checking, since arm B only needs to be clear of arm A
-        near the handover point, not at the start of arm A's segment.
+        against arm A's trajectory.
 
         Returns ``None`` if RRT fails or IK cannot be solved.
         """
