@@ -21,6 +21,7 @@ import sys
 import time
 from pathlib import Path
 import json
+from typing import Dict, List, Optional, Tuple
 import numpy as np
 from tqdm import tqdm
 
@@ -32,16 +33,24 @@ sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 from scripts.evaluation.configs import PAPER_EXPERIMENTS, ALL_ABLATIONS, config_id, ALL_CONFIGS
 from scripts.evaluation.results_store import load_result, RESULTS_ROOT
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [PIPELINE] %(levelname)s  %(message)s",
-)
-logger = logging.getLogger(__name__)
-
 TRAJ_GEN_SCRIPT = "scripts/pipeline/trajectory_generation.py"
 RUN_ALL_SCRIPT = "scripts/evaluation/run_all.py"
 
+def setup_logging(log_file: Optional[str] = None):
+    handlers = [logging.StreamHandler(sys.stdout)]
+    if log_file:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        handlers.append(logging.FileHandler(log_file, mode='w'))
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [PIPELINE] %(levelname)s  %(message)s",
+        handlers=handlers,
+        force=True
+    )
+
 def run_command(cmd, description):
+    logger = logging.getLogger(__name__)
     logger.info(f"Running {description}: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=_PROJECT_ROOT)
     if result.returncode != 0:
@@ -59,7 +68,12 @@ def main():
                         help="Number of workers for parallel processing")
     parser.add_argument("--paper", action="store_true",
                         help="Run paper configurations only")
+    parser.add_argument("--log-file", type=str, default=None,
+                        help="Path to save the execution log")
     args = parser.parse_args()
+
+    setup_logging(args.log_file)
+    logger = logging.getLogger(__name__)
 
     if args.experiments:
         experiments = args.experiments
