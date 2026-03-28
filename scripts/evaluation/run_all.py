@@ -67,6 +67,7 @@ from scripts.evaluation.configs import (
     AblationConfig,
     config_id,
     BASELINE,
+    PAPER_EXPERIMENTS,
 )
 from scripts.evaluation.metrics import (
     ExperimentResult,
@@ -703,6 +704,10 @@ def main():
              f"Available: {list(ALL_ABLATIONS.keys())}",
     )
     parser.add_argument(
+        "--paper", action="store_true",
+        help="Run only paper experiments and configurations.",
+    )
+    parser.add_argument(
         "--no-env", action="store_true",
         help="Skip environment creation (faster but no IK/Jacobian).",
     )
@@ -747,14 +752,22 @@ def main():
 
     results_dir = Path(args.results_dir) if args.results_dir else RESULTS_ROOT
 
+    # Resolve configs and experiments based on --paper flag
+    if args.paper:
+        only_exps = args.only if args.only else PAPER_EXPERIMENTS
+        ablations = ["paper"]
+    else:
+        only_exps = args.only
+        ablations = args.ablations
+
     # Discover experiments
-    exp_paths = discover_experiments(only=args.only, exclude=args.exclude)
+    exp_paths = discover_experiments(only=only_exps, exclude=args.exclude)
     if not exp_paths:
         logger.error("No experiment configs found in %s", EXPERIMENTS_DIR)
         sys.exit(1)
 
     # Resolve configs
-    configs = resolve_configs(args.ablations)
+    configs = resolve_configs(ablations)
     exp_names = [Path(p).stem for p in exp_paths]
 
     logger.info("Batch plan: %d experiments × %d configs = %d runs",

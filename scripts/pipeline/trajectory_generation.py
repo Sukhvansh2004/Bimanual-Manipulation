@@ -207,6 +207,12 @@ def main() -> None:
                         help="Disable all Meshcat visualization (useful for batch / headless runs)")
     parser.add_argument("--enable-grasp-vis", action="store_true",
                         help="Enable visualization of grasps and EEF trajectories in Meshcat")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="Number of parallel worker processes (overrides JSON)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducibility")
+    parser.add_argument("--no-dpp", action="store_true",
+                        help="Disable DPP entropy maximization for grasp selection (overrides JSON)")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -215,14 +221,37 @@ def main() -> None:
     exp_cfg = load_experiment(args.experiment)
     logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
     
+    # Set seeds if provided
+    if args.seed is not None:
+        import random
+        import numpy as np
+        import torch
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        logger.info(f"Set random seeds to {args.seed}")
+
     # Resolve runtime settings: CLI overrides > JSON
     rt_cfg = exp_cfg.runtime
     vis_cfg = exp_cfg.visualization
     out_cfg = exp_cfg.output
+    plan_cfg = exp_cfg.planning
+    
+    if args.no_dpp:
+        plan_cfg.use_dpp = False
+        if out_cfg.output_dir is None:
+            # Auto-suffix if using default directory
+            exp_name = exp_cfg.name
+            out_cfg.output_dir = str(Path("data") / f"{exp_name}_no_dpp")
+        logger.info(f"DPP DISABLED via CLI. Output directory: {out_cfg.output_dir}")
     
     debug = args.debug or rt_cfg.debug
     enable_meshcat = vis_cfg.enable_meshcat and not args.no_meshcat
-    num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
+    
+    if args.workers is not None:
+        num_workers = args.workers
+    else:
+        num_workers = rt_cfg.num_workers if rt_cfg.num_workers > 0 else multiprocessing.cpu_count() // 2
 
     # Setup logging
     log_level = logging.DEBUG if debug else logging.INFO

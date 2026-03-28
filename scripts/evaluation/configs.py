@@ -161,6 +161,17 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
 }
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Paper Experiments
+# ═══════════════════════════════════════════════════════════════════════════
+
+PAPER_EXPERIMENTS = [
+    "ycb_plate_table_to_shelf",
+    "ycb_plate_shelf_to_table",
+    "mug_inversion",
+    "flatPlate_box_to_box",
+]
+
 # Flat list of all unique configs for running everything
 ALL_CONFIGS: List[AblationConfig] = [
     BASELINE,
