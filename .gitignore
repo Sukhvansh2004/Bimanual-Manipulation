@@ -5,3 +5,7 @@ models/**
 scratch/**
 MUJOCO_LOG.TXT
 pytest_output.log
+data/**
+results/**
+!data/.gitkeep
+!results/.gitkeep
