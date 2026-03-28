@@ -79,23 +79,21 @@ def load_result(path: Path) -> ExperimentResult:
 
 
 def load_all_results(results_dir: Optional[Path] = None) -> List[ExperimentResult]:
-    """Load all results from the results directory."""
+    """Load all results from the results directory recursively."""
     root = results_dir or RESULTS_ROOT
     results: List[ExperimentResult] = []
 
     if not root.exists():
         return results
 
-    for exp_dir in sorted(root.iterdir()):
-        if not exp_dir.is_dir():
+    # Search recursively for all .json files
+    for json_file in sorted(root.rglob("*.json")):
+        if json_file.name == "summary.json" or json_file.name == "aggregate_summary.json":
             continue
-        for json_file in sorted(exp_dir.glob("*.json")):
-            if json_file.name == "summary.json":
-                continue
-            try:
-                results.append(load_result(json_file))
-            except Exception as exc:
-                logger.warning("Failed to load %s: %s", json_file, exc)
+        try:
+            results.append(load_result(json_file))
+        except Exception as exc:
+            logger.warning("Failed to load %s: %s", json_file, exc)
 
     return results
 

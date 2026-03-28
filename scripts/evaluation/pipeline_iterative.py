@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 import json
 import numpy as np
+from tqdm import tqdm
 
 # Project root
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -69,14 +70,17 @@ def main():
     
     iters = args.iterations
     
+    # Total jobs = iterations * experiments
+    pbar = tqdm(total=iters * len(experiments), desc="Evaluation Progress")
+    
     for i in range(iters):
         logger.info(f"\n{'='*80}\n  ITERATION {i+1}/{iters}\n{'='*80}")
         
-        # 1. Trajectory Generation (one by one for each experiment)
         for exp in experiments:
-            logger.info(f"--- Generating trajectories for {exp} (Iter {i+1}) ---")
-            # For each iteration, we MUST clear the old data because run_all.py expects it in data/<exp>
-            # Actually, to be truly iterative, we should generate new data each time.
+            pbar.set_description(f"Iter {i+1}/{iters} | {exp}")
+            
+            # 1. Trajectory Generation
+            logger.info(f"--- [Iter {i+1}] Generating trajectories for {exp} ---")
             gen_cmd = [
                 sys.executable, TRAJ_GEN_SCRIPT,
                 "--experiment", f"experiments/{exp}.json",
@@ -86,103 +90,28 @@ def main():
                 "--seed", str(42 + i)
             ]
             if not run_command(gen_cmd, f"Trajectory Generation {exp} Iter {i+1}"):
+                pbar.update(1)
                 continue
 
-        # 2 & 3. Assignment and Execution (ALL CONFIGS for the given experiments)
-        logger.info(f"--- Running Assignment and Execution (Iter {i+1}) ---")
-        run_all_cmd = [
-            sys.executable, RUN_ALL_SCRIPT,
-            "--only"
-        ] + experiments + [
-            "--execute",
-            "--workers", str(args.workers),
-            "--results-dir", f"results/iter_{i+1}"
-        ]
-        if args.paper:
-            run_all_cmd.append("--paper")
-        # Else it runs ALL_CONFIGS by default in run_all.py if no ablations specified
-            
-        if not run_command(run_all_cmd, f"Batch Runner Iter {i+1}"):
-            continue
-
-    # 4. Aggregation
-    logger.info(f"\n{'='*80}\n  FINAL AGGREGATION AND ANALYSIS\n{'='*80}")
-    
-    # We'll use a nested dict: summary[experiment][config_label] = stats
-    summary = {}
-    
-    for exp in experiments:
-        summary[exp] = {}
-        for i in range(iters):
-            iter_dir = Path(_PROJECT_ROOT) / "results" / f"iter_{i+1}" / exp
-            if not iter_dir.exists(): continue
-            
-            for json_file in iter_dir.glob("*.json"):
-                if json_file.name == "summary.json": continue
+            # 2 & 3. Assignment and Execution
+            logger.info(f"--- [Iter {i+1}] Running Assignment and Execution for {exp} ---")
+            run_all_cmd = [
+                sys.executable, RUN_ALL_SCRIPT,
+                "--only", exp,
+                "--execute",
+                "--workers", str(args.workers),
+                "--results-dir", f"results/iter_{i+1}"
+            ]
+            if args.paper:
+                run_all_cmd.append("--paper")
                 
-                try:
-                    with open(json_file, 'r') as f:
-                        data = json.load(f)
-                    
-                    cfg_label = data["config_label"]
-                    if cfg_label not in summary[exp]:
-                        summary[exp][cfg_label] = {
-                            "successes": 0,
-                            "total_iters": 0,
-                            "costs": [],
-                            "handovers": [],
-                            "mean_tracking_errors": [],
-                            "max_tracking_errors": [],
-                            "manipulabilities": [],
-                            "collisions": []
-                        }
-                    
-                    stats = summary[exp][cfg_label]
-                    stats["total_iters"] += 1
-                    
-                    p = data.get("planning")
-                    e = data.get("execution")
-                    
-                    if p and p.get("total_cost") < 1e10:
-                        stats["costs"].append(p["total_cost"])
-                        stats["handovers"].append(p["n_handovers"])
-                    
-                    if e:
-                        if e.get("task_success"):
-                            stats["successes"] += 1
-                        stats["mean_tracking_errors"].append(e.get("object_mean_tracking_error", 0))
-                        stats["max_tracking_errors"].append(e.get("object_max_tracking_error", 0))
-                        stats["manipulabilities"].append(e.get("mean_manipulability", 0))
-                        stats["collisions"].append(e.get("n_collision_incidents", 0))
-                        
-                except Exception as e:
-                    logger.warning(f"Failed to load result from {json_file}: {e}")
+            run_command(run_all_cmd, f"Batch Runner {exp} Iter {i+1}")
+            pbar.update(1)
 
-    # Print Summary Table
-    print(f"\n{'Experiment':<30} {'Config':<25} {'Succ %':>8} {'Cost':>10} {'HOs':>6} {'ErrAvg':>8} {'ErrMax':>8} {'Coll':>5}")
-    print("-" * 115)
-    
-    for exp in sorted(summary.keys()):
-        for cfg in sorted(summary[exp].keys()):
-            stats = summary[exp][cfg]
-            if stats["total_iters"] == 0: continue
-            
-            sr = (stats["successes"] / stats["total_iters"]) * 100
-            m_cost = np.mean(stats["costs"]) if stats["costs"] else float('nan')
-            m_hos = np.mean(stats["handovers"]) if stats["handovers"] else float('nan')
-            m_err = np.mean(stats["mean_tracking_errors"]) if stats["mean_tracking_errors"] else 0.0
-            max_err = np.max(stats["max_tracking_errors"]) if stats["max_tracking_errors"] else 0.0
-            m_coll = np.mean(stats["collisions"]) if stats["collisions"] else 0.0
-            
-            print(f"{exp:<30} {cfg:<25} {sr:>7.1f}% {m_cost:>10.1f} {m_hos:>6.1f} {m_err:>8.4f} {max_err:>8.4f} {m_coll:>5.1f}")
+    pbar.close()
 
-    # Optional: Save aggregate summary to JSON
-    with open(Path(_PROJECT_ROOT) / "results" / "aggregate_summary.json", 'w') as f:
-        # Need to convert numpy types for JSON
-        def default_serializer(obj):
-            if isinstance(obj, (np.integer, np.floating)): return obj.item()
-            return str(obj)
-        json.dump(summary, f, indent=2, default=default_serializer)
+    logger.info(f"\n{'='*80}\n  ITERATIVE RUN COMPLETE\n{'='*80}")
+    logger.info("Run 'python scripts/evaluation/analyze.py' to see aggregated results.")
 
 if __name__ == "__main__":
     main()

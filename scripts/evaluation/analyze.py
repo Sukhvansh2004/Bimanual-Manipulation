@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Analysis and visualization of experiment/ablation results.
 
+Aggregates multiple iterations (if found) into Mean ± Std Dev.
+
 Usage::
 
     python scripts/evaluation/analyze.py                   # full report
@@ -16,6 +18,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
 
 import numpy as np
 
@@ -35,107 +38,128 @@ logger = logging.getLogger(__name__)
 def _fmt(val, fmt=".2f"):
     if val is None: return "—"
     if isinstance(val, bool): return "✓" if val else "✗"
-    if isinstance(val, float):
+    if isinstance(val, (float, np.floating)):
         if np.isinf(val): return "∞"
+        if np.isnan(val): return "—"
         return f"{val:{fmt}}"
     return str(val)
 
 
-def print_summary_table(results: List[ExperimentResult]):
-    """Print a concise summary table of all results."""
-    print(f"\n{'═' * 120}")
-    print(f"  EXPERIMENT SUMMARY")
-    print(f"{'═' * 120}")
+def group_results(results: List[ExperimentResult]):
+    """Group flat list of results by (experiment, config_label)."""
+    groups = defaultdict(list)
+    for r in results:
+        groups[(r.experiment, r.config_label)].append(r)
+    return groups
+
+
+def print_summary_table(groups: Dict[Tuple[str, str], List[ExperimentResult]]):
+    """Print an aggregate summary table."""
+    print(f"\n{'═' * 155}")
+    print(f"  EXPERIMENT AGGREGATE SUMMARY")
+    print(f"{'═' * 155}")
 
     header = (
-        f"{'Experiment':<40} {'Config':<30} {'Cost':>10} {'HOs':>5} "
-        f"{'Manip':>8} {'Plan(s)':>8} {'Succ':>5} {'Coll':>5}"
+        f"{'Experiment':<35} {'Config':<30} {'Iters':>5} {'Succ%':>8} "
+        f"{'Cost (Avg±Std)':>20} {'HOs':>5} {'ErrAvg':>8} {'ErrMax':>8} {'Coll':>5}"
     )
     print(header)
-    print("─" * 120)
+    print("─" * 155)
 
-    for r in sorted(results, key=lambda x: (x.experiment, x.config_label)):
-        p = r.planning
-        e = r.execution
+    for (exp, cfg), rs in sorted(groups.items()):
+        n_iters = len(rs)
         
-        cost = _fmt(p.total_cost, '.1f') if p else "—"
-        hos = str(p.n_handovers) if p else "—"
-        manip = _fmt(p.mean_manipulability, '.4f') if p else "—"
-        ptime = _fmt(p.planning_time_s, '.1f') if p else "—"
+        # Success rate
+        successes = sum(1 for r in rs if r.execution and r.execution.task_success)
+        succ_rate = (successes / n_iters) * 100
         
-        succ = _fmt(e.task_success) if e else "—"
-        coll = str(e.n_collision_incidents) if e else "—"
+        # Costs
+        costs = [r.planning.total_cost for r in rs if r.planning and r.planning.total_cost < 1e10]
+        m_cost = np.mean(costs) if costs else float('nan')
+        s_cost = np.std(costs) if len(costs) > 1 else 0.0
+        cost_str = f"{_fmt(m_cost, '.1f')}±{_fmt(s_cost, '.1f')}"
+        
+        # HOs
+        hos = [r.planning.n_handovers for r in rs if r.planning and r.planning.total_cost < 1e10]
+        m_hos = np.mean(hos) if hos else float('nan')
+        
+        # Tracking errors
+        err_avgs = [r.execution.object_mean_tracking_error for r in rs if r.execution]
+        m_err = np.mean(err_avgs) if err_avgs else 0.0
+        
+        err_maxs = [r.execution.object_max_tracking_error for r in rs if r.execution]
+        max_err = np.max(err_maxs) if err_maxs else 0.0
+        
+        # Collisions
+        colls = [r.execution.n_collision_incidents for r in rs if r.execution]
+        m_coll = np.mean(colls) if colls else 0.0
         
         row = (
-            f"{r.experiment:<40} {r.config_label:<30} "
-            f"{cost:>10} {hos:>5} {manip:>8} {ptime:>8} {succ:>5} {coll:>5}"
+            f"{exp:<35} {cfg:<30} {n_iters:>5} {succ_rate:>7.1f}% "
+            f"{cost_str:>20} {m_hos:>5.1f} {_fmt(m_err, '.4f'):>8} {_fmt(max_err, '.4f'):>8} {m_coll:>5.1f}"
         )
         print(row)
     print()
 
 
-def export_csv(results: List[ExperimentResult], out_path: Path):
-    """Export all metrics to CSV."""
-    import csv
-    fields = [
-        "experiment", "config_label", "total_cost", "n_handovers", "mean_manipulability",
-        "planning_time_s", "task_success", "n_collision_incidents", "execution_time_s"
-    ]
-    with open(out_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        for r in results:
-            row = {"experiment": r.experiment, "config_label": r.config_label}
-            if r.planning:
-                for k in ["total_cost", "n_handovers", "mean_manipulability", "planning_time_s"]:
-                    row[k] = getattr(r.planning, k, "")
-            if r.execution:
-                for k in ["task_success", "n_collision_incidents", "execution_time_s"]:
-                    row[k] = getattr(r.execution, k, "")
-            writer.writerow(row)
-    logger.info("CSV exported: %s", out_path)
-
-
-def _ensure_matplotlib():
-    import matplotlib
-    matplotlib.use("Agg")
+def plot_results(groups: Dict[Tuple[str, str], List[ExperimentResult]], out_dir: Path, show: bool = False):
     import matplotlib.pyplot as plt
-    return plt
-
-
-def plot_results(results: List[ExperimentResult], out_dir: Path, show: bool = False):
-    """Generate basic bar charts for key metrics."""
-    plt = _ensure_matplotlib()
+    out_dir.mkdir(parents=True, exist_ok=True)
     
-    # Filter to cases with planning results
-    valid = [r for r in results if r.planning]
-    if not valid: return
-
-    # Cost plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    exps = sorted(list(set(r.experiment for r in valid)))
-    configs = sorted(list(set(r.config_label for r in valid)))
+    exps = sorted(list(set(k[0] for k in groups.keys())))
+    configs = sorted(list(set(k[1] for k in groups.keys())))
     
+    if not exps or not configs: return
+
+    # 1. Success Rate
+    fig, ax = plt.subplots(figsize=(14, 7))
     x = np.arange(len(exps))
     width = 0.8 / len(configs)
     
     for i, cfg in enumerate(configs):
-        costs = []
+        rates = []
         for exp in exps:
-            r = next((r for r in valid if r.experiment == exp and r.config_label == cfg), None)
-            costs.append(r.planning.total_cost if r and r.planning.total_cost < 1e6 else 0)
-        ax.bar(x + i*width, costs, width, label=cfg)
+            rs = groups.get((exp, cfg), [])
+            if not rs:
+                rates.append(0)
+                continue
+            successes = sum(1 for r in rs if r.execution and r.execution.task_success)
+            rates.append((successes / len(rs)) * 100)
+        ax.bar(x + i*width, rates, width, label=cfg)
     
-    ax.set_ylabel('Total Cost')
-    ax.set_title('Costs by Experiment and Configuration')
+    ax.set_ylabel('Success Rate (%)')
+    ax.set_title('Task Success Rate by Experiment and Configuration')
     ax.set_xticks(x + width * (len(configs)-1) / 2)
     ax.set_xticklabels(exps, rotation=45, ha='right')
-    ax.legend()
-    
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
     plt.tight_layout()
-    fig.savefig(out_dir / "costs_summary.png")
-    if show: plt.show()
+    fig.savefig(out_dir / "aggregate_success_rates.png")
     plt.close(fig)
+
+    # 2. Tracking Error Boxplot
+    fig, ax = plt.subplots(figsize=(14, 7))
+    error_data = []
+    labels = []
+    for exp in exps:
+        all_errs = []
+        for cfg in configs:
+            rs = groups.get((exp, cfg), [])
+            errs = [r.execution.object_mean_tracking_error for r in rs if r.execution]
+            all_errs.extend(errs)
+        if all_errs:
+            error_data.append(all_errs)
+            labels.append(exp)
+    
+    if error_data:
+        ax.boxplot(error_data, tick_labels=labels)
+        ax.set_ylabel('Mean Tracking Error (m)')
+        ax.set_title('Object Tracking Error Distribution across Iterations')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        fig.savefig(out_dir / "aggregate_tracking_errors.png")
+        plt.close(fig)
+
+    logger.info(f"Plots saved to {out_dir}")
 
 
 def main():
@@ -154,9 +178,9 @@ def main():
         logger.warning("No results found.")
         return
 
-    print_summary_table(results)
-    export_csv(results, out_dir / "results.csv")
-    plot_results(results, out_dir, not args.no_show)
+    groups = group_results(results)
+    print_summary_table(groups)
+    plot_results(groups, out_dir, not args.no_show)
     logger.info("Analysis complete. Results in %s", out_dir)
 
 
