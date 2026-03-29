@@ -68,6 +68,8 @@ def main():
                         help="Number of workers for parallel processing")
     parser.add_argument("--paper", action="store_true",
                         help="Run paper configurations only")
+    parser.add_argument("--ablations", nargs="*", default=["baseline"],
+                        help="Ablation groups to run (if not --paper)")
     parser.add_argument("--log-file", type=str, default=None,
                         help="Path to save the execution log")
     args = parser.parse_args()
