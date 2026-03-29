@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Analysis and visualization of experiment/ablation results.
+"""Comprehensive analysis and visualization of experiment results.
 
-Aggregates multiple iterations (if found) into Mean ± Std Dev.
-
-Usage::
-
-    python scripts/evaluation/analyze.py                   # full report
-    python scripts/evaluation/analyze.py --results-dir results/
-    python scripts/evaluation/analyze.py --no-show          # save only, no GUI
+Generates a detailed Markdown report and a suite of plots aggregating
+results across multiple iterations.
 """
 
 from __future__ import annotations
@@ -16,173 +11,272 @@ import argparse
 import logging
 import os
 import sys
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Allow running as a script from the project root
+# Project root setup
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from scripts.evaluation.configs import ALL_ABLATIONS, config_id
-from scripts.evaluation.metrics import ExperimentResult, PlanningMetrics, extract_trajectory_generation_metrics
+from scripts.evaluation.metrics import ExperimentResult
 from scripts.evaluation.results_store import load_all_results, RESULTS_ROOT
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [ANALYZE] %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
-
-def _fmt(val, fmt=".2f"):
-    if val is None: return "—"
-    if isinstance(val, bool): return "✓" if val else "✗"
+def _fmt(val, fmt=".3f"):
+    if val is None: return "N/A"
+    if isinstance(val, bool): return "Yes" if val else "No"
     if isinstance(val, (float, np.floating)):
-        if np.isinf(val): return "∞"
-        if np.isnan(val): return "—"
+        if np.isnan(val): return "N/A"
+        if np.isinf(val): return "Inf"
         return f"{val:{fmt}}"
     return str(val)
 
-
-def group_results(results: List[ExperimentResult]):
-    """Group flat list of results by (experiment, config_label)."""
-    groups = defaultdict(list)
-    for r in results:
-        groups[(r.experiment, r.config_label)].append(r)
-    return groups
-
-
-def print_summary_table(groups: Dict[Tuple[str, str], List[ExperimentResult]]):
-    """Print an aggregate summary table."""
-    print(f"\n{'═' * 155}")
-    print(f"  EXPERIMENT AGGREGATE SUMMARY")
-    print(f"{'═' * 155}")
-
-    header = (
-        f"{'Experiment':<35} {'Config':<30} {'Iters':>5} {'Succ%':>8} "
-        f"{'Cost (Avg±Std)':>20} {'HOs':>5} {'ErrAvg':>8} {'ErrMax':>8} {'Coll':>5}"
-    )
-    print(header)
-    print("─" * 155)
-
-    for (exp, cfg), rs in sorted(groups.items()):
-        n_iters = len(rs)
+class ResultAggregator:
+    def __init__(self, results: List[ExperimentResult]):
+        self.raw_results = results
+        self.groups = defaultdict(list)
+        for r in results:
+            self.groups[(r.experiment, r.config_label)].append(r)
         
-        # Success rate
+        self.exps = sorted(list(set(r.experiment for r in results)))
+        self.configs = sorted(list(set(r.config_label for r in results)))
+
+    def get_stats(self, exp: str, config: str):
+        rs = self.groups.get((exp, config), [])
+        if not rs: return None
+        
+        n = len(rs)
         successes = sum(1 for r in rs if r.execution and r.execution.task_success)
-        succ_rate = (successes / n_iters) * 100
         
-        # Costs
         costs = [r.planning.total_cost for r in rs if r.planning and r.planning.total_cost < 1e10]
-        m_cost = np.mean(costs) if costs else float('nan')
-        s_cost = np.std(costs) if len(costs) > 1 else 0.0
-        cost_str = f"{_fmt(m_cost, '.1f')}±{_fmt(s_cost, '.1f')}"
-        
-        # HOs
         hos = [r.planning.n_handovers for r in rs if r.planning and r.planning.total_cost < 1e10]
-        m_hos = np.mean(hos) if hos else float('nan')
         
-        # Tracking errors
-        err_avgs = [r.execution.object_mean_tracking_error for r in rs if r.execution]
-        m_err = np.mean(err_avgs) if err_avgs else 0.0
-        
-        err_maxs = [r.execution.object_max_tracking_error for r in rs if r.execution]
-        max_err = np.max(err_maxs) if err_maxs else 0.0
-        
-        # Collisions
+        mean_errs = [r.execution.object_mean_tracking_error for r in rs if r.execution]
+        max_errs = [r.execution.object_max_tracking_error for r in rs if r.execution]
         colls = [r.execution.n_collision_incidents for r in rs if r.execution]
-        m_coll = np.mean(colls) if colls else 0.0
+        ptime = [r.planning.planning_time_s for r in rs if r.planning]
         
-        row = (
-            f"{exp:<35} {cfg:<30} {n_iters:>5} {succ_rate:>7.1f}% "
-            f"{cost_str:>20} {m_hos:>5.1f} {_fmt(m_err, '.4f'):>8} {_fmt(max_err, '.4f'):>8} {m_coll:>5.1f}"
-        )
-        print(row)
-    print()
+        return {
+            "n": n,
+            "success_rate": (successes / n) * 100,
+            "cost_mean": np.mean(costs) if costs else np.nan,
+            "cost_std": np.std(costs) if len(costs) > 1 else 0.0,
+            "ho_mean": np.mean(hos) if hos else np.nan,
+            "err_mean": np.mean(mean_errs) if mean_errs else 0.0,
+            "err_max": np.max(max_errs) if max_errs else 0.0,
+            "coll_mean": np.mean(colls) if colls else 0.0,
+            "ptime_mean": np.mean(ptime) if ptime else 0.0,
+            "raw_costs": costs,
+            "raw_errs": mean_errs
+        }
 
+    def get_global_stats(self, config: str):
+        """Aggregate stats for a configuration across ALL experiments."""
+        rs_all = []
+        for exp in self.exps:
+            rs_all.extend(self.groups.get((exp, config), []))
+        
+        if not rs_all: return None
+        
+        n_total = len(rs_all)
+        successes = sum(1 for r in rs_all if r.execution and r.execution.task_success)
+        
+        costs = [r.planning.total_cost for r in rs_all if r.planning and r.planning.total_cost < 1e10]
+        hos = [r.planning.n_handovers for r in rs_all if r.planning and r.planning.total_cost < 1e10]
+        
+        mean_errs = [r.execution.object_mean_tracking_error for r in rs_all if r.execution]
+        max_errs = [r.execution.object_max_tracking_error for r in rs_all if r.execution]
+        colls = [r.execution.n_collision_incidents for r in rs_all if r.execution]
+        ptime = [r.planning.planning_time_s for r in rs_all if r.planning]
+        
+        return {
+            "n": n_total,
+            "success_rate": (successes / n_total) * 100,
+            "cost_mean": np.mean(costs) if costs else np.nan,
+            "ho_mean": np.mean(hos) if hos else np.nan,
+            "err_mean": np.mean(mean_errs) if mean_errs else 0.0,
+            "err_max": np.max(max_errs) if max_errs else 0.0,
+            "coll_mean": np.mean(colls) if colls else 0.0,
+            "ptime_mean": np.mean(ptime) if ptime else 0.0,
+        }
 
-def plot_results(groups: Dict[Tuple[str, str], List[ExperimentResult]], out_dir: Path, show: bool = False):
-    import matplotlib.pyplot as plt
+def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    exps = sorted(list(set(k[0] for k in groups.keys())))
-    configs = sorted(list(set(k[1] for k in groups.keys())))
+    # 1. Global Success Rate Heatmap (Manual Impl)
+    plt.figure(figsize=(12, 10))
+    data = np.zeros((len(agg.exps), len(agg.configs)))
+    for i, exp in enumerate(agg.exps):
+        for j, cfg in enumerate(agg.configs):
+            stats = agg.get_stats(exp, cfg)
+            data[i, j] = stats["success_rate"] if stats else 0
+            
+    im = plt.imshow(data, cmap="RdYlGn")
+    plt.colorbar(im, label="Success Rate (%)")
+    plt.xticks(range(len(agg.configs)), agg.configs, rotation=45, ha='right', fontsize=8)
+    plt.yticks(range(len(agg.exps)), agg.exps, fontsize=8)
     
-    if not exps or not configs: return
+    # Annotate values
+    for i in range(len(agg.exps)):
+        for j in range(len(agg.configs)):
+            plt.text(j, i, f"{data[i,j]:.0f}", ha="center", va="center", color="black", fontsize=7)
 
-    # 1. Success Rate
-    fig, ax = plt.subplots(figsize=(14, 7))
-    x = np.arange(len(exps))
-    width = 0.8 / len(configs)
-    
-    for i, cfg in enumerate(configs):
-        rates = []
-        for exp in exps:
-            rs = groups.get((exp, cfg), [])
-            if not rs:
-                rates.append(0)
-                continue
-            successes = sum(1 for r in rs if r.execution and r.execution.task_success)
-            rates.append((successes / len(rs)) * 100)
-        ax.bar(x + i*width, rates, width, label=cfg)
-    
-    ax.set_ylabel('Success Rate (%)')
-    ax.set_title('Task Success Rate by Experiment and Configuration')
-    ax.set_xticks(x + width * (len(configs)-1) / 2)
-    ax.set_xticklabels(exps, rotation=45, ha='right')
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    plt.title("Success Rate (%) per Experiment and Configuration")
     plt.tight_layout()
-    fig.savefig(out_dir / "aggregate_success_rates.png")
-    plt.close(fig)
+    plt.savefig(out_dir / "global_success_heatmap.png")
+    plt.close()
 
-    # 2. Tracking Error Boxplot
-    fig, ax = plt.subplots(figsize=(14, 7))
-    error_data = []
+    # 2. Global Cost Distribution (Boxplot per Config)
+    plt.figure(figsize=(14, 8))
+    cost_data = []
     labels = []
-    for exp in exps:
-        all_errs = []
-        for cfg in configs:
-            rs = groups.get((exp, cfg), [])
-            errs = [r.execution.object_mean_tracking_error for r in rs if r.execution]
-            all_errs.extend(errs)
-        if all_errs:
-            error_data.append(all_errs)
-            labels.append(exp)
+    for cfg in agg.configs:
+        cfg_costs = []
+        for exp in agg.exps:
+            stats = agg.get_stats(exp, cfg)
+            if stats: cfg_costs.extend(stats["raw_costs"])
+        if cfg_costs:
+            cost_data.append(cfg_costs)
+            labels.append(cfg)
     
-    if error_data:
-        ax.boxplot(error_data, tick_labels=labels)
-        ax.set_ylabel('Mean Tracking Error (m)')
-        ax.set_title('Object Tracking Error Distribution across Iterations')
-        plt.xticks(rotation=45, ha='right')
+    if cost_data:
+        plt.boxplot(cost_data)
+        plt.xticks(range(1, len(labels) + 1), labels, rotation=45, ha='right', fontsize=8)
+        plt.ylabel("Planning Cost")
+        plt.title("Distribution of Planning Costs by Configuration")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.tight_layout()
-        fig.savefig(out_dir / "aggregate_tracking_errors.png")
-        plt.close(fig)
+        plt.savefig(out_dir / "global_cost_distribution.png")
+        plt.close()
 
-    logger.info(f"Plots saved to {out_dir}")
+    # 3. Tracking Error (Average across iterations)
+    plt.figure(figsize=(14, 8))
+    for i, cfg in enumerate(agg.configs):
+        errs = []
+        for exp in agg.exps:
+            stats = agg.get_stats(exp, cfg)
+            errs.append(stats["err_mean"] if stats else 0)
+        plt.plot(agg.exps, errs, marker='o', label=cfg, linewidth=1, markersize=4)
+    
+    plt.xticks(rotation=45, ha='right', fontsize=8)
+    plt.ylabel("Mean Tracking Error (m)")
+    plt.title("Mean Object Tracking Error per Experiment")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(out_dir / "global_tracking_errors.png")
+    plt.close()
 
+    # 4. Handover Analysis
+    plt.figure(figsize=(14, 8))
+    ho_means = []
+    for cfg in agg.configs:
+        cfg_hos = []
+        for exp in agg.exps:
+            stats = agg.get_stats(exp, cfg)
+            if stats: cfg_hos.append(stats["ho_mean"])
+        ho_means.append(np.nanmean(cfg_hos) if cfg_hos else 0)
+    
+    plt.bar(agg.configs, ho_means, color='teal', alpha=0.8)
+    plt.xticks(rotation=45, ha='right', fontsize=8)
+    plt.ylabel("Average Number of Handovers")
+    plt.title("Average Handovers across all Experiments by Configuration")
+    plt.tight_layout()
+    plt.savefig(out_dir / "global_handover_summary.bar.png")
+    plt.close()
+
+def write_markdown_report(agg: ResultAggregator, out_path: Path):
+    lines = [
+        "# Comprehensive Dual-Arm Franka Control Evaluation Report",
+        f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
+        "\n## 1. Global Aggregate by Configuration",
+        "\nThis section averages performance metrics across all experiments for each configuration.",
+        "\n| Configuration | Success % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Collisions |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
+    ]
+
+    for cfg in agg.configs:
+        s = agg.get_global_stats(cfg)
+        if not s: continue
+        lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {s['coll_mean']:.1f} |")
+
+    lines.append("\n## 2. Detailed Summary Table")
+    lines.append("\n| Experiment | Configuration | Iterations | Success Rate | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) |")
+    lines.append("| :--- | :--- | :---: | :---: | :--- | :---: | :---: |")
+    
+    for exp in agg.exps:
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s: continue
+            cost_str = f"{s['cost_mean']:.1f} ± {s['cost_std']:.1f}"
+            lines.append(f"| {exp} | {cfg} | {s['n']} | {s['success_rate']:.1f}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} |")
+
+    lines.append("\n## 2. Key Findings and Visualizations")
+    lines.append("\n### 2.1 Success Rates")
+    lines.append("![Success Heatmap](figures/global_success_heatmap.png)")
+    lines.append("\n### 2.2 Planning Costs")
+    lines.append("![Cost Distribution](figures/global_cost_distribution.png)")
+    lines.append("\n### 2.3 Tracking Accuracy")
+    lines.append("![Tracking Error](figures/global_tracking_errors.png)")
+    lines.append("\n### 2.4 Handover Optimization")
+    lines.append("![Handover Summary](figures/global_handover_summary.bar.png)")
+
+    lines.append("\n## 3. Per-Experiment Details")
+    for exp in agg.exps:
+        lines.append(f"\n### {exp.replace('_', ' ').title()}")
+        lines.append("| Config | Success % | Avg HOs | Avg Collisions | Plan Time (s) |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s: continue
+            lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {s['ptime_mean']:.2f} |")
+
+    out_path.write_text("\n".join(lines))
+    logger.info(f"Markdown report generated: {out_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Analyze experiment results")
+    parser = argparse.ArgumentParser(description="Detailed result analysis")
     parser.add_argument("--results-dir", type=str, default=str(RESULTS_ROOT))
-    parser.add_argument("--no-show", action="store_true", help="Don't display plots")
     parser.add_argument("--output-dir", type=str, default=None)
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
-    out_dir = Path(args.output_dir) if args.output_dir else results_dir / "figures"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
+    out_dir = Path(args.output_dir) if args.output_dir else results_dir
+    fig_dir = out_dir / "figures"
+    
+    logger.info(f"Loading results from {results_dir}...")
     results = load_all_results(results_dir)
     if not results:
-        logger.warning("No results found.")
+        logger.error("No result files found. Ensure the iterative pipeline has completed.")
         return
 
-    groups = group_results(results)
-    print_summary_table(groups)
-    plot_results(groups, out_dir, not args.no_show)
-    logger.info("Analysis complete. Results in %s", out_dir)
+    agg = ResultAggregator(results)
+    
+    logger.info("Generating visualizations...")
+    generate_visualizations(agg, fig_dir)
+    
+    logger.info("Writing comprehensive report...")
+    write_markdown_report(agg, out_dir / "comprehensive_report.md")
+    
+    # Simple console summary
+    print(f"\n{'='*100}")
+    print(f"{'Experiment':<35} {'Config':<30} {'Succ %':>8} {'Cost Avg':>10}")
+    print(f"{'='*100}")
+    for exp in agg.exps:
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s: continue
+            print(f"{exp:<35} {cfg:<30} {s['success_rate']:>7.1f}% {s['cost_mean']:>10.1f}")
 
+    logger.info(f"Analysis complete. Full report at {out_dir}/comprehensive_report.md")
 
 if __name__ == "__main__":
     main()
