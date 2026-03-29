@@ -74,6 +74,8 @@ class ExecutionMetrics:
     # Additional metrics from ExecutionTracker
     n_switches: int = 0                     # total arm switches (from assignment)
     mean_manipulability: float = 0.0        # mean manipulability along executed path
+    object_mean_tracking_error: float = 0.0
+    object_max_tracking_error: float = 0.0
 
     error_message: str = ""
 

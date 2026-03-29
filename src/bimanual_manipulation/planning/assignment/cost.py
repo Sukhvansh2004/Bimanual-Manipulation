@@ -649,26 +649,7 @@ def compute_switching_cost(
         handover_callback(result)
 
     if result.feasible:
-        # Add the transfer arm's approach cost: the joint-space jump from
-        # its config at waypoint (i-1) to its config at the handover
-        # waypoint i.  This penalises handovers that require the
-        # transferring arm to make a large reconfiguration to reach the
-        # hold pose.
-        approach_cost = 0.0
-        if segment_idx > 0 and segment_idx - 1 < prev_traj.n_waypoints:
-            q_prev = prev_traj.joint_configs[segment_idx - 1]
-            q_hold = prev_traj.joint_configs[segment_idx]
-            dq = q_hold - q_prev
-            approach_cost = alpha * float(np.dot(dq, dq))
-
-        total_cost = result.cost + approach_cost
-        logger.debug(
-            "Switching cost at seg %d (robot %d→%d): %.4f "
-            "(primitive=%.4f, transfer_approach=%.4f)",
-            segment_idx, prev_robot, curr_robot, total_cost,
-            result.cost, approach_cost,
-        )
-        return total_cost
+        return result.cost
 
     logger.debug(
         "Handover at seg %d (robot %d→%d) is truly infeasible — %s",

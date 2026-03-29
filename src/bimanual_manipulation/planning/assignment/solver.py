@@ -44,6 +44,7 @@ def _initialize_dp(
     trajectory_info: Dict[int, Tuple[int, int]],
     initial_robot: Optional[int],
     beam_width: Optional[int],
+    step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Create DP tables and populate segment 0.
 
@@ -60,9 +61,22 @@ def _initialize_dp(
     switch_cost_cache = np.zeros((n_segments, n_states))
 
     for si in range(n_states):
-        robot_id, _ = trajectory_info[si]
+        robot_id, traj_idx = trajectory_info[si]
         if initial_robot is not None and robot_id != initial_robot:
             continue
+        if np.isinf(cost_matrix[0, si]):
+            continue
+        # Segment 0 spans waypoints [0, 1]; block states whose joint
+        # step from waypoint 0→1 exceeds the threshold.
+        if step_feasibility is not None:
+            step_ok = step_feasibility.get((robot_id, traj_idx))
+            if step_ok is not None and len(step_ok) > 1 and not step_ok[1]:
+                logger.debug(
+                    "Segment 0 state %d (robot%d traj%d): blocked — "
+                    "joint step exceeds threshold",
+                    si, robot_id, traj_idx,
+                )
+                continue
         J_star[0, si] = cost_matrix[0, si]
 
     n_alive = int(np.sum(~np.isinf(J_star[0])))
@@ -135,9 +149,9 @@ def _best_cross_robot_transition(
     best_prev = -1
     best_sw = 0.0
 
-    for acc_cost, ps in alive_prev:
+    for idx, (acc_cost, ps) in enumerate(alive_prev):
         if acc_cost >= best_cost:
-            n_pruned += 1
+            n_pruned += len(alive_prev) - idx
             break
         pr, _ = trajectory_info[ps]
         if pr == cr:
@@ -562,6 +576,7 @@ def _solve_optimal_assignment(
 
     J_star, prev_state, switch_cost_cache = _initialize_dp(
         cost_matrix, trajectory_info, initial_robot, beam_width,
+        step_feasibility=step_feasibility,
     )
 
     _forward_pass(
