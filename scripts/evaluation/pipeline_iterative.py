@@ -93,8 +93,8 @@ def main():
         for exp in experiments:
             pbar.set_description(f"Iter {i+1}/{iters} | {exp}")
             
-            # 1. Trajectory Generation
-            logger.info(f"--- [Iter {i+1}] Generating trajectories for {exp} ---")
+            # 1a. Standard Trajectory Generation (DPP)
+            logger.info(f"--- [Iter {i+1}] Generating standard trajectories for {exp} ---")
             gen_cmd = [
                 sys.executable, TRAJ_GEN_SCRIPT,
                 "--experiment", f"experiments/{exp}.json",
@@ -103,9 +103,12 @@ def main():
                 "--workers", str(args.workers),
                 "--seed", str(42 + i)
             ]
-            if not run_command(gen_cmd, f"Trajectory Generation {exp} Iter {i+1}"):
-                pbar.update(1)
-                continue
+            run_command(gen_cmd, f"Standard Gen {exp} Iter {i+1}")
+
+            # 1b. No-DPP Trajectory Generation
+            logger.info(f"--- [Iter {i+1}] Generating No-DPP trajectories for {exp} ---")
+            no_dpp_cmd = gen_cmd + ["--no-dpp"]
+            run_command(no_dpp_cmd, f"No-DPP Gen {exp} Iter {i+1}")
 
             # 2 & 3. Assignment and Execution
             logger.info(f"--- [Iter {i+1}] Running Assignment and Execution for {exp} ---")
