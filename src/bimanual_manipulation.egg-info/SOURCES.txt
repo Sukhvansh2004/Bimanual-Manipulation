@@ -64,6 +64,7 @@ src/bimanual_manipulation/planning/trajectory/arm_planner.py
 src/bimanual_manipulation/planning/trajectory/generator.py
 src/bimanual_manipulation/planning/trajectory/object_planner.py
 src/bimanual_manipulation/planning/utils/__init__.py
+src/bimanual_manipulation/planning/utils/assignment_utils.py
 src/bimanual_manipulation/planning/utils/collision_utils.py
 src/bimanual_manipulation/planning/utils/mujoco_utils.py
 src/bimanual_manipulation/planning/utils/trajectory_utils.py
