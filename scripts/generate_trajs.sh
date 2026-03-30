@@ -67,16 +67,11 @@ for task in "${TASKS[@]}"; do
     clean_robot_trajs "$DATA_DIR"
     python "$TRAJ_GEN" --experiment "experiments/${task}.json" --save-traj --reuse-object-traj --no-meshcat --workers "$WORKERS"
     
-    # If paper mode or specifically requested, also do No-DPP for this task
-    # For simplicity, we just do it if the task is one of the paper tasks
-    if [[ "$PAPER_MODE" == true ]]; then
-        echo "── $task (No-DPP) ──────────────────────────────────────"
-        DATA_DIR_NO_DPP="data/${task}_no_dpp"
-        clean_robot_trajs "$DATA_DIR_NO_DPP"
-        # We can't easily pass use_dpp=False via CLI to trajectory_generation.py yet 
-        # unless we add it. Let's add it.
-        python "$TRAJ_GEN" --experiment "experiments/${task}.json" --save-traj --reuse-object-traj --no-meshcat --workers "$WORKERS" --no-dpp
-    fi
+    # Generate No-DPP trajectories (needed by the No Diversity ablation config).
+    echo "── $task (No-DPP) ──────────────────────────────────────"
+    DATA_DIR_NO_DPP="data/${task}_no_dpp"
+    clean_robot_trajs "$DATA_DIR_NO_DPP"
+    python "$TRAJ_GEN" --experiment "experiments/${task}.json" --save-traj --reuse-object-traj --no-meshcat --workers "$WORKERS" --no-dpp
 done
 
 echo "Done."

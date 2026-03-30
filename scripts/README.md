@@ -25,6 +25,8 @@ All shell scripts support a `--paper` flag to run configurations used in the pap
 
 #### 1. Generate Trajectories
 Generates candidate robot trajectories for a given object trajectory.
+Both standard (DPP diversity) and no-DPP (top-N by score) variants are generated
+so that the `No Diversity` ablation config has the data it needs.
 ```bash
 ./scripts/generate_trajs.sh [--paper] [--workers N] [--only EXP_NAME]
 ```
@@ -51,7 +53,16 @@ python scripts/evaluation/analyze.py
 To run the full pipeline multiple times with different random seeds:
 ```bash
 python scripts/evaluation/pipeline_iterative.py --experiments mug_inversion --iterations 5
+
+# Paper configs only (Proposed, Greedy, Single Robot, No Diversity, ...):
+python scripts/evaluation/pipeline_iterative.py --paper --iterations 5
+
+# Resume an interrupted run (skips completed iterations):
+python scripts/evaluation/pipeline_iterative.py --paper --iterations 5 --resume
 ```
+
+Each iteration generates both standard and no-DPP trajectories, then runs
+assignment + execution for all requested configs.
 
 ---
 

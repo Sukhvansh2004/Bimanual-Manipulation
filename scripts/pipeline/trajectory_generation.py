@@ -23,6 +23,7 @@ import argparse
 import sys
 import multiprocessing
 from functools import partial
+from pathlib import Path
 
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.perception.grasp_predictor import maximize_entropy_grasps
