@@ -82,6 +82,8 @@ def main():
                         help="Path to save the execution log")
     parser.add_argument("--resume", action="store_true",
                         help="Skip already completed iterations/experiments")
+    parser.add_argument("--reuse-object-traj", action="store_true",
+                        help="Reuse cached object trajectories across iterations")
     args = parser.parse_args()
 
     setup_logging(args.log_file)
@@ -127,9 +129,11 @@ def main():
                 gen_cmd = [
                     sys.executable, TRAJ_GEN_SCRIPT,
                     "--experiment", f"experiments/{exp}.json",
-                    "--save-traj", "--reuse-object-traj", "--no-meshcat",
+                    "--save-traj", "--no-meshcat",
                     "--workers", str(args.workers), "--seed", str(42 + i),
                 ]
+                if args.reuse_object_traj:
+                    gen_cmd.append("--reuse-object-traj")
                 if not run_command(gen_cmd, f"Standard Gen {exp} Iter {i+1}"):
                     logger.error(f"Skipping {exp} iter {i+1} due to trajectory generation failure.")
                     pbar.update(1)
@@ -144,9 +148,11 @@ def main():
                 no_dpp_cmd = [
                     sys.executable, TRAJ_GEN_SCRIPT,
                     "--experiment", f"experiments/{exp}.json",
-                    "--save-traj", "--reuse-object-traj", "--no-meshcat",
+                    "--save-traj", "--no-meshcat",
                     "--workers", str(args.workers), "--seed", str(42 + i), "--no-dpp",
                 ]
+                if args.reuse_object_traj:
+                    no_dpp_cmd.append("--reuse-object-traj")
                 if not run_command(no_dpp_cmd, f"No-DPP Gen {exp} Iter {i+1}"):
                     logger.warning(f"No-DPP gen failed for {exp} iter {i+1}; No Diversity config will be skipped.")
 
