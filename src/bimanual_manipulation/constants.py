@@ -131,7 +131,7 @@ IK_MIN_MANIPULABILITY = 1e-3  # Reject IK solutions with manipulability below th
 TRAJ_IK_MAX_SOLUTIONS = 6  # Max IK solutions to check per waypoint during trajectory feasibility checking
 
 # Collision Checking Parameters
-COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
+COLLISION_CONTACT_THRESHOLD = 1e-3  # Contact distance threshold
 
 # Collision Monitor — execution-time severity filter.
 # MuJoCo ``contact.dist`` is negative for penetration; a threshold of
@@ -240,7 +240,6 @@ ARM_RRT_COLLISION_RESOLUTION = 0.05  # Resolution for edge collision checking (r
 ARM_RRT_CONNECT_MAX_STEPS = 50  # Max connect steps toward a target node
 ARM_RRT_SMOOTHING_ITERATIONS = 150   # Number of shortcutting attempts for path smoothing
 ARM_RRT_JOINT_MARGIN = 0.05     # Margin (rad) inside joint limits for sampling
-ARM_RRT_SAFETY_CLEARANCE = 0.01 # Safety clearance margin from obstacles (meters) for joint-space arm RRT
 ARM_RRT_TEMPORAL_SAMPLES = 10   # Max arm-A configs sampled for temporal collision checking
 
 # =============================================================================
