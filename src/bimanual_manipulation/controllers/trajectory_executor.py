@@ -497,6 +497,13 @@ class TrajectoryExecutor:
     ) -> bool:
         """Execute a joint-space trajectory.
 
+        Waypoint advancement is **time-based**: one waypoint per control step,
+        matching the planned trajectory timing.  Robosuite's impedance (PD)
+        controller naturally tracks the reference — if the robot lags, the
+        position error grows and the PD drives harder (within actuator torque
+        limits).  After all waypoints have been issued the final target is
+        held for the remaining budget, giving the PD time to converge.
+
         Args:
             joint_configs: Waypoints ``(N, 7)``.
             target_joints: Final target joint configuration ``(7,)``.
@@ -526,8 +533,8 @@ class TrajectoryExecutor:
                 ctrl.last_status = 0
                 return False
 
-            if current_wp_idx < total_waypoints - 1:
-                current_wp_idx += 1
+            # Time-based advancement: one waypoint per step, hold at final.
+            current_wp_idx = min(steps_taken, total_waypoints - 1)
 
             target_wp = joint_configs[current_wp_idx]
             robot_action = ctrl.construct_joint_action(
