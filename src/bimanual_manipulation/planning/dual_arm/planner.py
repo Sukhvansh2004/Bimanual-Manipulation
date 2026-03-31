@@ -539,8 +539,7 @@ class DualArmParallelPlanner:
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
             logger.warning("Primary mink solve_ik failed: %s", exc_primary)
-
-        return None
+            
 
     # ------------------------------------------------------------------
     # Trajectory resolution
