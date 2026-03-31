@@ -538,7 +538,29 @@ class DualArmParallelPlanner:
             m.config.integrate_inplace(vel, constants.MINK_DT)
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
-            logger.warning("Primary mink solve_ik failed: %s", exc_primary,)
+            logger.debug("Primary mink solve_ik failed: %s", exc_primary)
+
+        # Relaxed retry without collision avoidance — lets arm B keep
+        # moving toward its target instead of accumulating drift.
+        if m.collision_limit is not None:
+            limits_relaxed = [l for l in limits_full if l is not m.collision_limit]
+            try:
+                vel = mink.solve_ik(
+                    configuration=m.config,
+                    tasks=tasks,
+                    dt=constants.MINK_DT,
+                    solver=constants.MINK_QP_SOLVER,
+                    limits=limits_relaxed if limits_relaxed else None,
+                    constraints=constraints if constraints else None,
+                )
+                m.config.integrate_inplace(vel, constants.MINK_DT)
+                return m.config.q[m.qpos_idx_b].copy()
+            except Exception as exc_relaxed:
+                logger.warning(
+                    "Relaxed mink solve_ik also failed: %s", exc_relaxed,
+                )
+
+        return None
 
     # ------------------------------------------------------------------
     # Trajectory resolution

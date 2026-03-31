@@ -60,6 +60,7 @@ class DualArmManipulationSystem:
             use_grasp_service: bool = True,
             has_renderer: bool = True,
             table_full_size: Optional[Any] = None,
+            start_services: bool = True,
             ):
         
         self.custom_objects = custom_objects
@@ -72,6 +73,7 @@ class DualArmManipulationSystem:
         self.use_fastsam = use_fastsam
         self.use_grasp_service = use_grasp_service
         self.has_renderer = has_renderer
+        self.start_services = start_services
         # Use RLock to prevent deadlocks (TransformManager re-acquires it)
         self.env_lock = threading.RLock()
 
@@ -214,8 +216,11 @@ class DualArmManipulationSystem:
         logger.info("   ✓ Controllers loaded")
         
         # Start services
-        logger.info("\n2. Starting services...")
-        self._start_services()
+        if self.start_services:
+            logger.info("\n2. Starting services...")
+            self._start_services()
+        else:
+            logger.info("\n2. Services disabled — skipping.")
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")

@@ -63,34 +63,44 @@ def check_arm_config_collision(
 
     set_qpos(data, qpos_idx_a, q_a)
     set_qpos(data, qpos_idx_b, q_b)
-    
-    # Use mj_forward instead of mj_fwdPosition to resolve equality 
-    # constraints (welds). This is crucial for checking collisions 
-    # of the manipulated object while it is being held.
-    mujoco.mj_forward(native_model, native_data)
 
-    ncon = int(data.ncon)
-    if ncon <= 0:
-        return False
+    # Inflate geom margins so MuJoCo generates contacts for near-miss pairs
+    clearance = constants.ARM_RRT_SAFETY_CLEARANCE
+    orig_margins = native_model.geom_margin[arm_b_geom_ids].copy()
+    if clearance > 0:
+        native_model.geom_margin[arm_b_geom_ids] = np.maximum(orig_margins, clearance)
+    effective_threshold = max(contact_threshold, clearance)
 
-    _ensure_geom_caches(model)
+    try:
+        # Use mj_forward instead of mj_fwdPosition to resolve equality 
+        # constraints (welds). This is crucial for checking collisions 
+        # of the manipulated object while it is being held.
+        mujoco.mj_forward(native_model, native_data)
 
-    g1 = np.asarray(data.contact.geom1[:ncon])
-    g2 = np.asarray(data.contact.geom2[:ncon])
-    dist = np.asarray(data.contact.dist[:ncon])
+        ncon = int(data.ncon)
+        if ncon <= 0:
+            return False
 
-    # Distance filter
-    mask = dist <= contact_threshold
-    if not np.any(mask):
-        return False
+        _ensure_geom_caches(model)
 
-    # Only contacts involving arm B
-    b_mask = np.zeros(model.ngeom, dtype=bool)
-    b_mask[arm_b_geom_ids] = True
-    involves_b = b_mask[g1] | b_mask[g2]
-    mask &= involves_b
+        g1 = np.asarray(data.contact.geom1[:ncon])
+        g2 = np.asarray(data.contact.geom2[:ncon])
+        dist = np.asarray(data.contact.dist[:ncon])
 
-    return bool(np.any(mask))
+        # Distance filter
+        mask = dist <= effective_threshold
+        if not np.any(mask):
+            return False
+
+        # Only contacts involving arm B
+        b_mask = np.zeros(model.ngeom, dtype=bool)
+        b_mask[arm_b_geom_ids] = True
+        involves_b = b_mask[g1] | b_mask[g2]
+        mask &= involves_b
+
+        return bool(np.any(mask))
+    finally:
+        native_model.geom_margin[arm_b_geom_ids] = orig_margins
 
 
 def collision_free_joint_segment(

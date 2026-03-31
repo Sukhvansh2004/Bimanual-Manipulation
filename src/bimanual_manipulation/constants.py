@@ -225,6 +225,7 @@ RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoot
 RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
 RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below table surface)
+RRT_SAFETY_CLEARANCE = 0.01     # Safety clearance margin from obstacles (meters) for SE(3) object RRT
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
@@ -239,6 +240,7 @@ ARM_RRT_COLLISION_RESOLUTION = 0.05  # Resolution for edge collision checking (r
 ARM_RRT_CONNECT_MAX_STEPS = 50  # Max connect steps toward a target node
 ARM_RRT_SMOOTHING_ITERATIONS = 150   # Number of shortcutting attempts for path smoothing
 ARM_RRT_JOINT_MARGIN = 0.05     # Margin (rad) inside joint limits for sampling
+ARM_RRT_SAFETY_CLEARANCE = 0.01 # Safety clearance margin from obstacles (meters) for joint-space arm RRT
 ARM_RRT_TEMPORAL_SAMPLES = 10   # Max arm-A configs sampled for temporal collision checking
 
 # =============================================================================

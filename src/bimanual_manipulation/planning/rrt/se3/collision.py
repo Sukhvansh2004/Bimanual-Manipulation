@@ -97,13 +97,22 @@ def check_object_pose_collision(
     native_model = get_native_mj_object(model)
     native_data = get_native_mj_object(data)
 
+    # Inflate geom margins so MuJoCo generates contacts for near-miss pairs
+    clearance = constants.RRT_SAFETY_CLEARANCE
+    orig_margins = native_model.geom_margin[object_geom_ids].copy()
+    if clearance > 0:
+        native_model.geom_margin[object_geom_ids] = np.maximum(orig_margins, clearance)
+
     quat_wxyz = T.convert_quat(quaternion, to="wxyz")
     data.qpos[obj_joint_addr:obj_joint_addr + 3] = position
     data.qpos[obj_joint_addr + 3:obj_joint_addr + 7] = quat_wxyz
 
-    mujoco.mj_fwdPosition(native_model, native_data)
+    try:
+        mujoco.mj_fwdPosition(native_model, native_data)
 
-    return object_in_collision(
-        model, data, object_geom_ids, robot_mask,
-        contact_threshold=constants.COLLISION_CONTACT_THRESHOLD,
-    )
+        return object_in_collision(
+            model, data, object_geom_ids, robot_mask,
+            contact_threshold=max(constants.COLLISION_CONTACT_THRESHOLD, clearance),
+        )
+    finally:
+        native_model.geom_margin[object_geom_ids] = orig_margins

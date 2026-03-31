@@ -499,6 +499,7 @@ def create_system(
         use_grasp_service=False,
         has_renderer=not headless,
         table_full_size=exp_cfg.table_full_size,
+        start_services=False,
     )
     system.start(start_teleop_thread=False)
     register_mesh_extraction_env(system.env)
