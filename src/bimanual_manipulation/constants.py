@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import torch
 from pathlib import Path
+import robosuite
 
 # =============================================================================
 # Network and Service Configuration
@@ -504,7 +505,6 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # Path to Franka Panda URDF shipped with robosuite (used by EAIK solver)
 def _get_panda_urdf_path() -> Path:
-    import robosuite
     return Path(robosuite.__file__).parent / "models" / "assets" / "bullet_data" / "panda_description" / "urdf" / "panda_arm.urdf"
 
 PANDA_URDF_PATH = _get_panda_urdf_path()
