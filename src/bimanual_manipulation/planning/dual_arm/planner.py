@@ -750,7 +750,7 @@ class DualArmParallelPlanner:
                 )
                 return rrt_traj
         except Exception as exc:
-            logger.warning(
+            logger.error(
                 "Joint RRT planning failed for arm B joint goal: %s", exc,
             )
 

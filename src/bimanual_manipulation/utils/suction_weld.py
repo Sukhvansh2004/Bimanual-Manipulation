@@ -47,6 +47,22 @@ def clear_suction_cache() -> None:
     logger.debug("Cleared suction weld caches")
 
 
+def is_object_grasped(env: DualArmEnvironment, robot_id: int, arm: str = "right") -> bool:
+    """Return True if the suction weld for *robot_id* / *arm* is currently active.
+
+    Checks the cached ``SuctionWeldHandles.welded_body_id`` — if it is not
+    ``None``, the gripper has an active MuJoCo weld equality constraint
+    attaching it to an object.
+    """
+    model_key = id(env.sim.model)
+    per_model = _SUCTION_CACHE.get(model_key, {})
+    cache_key = (int(robot_id), str(arm))
+    handles = per_model.get(cache_key)
+    if handles is None or not handles.valid:
+        return False
+    return handles.welded_body_id is not None
+
+
 def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
     """Get MuJoCo element ID from name using wrapper's public API."""
     model = sim.model
