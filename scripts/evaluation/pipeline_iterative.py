@@ -106,18 +106,20 @@ def main():
     else:
         check_configs = ALL_CONFIGS
 
-    pbar = tqdm(total=iters * len(experiments), desc="Evaluation Progress")
+    pbar = tqdm(total=iters, desc="Iterations", unit="iter")
     
     for i in range(iters):
         iter_results_dir = Path(_PROJECT_ROOT) / "results" / f"iter_{i+1}"
         logger.info(f"\n{'='*80}\n  ITERATION {i+1}/{iters}\n{'='*80}")
-        
+        pbar.set_description(f"Iter {i+1}/{iters}")
+
+        # ── Phase 1: Generate trajectories for ALL experiments ──────────
+        # Trajectory generation already uses --workers internally for
+        # parallel environments, so we run experiments sequentially here.
+        ready_experiments = []
         for exp in experiments:
-            pbar.set_description(f"Iter {i+1}/{iters} | {exp}")
-            
             if args.resume and is_experiment_finished(iter_results_dir, exp, check_configs):
-                logger.info(f"--- [Iter {i+1}] {exp} already finished. Skipping. ---")
-                pbar.update(1)
+                logger.info(f"--- [Iter {i+1}] {exp} already finished. Skipping entirely. ---")
                 continue
 
             # 1a. Standard Trajectory Generation
@@ -136,7 +138,6 @@ def main():
                     gen_cmd.append("--reuse-object-traj")
                 if not run_command(gen_cmd, f"Standard Gen {exp} Iter {i+1}"):
                     logger.error(f"Skipping {exp} iter {i+1} due to trajectory generation failure.")
-                    pbar.update(1)
                     continue
 
             # 1b. No-DPP Trajectory Generation
@@ -156,20 +157,29 @@ def main():
                 if not run_command(no_dpp_cmd, f"No-DPP Gen {exp} Iter {i+1}"):
                     logger.warning(f"No-DPP gen failed for {exp} iter {i+1}; No Diversity config will be skipped.")
 
-            # 2 & 3. Assignment and Execution
-            logger.info(f"--- [Iter {i+1}] Running Assignment and Execution for {exp} ---")
+            ready_experiments.append(exp)
+
+        # ── Phase 2: Assignment + Execution for ALL experiments at once ─
+        # This distributes ALL (experiment × config) jobs across workers,
+        # so no worker sits idle while a slow config blocks others.
+        if ready_experiments:
+            logger.info(f"\n--- [Iter {i+1}] Running Assignment and Execution for {len(ready_experiments)} experiments ---")
             run_all_cmd = [
                 sys.executable, RUN_ALL_SCRIPT,
-                "--only", exp, "--execute",
+                "--only", *ready_experiments,
+                "--execute",
                 "--workers", str(args.workers),
                 "--results-dir", str(iter_results_dir),
             ]
             if args.resume: run_all_cmd.append("--resume")
             if args.paper: run_all_cmd.append("--paper")
             elif args.ablations: run_all_cmd.extend(["--ablations"] + args.ablations)
-                
-            run_command(run_all_cmd, f"Batch Runner {exp} Iter {i+1}")
-            pbar.update(1)
+
+            run_command(run_all_cmd, f"Batch Runner All Experiments Iter {i+1}")
+        else:
+            logger.warning(f"--- [Iter {i+1}] No experiments ready for assignment. ---")
+
+        pbar.update(1)
 
     pbar.close()
     logger.info(f"\n{'='*80}\n  ITERATIVE RUN COMPLETE\n{'='*80}")
