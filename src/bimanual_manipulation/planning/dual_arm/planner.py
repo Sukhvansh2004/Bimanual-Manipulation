@@ -538,7 +538,7 @@ class DualArmParallelPlanner:
             m.config.integrate_inplace(vel, constants.MINK_DT)
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
-            logger.debug("Primary mink solve_ik failed: %s", exc_primary)
+            logger.warning("Primary mink solve_ik failed: %s", exc_primary)
 
         return None
 
@@ -675,7 +675,7 @@ class DualArmParallelPlanner:
                     )
                     return rrt_traj
             except Exception as exc:
-                logger.warning(
+                logger.error(
                     "Joint RRT planning failed for arm B "
                     "(candidate %d/%d): %s", idx + 1, len(goal_candidates), exc,
                 )
