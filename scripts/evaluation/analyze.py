@@ -63,6 +63,8 @@ class ResultAggregator:
         max_errs = [r.execution.object_max_tracking_error for r in rs if r.execution]
         colls = [r.execution.n_collision_incidents for r in rs if r.execution]
         ptime = [r.planning.planning_time_s for r in rs if r.planning]
+        pos_errs = [r.execution.placement_position_error for r in rs if r.execution and r.execution.placement_position_error is not None]
+        ori_errs = [r.execution.placement_orientation_error for r in rs if r.execution and r.execution.placement_orientation_error is not None]
         
         return {
             "n": n,
@@ -74,8 +76,14 @@ class ResultAggregator:
             "err_max": np.max(max_errs) if max_errs else 0.0,
             "coll_mean": np.mean(colls) if colls else 0.0,
             "ptime_mean": np.mean(ptime) if ptime else 0.0,
+            "place_pos_mean": np.mean(pos_errs) if pos_errs else np.nan,
+            "place_pos_std": np.std(pos_errs) if len(pos_errs) > 1 else 0.0,
+            "place_ori_mean": np.mean(ori_errs) if ori_errs else np.nan,
+            "place_ori_std": np.std(ori_errs) if len(ori_errs) > 1 else 0.0,
             "raw_costs": costs,
-            "raw_errs": mean_errs
+            "raw_errs": mean_errs,
+            "raw_place_pos": pos_errs,
+            "raw_place_ori": ori_errs,
         }
 
     def get_global_stats(self, config: str):
@@ -96,6 +104,8 @@ class ResultAggregator:
         max_errs = [r.execution.object_max_tracking_error for r in rs_all if r.execution]
         colls = [r.execution.n_collision_incidents for r in rs_all if r.execution]
         ptime = [r.planning.planning_time_s for r in rs_all if r.planning]
+        pos_errs = [r.execution.placement_position_error for r in rs_all if r.execution and r.execution.placement_position_error is not None]
+        ori_errs = [r.execution.placement_orientation_error for r in rs_all if r.execution and r.execution.placement_orientation_error is not None]
         
         return {
             "n": n_total,
@@ -106,6 +116,8 @@ class ResultAggregator:
             "err_max": np.max(max_errs) if max_errs else 0.0,
             "coll_mean": np.mean(colls) if colls else 0.0,
             "ptime_mean": np.mean(ptime) if ptime else 0.0,
+            "place_pos_mean": np.mean(pos_errs) if pos_errs else np.nan,
+            "place_ori_mean": np.mean(ori_errs) if ori_errs else np.nan,
         }
 
 def generate_visualizations(agg: ResultAggregator, out_dir: Path):
@@ -193,31 +205,65 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     plt.savefig(out_dir / "global_handover_summary.bar.png")
     plt.close()
 
+    # 5. Placement Error per Experiment
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+    for cfg in agg.configs:
+        pos_vals, ori_vals, exp_labels = [], [], []
+        for exp in agg.exps:
+            stats = agg.get_stats(exp, cfg)
+            if stats and stats["raw_place_pos"]:
+                pos_vals.append(np.mean(stats["raw_place_pos"]))
+                ori_vals.append(np.mean(stats["raw_place_ori"]) if stats["raw_place_ori"] else 0)
+                exp_labels.append(exp)
+        if pos_vals:
+            ax1.plot(exp_labels, pos_vals, marker='o', label=cfg, linewidth=1, markersize=4)
+            ax2.plot(exp_labels, ori_vals, marker='s', label=cfg, linewidth=1, markersize=4)
+
+    ax1.set_ylabel("Position Error (m)")
+    ax1.set_title("Placement Position Error per Experiment")
+    ax1.tick_params(axis='x', rotation=45, labelsize=8)
+    ax1.legend(fontsize='small')
+    ax1.grid(True, alpha=0.3)
+
+    ax2.set_ylabel("Orientation Error (°)")
+    ax2.set_title("Placement Orientation Error per Experiment")
+    ax2.tick_params(axis='x', rotation=45, labelsize=8)
+    ax2.legend(fontsize='small')
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(out_dir / "global_placement_errors.png")
+    plt.close()
+
 def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines = [
         "# Comprehensive Dual-Arm Franka Control Evaluation Report",
         f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
         "\n## 1. Global Aggregate by Configuration",
         "\nThis section averages performance metrics across all experiments for each configuration.",
-        "\n| Configuration | Success % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Collisions |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
+        "\n| Configuration | Success % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
     ]
 
     for cfg in agg.configs:
         s = agg.get_global_stats(cfg)
         if not s: continue
-        lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {s['coll_mean']:.1f} |")
+        pp = _fmt(s.get('place_pos_mean'), '.4f')
+        po = _fmt(s.get('place_ori_mean'), '.1f')
+        lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
 
     lines.append("\n## 2. Detailed Summary Table")
-    lines.append("\n| Experiment | Configuration | Iterations | Success Rate | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) |")
-    lines.append("| :--- | :--- | :---: | :---: | :--- | :---: | :---: |")
+    lines.append("\n| Experiment | Configuration | Iterations | Success Rate | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
+    lines.append("| :--- | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
     
     for exp in agg.exps:
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
             cost_str = f"{s['cost_mean']:.1f} ± {s['cost_std']:.1f}"
-            lines.append(f"| {exp} | {cfg} | {s['n']} | {s['success_rate']:.1f}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} |")
+            pp = f"{s['place_pos_mean']:.4f} ± {s['place_pos_std']:.4f}" if not np.isnan(s['place_pos_mean']) else 'N/A'
+            po = f"{s['place_ori_mean']:.1f} ± {s['place_ori_std']:.1f}" if not np.isnan(s['place_ori_mean']) else 'N/A'
+            lines.append(f"| {exp} | {cfg} | {s['n']} | {s['success_rate']:.1f}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
 
     lines.append("\n## 2. Key Findings and Visualizations")
     lines.append("\n### 2.1 Success Rates")
@@ -228,6 +274,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("![Tracking Error](figures/global_tracking_errors.png)")
     lines.append("\n### 2.4 Handover Optimization")
     lines.append("![Handover Summary](figures/global_handover_summary.bar.png)")
+    lines.append("\n### 2.5 Placement Accuracy")
+    lines.append("![Placement Errors](figures/global_placement_errors.png)")
 
     lines.append("\n## 3. Per-Experiment Details")
     for exp in agg.exps:

@@ -18,6 +18,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -290,6 +291,23 @@ def main():
             run_command(run_all_cmd, f"Batch Runner All Experiments Iter {i+1}")
         else:
             logger.warning(f"--- [Iter {i+1}] No experiments ready for assignment. ---")
+
+        # ── Phase 3: Clean data directories for next iteration ──────────
+        if i < iters - 1:  # Skip cleanup after the final iteration
+            logger.info(f"--- [Iter {i+1}] Cleaning data directories for next iteration ---")
+            for exp in ready_experiments:
+                for suffix in ("", "_no_dpp"):
+                    data_dir = Path(_PROJECT_ROOT) / "data" / f"{exp}{suffix}"
+                    if not data_dir.exists():
+                        continue
+                    # Remove generated robot trajectories and configs, keep object trajectories
+                    for pattern in ("robot*_trajectory_*.npz", "configs"):
+                        for p in data_dir.glob(pattern):
+                            if p.is_file():
+                                p.unlink()
+                            elif p.is_dir():
+                                shutil.rmtree(p)
+                    logger.debug(f"  Cleaned {data_dir}")
 
         pbar.update(1)
 

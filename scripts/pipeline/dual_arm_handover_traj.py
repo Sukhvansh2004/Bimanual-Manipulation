@@ -274,9 +274,8 @@ def stabilise(env: DualArmEnvironment, env_lock: threading.RLock,
 # Object-aware checks
 # ---------------------------------------------------------------------------
 
-# Threshold: if the object centre is farther than this from the EEF,
-# the grip is considered failed regardless of the suction weld state.
-_GRASP_PROXIMITY_THRESHOLD = 0.15  # metres
+# Contact-distance threshold for declaring gripper-object contact.
+_CONTACT_DIST_THRESHOLD = 0.005  # 5 mm
 
 
 def _object_held_by(
@@ -288,38 +287,78 @@ def _object_held_by(
 ) -> bool:
     """Return ``True`` if *robot_id* is physically holding the object.
 
-    For **suction** grippers two conditions are checked:
-      1. The suction weld equality constraint is active for this robot.
-      2. The object centre is within ``_GRASP_PROXIMITY_THRESHOLD`` of the
-         robot's end-effector position.
+    For **suction** grippers the suction weld equality constraint is
+    checked — if the weld is active the object is held.
 
-    For **parallel-jaw** grippers only the proximity check is used (there
-    is no weld constraint to query).
+    For **parallel-jaw** (or any non-suction) grippers, the MuJoCo
+    contact buffer is scanned for active contacts between the gripper's
+    geoms and the object's geoms.  This is robust for objects of any
+    size because it does not depend on the distance between the object
+    centre and the end-effector.
     """
-    # 1. For suction grippers, verify the MuJoCo weld is active
+    env = system.env
+    sim = env.sim
+
+    # --- Suction shortcut: weld active ⇒ held ---
     if gripper is not None and gripper.is_suction:
-        weld_active = is_object_grasped(system.env, robot_id, arm.arm_id)
-        if not weld_active:
-            return False
+        return is_object_grasped(env, robot_id, arm.arm_id)
 
-    # 2. Object close to EEF?  (both positions in world frame)
-    obj_pose = system.env.get_object_pose(obj_name)
-    if obj_pose is None:
-        return False
-    obj_pos = obj_pose[:3, 3]
-
-    eef_frame = f"robot{robot_id}_{arm.arm_id}_eef"
-    eef_stamped = arm.tf_manager.get_frame_pose(eef_frame)  # world frame
-    eef_pos = np.array(eef_stamped.position)
-    dist = float(np.linalg.norm(obj_pos - eef_pos))
-    if dist > _GRASP_PROXIMITY_THRESHOLD:
+    # --- Contact-based check (parallel-jaw or unknown gripper) ---
+    model = sim.model
+    ncon = int(sim.data.ncon)
+    if ncon <= 0:
         logger.warning(
-            "Object '%s' is %.3f m from robot %d EEF (threshold %.2f m) "
-            "— grip likely lost.",
-            obj_name, dist, robot_id, _GRASP_PROXIMITY_THRESHOLD,
+            "No MuJoCo contacts — robot %d likely not holding '%s'.",
+            robot_id, obj_name,
         )
         return False
-    return True
+
+    # Build gripper geom mask
+    gripper_prefix = f"gripper{robot_id}_"
+    gripper_geom_ids = set()
+    for gid in range(model.ngeom):
+        name = model.geom(gid).name if hasattr(model, 'geom') else model.geom_id2name(gid)
+        if name and name.startswith(gripper_prefix) and "vis" not in name:
+            gripper_geom_ids.add(gid)
+
+    if not gripper_geom_ids:
+        logger.warning("No gripper geoms found for robot %d.", robot_id)
+        return False
+
+    # Build object geom mask
+    obj_body_id = None
+    for name, bid in env.object_body_ids.items():
+        if obj_name in name:
+            obj_body_id = int(bid)
+            break
+    if obj_body_id is None:
+        logger.warning("Object '%s' body not found.", obj_name)
+        return False
+
+    obj_geom_ids = set()
+    for gid in range(model.ngeom):
+        if int(model.geom_bodyid[gid]) == obj_body_id:
+            obj_geom_ids.add(gid)
+
+    # Scan contacts for gripper ↔ object pairs
+    g1 = np.asarray(sim.data.contact.geom1[:ncon], dtype=np.int32)
+    g2 = np.asarray(sim.data.contact.geom2[:ncon], dtype=np.int32)
+    dist = np.asarray(sim.data.contact.dist[:ncon], dtype=np.float64)
+
+    for i in range(ncon):
+        if dist[i] > _CONTACT_DIST_THRESHOLD:
+            continue
+        g1i, g2i = int(g1[i]), int(g2[i])
+        if (g1i in gripper_geom_ids and g2i in obj_geom_ids) or \
+           (g2i in gripper_geom_ids and g1i in obj_geom_ids):
+            return True
+
+    logger.warning(
+        "No contact between robot %d gripper and object '%s' — "
+        "grip likely lost.",
+        robot_id, obj_name,
+    )
+    return False
 
 
 def _object_not_fallen(

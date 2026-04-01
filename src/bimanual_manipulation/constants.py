@@ -131,7 +131,7 @@ IK_MIN_MANIPULABILITY = 1e-3  # Reject IK solutions with manipulability below th
 TRAJ_IK_MAX_SOLUTIONS = 6  # Max IK solutions to check per waypoint during trajectory feasibility checking
 
 # Collision Checking Parameters
-COLLISION_CONTACT_THRESHOLD = 1e-3  # Contact distance threshold
+COLLISION_CONTACT_THRESHOLD = 1e-6  # Contact distance threshold
 
 # Collision Monitor — execution-time severity filter.
 # MuJoCo ``contact.dist`` is negative for penetration; a threshold of

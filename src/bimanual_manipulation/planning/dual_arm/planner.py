@@ -497,15 +497,9 @@ class DualArmParallelPlanner:
     def _solve_mink_step(self) -> Optional[np.ndarray]:
         """Run one mink solve_ik step and return arm B's target joints.
 
-        If the primary QP solve (with collision avoidance) fails, a
-        *relaxed* retry is attempted without the
-        ``CollisionAvoidanceLimit``.  This prevents the failure cascade
-        where arm B holds position, diverges from its reference, and
-        causes persistent collisions.
-
         Returns:
-            (7,) joint configuration for arm B, or ``None`` if both the
-            primary and relaxed QP solves fail.
+            (7,) joint configuration for arm B, or ``None`` if the
+            QP solve fails.
         """
         m = self._mink
         assert m is not None
@@ -539,7 +533,6 @@ class DualArmParallelPlanner:
             return m.config.q[m.qpos_idx_b].copy()
         except Exception as exc_primary:
             logger.warning("Primary mink solve_ik failed: %s", exc_primary)
-            
 
     # ------------------------------------------------------------------
     # Trajectory resolution

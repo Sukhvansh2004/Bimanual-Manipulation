@@ -76,6 +76,8 @@ class ExecutionMetrics:
     mean_manipulability: float = 0.0        # mean manipulability along executed path
     object_mean_tracking_error: float = 0.0
     object_max_tracking_error: float = 0.0
+    placement_position_error: float = 0.0   # metres
+    placement_orientation_error: float = 0.0  # degrees
 
     error_message: str = ""
 
