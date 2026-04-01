@@ -65,10 +65,12 @@ class ResultAggregator:
         ptime = [r.planning.planning_time_s for r in rs if r.planning]
         pos_errs = [r.execution.placement_position_error for r in rs if r.execution and r.execution.placement_position_error is not None]
         ori_errs = [r.execution.placement_orientation_error for r in rs if r.execution and r.execution.placement_orientation_error is not None]
+        ho_rates = [r.execution.handover_success_rate for r in rs if r.execution]
         
         return {
             "n": n,
             "success_rate": (successes / n) * 100,
+            "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
             "cost_mean": np.mean(costs) if costs else np.nan,
             "cost_std": np.std(costs) if len(costs) > 1 else 0.0,
             "ho_mean": np.mean(hos) if hos else np.nan,
@@ -106,10 +108,12 @@ class ResultAggregator:
         ptime = [r.planning.planning_time_s for r in rs_all if r.planning]
         pos_errs = [r.execution.placement_position_error for r in rs_all if r.execution and r.execution.placement_position_error is not None]
         ori_errs = [r.execution.placement_orientation_error for r in rs_all if r.execution and r.execution.placement_orientation_error is not None]
+        ho_rates = [r.execution.handover_success_rate for r in rs_all if r.execution]
         
         return {
             "n": n_total,
             "success_rate": (successes / n_total) * 100,
+            "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
             "cost_mean": np.mean(costs) if costs else np.nan,
             "ho_mean": np.mean(hos) if hos else np.nan,
             "err_mean": np.mean(mean_errs) if mean_errs else 0.0,
@@ -241,8 +245,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
         "\n## 1. Global Aggregate by Configuration",
         "\nThis section averages performance metrics across all experiments for each configuration.",
-        "\n| Configuration | Success % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+        "\n| Configuration | Success % | Handover % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
     ]
 
     for cfg in agg.configs:
@@ -250,20 +254,22 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         if not s: continue
         pp = _fmt(s.get('place_pos_mean'), '.4f')
         po = _fmt(s.get('place_ori_mean'), '.1f')
-        lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
+        hr = _fmt(s.get('ho_rate_mean'), '.1f')
+        lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {hr}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
 
     lines.append("\n## 2. Detailed Summary Table")
-    lines.append("\n| Experiment | Configuration | Iterations | Success Rate | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
-    lines.append("| :--- | :--- | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
+    lines.append("\n| Experiment | Configuration | Iterations | Success Rate | Handover % | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
+    lines.append("| :--- | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
     
     for exp in agg.exps:
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
             cost_str = f"{s['cost_mean']:.1f} ± {s['cost_std']:.1f}"
+            hr = _fmt(s.get('ho_rate_mean'), '.1f')
             pp = f"{s['place_pos_mean']:.4f} ± {s['place_pos_std']:.4f}" if not np.isnan(s['place_pos_mean']) else 'N/A'
             po = f"{s['place_ori_mean']:.1f} ± {s['place_ori_std']:.1f}" if not np.isnan(s['place_ori_mean']) else 'N/A'
-            lines.append(f"| {exp} | {cfg} | {s['n']} | {s['success_rate']:.1f}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
+            lines.append(f"| {exp} | {cfg} | {s['n']} | {s['success_rate']:.1f}% | {hr}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
 
     lines.append("\n## 2. Key Findings and Visualizations")
     lines.append("\n### 2.1 Success Rates")
@@ -280,12 +286,13 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("\n## 3. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
-        lines.append("| Config | Success % | Avg HOs | Avg Collisions | Plan Time (s) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        lines.append("| Config | Success % | Handover % | Avg HOs | Avg Collisions | Plan Time (s) |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
-            lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {s['ptime_mean']:.2f} |")
+            hr = _fmt(s.get('ho_rate_mean'), '.1f')
+            lines.append(f"| {cfg} | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {s['ptime_mean']:.2f} |")
 
     out_path.write_text("\n".join(lines))
     logger.info(f"Markdown report generated: {out_path}")
