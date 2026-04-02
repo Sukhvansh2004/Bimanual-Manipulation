@@ -142,26 +142,29 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # 1. Global Success Rate Heatmap (Manual Impl)
-    plt.figure(figsize=(12, 10))
-    data = np.zeros((len(agg.exps), len(agg.configs)))
+    n_exp, n_cfg = len(agg.exps), len(agg.configs)
+    hm_w = max(10, n_cfg * 0.7 + 3)
+    hm_h = max(4, n_exp * 0.55 + 2)
+    plt.figure(figsize=(hm_w, hm_h))
+    data = np.zeros((n_exp, n_cfg))
     for i, exp in enumerate(agg.exps):
         for j, cfg in enumerate(agg.configs):
             stats = agg.get_stats(exp, cfg)
             data[i, j] = stats["success_rate"] if stats else 0
             
-    im = plt.imshow(data, cmap="RdYlGn")
-    plt.colorbar(im, label="Success Rate (%)")
-    plt.xticks(range(len(agg.configs)), agg.configs, rotation=45, ha='right', fontsize=8)
-    plt.yticks(range(len(agg.exps)), agg.exps, fontsize=8)
+    im = plt.imshow(data, cmap="RdYlGn", aspect='auto')
+    plt.colorbar(im, label="Success Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
     
     # Annotate values
-    for i in range(len(agg.exps)):
-        for j in range(len(agg.configs)):
-            plt.text(j, i, f"{data[i,j]:.0f}", ha="center", va="center", color="black", fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
+            plt.text(j, i, f"{data[i,j]:.0f}", ha="center", va="center", color="black", fontsize=6)
 
     plt.title("Success Rate (%) per Experiment and Configuration")
     plt.tight_layout()
-    plt.savefig(out_dir / "global_success_heatmap.png")
+    plt.savefig(out_dir / "global_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     # 2. Global Cost Distribution (Boxplot per Config)
@@ -254,63 +257,63 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     plt.close()
 
     # 6. Assignment Success Rate Heatmap
-    plt.figure(figsize=(12, 10))
-    data_assign = np.zeros((len(agg.exps), len(agg.configs)))
+    plt.figure(figsize=(hm_w, hm_h))
+    data_assign = np.zeros((n_exp, n_cfg))
     for i, exp in enumerate(agg.exps):
         for j, cfg in enumerate(agg.configs):
             stats = agg.get_stats(exp, cfg)
             data_assign[i, j] = stats["assign_rate"] if stats else 0
-    im = plt.imshow(data_assign, cmap="Blues", vmin=0, vmax=100)
-    plt.colorbar(im, label="Assignment Success Rate (%)")
-    plt.xticks(range(len(agg.configs)), agg.configs, rotation=45, ha='right', fontsize=8)
-    plt.yticks(range(len(agg.exps)), agg.exps, fontsize=8)
-    for i in range(len(agg.exps)):
-        for j in range(len(agg.configs)):
-            plt.text(j, i, f"{data_assign[i,j]:.0f}", ha="center", va="center", color="black", fontsize=7)
+    im = plt.imshow(data_assign, cmap="Blues", vmin=0, vmax=100, aspect='auto')
+    plt.colorbar(im, label="Assignment Success Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
+            plt.text(j, i, f"{data_assign[i,j]:.0f}", ha="center", va="center", color="black", fontsize=6)
     plt.title("Assignment Success Rate (%) — Non-Infinity Cost")
     plt.tight_layout()
-    plt.savefig(out_dir / "global_assignment_success_heatmap.png")
+    plt.savefig(out_dir / "global_assignment_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     # 7. Grasp Success Rate Heatmap
-    plt.figure(figsize=(12, 10))
-    data_grasp = np.zeros((len(agg.exps), len(agg.configs)))
+    plt.figure(figsize=(hm_w, hm_h))
+    data_grasp = np.zeros((n_exp, n_cfg))
     for i, exp in enumerate(agg.exps):
         for j, cfg in enumerate(agg.configs):
             stats = agg.get_stats(exp, cfg)
             data_grasp[i, j] = stats["grasp_rate"] if stats else 0
-    im = plt.imshow(data_grasp, cmap="YlOrRd", vmin=0, vmax=100)
-    plt.colorbar(im, label="Grasp Success Rate (%)")
-    plt.xticks(range(len(agg.configs)), agg.configs, rotation=45, ha='right', fontsize=8)
-    plt.yticks(range(len(agg.exps)), agg.exps, fontsize=8)
-    for i in range(len(agg.exps)):
-        for j in range(len(agg.configs)):
-            plt.text(j, i, f"{data_grasp[i,j]:.0f}", ha="center", va="center", color="black", fontsize=7)
+    im = plt.imshow(data_grasp, cmap="YlOrRd", vmin=0, vmax=100, aspect='auto')
+    plt.colorbar(im, label="Grasp Success Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
+            plt.text(j, i, f"{data_grasp[i,j]:.0f}", ha="center", va="center", color="black", fontsize=6)
     plt.title("Grasp Success Rate (%)")
     plt.tight_layout()
-    plt.savefig(out_dir / "global_grasp_success_heatmap.png")
+    plt.savefig(out_dir / "global_grasp_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     # 8. Handover Success Rate Heatmap
-    plt.figure(figsize=(12, 10))
-    data_ho = np.full((len(agg.exps), len(agg.configs)), np.nan)
+    plt.figure(figsize=(hm_w, hm_h))
+    data_ho = np.full((n_exp, n_cfg), np.nan)
     for i, exp in enumerate(agg.exps):
         for j, cfg in enumerate(agg.configs):
             stats = agg.get_stats(exp, cfg)
             if stats and not np.isnan(stats["ho_rate_mean"]):
                 data_ho[i, j] = stats["ho_rate_mean"]
     masked = np.ma.array(data_ho, mask=np.isnan(data_ho))
-    im = plt.imshow(masked, cmap="PuBuGn", vmin=0, vmax=100)
-    plt.colorbar(im, label="Handover Success Rate (%)")
-    plt.xticks(range(len(agg.configs)), agg.configs, rotation=45, ha='right', fontsize=8)
-    plt.yticks(range(len(agg.exps)), agg.exps, fontsize=8)
-    for i in range(len(agg.exps)):
-        for j in range(len(agg.configs)):
+    im = plt.imshow(masked, cmap="PuBuGn", vmin=0, vmax=100, aspect='auto')
+    plt.colorbar(im, label="Handover Success Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
             v = data_ho[i, j]
-            plt.text(j, i, f"{v:.0f}" if not np.isnan(v) else "—", ha="center", va="center", color="black", fontsize=7)
+            plt.text(j, i, f"{v:.0f}" if not np.isnan(v) else "—", ha="center", va="center", color="black", fontsize=6)
     plt.title("Handover Success Rate (%)")
     plt.tight_layout()
-    plt.savefig(out_dir / "global_handover_success_heatmap.png")
+    plt.savefig(out_dir / "global_handover_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
     # 9. Collision Incidents per Experiment (grouped bar)

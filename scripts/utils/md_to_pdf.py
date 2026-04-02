@@ -15,15 +15,16 @@ from weasyprint import HTML
 _CSS = """
 body { font-family: sans-serif; margin: 40px; font-size: 11pt; line-height: 1.5; color: #222; }
 h1 { font-size: 22pt; border-bottom: 2px solid #333; padding-bottom: 4px; }
-h2 { font-size: 16pt; border-bottom: 1px solid #999; padding-bottom: 3px; margin-top: 28px; }
+h2 { font-size: 16pt; border-bottom: 1px solid #999; padding-bottom: 3px; margin-top: 28px; page-break-before: always; }
+h2:first-of-type { page-break-before: avoid; }
 h3 { font-size: 13pt; margin-top: 20px; }
-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 9pt; }
-th, td { border: 1px solid #aaa; padding: 4px 8px; text-align: center; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 8pt; }
+th, td { border: 1px solid #aaa; padding: 3px 5px; text-align: center; }
 th { background: #e8e8e8; }
-img { max-width: 100%; height: auto; display: block; margin: 10px auto; }
+img { max-width: 100%; max-height: 90vh; height: auto; width: auto; display: block; margin: 10px auto; page-break-inside: avoid; }
 code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; font-size: 10pt; }
 pre { background: #f4f4f4; padding: 10px; border-radius: 4px; overflow-x: auto; }
-@page { size: A4 landscape; margin: 1.5cm; }
+@page { size: A4 landscape; margin: 1cm; }
 """
 
 
