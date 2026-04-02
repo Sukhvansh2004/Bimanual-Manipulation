@@ -300,12 +300,22 @@ class RobosuiteArmController:
         gripper_action: float = 0.0,
         current_joints: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        """Construct a JOINT_POSITION action with velocity clamping.
+        """Construct a JOINT_POSITION action.
+
+        In **absolute** mode the target joint positions are sent directly to
+        robosuite's impedance (PD) controller, which naturally limits velocity
+        through the robot dynamics (inertia + critically-damped PD gains) and
+        MuJoCo actuator torque limits.  No manual velocity clamping is needed.
+
+        In **delta** mode the displacement from the current configuration is
+        sent.  Robosuite's ``scale_action`` and ``set_goal_position`` handle
+        the scaling and position-limit enforcement.
 
         Args:
             target_joints: Target joint positions ``[j1, ..., j7]``.
             gripper_action: Gripper action value.
-            current_joints: Current joints (reads from env if None).
+            current_joints: Current joints (reads from env if ``None``).
+                Only used in delta mode.
 
         Returns:
             Robot action array.
@@ -316,20 +326,13 @@ class RobosuiteArmController:
                 f"Current: {self._controller_name}"
             )
 
-        if current_joints is None:
-            current_joints = self.get_joint_positions()
-
-        joint_delta = target_joints - current_joints
-        # Per-joint velocity clamping: Franka velocity limits × control dt.
-        max_delta = constants.FRANKA_VELOCITY_LIMITS * constants.TRAJECTORY_TIME_STEP
-        clamped_delta = np.clip(joint_delta, -max_delta, max_delta)
-        clamped_target = current_joints + clamped_delta
-
         robot_action = np.zeros(self.action_dim_per_robot)
         if self.is_absolute_mode:
-            robot_action[:7] = clamped_target
+            robot_action[:7] = target_joints
         else:
-            robot_action[:7] = clamped_delta
+            if current_joints is None:
+                current_joints = self.get_joint_positions()
+            robot_action[:7] = target_joints - current_joints
         robot_action[-1] = gripper_action
         return robot_action
 

@@ -18,7 +18,10 @@ from scipy.spatial.transform import Rotation as R
 from robosuite.wrappers import VisualizationWrapper
 import bimanual_manipulation.constants as constants
 from bimanual_manipulation.environments.dual_arm import make_dual_arm_env, DualArmEnvironment
-from bimanual_manipulation.teleop.teleop import KeyboardTeleop
+try:
+    from bimanual_manipulation.teleop.teleop import KeyboardTeleop
+except ImportError:
+    KeyboardTeleop = None
 from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.controllers.gripper import RobosuiteGripperController
 from bimanual_manipulation.services.fastsam_service import FastSAMService
@@ -57,6 +60,7 @@ class DualArmManipulationSystem:
             use_grasp_service: bool = True,
             has_renderer: bool = True,
             table_full_size: Optional[Any] = None,
+            start_services: bool = True,
             ):
         
         self.custom_objects = custom_objects
@@ -69,6 +73,7 @@ class DualArmManipulationSystem:
         self.use_fastsam = use_fastsam
         self.use_grasp_service = use_grasp_service
         self.has_renderer = has_renderer
+        self.start_services = start_services
         # Use RLock to prevent deadlocks (TransformManager re-acquires it)
         self.env_lock = threading.RLock()
 
@@ -78,7 +83,7 @@ class DualArmManipulationSystem:
         self.env: DualArmEnvironment = None
         self.planning_env: Optional[DualArmEnvironment] = None
         self.tf_manager: Optional[TransformManager] = None
-        self.teleop: Optional[KeyboardTeleop] = None
+        self.teleop: Optional[KeyboardTeleop] = None # type: ignore
         self.teleop_thread: Optional[threading.Thread] = None
         self._meshcat_thread: Optional[threading.Thread] = None
         
@@ -211,17 +216,23 @@ class DualArmManipulationSystem:
         logger.info("   ✓ Controllers loaded")
         
         # Start services
-        logger.info("\n2. Starting services...")
-        self._start_services()
+        if self.start_services:
+            logger.info("\n2. Starting services...")
+            self._start_services()
+        else:
+            logger.info("\n2. Services disabled — skipping.")
         
         # Prepare teleoperation
         logger.info("\n3. Preparing teleoperation...")
-        self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
-        if start_teleop_thread:
-            self.run_teleop(blocking=False)
-            logger.info("   ✓ Teleoperation started (thread)")
+        if KeyboardTeleop is not None:
+            self.teleop = KeyboardTeleop(self.env, env_lock=self.env_lock)
+            if start_teleop_thread:
+                self.run_teleop(blocking=False)
+                logger.info("   ✓ Teleoperation started (thread)")
+            else:
+                logger.info("   Teleoperation ready. Run system.run_teleop() to start.")
         else:
-            logger.info("   Teleoperation ready. Run system.run_teleop() to start.")
+            logger.info("   Teleoperation unavailable (no display). Skipping.")
         
         # Settle steps
         logger.info("\n4. Settling environment...")

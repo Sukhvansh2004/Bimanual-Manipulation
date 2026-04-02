@@ -23,54 +23,108 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 
 ## Installation
 
+### Prerequisites
+
+- **conda** (Miniconda or Anaconda)
+- **git** with LFS support (for HuggingFace model clone)
+- **NVIDIA GPU** with a compatible driver (CUDA 12.1 is installed inside conda — no system CUDA required)
+
+> No `sudo` is needed. All system-level libraries (Mesa, GLEW, cmake, Eigen, CUDA toolkit) are installed inside the conda environment.
+
 ### Quick Install
 
 ```bash
-./install.sh
+git clone --recursive https://github.com/Sukhvansh2004/Bimanual-Manipulation.git
+cd Bimanual-Manipulation
+bash install.sh
 ```
 
 This will:
-- Create the `dual_arm_manipulation` conda environment
-- Install all dependencies including GraspGen
-- Install the package in development mode
-
-**Note**: GraspGenModels (pre-trained models) need to be downloaded separately.
+1. Initialize git submodules (GraspGen, YCB_Dataset)
+2. Download GraspGen pre-trained models from HuggingFace (~3.9 GB)
+3. Create the `dual_arm_manipulation` conda environment (Python 3.10)
+4. Install CUDA 12.1 toolkit, Mesa, GLEW, cmake, and Eigen via conda (no sudo)
+5. Install PyTorch 2.1.0 + CUDA 12.1, torch-scatter, torch-cluster
+6. Install MuJoCo with EGL rendering (GPU-accelerated, headless-safe)
+7. Build GraspGen + PointNet2 CUDA ops from source
+8. Install the main package in editable mode (`pip install -e .`)
+9. Verify all imports
 
 ### Manual Installation
 
-1. **Install System Dependencies** (Linux):
-```bash
-sudo apt-get update
-sudo apt-get install -y libegl1-mesa-dev libgles2-mesa-dev libosmesa6-dev build-essential cmake
-```
+If you prefer step-by-step control:
 
-2. **Create Conda Environment**:
+1. **Clone and initialize submodules**:
 ```bash
-conda create -n dual_arm_manipulation python=3.10
-conda activate dual_arm_manipulation
-export MUJOCO_GL="glx"
-```
-
-3. **Install PyTorch** (adjust for your CUDA version):
-```bash
-pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
-```
-
-4. **Install GraspGen**:
-```bash
-cd deps/GraspGen
-pip install -e .
-```
-
-5. **Download GraspGen Models**:
-```bash
+git clone --recursive https://github.com/Sukhvansh2004/Bimanual-Manipulation.git
+cd Bimanual-Manipulation
+git submodule update --init deps/GraspGen deps/YCB_Dataset
 git clone https://huggingface.co/adithyamurali/GraspGenModels deps/GraspGenModels
 ```
 
-6. **Install the Package**:
+2. **Create and activate conda environment**:
+```bash
+conda create -n dual_arm_manipulation python=3.10 -y
+conda activate dual_arm_manipulation
+```
+
+3. **Install system libraries via conda** (no sudo):
+```bash
+conda install -y -c nvidia/label/cuda-12.1.0 cuda-toolkit
+conda install -y -c conda-forge mesalib glew cmake eigen
+```
+
+4. **Set persistent environment variables**:
+```bash
+conda env config vars set MUJOCO_GL=egl -n dual_arm_manipulation
+conda env config vars set CPLUS_INCLUDE_PATH="$CONDA_PREFIX/include:$CONDA_PREFIX/include/eigen3"
+conda env config vars set C_INCLUDE_PATH="$CONDA_PREFIX/include:$CONDA_PREFIX/include/eigen3"
+conda deactivate && conda activate dual_arm_manipulation
+```
+
+5. **Install PyTorch + CUDA extensions**:
+```bash
+pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cu121
+pip install torch-scatter torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
+pip install "numpy>=1.21.0,<2.0.0"
+```
+
+6. **Install MuJoCo**:
+```bash
+pip install mujoco
+```
+
+7. **Install GraspGen + PointNet2**:
+```bash
+cd deps/GraspGen
+pip install -e .
+cd pointnet2_ops && pip install --no-build-isolation . && cd ..
+pip install PyOpenGL==3.1.5
+cd ../..
+```
+
+8. **Install the main package**:
 ```bash
 pip install -e .
+pip install pyrender scene-synthesizer
 ```
+
+9. **Verify**:
+```bash
+python -c "import bimanual_manipulation; print('OK')"
+```
+
+### Rendering Modes
+
+The installer sets `MUJOCO_GL=egl` by default, which provides **GPU-accelerated offscreen rendering without an X11 display** — this works on both local and remote/headless systems.
+
+| Mode | Env Var | Requires | Use Case |
+|------|---------|----------|----------|
+| **EGL** (default) | `MUJOCO_GL=egl` | NVIDIA GPU + driver | Headless servers, SSH, containers |
+| **GLX** | `MUJOCO_GL=glx` | X11 display | Local desktop with monitor |
+| **OSMesa** | `MUJOCO_GL=osmesa` | `libosmesa6` | CPU-only rendering (slow) |
+
+To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 
 ## Project Structure
 

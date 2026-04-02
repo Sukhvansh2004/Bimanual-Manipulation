@@ -46,6 +46,7 @@ from bimanual_manipulation.utils.env_utils import (
     start_collision_monitor, stop_collision_monitor,
     start_object_monitor, stop_object_monitor,
 )
+from bimanual_manipulation.utils.suction_weld import is_object_grasped
 from bimanual_manipulation.experiment_config import load_experiment, ExperimentConfig
 from bimanual_manipulation.planning.utils.trajectory_utils import (
     load_trajectory, WaypointFeasibilityResult
@@ -267,6 +268,120 @@ def stabilise(env: DualArmEnvironment, env_lock: threading.RLock,
     with env_lock if env_lock else nullcontext():
         for _ in range(steps):
             env_step(env)
+
+
+# ---------------------------------------------------------------------------
+# Object-aware checks
+# ---------------------------------------------------------------------------
+
+# Contact-distance threshold for declaring gripper-object contact.
+_CONTACT_DIST_THRESHOLD = 0.005  # 5 mm
+
+
+def _object_held_by(
+    system: DualArmManipulationSystem,
+    robot_id: int,
+    arm: RobosuiteArmController,
+    obj_name: str,
+    gripper: Optional[RobosuiteGripperController] = None,
+) -> bool:
+    """Return ``True`` if *robot_id* is physically holding the object.
+
+    For **suction** grippers the suction weld equality constraint is
+    checked — if the weld is active the object is held.
+
+    For **parallel-jaw** (or any non-suction) grippers, the MuJoCo
+    contact buffer is scanned for active contacts between the gripper's
+    geoms and the object's geoms.  This is robust for objects of any
+    size because it does not depend on the distance between the object
+    centre and the end-effector.
+    """
+    env = system.env
+    sim = env.sim
+
+    # --- Suction shortcut: weld active ⇒ held ---
+    if gripper is not None and gripper.is_suction:
+        return is_object_grasped(env, robot_id, arm.arm_id)
+
+    # --- Contact-based check (parallel-jaw or unknown gripper) ---
+    model = sim.model
+    ncon = int(sim.data.ncon)
+    if ncon <= 0:
+        logger.warning(
+            "No MuJoCo contacts — robot %d likely not holding '%s'.",
+            robot_id, obj_name,
+        )
+        return False
+
+    # Build gripper geom mask
+    gripper_prefix = f"gripper{robot_id}_"
+    gripper_geom_ids = set()
+    for gid in range(model.ngeom):
+        name = model.geom(gid).name if hasattr(model, 'geom') else model.geom_id2name(gid)
+        if name and name.startswith(gripper_prefix) and "vis" not in name:
+            gripper_geom_ids.add(gid)
+
+    if not gripper_geom_ids:
+        logger.warning("No gripper geoms found for robot %d.", robot_id)
+        return False
+
+    # Build object geom mask
+    obj_body_id = None
+    for name, bid in env.object_body_ids.items():
+        if obj_name in name:
+            obj_body_id = int(bid)
+            break
+    if obj_body_id is None:
+        logger.warning("Object '%s' body not found.", obj_name)
+        return False
+
+    obj_geom_ids = set()
+    for gid in range(model.ngeom):
+        if int(model.geom_bodyid[gid]) == obj_body_id:
+            obj_geom_ids.add(gid)
+
+    # Scan contacts for gripper ↔ object pairs
+    g1 = np.asarray(sim.data.contact.geom1[:ncon], dtype=np.int32)
+    g2 = np.asarray(sim.data.contact.geom2[:ncon], dtype=np.int32)
+    dist = np.asarray(sim.data.contact.dist[:ncon], dtype=np.float64)
+
+    for i in range(ncon):
+        if dist[i] > _CONTACT_DIST_THRESHOLD:
+            continue
+        g1i, g2i = int(g1[i]), int(g2[i])
+        if (g1i in gripper_geom_ids and g2i in obj_geom_ids) or \
+           (g2i in gripper_geom_ids and g1i in obj_geom_ids):
+            return True
+
+    logger.warning(
+        "No contact between robot %d gripper and object '%s' — "
+        "grip likely lost.",
+        robot_id, obj_name,
+    )
+    return False
+
+
+def _object_not_fallen(
+    system: DualArmManipulationSystem,
+    obj_name: str,
+    min_z: float = 0.0,
+) -> bool:
+    """Return ``True`` if the object has not fallen below *min_z*.
+
+    A fallen object (below table height) is a clear sign that a grasp or
+    handover failed.  Default *min_z* = 0 (floor level in most robosuite
+    environments).
+    """
+    obj_pose = system.env.get_object_pose(obj_name)
+    if obj_pose is None:
+        return True  # can't verify — assume ok
+    z = float(obj_pose[2, 3])
+    if z < min_z:
+        logger.warning(
+            "Object '%s' has fallen (z=%.3f m < %.2f m).", obj_name, z, min_z,
+        )
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +614,7 @@ def create_system(
         use_grasp_service=False,
         has_renderer=not headless,
         table_full_size=exp_cfg.table_full_size,
+        start_services=False,
     )
     system.start(start_teleop_thread=False)
     register_mesh_extraction_env(system.env)
@@ -785,6 +901,7 @@ def execute_grasp(
     q_warm_start: Optional[np.ndarray],
     tracker: ExecutionTracker,
     assignment: Optional[AssignmentResult],
+    obj_name: str = "",
 ) -> None:
     """Follow approach trajectory, align to planned config, close gripper, and stabilise.
     """
@@ -794,7 +911,17 @@ def execute_grasp(
 
     current_gripper.grasp()
     stabilise(system.env, system.env_lock)
-    tracker.grasp_success = True
+
+    # Verify the object is actually grasped
+    if obj_name and not _object_held_by(system, current_robot, current_arm, obj_name, gripper=current_gripper):
+        logger.error(
+            "Robot %d FAILED to grasp object '%s' — grip not detected "
+            "(object too far from EEF or weld inactive).",
+            current_robot, obj_name,
+        )
+        tracker.grasp_success = False
+    else:
+        tracker.grasp_success = True
 
     if assignment is not None:
         tracker.n_switches = len(assignment.handover_points)
@@ -1034,16 +1161,29 @@ def execute_handover_sequence(
     q_warm_recv: Optional[np.ndarray],
     q_warm_transfer: Optional[np.ndarray],
     tracker: ExecutionTracker,
+    obj_name: str = "",
 ) -> bool:
     """Execute the physical handover (hold -> approach -> gripper swap -> retreat).
 
     Returns True if handover succeeded.
     """
     tracker.n_handovers_attempted += 1
+    other_robot = 1 - current_robot
     logger.info(
         "Executing handover at waypoint %d (robot %d -> robot %d)...",
-        current_idx, current_robot, 1 - current_robot,
+        current_idx, current_robot, other_robot,
     )
+
+    # Check object is still held by the transfer arm before starting
+    if obj_name:
+        if not _object_held_by(system, current_robot, current_arm, obj_name, gripper=current_gripper):
+            logger.error(
+                "Handover ABORTED at waypoint %d — robot %d is NOT holding "
+                "object '%s' (lost during transport).",
+                current_idx, current_robot, obj_name,
+            )
+            tracker.transport_success = False
+            return False
 
     # Transfer arm holds position
     logger.info("Robot %d moving to handover hold pose...", current_robot)
@@ -1051,7 +1191,7 @@ def execute_handover_sequence(
                              q_warm_start=q_warm_transfer)
 
     # Receiver approaches
-    logger.info("Robot %d executing handover approach...", 1 - current_robot)
+    logger.info("Robot %d executing handover approach...", other_robot)
     other_gripper.release()
     receiver_converged = other_arm.follow_trajectory(
         h_traj.receiver_approach, q_warm_start=q_warm_recv,
@@ -1078,23 +1218,46 @@ def execute_handover_sequence(
     current_arm.follow_trajectory(h_traj.transfer_retreat, q_warm_start=q_warm_transfer,
                                   smoothen=True)
 
-    # Report handover outcome
-    if receiver_converged:
+    # --- Object-aware handover verification ---
+    handover_ok = False
+    if obj_name:
+        # Primary check: receiver's suction weld active + object near its EEF
+        receiver_holds = _object_held_by(system, other_robot, other_arm, obj_name, gripper=other_gripper)
+        obj_safe = _object_not_fallen(system, obj_name)
+
+        if receiver_holds and obj_safe:
+            handover_ok = True
+        elif not obj_safe:
+            logger.error(
+                "Handover at waypoint %d FAILED — object '%s' has fallen.",
+                current_idx, obj_name,
+            )
+        else:
+            logger.error(
+                "Handover at waypoint %d FAILED — receiver robot %d does NOT "
+                "hold object '%s' after gripper swap.",
+                current_idx, other_robot, obj_name,
+            )
+    else:
+        # Fallback: use arm convergence (original behaviour)
+        handover_ok = receiver_converged
+
+    if handover_ok:
         tracker.n_handovers_succeeded += 1
         logger.info(
             "Handover at waypoint %d SUCCEEDED (robot %d -> robot %d). "
             "Total handovers: %d/%d",
-            current_idx, current_robot, 1 - current_robot,
+            current_idx, current_robot, other_robot,
             tracker.n_handovers_succeeded, tracker.n_handovers_attempted,
         )
     else:
         logger.warning(
-            "Handover at waypoint %d LIKELY FAILED - receiver arm did not converge. "
+            "Handover at waypoint %d FAILED (robot %d -> robot %d). "
             "Total handovers: %d/%d",
-            current_idx,
+            current_idx, current_robot, other_robot,
             tracker.n_handovers_succeeded, tracker.n_handovers_attempted,
         )
-    return receiver_converged
+    return handover_ok
 
 
 def execute_final_segment(
@@ -1316,6 +1479,7 @@ def run_execution_loop(
     execute_grasp(
         system, current_arm, current_gripper, current_robot,
         grasp_traj_data, q_warm_grasp, tracker, assignment,
+        obj_name=exp_cfg.task.manipulated_object,
     )
 
     start_collision_monitor(exp_cfg.task.manipulated_object)
@@ -1351,6 +1515,7 @@ def run_execution_loop(
                 other_arm, other_gripper,
                 current_robot, current_idx,
                 h_traj, q_warm_recv, q_warm_transfer, tracker,
+                obj_name=exp_cfg.task.manipulated_object,
             )
 
             # --- Diagnostic: log both arms after handover ---
@@ -1405,6 +1570,19 @@ def run_execution_loop(
     # --- Phase 3: stop monitors ---
     stop_monitors(tracker)
 
+    # --- Phase 3b: verify object still held before release ---
+    obj_name = exp_cfg.task.manipulated_object
+    if obj_name:
+        still_held = _object_held_by(system, current_robot, current_arm, obj_name, gripper=current_gripper)
+        obj_safe = _object_not_fallen(system, obj_name)
+        if not still_held or not obj_safe:
+            logger.error(
+                "Transport FAILED — robot %d lost object '%s' before "
+                "reaching placement pose.",
+                current_robot, obj_name,
+            )
+            tracker.transport_success = False
+
     # --- Phase 4: release and retreat ---
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
     eef_cur, _, _, _, _ = traj_cache[cur_path]
@@ -1417,6 +1595,7 @@ def run_execution_loop(
     # --- Final success determination ---
     tracker.task_success = (
         tracker.grasp_success
+        and tracker.transport_success
         and tracker.place_success
         and (tracker.n_handovers_attempted == 0
              or tracker.n_handovers_succeeded == tracker.n_handovers_attempted)

@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import torch
 from pathlib import Path
+import robosuite
 
 # =============================================================================
 # Network and Service Configuration
@@ -224,6 +225,7 @@ RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoot
 RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
 RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below table surface)
+RRT_SAFETY_CLEARANCE = 0.01     # Safety clearance margin from obstacles (meters) for SE(3) object RRT
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
@@ -274,7 +276,9 @@ FRANKA_JOINT_LIMITS_LO = np.array([-2.8973, -1.6628, -2.7973, -3.0718, -2.7973, 
 FRANKA_JOINT_LIMITS_HI = np.array([ 2.8973,  1.6628,  2.7973, -0.0698,  2.7973,  3.6525,  2.7973])
 
 # Maximum per-joint angle change allowed between consecutive waypoints (rad).
-# Transitions exceeding this after normalisation are treated as infeasible
+# Transitions exceeding this after normalisation are treated as infeasible.
+# 0.5 rad ≈ 29° — filters IK branch switches while still ~4× above the
+# physical per-step limit (~0.13 rad at 50 ms), so no smooth motion is rejected.
 ASSIGNMENT_MAX_JOINT_STEP = 0.5  # radians
 
 # =============================================================================
@@ -504,7 +508,6 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # Path to Franka Panda URDF shipped with robosuite (used by EAIK solver)
 def _get_panda_urdf_path() -> Path:
-    import robosuite
     return Path(robosuite.__file__).parent / "models" / "assets" / "bullet_data" / "panda_description" / "urdf" / "panda_arm.urdf"
 
 PANDA_URDF_PATH = _get_panda_urdf_path()

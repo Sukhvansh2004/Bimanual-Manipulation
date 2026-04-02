@@ -90,6 +90,10 @@ def load_all_results(results_dir: Optional[Path] = None) -> List[ExperimentResul
     for json_file in sorted(root.rglob("*.json")):
         if json_file.name == "summary.json" or json_file.name == "aggregate_summary.json":
             continue
+        # Skip standalone exec metric files (raw output from dual_arm_handover_traj.py);
+        # their data is already embedded in the main <config_id>.json results.
+        if json_file.stem.endswith("_exec"):
+            continue
         try:
             results.append(load_result(json_file))
         except Exception as exc:

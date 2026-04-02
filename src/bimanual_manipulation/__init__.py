@@ -4,7 +4,10 @@ from bimanual_manipulation import constants
 from bimanual_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController
 from bimanual_manipulation.environments.dual_arm import make_dual_arm_env
 from bimanual_manipulation.perception import GraspPredictor, ObjectDetector
-from bimanual_manipulation.teleop import KeyboardTeleop
+try:
+    from bimanual_manipulation.teleop import KeyboardTeleop
+except ImportError:
+    KeyboardTeleop = None
 from bimanual_manipulation.transforms import TransformManager, StampedPose, Transform
 from bimanual_manipulation.system_manager import DualArmManipulationSystem
 from bimanual_manipulation.models.grippers import panda_suction_gripper
