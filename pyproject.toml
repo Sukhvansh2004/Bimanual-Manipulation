@@ -55,6 +55,8 @@ dependencies = [
     "mink>=1.0.0",  # QP-based differential IK for MuJoCo (reactive tracking)
     "EAIK>=1.2.0",  # Analytical closed-form IK for Franka Panda
     "proxsuite",  # Fast QP solver backend (proxqp)
+    "markdown>=3.4.0",  # Markdown to HTML conversion
+    "weasyprint>=60.0",  # HTML/CSS to PDF rendering
 ]
 
 [project.urls]
