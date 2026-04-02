@@ -403,6 +403,42 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     plt.savefig(out_dir / "global_placement_error_boxplots.png")
     plt.close()
 
+    # 13. Handovers vs Success Rate (valid assignments only)
+    ho_buckets = defaultdict(lambda: {"total": 0, "success": 0})
+    for r in agg.raw_results:
+        if r.planning and r.planning.total_cost < 1e10:
+            nh = r.planning.n_handovers
+            ho_buckets[nh]["total"] += 1
+            if r.execution and r.execution.task_success:
+                ho_buckets[nh]["success"] += 1
+    if ho_buckets:
+        sorted_nh = sorted(ho_buckets.keys())
+        rates = [ho_buckets[nh]["success"] / ho_buckets[nh]["total"] * 100 for nh in sorted_nh]
+        counts = [ho_buckets[nh]["total"] for nh in sorted_nh]
+
+        fig, ax1 = plt.subplots(figsize=(12, 6))
+        x = np.arange(len(sorted_nh))
+        bars = ax1.bar(x, rates, color='steelblue', alpha=0.85, zorder=2)
+        ax1.set_xlabel("Number of Handovers (planned)")
+        ax1.set_ylabel("Task Success Rate (%)")
+        ax1.set_ylim(0, 105)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels([str(nh) for nh in sorted_nh])
+        ax1.grid(axis='y', alpha=0.3, zorder=0)
+        # Annotate bar values
+        for xi, r_val, cnt in zip(x, rates, counts):
+            ax1.text(xi, r_val + 2, f"{r_val:.0f}%", ha='center', va='bottom', fontsize=9, fontweight='bold')
+            ax1.text(xi, r_val / 2, f"n={cnt}", ha='center', va='center', fontsize=8, color='white')
+        ax1.set_title("Task Success Rate vs Number of Planned Handovers (Valid Assignments Only)")
+        plt.tight_layout()
+        plt.savefig(out_dir / "global_handovers_vs_success.png", dpi=150, bbox_inches='tight')
+        plt.close()
+
+        # Also store for the report table
+        agg._ho_vs_success = [(nh, ho_buckets[nh]["total"], ho_buckets[nh]["success"],
+                               ho_buckets[nh]["success"] / ho_buckets[nh]["total"] * 100)
+                              for nh in sorted_nh]
+
 def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines = [
         "# Comprehensive Dual-Arm Franka Control Evaluation Report",
@@ -463,6 +499,17 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("![Planning Time](figures/global_planning_time.png)")
     lines.append("\n### 3.11 Pipeline Funnel")
     lines.append("![Pipeline Funnel](figures/global_pipeline_funnel.png)")
+    lines.append("\n### 3.12 Handovers vs Success Rate")
+    lines.append("![Handovers vs Success](figures/global_handovers_vs_success.png)")
+    lines.append("\nSuccess rate for valid-assignment runs grouped by planned number of handovers.")
+    if hasattr(agg, '_ho_vs_success') and agg._ho_vs_success:
+        lines.append("\n| # Handovers | Valid Runs | Successes | Success Rate |")
+        lines.append("| :---: | :---: | :---: | :---: |")
+        total_runs = sum(row[1] for row in agg._ho_vs_success)
+        total_succ = sum(row[2] for row in agg._ho_vs_success)
+        for nh, n_total, n_succ, rate in agg._ho_vs_success:
+            lines.append(f"| {nh} | {n_total} | {n_succ} | {rate:.1f}% |")
+        lines.append(f"| **Total** | **{total_runs}** | **{total_succ}** | **{total_succ/total_runs*100:.1f}%** |")
 
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
