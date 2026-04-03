@@ -303,6 +303,7 @@ def run_execution(
         "--assignment", assignment_file,
         "--output-metrics", metrics_file,
         "--headless",
+        "--no-meshcat",
         "--smoothen",
     ]
     if data_dir is not None:
