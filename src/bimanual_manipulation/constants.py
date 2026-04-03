@@ -65,8 +65,8 @@ GRIPPER_GRASP_OFFSETS = {
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
-        'position': np.array([0.0, 0.0, 0.11]),
-        'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),
+        'position': np.array([0.0, 0.0, -0.12]),
+        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),
     },
 }
 
