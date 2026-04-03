@@ -65,8 +65,8 @@ GRIPPER_GRASP_OFFSETS = {
         'quaternion': np.array([0.0, 0.0, 0.70710678, 0.70710678]),  # 90 deg around Z
     },
     'single_suction_cup_30mm': {
-        'position': np.array([0.0, 0.0, -0.12]),
-        'quaternion': np.array([0.0, 0.0, 0.0, 1.0]),
+        'position': np.array([0.0, 0.0, 0.11]),
+        'quaternion': np.array([0.0, 1.0, 0.0, 0.0]),
     },
 }
 
@@ -276,9 +276,6 @@ FRANKA_JOINT_LIMITS_LO = np.array([-2.8973, -1.6628, -2.7973, -3.0718, -2.7973, 
 FRANKA_JOINT_LIMITS_HI = np.array([ 2.8973,  1.6628,  2.7973, -0.0698,  2.7973,  3.6525,  2.7973])
 
 # Maximum per-joint angle change allowed between consecutive waypoints (rad).
-# Transitions exceeding this after normalisation are treated as infeasible.
-# 0.5 rad ≈ 29° — filters IK branch switches while still ~4× above the
-# physical per-step limit (~0.13 rad at 50 ms), so no smooth motion is rejected.
 ASSIGNMENT_MAX_JOINT_STEP = 0.5  # radians
 
 # =============================================================================
