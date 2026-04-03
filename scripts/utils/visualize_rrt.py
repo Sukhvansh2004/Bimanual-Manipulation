@@ -52,6 +52,7 @@ from bimanual_manipulation.experiment_config import (
 )
 from bimanual_manipulation.planning.trajectory.object_planner import plan_object_trajectory
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
+from bimanual_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,6 +111,23 @@ def main():
         "--no-scene",
         action="store_true",
         help="Skip streaming the full MuJoCo scene to Meshcat (faster startup)",
+    )
+    parser.add_argument(
+        "--show-mesh",
+        action="store_true",
+        help="Visualize the object mesh at waypoints along the planned path",
+    )
+    parser.add_argument(
+        "--mesh-step",
+        type=int,
+        default=5,
+        help="Step interval between mesh waypoints (default: 5)",
+    )
+    parser.add_argument(
+        "--mesh-opacity",
+        type=float,
+        default=0.5,
+        help="Opacity for the object mesh waypoints (default: 0.5)",
     )
     args = parser.parse_args()
 
@@ -235,7 +253,21 @@ def main():
                        "Returned fallback interpolation.", elapsed)
 
     # ------------------------------------------------------------------
-    # 7. Keep alive so the user can inspect Meshcat
+    # 7. (Optional) Visualize object mesh along the path
+    # ------------------------------------------------------------------
+    if args.show_mesh and trajectory:
+        logger.info("Rendering object mesh at every %d-th waypoint (opacity=%.2f)...",
+                    args.mesh_step, args.mesh_opacity)
+        obj_mesh_vis = ObjectMeshVisualizer(vis=vis, tf_manager=tf_manager)
+        obj_mesh_vis.visualize_trajectory(
+            object_name=object_name,
+            object_trajectory=trajectory,
+            step_interval=args.mesh_step,
+            opacity=args.mesh_opacity,
+        )
+
+    # ------------------------------------------------------------------
+    # 8. Keep alive so the user can inspect Meshcat
     # ------------------------------------------------------------------
     logger.info("Visualization is live in Meshcat. Press Ctrl+C to exit.")
     try:
