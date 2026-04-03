@@ -544,7 +544,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-metrics", type=str, default=None,
                         help="Path to write execution metrics JSON")
     parser.add_argument("--headless", action="store_true",
-                        help="Disable rendering & meshcat")
+                        help="Disable the MuJoCo viewer window (keeps meshcat)")
+    parser.add_argument("--no-meshcat", action="store_true",
+                        help="Disable meshcat visualization")
     parser.add_argument("--data-dir", type=str, default=None,
                         help="Directory containing trajectory NPZ files")
     return parser.parse_args()
@@ -578,7 +580,7 @@ def load_and_configure_experiment(args) -> ExperimentConfig:
         exp_cfg.execution.smoothen = args.smoothen
         logger.info("Smoothen override: %s (was %s)", args.smoothen, old)
 
-    if args.headless:
+    if getattr(args, 'no_meshcat', False):
         exp_cfg.execution.visualize = False
         exp_cfg.visualization.enable_meshcat = False
 
