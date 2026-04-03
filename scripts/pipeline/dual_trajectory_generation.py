@@ -21,6 +21,7 @@ import os
 import time
 import threading
 import logging
+import random
 import meshcat
 import meshcat.geometry as g
 import argparse
@@ -149,7 +150,8 @@ def evaluate_pair(pair_info, object_trajectory, object_name):
             eef_trajectory1=traj1_eef,
             object_trajectory=object_trajectory,
             object_name=object_name,
-            tf_manager=worker_tf_manager
+            tf_manager=worker_tf_manager,
+            ignore_names=["geo_snout"],
         )
         
         if all_feasible:
@@ -199,8 +201,6 @@ def main() -> None:
 
     # Set seeds if provided
     if args.seed is not None:
-        import random
-        import numpy as np
         import torch
         random.seed(args.seed)
         np.random.seed(args.seed)

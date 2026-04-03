@@ -388,9 +388,9 @@ class TestRRTConnectMocked:
             "bimanual_manipulation.planning.rrt.joint.planner.get_native_mj_object",
             return_value=model,
         ), patch(
-            "bimanual_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
+            "bimanual_manipulation.planning.rrt.joint.planner.ensure_geom_caches",
         ), patch(
-            "bimanual_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
+            "bimanual_manipulation.planning.rrt.joint.planner.get_geom_ids_for_patterns",
             return_value=[0, 1, 2],
         ), patch(
             "bimanual_manipulation.planning.rrt.joint.planner.mujoco",
@@ -797,10 +797,10 @@ class TestTemporalCollisionChecking:
                 return_value=MagicMock(),
             ),
             _p(
-                "bimanual_manipulation.planning.rrt.joint.planner._ensure_geom_caches",
+                "bimanual_manipulation.planning.rrt.joint.planner.ensure_geom_caches",
             ),
             _p(
-                "bimanual_manipulation.planning.rrt.joint.planner._get_ids_for_prefixes",
+                "bimanual_manipulation.planning.rrt.joint.planner.get_geom_ids_for_patterns",
                 return_value=[0, 1, 2],
             ),
             _p(

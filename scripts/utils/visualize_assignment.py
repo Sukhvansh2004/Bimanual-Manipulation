@@ -31,6 +31,7 @@ from typing import List, Optional
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend — always safe
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import meshcat
 import meshcat.geometry as g
 import numpy as np
@@ -270,7 +271,6 @@ def plot_joint_angles(a: AssignmentResult, out_dir: str) -> None:
     axes[0].set_title("Joint Angles per Waypoint  (red dashed = handover)")
 
     # Legend
-    from matplotlib.lines import Line2D
     legend_elems = [
         Line2D([0], [0], color="#1f77b4", lw=2, label="Robot 0"),
         Line2D([0], [0], color="#ff7f0e", lw=2, label="Robot 1"),

@@ -14,8 +14,8 @@ import numpy as np
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.collision_utils import (
-    _ensure_geom_caches,
+from bimanual_manipulation.utils.collision_utils import (
+    ensure_geom_caches,
 )
 from bimanual_manipulation.planning.utils.mujoco_utils import set_qpos
 
@@ -73,7 +73,7 @@ def check_arm_config_collision(
     if ncon <= 0:
         return False
 
-    _ensure_geom_caches(model)
+    ensure_geom_caches(model)
 
     g1 = np.asarray(data.contact.geom1[:ncon])
     g2 = np.asarray(data.contact.geom2[:ncon])

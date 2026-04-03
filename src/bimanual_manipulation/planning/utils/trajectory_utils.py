@@ -15,7 +15,7 @@ from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
-from bimanual_manipulation.planning.utils.collision_utils import in_collision
+from bimanual_manipulation.utils.collision_utils import in_collision
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
     get_native_mj_object
@@ -23,14 +23,6 @@ from bimanual_manipulation.planning.utils.mujoco_utils import (
 from robosuite.utils import transform_utils as T
 from bimanual_manipulation import constants
 from bimanual_manipulation.transforms import StampedPose, TransformManager, Transform
-
-# Re-export trajectory math from shared module
-from bimanual_manipulation.utils.trajectory_math import (  # noqa: F401
-    quintic_scalar,
-    plan_quintic_joint_trajectory,
-    velocity_profile_joint_trajectory,
-    resample_joint_trajectory,
-)
 
 logger = logging.getLogger(__name__)
 

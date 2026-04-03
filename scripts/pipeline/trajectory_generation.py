@@ -48,7 +48,7 @@ from bimanual_manipulation.planning.trajectory import (
 from bimanual_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
 )
-from bimanual_manipulation.planning.utils.trajectory_utils import save_trajectory
+from bimanual_manipulation.planning.utils.trajectory_utils import save_trajectory, load_trajectory
 from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
 from bimanual_manipulation.planning.visualization.robot_mesh import RobotMeshVisualizer
 from bimanual_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
@@ -224,9 +224,9 @@ def main() -> None:
     
     # Set seeds if provided
     if args.seed is not None:
-        import random
-        import numpy as np
         import torch
+        import numpy as np
+        import random
         random.seed(args.seed)
         np.random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -367,8 +367,7 @@ def main() -> None:
     if args.reuse_object_traj:
         obj_traj_path = os.path.join(output_dir, "object_trajectory.npz")
         if os.path.exists(obj_traj_path):
-            from bimanual_manipulation.planning.utils.trajectory_utils import load_trajectory as _load_traj
-            _, loaded_obj_traj, _, _ = _load_traj(obj_traj_path)
+            _, loaded_obj_traj, _, _ = load_trajectory(obj_traj_path)
             if loaded_obj_traj:
                 object_trajectory = loaded_obj_traj
                 logger.info("Reusing existing object trajectory from %s (%d waypoints)",
@@ -495,7 +494,7 @@ def main() -> None:
             robot_id=1, 
             object_trajectory=object_trajectory, 
             object_name=object_name, 
-            ignore_names=["robot0", "gripper0"],
+            ignore_names=["robot0", "gripper0", "geo_snout"],
             vis_args=vis_args
         )
         robot1_trajectory_results = pool.map(eval_func1, robot1_tasks)

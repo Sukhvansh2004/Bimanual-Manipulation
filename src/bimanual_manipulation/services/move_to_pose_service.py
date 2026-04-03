@@ -9,6 +9,9 @@ import zmq
 import threading
 import logging
 from typing import Dict, Any, Optional, cast, Tuple, TYPE_CHECKING
+
+import numpy as np
+
 from bimanual_manipulation.services.services_core import ServiceClient
 from bimanual_manipulation import constants
 
@@ -320,8 +323,6 @@ class MoveToPoseService:
     def _handle_move_to_joint_config(self, request: MoveToJointConfigRequest) -> Dict:
         """Handle MOVE_TO_JOINT_CONFIG command."""
         try:
-            import numpy as np
-
             robot_id = request.robot_id
             arm_id = request.arm
             gripper_action = request.gripper_action
@@ -385,8 +386,6 @@ class MoveToPoseService:
     def _handle_follow_joint_trajectory(self, request: FollowJointTrajectoryRequest) -> Dict:
         """Handle FOLLOW_JOINT_TRAJECTORY command."""
         try:
-            import numpy as np
-
             robot_id = request.robot_id
             arm_id = request.arm
             gripper_action = request.gripper_action

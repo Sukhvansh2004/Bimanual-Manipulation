@@ -14,6 +14,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from robosuite.devices import Keyboard
+from robosuite.controllers.parts.arm import OperationalSpaceController
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 
 from bimanual_manipulation import constants
@@ -43,8 +44,6 @@ class KeyboardOverride(Keyboard):
         For JOINT_POSITION controllers we return the normalised EEF delta as-is;
         the teleop run-loop converts it to joint space via the Jacobian.
         """
-        from robosuite.controllers.parts.arm import OperationalSpaceController
-
         if isinstance(robot.part_controllers[arm], OperationalSpaceController):
             return super().get_arm_action(robot, arm, norm_delta, goal_update_mode)
 

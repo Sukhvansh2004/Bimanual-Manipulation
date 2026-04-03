@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 import mink
@@ -35,6 +36,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# ------------------------------------------------------------------
+# Lightweight container for pre-built mink objects
+# ------------------------------------------------------------------
+
+@dataclass
+class MinkContext:
+    """All mink objects needed for reactive trajectory execution."""
+    config: mink.Configuration
+    tasks: list
+    limits: list
+    arm_qpos_idx: np.ndarray
+    model_native: object
+    world_positions: np.ndarray
+    world_quaternions: np.ndarray
+
+
 class TrajectoryExecutor:
     """Executes trajectories for a single arm using mink reactive tracking
     or joint-space stepping.
@@ -54,46 +71,23 @@ class TrajectoryExecutor:
     # Mink-based reactive trajectory execution
     # ------------------------------------------------------------------
 
-    def execute_mink_trajectory(
+    def _build_mink_context(
         self,
         positions: np.ndarray,
         quaternions: np.ndarray,
-        gripper_action: float = 0.0,
-        dt: float = constants.TRAJECTORY_TIME_STEP,
-        threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
         q_warm_start: Optional[np.ndarray] = None,
         collision_check: bool = False,
         manipulated_object: Optional[str] = None,
-    ) -> bool:
-        """Execute a trajectory using mink's reactive differential IK.
+    ) -> MinkContext:
+        """Build all mink objects needed for reactive trajectory tracking.
 
-        At each simulation tick:
-        1. Sets the ``FrameTask`` target to the next waypoint.
-        2. Calls ``mink.solve_ik`` — a single QP solve.
-        3. Integrates to get target joint positions and sends them.
-
-        Args:
-            positions: Waypoint positions ``(N, 3)`` in **base** frame.
-            quaternions: Waypoint quaternions ``(N, 4)`` xyzw in **base** frame.
-            gripper_action: Gripper command during execution.
-            dt: Wall-clock time between steps.
-            threshold: Convergence threshold on final-waypoint error.
-            q_warm_start: Optional warm-start joint config ``(7,)`` for the
-                posture task.  Biases the QP toward this configuration.
-            collision_check: If ``True``, add a
-                ``mink.CollisionAvoidanceLimit`` to the QP so the arm
-                avoids other robots, the manipulated object, and
-                static environment geometry.
-            manipulated_object: Name of the grasped/manipulated object
-                (used to build object collision geom pairs).
-
-        Returns:
-            ``True`` if converged, ``False`` otherwise.
+        This transforms waypoints to world frame, constructs tasks
+        (frame, posture, damping, freeze) and limits (velocity,
+        configuration, optional collision avoidance), and returns them
+        bundled in a :class:`MinkContext`.
         """
         ctrl = self._ctrl
         num_waypoints = len(positions)
-        if num_waypoints <= 1:
-            return True
 
         # ── Transform waypoints from base to world frame ──────────────
         try:
@@ -146,6 +140,7 @@ class TrajectoryExecutor:
                     )
         config = mink.Configuration(model_native, q=q_full)
 
+        # ── Tasks ─────────────────────────────────────────────────────
         frame_task = mink.FrameTask(
             frame_name=site_name,
             frame_type="site",
@@ -158,8 +153,6 @@ class TrajectoryExecutor:
         posture_task = mink.PostureTask(
             model=model_native, cost=constants.MINK_POSTURE_COST,
         )
-        # Use warm-start config as the posture target so the QP biases
-        # the IK solution toward the desired joint configuration.
         if q_warm_start is not None:
             q_posture = q_full.copy()
             q_posture[arm_qpos_idx] = q_warm_start
@@ -170,7 +163,19 @@ class TrajectoryExecutor:
         damping_task = mink.DampingTask(
             model_native, cost=constants.MINK_DAMPING_COST,
         )
-        # Build per-joint velocity limits from joint names in the model.
+
+        frozen_dofs = mu.get_frozen_dof_indices(model_native, arm_dof_idx)
+        freeze_task = (
+            mink.DofFreezingTask(model_native, dof_indices=frozen_dofs)
+            if frozen_dofs
+            else None
+        )
+
+        tasks: list = [frame_task, posture_task, damping_task]
+        if freeze_task is not None:
+            tasks.append(freeze_task)
+
+        # ── Limits ────────────────────────────────────────────────────
         vel_dict: dict = {}
         for jid in joint_ids:
             name = model_native.joint(jid).name
@@ -181,76 +186,111 @@ class TrajectoryExecutor:
                 pass
         vel_limit = mink.VelocityLimit(model_native, velocities=vel_dict)
         config_limit = mink.ConfigurationLimit(model_native)
-
-        frozen_dofs = mu.get_frozen_dof_indices(model_native, arm_dof_idx)
-        freeze_task = (
-            mink.DofFreezingTask(model_native, dof_indices=frozen_dofs)
-            if frozen_dofs
-            else None
-        )
+        limits = [vel_limit, config_limit]
 
         # ── Collision avoidance limit ─────────────────────────────────
-        collision_limit: Optional[mink.CollisionAvoidanceLimit] = None
         if collision_check:
-            self_geoms = get_robot_collision_geoms(model_native, ctrl.robot_id)
-            # Collect geoms of all *other* robots present in the env.
-            other_robot_ids = [
-                i for i in range(len(ctrl.env.robots))
-                if i != ctrl.robot_id
-            ]
-            other_geoms: list[str] = []
-            for rid in other_robot_ids:
-                other_geoms.extend(
-                    get_robot_collision_geoms(model_native, rid),
-                )
-            obj_geoms = get_object_collision_geoms(
+            collision_limit = self._build_collision_limit(
                 model_native, manipulated_object,
             )
-            all_robot_ids = [ctrl.robot_id] + other_robot_ids
-            env_geoms = get_environment_collision_geoms(
-                model_native,
-                robot_ids=all_robot_ids,
-                object_name=manipulated_object,
+            if collision_limit is not None:
+                limits.append(collision_limit)
+
+        return MinkContext(
+            config=config,
+            tasks=tasks,
+            limits=limits,
+            arm_qpos_idx=arm_qpos_idx,
+            model_native=model_native,
+            world_positions=world_positions,
+            world_quaternions=world_quaternions,
+        )
+
+    def _build_collision_limit(
+        self,
+        model_native,
+        manipulated_object: Optional[str],
+    ) -> Optional[mink.CollisionAvoidanceLimit]:
+        """Build a ``mink.CollisionAvoidanceLimit`` for the current robot."""
+        ctrl = self._ctrl
+        self_geoms = get_robot_collision_geoms(model_native, ctrl.robot_id)
+
+        other_robot_ids = [
+            i for i in range(len(ctrl.env.robots))
+            if i != ctrl.robot_id
+        ]
+        other_geoms: list[str] = []
+        for rid in other_robot_ids:
+            other_geoms.extend(
+                get_robot_collision_geoms(model_native, rid),
             )
+        obj_geoms = get_object_collision_geoms(
+            model_native, manipulated_object,
+        )
+        all_robot_ids = [ctrl.robot_id] + other_robot_ids
+        env_geoms = get_environment_collision_geoms(
+            model_native,
+            robot_ids=all_robot_ids,
+            object_name=manipulated_object,
+        )
 
-            geom_pairs: list[tuple] = []
-            if self_geoms and other_geoms:
-                geom_pairs.append((self_geoms, other_geoms))
-            if self_geoms and obj_geoms:
-                geom_pairs.append((self_geoms, obj_geoms))
-            if self_geoms and env_geoms:
-                geom_pairs.append((self_geoms, env_geoms))
+        geom_pairs: list[tuple] = []
+        if self_geoms and other_geoms:
+            geom_pairs.append((self_geoms, other_geoms))
+        if self_geoms and obj_geoms:
+            geom_pairs.append((self_geoms, obj_geoms))
+        if self_geoms and env_geoms:
+            geom_pairs.append((self_geoms, env_geoms))
 
-            if geom_pairs:
-                collision_limit = mink.CollisionAvoidanceLimit(
-                    model=model_native,
-                    geom_pairs=geom_pairs,
-                    gain=constants.MINK_COLLISION_GAIN,
-                    minimum_distance_from_collisions=constants.MINK_COLLISION_MIN_DIST,
-                    collision_detection_distance=constants.MINK_COLLISION_DETECT_DIST,
-                )
-                logger.info(
-                    "mink CollisionAvoidanceLimit (traj executor): "
-                    "%d geom-pair groups (self=%d, other=%d, "
-                    "object=%d, env=%d geoms)",
-                    len(geom_pairs), len(self_geoms),
-                    len(other_geoms), len(obj_geoms),
-                    len(env_geoms),
-                )
-            else:
-                logger.warning(
-                    "No collision geom pairs found — "
-                    "collision avoidance disabled for traj executor.",
-                )
+        if not geom_pairs:
+            logger.warning(
+                "No collision geom pairs found — "
+                "collision avoidance disabled for traj executor.",
+            )
+            return None
 
-        tasks: list = [frame_task, posture_task, damping_task]
-        if freeze_task is not None:
-            tasks.append(freeze_task)
-        limits = [vel_limit, config_limit]
-        if collision_limit is not None:
-            limits.append(collision_limit)
+        logger.info(
+            "mink CollisionAvoidanceLimit (traj executor): "
+            "%d geom-pair groups (self=%d, other=%d, "
+            "object=%d, env=%d geoms)",
+            len(geom_pairs), len(self_geoms),
+            len(other_geoms), len(obj_geoms),
+            len(env_geoms),
+        )
+        return mink.CollisionAvoidanceLimit(
+            model=model_native,
+            geom_pairs=geom_pairs,
+            gain=constants.MINK_COLLISION_GAIN,
+            minimum_distance_from_collisions=constants.MINK_COLLISION_MIN_DIST,
+            collision_detection_distance=constants.MINK_COLLISION_DETECT_DIST,
+        )
 
-        # ── Reactive execution loop ───────────────────────────────────
+    def _run_mink_loop(
+        self,
+        ctx: MinkContext,
+        positions: np.ndarray,
+        quaternions: np.ndarray,
+        gripper_action: float,
+        dt: float,
+        threshold: float,
+    ) -> bool:
+        """Run the reactive mink tracking loop.
+
+        Args:
+            ctx: Pre-built mink context from :meth:`_build_mink_context`.
+            positions: Original waypoint positions in **base** frame
+                (used for convergence checking).
+            quaternions: Original waypoint quaternions in **base** frame.
+            gripper_action: Gripper command during execution.
+            dt: Wall-clock time between steps.
+            threshold: Convergence threshold on final-waypoint error.
+
+        Returns:
+            ``True`` if converged, ``False`` otherwise.
+        """
+        ctrl = self._ctrl
+        data = ctrl.env.sim.data
+        num_waypoints = len(positions)
         max_steps = num_waypoints * 2
         current_wp_idx = 0
         steps_taken = 0
@@ -268,43 +308,45 @@ class TrajectoryExecutor:
             if current_wp_idx < num_waypoints - 1:
                 current_wp_idx += 1
 
-            wp_pos = world_positions[current_wp_idx]
-            wp_quat = world_quaternions[current_wp_idx]
+            # Set frame task target
+            wp_pos = ctx.world_positions[current_wp_idx]
+            wp_quat = ctx.world_quaternions[current_wp_idx]
             target_so3 = MinkSO3.from_matrix(R.from_quat(wp_quat).as_matrix())
             target_se3 = MinkSE3.from_rotation_and_translation(target_so3, wp_pos)
-            frame_task.set_target(target_se3)
+            ctx.tasks[0].set_target(target_se3)  # tasks[0] is always frame_task
 
+            # Sync config from simulation
             q_actual = np.array(data.qpos, copy=True, dtype=float).ravel()
-            # Clip to joint limits (simulation can drift slightly beyond).
-            for j in range(model_native.njnt):
-                if model_native.jnt_limited[j]:
-                    qadr = model_native.jnt_qposadr[j]
-                    if model_native.jnt_type[j] in [
+            for j in range(ctx.model_native.njnt):
+                if ctx.model_native.jnt_limited[j]:
+                    qadr = ctx.model_native.jnt_qposadr[j]
+                    if ctx.model_native.jnt_type[j] in [
                         mujoco.mjtJoint.mjJNT_HINGE,
                         mujoco.mjtJoint.mjJNT_SLIDE,
                     ]:
                         q_actual[qadr] = np.clip(
                             q_actual[qadr],
-                            model_native.jnt_range[j, 0],
-                            model_native.jnt_range[j, 1],
+                            ctx.model_native.jnt_range[j, 0],
+                            ctx.model_native.jnt_range[j, 1],
                         )
-            config.update(q=q_actual)
+            ctx.config.update(q=q_actual)
 
+            # Solve QP
             try:
                 vel = mink.solve_ik(
-                    config, tasks, constants.MINK_DT,
+                    ctx.config, ctx.tasks, constants.MINK_DT,
                     solver=constants.MINK_QP_SOLVER,
-                    limits=limits,
+                    limits=ctx.limits,
                 )
-            except Exception as exc_primary:
+            except Exception as exc:
                 logger.warning(
                     "mink.solve_ik failed at step %d, waypoint %d: %s",
-                    steps_taken, current_wp_idx, str(exc_primary),
+                    steps_taken, current_wp_idx, str(exc),
                 )
-                vel = np.zeros(model_native.nv)
+                vel = np.zeros(ctx.model_native.nv)
 
-            q_next = config.integrate(vel, constants.MINK_DT)
-            target_joints = q_next[arm_qpos_idx]
+            q_next = ctx.config.integrate(vel, constants.MINK_DT)
+            target_joints = q_next[ctx.arm_qpos_idx]
 
             robot_action = ctrl.construct_joint_action(
                 target_joints, gripper_action,
@@ -324,11 +366,9 @@ class TrajectoryExecutor:
             # Convergence check at final waypoint
             if current_wp_idx == num_waypoints - 1:
                 current_pos, current_quat = ctrl.get_eef_pose_in_base()
-                final_pos = positions[-1]
-                final_quat = quaternions[-1]
-                pos_err = np.linalg.norm(final_pos - current_pos)
+                pos_err = np.linalg.norm(positions[-1] - current_pos)
                 ori_err = np.linalg.norm(
-                    (R.from_quat(final_quat) * R.from_quat(current_quat).inv()).as_rotvec()
+                    (R.from_quat(quaternions[-1]) * R.from_quat(current_quat).inv()).as_rotvec()
                 )
                 if pos_err < threshold and ori_err < threshold:
                     logger.debug("mink trajectory converged at step %d", steps_taken)
@@ -367,6 +407,52 @@ class TrajectoryExecutor:
             ctrl.robot_id, ctrl.arm_id, pos_err, ori_err,
         )
         return False
+
+    def execute_mink_trajectory(
+        self,
+        positions: np.ndarray,
+        quaternions: np.ndarray,
+        gripper_action: float = 0.0,
+        dt: float = constants.TRAJECTORY_TIME_STEP,
+        threshold: float = constants.TRAJECTORY_CONVERGENCE_THRESHOLD,
+        q_warm_start: Optional[np.ndarray] = None,
+        collision_check: bool = False,
+        manipulated_object: Optional[str] = None,
+    ) -> bool:
+        """Execute a trajectory using mink's reactive differential IK.
+
+        Delegates to :meth:`_build_mink_context` for task/limit
+        construction and :meth:`_run_mink_loop` for the reactive loop.
+
+        Args:
+            positions: Waypoint positions ``(N, 3)`` in **base** frame.
+            quaternions: Waypoint quaternions ``(N, 4)`` xyzw in **base** frame.
+            gripper_action: Gripper command during execution.
+            dt: Wall-clock time between steps.
+            threshold: Convergence threshold on final-waypoint error.
+            q_warm_start: Optional warm-start joint config ``(7,)`` for the
+                posture task.
+            collision_check: If ``True``, add collision avoidance limits.
+            manipulated_object: Name of the grasped object.
+
+        Returns:
+            ``True`` if converged, ``False`` otherwise.
+        """
+        if len(positions) <= 1:
+            return True
+
+        ctx = self._build_mink_context(
+            positions, quaternions,
+            q_warm_start=q_warm_start,
+            collision_check=collision_check,
+            manipulated_object=manipulated_object,
+        )
+        return self._run_mink_loop(
+            ctx, positions, quaternions,
+            gripper_action=gripper_action,
+            dt=dt,
+            threshold=threshold,
+        )
 
     # ------------------------------------------------------------------
     # OSC-based trajectory execution

@@ -16,7 +16,7 @@ _geom_names = None      # List of geom names indexed by ID
 _prefix_to_ids = {}     # Cache for name prefix -> list of geom IDs
 _cached_model_id = None # id() of the model object used to build the caches
 
-def _ensure_geom_caches(model):
+def ensure_geom_caches(model):
     """Ensure global caches for geom names and robot memberships are initialized."""
     global _robot_mask, _geom_names, _prefix_to_ids, _cached_model_id
     if _robot_mask is None or _cached_model_id != id(model):
@@ -28,12 +28,17 @@ def _ensure_geom_caches(model):
         _prefix_to_ids = {}  # Reset prefix cache
         _cached_model_id = id(model)
 
-def _get_ids_for_prefixes(prefixes):
-    """Get union of geom IDs that start with any of the given prefixes."""
+def get_geom_ids_for_patterns(prefixes):
+    """Get union of geom IDs whose names contain any of the given patterns.
+
+    Supports both prefix-style (e.g. ``"robot0"``) and substring-style
+    (e.g. ``"geo_snout"``) matching so that individual geoms can be
+    targeted regardless of the runtime naming prefix added by robosuite.
+    """
     ids = set()
     for pref in prefixes:
         if pref not in _prefix_to_ids:
-            _prefix_to_ids[pref] = [i for i, name in enumerate(_geom_names) if name.startswith(pref)]
+            _prefix_to_ids[pref] = [i for i, name in enumerate(_geom_names) if pref in name]
         ids.update(_prefix_to_ids[pref])
     return list(ids)
 
@@ -47,8 +52,8 @@ def get_geom_ids_by_prefix(model, prefix: str) -> np.ndarray:
 
     Initialises the internal geom caches on first call for a given model.
     """
-    _ensure_geom_caches(model)
-    return np.array(_get_ids_for_prefixes([prefix]), dtype=int)
+    ensure_geom_caches(model)
+    return np.array(get_geom_ids_for_patterns([prefix]), dtype=int)
 
 
 def get_robot_geom_mask(model) -> np.ndarray:
@@ -56,7 +61,7 @@ def get_robot_geom_mask(model) -> np.ndarray:
 
     Initialises the internal geom caches on first call for a given model.
     """
-    _ensure_geom_caches(model)
+    ensure_geom_caches(model)
     return _robot_mask
 
 
@@ -91,7 +96,7 @@ def in_collision(
         if ncon <= 0:
             return False
             
-        _ensure_geom_caches(model)
+        ensure_geom_caches(model)
 
         # Vectorized check using numpy buffers
         g1 = np.asarray(data.contact.geom1[:ncon])
@@ -105,7 +110,7 @@ def in_collision(
 
         # 2. Ignore names filter (blanket ignore)
         if ignore_names:
-            ignore_ids = _get_ids_for_prefixes(ignore_names)
+            ignore_ids = get_geom_ids_for_patterns(ignore_names)
             if ignore_ids:
                 ign_mask = np.zeros(model.ngeom, dtype=bool)
                 ign_mask[ignore_ids] = True
@@ -117,8 +122,8 @@ def in_collision(
         # 3. Ignore pairs filter (selective ignore between two groups)
         if ignore_pairs:
             for prefix_a, prefix_b in ignore_pairs:
-                ids_a = _get_ids_for_prefixes([prefix_a])
-                ids_b = _get_ids_for_prefixes([prefix_b])
+                ids_a = get_geom_ids_for_patterns([prefix_a])
+                ids_b = get_geom_ids_for_patterns([prefix_b])
                 if ids_a and ids_b:
                     mask_a = np.zeros(model.ngeom, dtype=bool)
                     mask_b = np.zeros(model.ngeom, dtype=bool)
@@ -163,7 +168,7 @@ def check_inter_arm_collision(
     if ncon <= 0:
         return False
 
-    _ensure_geom_caches(model)
+    ensure_geom_caches(model)
 
     g1 = np.asarray(data.contact.geom1[:ncon])
     g2 = np.asarray(data.contact.geom2[:ncon])
@@ -173,8 +178,8 @@ def check_inter_arm_collision(
     if not np.any(mask):
         return False
 
-    arm0_ids = _get_ids_for_prefixes(["robot0_", "gripper0_"])
-    arm1_ids = _get_ids_for_prefixes(["robot1_", "gripper1_"])
+    arm0_ids = get_geom_ids_for_patterns(["robot0_", "gripper0_"])
+    arm1_ids = get_geom_ids_for_patterns(["robot1_", "gripper1_"])
     if not arm0_ids or not arm1_ids:
         return False
 

@@ -19,6 +19,7 @@ import meshcat.geometry as g
 
 from bimanual_manipulation.transforms import TransformManager
 from bimanual_manipulation import constants
+from bimanual_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
@@ -109,7 +110,6 @@ class RobotMeshVisualizer:
     
     def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
         """Convert MuJoCo geom to MeshCat geometry."""
-        from bimanual_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
         return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache, self.mesh_sample_ratio)
     
     def _compute_geom_transforms(

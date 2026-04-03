@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
 import threading
+import traceback
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.controllers import RobosuiteArmController
@@ -190,7 +191,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nExiting...")
     except Exception as e:
-        import traceback
         print(f"Error: {e}")
         traceback.print_exc()
     finally:

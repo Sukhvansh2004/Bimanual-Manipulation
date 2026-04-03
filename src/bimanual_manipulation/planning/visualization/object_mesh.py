@@ -15,6 +15,7 @@ import meshcat.geometry as g
 
 from bimanual_manipulation.transforms import TransformManager, StampedPose
 from bimanual_manipulation import constants
+from bimanual_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
 from robosuite.utils import transform_utils as rs_T
 from scipy.spatial.transform import Rotation as R
 
@@ -69,7 +70,6 @@ class ObjectMeshVisualizer:
         
     def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
         """Convert MuJoCo geom to MeshCat geometry."""
-        from bimanual_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
         return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache, self.mesh_sample_ratio)
 
     def _get_object_geoms(self, object_name: str) -> List[Tuple[int, np.ndarray]]:

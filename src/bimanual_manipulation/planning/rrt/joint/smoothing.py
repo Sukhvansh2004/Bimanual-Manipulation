@@ -17,9 +17,9 @@ import numpy as np
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.collision_utils import (
-    _ensure_geom_caches,
-    _get_ids_for_prefixes,
+from bimanual_manipulation.utils.collision_utils import (
+    ensure_geom_caches,
+    get_geom_ids_for_patterns,
 )
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     get_arm_joint_ids,
@@ -99,13 +99,13 @@ def shortcut_joint_path(
         qpos_idx_a = get_joint_qpos_indices(native_model, jids_a)
         qpos_idx_b = get_joint_qpos_indices(native_model, jids_b)
 
-        _ensure_geom_caches(model)
+        ensure_geom_caches(model)
         prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
-        arm_b_geom_ids_list = _get_ids_for_prefixes(prefixes)
+        arm_b_geom_ids_list = get_geom_ids_for_patterns(prefixes)
         
         # If arm B is holding the object, include its geoms in the check
         if check_object_collisions and manipulated_object:
-            obj_geoms = _get_ids_for_prefixes([manipulated_object])
+            obj_geoms = get_geom_ids_for_patterns([manipulated_object])
             arm_b_geom_ids_list.extend(obj_geoms)
 
         arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
@@ -246,13 +246,13 @@ def bezier_smooth_joint_path(
         qpos_idx_a = get_joint_qpos_indices(native_model, jids_a)
         qpos_idx_b = get_joint_qpos_indices(native_model, jids_b)
 
-        _ensure_geom_caches(model)
+        ensure_geom_caches(model)
         prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
-        arm_b_geom_ids_list = _get_ids_for_prefixes(prefixes)
+        arm_b_geom_ids_list = get_geom_ids_for_patterns(prefixes)
         
         # If arm B is holding the object, include its geoms in the check
         if check_object_collisions and manipulated_object:
-            obj_geoms = _get_ids_for_prefixes([manipulated_object])
+            obj_geoms = get_geom_ids_for_patterns([manipulated_object])
             arm_b_geom_ids_list.extend(obj_geoms)
 
         arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)

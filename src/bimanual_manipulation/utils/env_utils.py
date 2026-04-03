@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation import constants
 from bimanual_manipulation.utils.suction_weld import apply_suction_weld
+from bimanual_manipulation.utils.collision_utils import in_collision
 from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
@@ -499,10 +500,6 @@ class CollisionMonitor:
         """Called by ``env_step`` after each simulation step."""
         if not self._enabled:
             return
-        # Deferred import to avoid circular dependencies
-        from bimanual_manipulation.planning.utils.collision_utils import (
-            in_collision,
-        )
         ignore_names = [self._manipulated_object] if self._manipulated_object else None
         if in_collision(
             env,

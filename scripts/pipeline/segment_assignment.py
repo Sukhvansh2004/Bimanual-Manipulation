@@ -47,6 +47,7 @@ import pstats
 import sys
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -80,6 +81,9 @@ from bimanual_manipulation.utils.env_utils import env_step
 import meshcat
 from bimanual_manipulation.planning.visualization import (
     HandoverVisualizer,
+)
+from bimanual_manipulation.planning.ik.manipulability import (
+    compute_trajectory_manipulability,
 )
 
 def setup_logging(level: int = logging.INFO):
@@ -456,11 +460,6 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
     The dict is JSON-serialisable and designed to be read back by
     ``scripts.evaluation.metrics.PlanningMetrics(**d)``.
     """
-    from bimanual_manipulation.planning.ik.manipulability import (
-        compute_trajectory_manipulability,
-    )
-    from pathlib import Path
-
     data_path = Path(data_dir)
     sequence = result.sequence
     traj_paths = result.trajectory_paths

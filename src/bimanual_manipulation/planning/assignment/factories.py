@@ -15,7 +15,7 @@ import numpy as np
 import robosuite.utils.transform_utils as T
 
 from bimanual_manipulation.environments import DualArmEnvironment
-from bimanual_manipulation.planning.utils.collision_utils import (
+from bimanual_manipulation.utils.collision_utils import (
     check_inter_arm_collision,
     in_collision,
 )

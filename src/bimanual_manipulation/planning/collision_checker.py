@@ -16,7 +16,7 @@ from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
-from bimanual_manipulation.planning.utils.collision_utils import in_collision
+from bimanual_manipulation.utils.collision_utils import in_collision
 from bimanual_manipulation.planning.utils.mujoco_utils import (
     set_qpos,
     get_arm_joint_ids,

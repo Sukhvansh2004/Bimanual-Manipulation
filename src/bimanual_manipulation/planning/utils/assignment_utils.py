@@ -240,13 +240,11 @@ def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
 
 def load_assignment_result(filepath: str) -> AssignmentResult:
     """Load an :class:`AssignmentResult` from an ``.npz`` file."""
-    from bimanual_manipulation.planning.assignment.result import (
-        AssignmentResult as _AssignmentResult,
-    )
+    from bimanual_manipulation.planning.assignment.result import AssignmentResult
 
     data = np.load(filepath, allow_pickle=True)
 
-    return _AssignmentResult(
+    return AssignmentResult(
         sequence=data["sequence"].tolist(),
         trajectory_paths=data["trajectory_paths"].tolist(),
         total_cost=float(data["total_cost"]),

@@ -2,6 +2,7 @@
 
 from typing import List, Sequence, Tuple, Optional, Union
 import logging
+import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from robosuite.utils.binding_utils import MjModel, MjData
@@ -255,17 +256,15 @@ def get_frozen_dof_indices(
     Returns:
         List of DOF indices to freeze.
     """
-    import mujoco as _mj  # local import to avoid top-level dependency
-
     active_set = set(int(d) for d in active_dof_idx)
     frozen: List[int] = []
     for jid in range(model_native.njnt):
         dof_adr = int(model_native.jnt_dofadr[jid])
         n_dof = {
-            _mj.mjtJoint.mjJNT_FREE: 6,
-            _mj.mjtJoint.mjJNT_BALL: 3,
-            _mj.mjtJoint.mjJNT_SLIDE: 1,
-            _mj.mjtJoint.mjJNT_HINGE: 1,
+            mujoco.mjtJoint.mjJNT_FREE: 6,
+            mujoco.mjtJoint.mjJNT_BALL: 3,
+            mujoco.mjtJoint.mjJNT_SLIDE: 1,
+            mujoco.mjtJoint.mjJNT_HINGE: 1,
         }.get(int(model_native.jnt_type[jid]), 1)
         for d in range(dof_adr, dof_adr + n_dof):
             if d not in active_set:

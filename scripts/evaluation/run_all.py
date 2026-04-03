@@ -74,7 +74,7 @@ from scripts.evaluation.metrics import (
     ExecutionMetrics,
     PlanningMetrics,
 )
-from scripts.evaluation.results_store import save_result, RESULTS_ROOT
+from scripts.evaluation.results_store import save_result, load_result, build_summary, RESULTS_ROOT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -662,7 +662,6 @@ def reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
             planning = PlanningMetrics(**d["planning"])
         execution = None
         if "execution" in d and d["execution"] is not None:
-            from scripts.evaluation.metrics import ExecutionMetrics
             execution = ExecutionMetrics(**d["execution"])
         results.append(ExperimentResult(
             experiment=d["experiment"],
@@ -865,7 +864,6 @@ def main():
                 planning = None
                 result_json = results_dir / exp_name / f"{cid}.json"
                 if result_json.is_file():
-                    from scripts.evaluation.results_store import load_result
                     existing = load_result(result_json)
                     planning = existing.planning
 
@@ -882,7 +880,6 @@ def main():
         total_elapsed = time.time() - total_t0
         print_batch_summary(all_results, total_elapsed)
 
-        from scripts.evaluation.results_store import build_summary
         build_summary(results_dir)
 
         if args.analyze:
@@ -985,7 +982,6 @@ def main():
     print_batch_summary(all_results, total_elapsed)
 
     # Build summary
-    from scripts.evaluation.results_store import build_summary
     build_summary(results_dir)
 
     # Optional analysis

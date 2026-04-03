@@ -11,6 +11,15 @@ This module contains reusable utility functions organized by domain:
 - meshcat_mj_utils: Meshcat ↔ MuJoCo bridge (not re-exported)
 """
 
+from bimanual_manipulation.utils.collision_utils import (
+    in_collision,
+    check_inter_arm_collision,
+    ensure_geom_caches,
+    get_geom_ids_for_patterns,
+    get_geom_ids_by_prefix,
+    get_robot_geom_mask,
+)
+
 from bimanual_manipulation.utils.se3 import (
     # Skew-symmetric utilities
     skew,

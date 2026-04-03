@@ -33,7 +33,7 @@ from bimanual_manipulation.planning.rrt.se3.utilities import (
     collision_free_segment,
     se3_pose_distance,
 )
-from bimanual_manipulation.planning.utils.collision_utils import (
+from bimanual_manipulation.utils.collision_utils import (
     get_geom_ids_by_prefix,
     get_robot_geom_mask,
 )

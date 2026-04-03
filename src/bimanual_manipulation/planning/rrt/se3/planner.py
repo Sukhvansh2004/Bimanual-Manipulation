@@ -22,7 +22,7 @@ import numpy as np
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.planning.rrt.core import rrt_connect_generic
-from bimanual_manipulation.planning.utils.collision_utils import (
+from bimanual_manipulation.utils.collision_utils import (
     get_geom_ids_by_prefix,
     get_robot_geom_mask,
 )

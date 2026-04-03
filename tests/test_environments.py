@@ -88,7 +88,7 @@ class TestCollisionMonitor:
 
         mock_env = MagicMock()
         with patch(
-            "bimanual_manipulation.planning.utils.collision_utils.in_collision",
+            "bimanual_manipulation.utils.env_utils.in_collision",
         ) as mock_ic_real:
             mock_ic_real.return_value = False
             mon.check(mock_env)

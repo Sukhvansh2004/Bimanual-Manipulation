@@ -14,6 +14,10 @@ from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
+from bimanual_manipulation.planning.ik.manipulability import (
+    compute_trajectory_manipulability,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -138,10 +142,6 @@ def extract_planning_metrics(
     Returns:
         Populated PlanningMetrics.
     """
-    from bimanual_manipulation.planning.ik.manipulability import (
-        compute_trajectory_manipulability,
-    )
-
     metrics = PlanningMetrics(
         experiment=experiment_name,
         config_label=config_label,
