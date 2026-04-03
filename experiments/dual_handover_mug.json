@@ -28,13 +28,13 @@
             {
                 "type": "box",
                 "name": "wallObstacle",
-                "size": [0.06, 0.15, 0.35],
-                "position": [0.0, 0.0, 1.075],
+                "size": [0.1, 0.45, 0.5],
+                "position": [0.0, -0.1, 1.1],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall forcing detour through Robot-1 workspace (y > 0)"
+                "_comment": "Central wall: x=\u00b10.10, y=\u22120.55 to +0.35, z=0.60\u20131.60. Shifted toward \u2212y and extended to block direct passage. Only the back corridor (y>+0.35) remains open, forcing the mug through Robot-1 workspace."
             }
         ]
     },
@@ -55,8 +55,8 @@
         "lift_height": 0.15,
         "approach_offset": 0.25,
         "rrt_bounds": [
-            [-0.5, -0.4, 0.9],
-            [0.5, 0.4, 1.5]
+            [-0.5, -0.5, 0.9],
+            [0.5, 0.5, 1.45]
         ]
     },
     "collision_filter": {

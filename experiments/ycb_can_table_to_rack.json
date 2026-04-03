@@ -1,13 +1,13 @@
 {
     "name": "ycb_can_table_to_rack",
-    "description": "Move a YCB tomato-soup can from the table into a tabletop rack compartment.",
+    "description": "Move a YCB tomato-soup can from the table into an elevated tabletop rack compartment.",
     "environment": {
-        "table_full_size": [1.0, 0.75, 0.05],
+        "table_full_size": [1.2, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_rack",
-                "position": [-0.25, 0.0, 0.9],
-                "quaternion": [0, 0, 0, 1],
+                "position": [-0.35, 0.0, 1.20],
+                "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             },
             {
@@ -16,13 +16,25 @@
                 "quaternion": [0, 0, 0, 1]
             }
         ],
-        "custom_objects": []
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "rackMount",
+                "size": [0.22, 0.42, 0.30],
+                "position": [-0.35, 0.0, 1.05],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.35, 0.20, 1.0],
+                "is_static": true,
+                "_comment": "Stand/mount to elevate the rack above the table surface"
+            }
+        ]
     },
     "task": {
         "manipulated_object": "tomato_soup_can_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.152, 0.0, 0.96],
+            "position": [-0.30, 0.05, 1.26],
             "quaternion": [0, 0, 0, 1]
         }
     },
@@ -35,12 +47,12 @@
         "lift_height": 0.15,
         "approach_offset": 0.25,
         "rrt_bounds": [
-            [-0.5, -0.4, 0.9],
-            [0.5, 0.4, 1.3]
+            [-0.6, -0.4, 0.9],
+            [0.5, 0.4, 1.7]
         ]
     },
     "collision_filter": {
-        "relevant_patterns": ["tomato_soup_can", "track", "table_rack"]
+        "relevant_patterns": ["tomato_soup_can", "track", "table_rack", "rackMount"]
     },
     "visualization": {
         "visualize_mesh": false,

@@ -1,22 +1,35 @@
 {
     "name": "ycb_bowl_rack_to_table",
-    "description": "Move a YCB bowl from a tabletop rack compartment back to the table surface.",
+    "description": "Move an inverted YCB bowl from an elevated tabletop rack back to the table surface (upright).",
     "environment": {
-        "table_full_size": [1.0, 0.75, 0.05],
+        "table_full_size": [1.2, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_rack",
-                "position": [-0.25, 0.0, 0.9],
-                "quaternion": [0, 0, 0, 1],
+                "position": [-0.35, 0.0, 1.20],
+                "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             },
             {
                 "ycb_name": "bowl",
-                "position": [-0.152, 0.0, 0.938],
-                "quaternion": [0, 0, 0, 1]
+                "position": [-0.30, 0.05, 1.24],
+                "quaternion": [0, 1, 0, 0],
+                "_comment": "Bowl inverted (180° around Y): opening faces down on rack"
             }
         ],
-        "custom_objects": []
+        "custom_objects": [
+            {
+                "type": "box",
+                "name": "rackMount",
+                "size": [0.22, 0.42, 0.30],
+                "position": [-0.35, 0.0, 1.05],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.35, 0.20, 1.0],
+                "is_static": true,
+                "_comment": "Stand/mount to elevate the rack above the table surface"
+            }
+        ]
     },
     "task": {
         "manipulated_object": "bowl_0",
@@ -35,12 +48,12 @@
         "lift_height": 0.2,
         "approach_offset": 0.25,
         "rrt_bounds": [
-            [-0.5, -0.4, 0.9],
-            [0.5, 0.4, 1.3]
+            [-0.6, -0.4, 0.9],
+            [0.5, 0.4, 1.7]
         ]
     },
     "collision_filter": {
-        "relevant_patterns": ["bowl", "track", "table_rack"]
+        "relevant_patterns": ["bowl", "track", "table_rack", "rackMount"]
     },
     "visualization": {
         "visualize_mesh": false,
