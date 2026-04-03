@@ -225,7 +225,7 @@ RRT_SMOOTHING_ITERATIONS = 200  # Number of shortcutting attempts for path smoot
 RRT_ORIENTATION_NOISE = 0.3     # Max random perturbation angle (radians) for orientation sampling
 RRT_BOUNDS_MARGIN = [0.3, 0.3, 0.3]  # Margin around start/goal for auto workspace bounds (meters)
 RRT_MIN_Z = 1.18                # Minimum z height for planning (slightly below table surface)
-RRT_SAFETY_CLEARANCE = 0.01     # Safety clearance margin from obstacles (meters) for SE(3) object RRT
+RRT_SAFETY_CLEARANCE = 0.005     # Safety clearance margin from obstacles (meters) for SE(3) object RRT
 # Default workspace bounds [lo, hi] — used only when auto-bounds are not sufficient
 RRT_WORKSPACE_BOUNDS = [[-0.8, -0.8, 0.8], [0.8, 0.8, 1.6]]
 
