@@ -88,6 +88,30 @@ DATA_DIR = _PROJECT_ROOT / "data"
 
 _ASSIGNMENT_SCRIPT = str(_PROJECT_ROOT / "scripts" / "pipeline" / "segment_assignment.py")
 
+_ROBOT_GRIPPER = {0: "finger", 1: "suction"}
+
+
+def _enrich_planning_from_npz(exp_result, asgn_npz_path: str) -> None:
+    """Read assignment sequence from NPZ to populate grasp_gripper and handover_directions."""
+    if not os.path.isfile(asgn_npz_path) or exp_result.planning is None:
+        return
+    if exp_result.planning.total_cost >= float("inf"):
+        return
+    try:
+        asgn = np.load(asgn_npz_path, allow_pickle=True)
+        seq = asgn["sequence"].tolist()
+        hp = asgn["handover_points"].tolist() if "handover_points" in asgn.files else []
+        exp_result.planning.grasp_gripper = _ROBOT_GRIPPER.get(seq[0], f"robot{seq[0]}")
+        dirs = []
+        for pt in hp:
+            if pt > 0:
+                src = _ROBOT_GRIPPER.get(seq[pt - 1], f"robot{seq[pt - 1]}")
+                dst = _ROBOT_GRIPPER.get(seq[pt], f"robot{seq[pt]}")
+                dirs.append(f"{src}→{dst}")
+        exp_result.planning.handover_directions = dirs
+    except Exception as exc:
+        logger.debug("Could not enrich planning from NPZ: %s", exc)
+
 
 def _child_preexec() -> None:
     """Ask the kernel to send SIGTERM to this child when its parent dies.
@@ -444,6 +468,11 @@ def run_experiment(
             results_dir=results_dir,
         )
 
+        # Enrich planning with gripper / handover direction from NPZ
+        _enrich_planning_from_npz(
+            exp_result, str(config_data_dir / "assignment_results.npz")
+        )
+
         # Optionally run headless execution
         if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
             asgn_file = str(config_data_dir / "assignment_results.npz")
@@ -520,6 +549,8 @@ def run_single_config(
         no_env=no_env,
         results_dir=results_dir,
     )
+
+    _enrich_planning_from_npz(exp_result, str(config_data_dir / "assignment_results.npz"))
 
     if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
         asgn_file = str(config_data_dir / "assignment_results.npz")

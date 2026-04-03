@@ -69,7 +69,26 @@ class ResultAggregator:
         ho_rates = [r.execution.handover_success_rate for r in rs if r.execution]
         grasp_ok = sum(1 for r in rs if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs if r.execution)
-        
+
+        # Grasp breakdown by gripper type
+        grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
+        for r in rs:
+            g = getattr(r.planning, 'grasp_gripper', '') if r.planning else ''
+            if g:
+                grasp_by_gripper[g]["total"] += 1
+                if r.execution and r.execution.grasp_success:
+                    grasp_by_gripper[g]["ok"] += 1
+
+        # Handover direction counts
+        ho_dir_counts = defaultdict(lambda: {"planned": 0, "in_success": 0})
+        for r in rs:
+            dirs = getattr(r.planning, 'handover_directions', []) if r.planning else []
+            task_ok = r.execution and r.execution.task_success
+            for d in dirs:
+                ho_dir_counts[d]["planned"] += 1
+                if task_ok:
+                    ho_dir_counts[d]["in_success"] += 1
+
         return {
             "n": n,
             "n_assign_ok": n_assign_ok,
@@ -94,6 +113,8 @@ class ResultAggregator:
             "raw_place_ori": ori_errs,
             "raw_ho_rates": ho_rates,
             "raw_colls": colls,
+            "grasp_by_gripper": dict(grasp_by_gripper),
+            "ho_dir_counts": dict(ho_dir_counts),
         }
 
     def get_global_stats(self, config: str):
@@ -120,7 +141,26 @@ class ResultAggregator:
         ho_rates = [r.execution.handover_success_rate for r in rs_all if r.execution]
         grasp_ok = sum(1 for r in rs_all if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs_all if r.execution)
-        
+
+        # Grasp breakdown by gripper type
+        grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
+        for r in rs_all:
+            g = getattr(r.planning, 'grasp_gripper', '') if r.planning else ''
+            if g:
+                grasp_by_gripper[g]["total"] += 1
+                if r.execution and r.execution.grasp_success:
+                    grasp_by_gripper[g]["ok"] += 1
+
+        # Handover direction counts
+        ho_dir_counts = defaultdict(lambda: {"planned": 0, "in_success": 0})
+        for r in rs_all:
+            dirs = getattr(r.planning, 'handover_directions', []) if r.planning else []
+            task_ok = r.execution and r.execution.task_success
+            for d in dirs:
+                ho_dir_counts[d]["planned"] += 1
+                if task_ok:
+                    ho_dir_counts[d]["in_success"] += 1
+
         return {
             "n": n_total,
             "n_assign_ok": n_assign_ok,
@@ -136,6 +176,8 @@ class ResultAggregator:
             "ptime_mean": np.mean(ptime) if ptime else 0.0,
             "place_pos_mean": np.mean(pos_errs) if pos_errs else np.nan,
             "place_ori_mean": np.mean(ori_errs) if ori_errs else np.nan,
+            "grasp_by_gripper": dict(grasp_by_gripper),
+            "ho_dir_counts": dict(ho_dir_counts),
         }
 
 def generate_visualizations(agg: ResultAggregator, out_dir: Path):
@@ -510,6 +552,38 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         for nh, n_total, n_succ, rate in agg._ho_vs_success:
             lines.append(f"| {nh} | {n_total} | {n_succ} | {rate:.1f}% |")
         lines.append(f"| **Total** | **{total_runs}** | **{total_succ}** | **{total_succ/total_runs*100:.1f}%** |")
+
+    # -- 3.13 Grasp Success by Gripper Type --
+    lines.append("\n### 3.13 Grasp Success by Gripper Type")
+    lines.append("\n| Experiment | Config | Gripper | Attempts | Grasp OK | Rate |")
+    lines.append("| :--- | :--- | :--- | :---: | :---: | :---: |")
+    for exp in agg.exps:
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s:
+                continue
+            gbg = s.get("grasp_by_gripper", {})
+            for gripper in sorted(gbg.keys()):
+                t = gbg[gripper]["total"]
+                ok = gbg[gripper]["ok"]
+                rate = (ok / t * 100) if t > 0 else 0.0
+                lines.append(f"| {exp} | {cfg} | {gripper} | {t} | {ok} | {rate:.1f}% |")
+
+    # -- 3.14 Handover Direction Breakdown --
+    lines.append("\n### 3.14 Handover Direction Breakdown")
+    lines.append("\n| Experiment | Config | Direction | Planned | In Successful Runs | Rate |")
+    lines.append("| :--- | :--- | :--- | :---: | :---: | :---: |")
+    for exp in agg.exps:
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s:
+                continue
+            hdc = s.get("ho_dir_counts", {})
+            for direction in sorted(hdc.keys()):
+                p = hdc[direction]["planned"]
+                ok = hdc[direction]["in_success"]
+                rate = (ok / p * 100) if p > 0 else 0.0
+                lines.append(f"| {exp} | {cfg} | {direction} | {p} | {ok} | {rate:.1f}% |")
 
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:

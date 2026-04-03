@@ -48,6 +48,10 @@ class PlanningMetrics:
     # Planning time
     planning_time_s: float = 0.0
 
+    # Gripper / handover direction info (populated by orchestrator from NPZ)
+    grasp_gripper: str = ""            # "finger" or "suction"
+    handover_directions: List[str] = field(default_factory=list)  # e.g. ["finger→suction"]
+
     def to_dict(self) -> dict:
         return asdict(self)
 
