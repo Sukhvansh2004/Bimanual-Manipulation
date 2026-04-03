@@ -6,7 +6,7 @@
         "ycb_objects": [
             {
                 "ycb_name": "mug",
-                "position": [-0.2, 0.0, 0.927],
+                "position": [-0.2, 0.0, 0.955],
                 "quaternion": [0, 1, 0, 0],
                 "_comment": "Mug inverted (180° around Y-axis): bottom faces up, handle faces +y"
             }
