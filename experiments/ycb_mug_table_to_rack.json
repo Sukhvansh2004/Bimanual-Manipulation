@@ -69,5 +69,11 @@
     "runtime": {
         "debug": false,
         "num_workers": 1
+    },
+    "gripper_grasp_offsets": {
+        "single_suction_cup_30mm": {
+            "position": [0.0, 0.0, 0.10],
+            "quaternion": [0.0, -1.0, 0.0, 0.0]
+        }
     }
 }

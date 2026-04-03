@@ -131,6 +131,7 @@ class ExperimentConfig:
     assignment: AssignmentConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
     table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
+    gripper_grasp_offsets: Optional[Dict[str, Dict[str, Any]]] = None  # per-gripper offset overrides
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +309,21 @@ def load_experiment(path: str) -> ExperimentConfig:
         num_trajectories_robot1=asgn_raw.get("num_trajectories_robot1", None),
     )
 
+    # --- gripper grasp offset overrides ---
+    gripper_grasp_offsets = None
+    go_raw = raw.get("gripper_grasp_offsets", None)
+    if go_raw:
+        gripper_grasp_offsets = {}
+        for gripper_name, offset_data in go_raw.items():
+            parsed = {
+                "position": np.array(offset_data["position"], dtype=float),
+                "quaternion": np.array(offset_data["quaternion"], dtype=float),
+            }
+            gripper_grasp_offsets[gripper_name] = parsed
+            constants.GRIPPER_GRASP_OFFSETS[gripper_name] = parsed
+            logger.info("Overriding GRIPPER_GRASP_OFFSETS[%s]: pos=%s quat=%s",
+                        gripper_name, parsed["position"], parsed["quaternion"])
+
     return ExperimentConfig(
         name=raw.get("name", resolved.stem),
         description=raw.get("description", ""),
@@ -323,6 +339,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         assignment=assignment,
         raw=raw,
         table_full_size=table_full_size,
+        gripper_grasp_offsets=gripper_grasp_offsets,
     )
 
 
