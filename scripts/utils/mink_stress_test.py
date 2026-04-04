@@ -22,7 +22,7 @@ from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.utils import mujoco_utils
 from bimanual_manipulation.planning.ik.mink_solver import (
     solve_ik_mink,
     _build_target_se3,

@@ -1,11 +1,19 @@
 """MuJoCo utility functions for manipulating the simulation state."""
 
-from typing import List, Sequence, Tuple, Optional, Union
+from __future__ import annotations
+
+from contextlib import nullcontext
+from typing import TYPE_CHECKING, List, Sequence, Tuple, Optional, Union
 import logging
 import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from robosuite.utils.binding_utils import MjModel, MjData
+
+from bimanual_manipulation import constants
+
+if TYPE_CHECKING:
+    from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -270,3 +278,108 @@ def get_frozen_dof_indices(
             if d not in active_set:
                 frozen.append(d)
     return frozen
+
+
+# ---------------------------------------------------------------------------
+# Jacobian computation
+# ---------------------------------------------------------------------------
+
+def compute_site_jacobian(
+    model_native: mujoco.MjModel,
+    data_native: mujoco.MjData,
+    site_id: int,
+    arm_dof_idx: np.ndarray,
+    arm_qpos_idx: np.ndarray,
+    q_arm: np.ndarray,
+    full_qpos: np.ndarray,
+) -> np.ndarray:
+    """Compute the 6×N geometric Jacobian for an arm at a MuJoCo site.
+
+    This is the single canonical implementation used by all IK solvers.
+    Sets the arm joints to *q_arm*, runs ``mj_fwdPosition``, then
+    extracts the positional and rotational Jacobian columns for the arm
+    DOFs.
+
+    Args:
+        model_native: Native ``mujoco.MjModel``.
+        data_native: Native ``mujoco.MjData``.
+        site_id: MuJoCo site ID for the end-effector.
+        arm_dof_idx: DOF indices for the arm joints.
+        arm_qpos_idx: Qpos indices for the arm joints.
+        q_arm: ``(DOF,)`` joint configuration for the arm.
+        full_qpos: ``(nq,)`` full qpos vector (will be copied, not mutated).
+
+    Returns:
+        ``(6, DOF)`` Jacobian — rows 0-2 are linear, rows 3-5 are angular,
+        expressed in the world frame.
+    """
+    q_full = full_qpos.copy()
+    q_full[arm_qpos_idx] = q_arm
+    data_native.qpos[:] = q_full
+    mujoco.mj_fwdPosition(model_native, data_native)
+
+    jacp = np.zeros((3, model_native.nv))
+    jacr = np.zeros((3, model_native.nv))
+    mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
+    return np.vstack([jacp[:, arm_dof_idx], jacr[:, arm_dof_idx]])
+
+
+def compute_arm_jacobian(
+    env: DualArmEnvironment,
+    *,
+    robot_id: int,
+    arm: str = "right",
+    q_config: Optional[np.ndarray] = None,
+    site_name: Optional[str] = None,
+    env_lock=None,
+) -> np.ndarray:
+    """Compute the 6×7 geometric Jacobian at the EEF site for a Franka arm.
+
+    High-level convenience wrapper around :func:`compute_site_jacobian`
+    that resolves joint IDs, site IDs, and qpos from a
+    :class:`DualArmEnvironment`.
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        arm: Arm name (default ``"right"``).
+        q_config: Optional ``(7,)`` joint config.  If *None*, uses the
+            current simulation state.
+        site_name: MuJoCo site name.  If *None*, uses the default EEF site.
+        env_lock: Optional threading lock for simulation access.
+
+    Returns:
+        ``(6, 7)`` world-frame geometric Jacobian.
+    """
+    ctx = env_lock if env_lock is not None else nullcontext()
+    with ctx:
+        model = env.sim.model
+        data = env.sim.data
+
+        joint_ids = get_arm_joint_ids(model, robot_id)
+        joint_qpos_idx = get_joint_qpos_indices(model, joint_ids)
+        joint_dof_idx = get_joint_dof_indices(model, joint_ids)
+
+        if site_name is None:
+            site_name = get_eef_site_name(robot_id, arm=arm)
+
+        model_native = get_native_mj_object(model)
+        data_native = get_native_mj_object(data)
+
+        site_id = mujoco.mj_name2id(
+            model_native, mujoco.mjtObj.mjOBJ_SITE, site_name,
+        )
+        if site_id < 0:
+            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
+
+        full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
+        q_arm = (
+            np.asarray(q_config, dtype=float)
+            if q_config is not None
+            else full_qpos[joint_qpos_idx]
+        )
+
+        return compute_site_jacobian(
+            model_native, data_native, site_id,
+            joint_dof_idx, joint_qpos_idx, q_arm, full_qpos,
+        )

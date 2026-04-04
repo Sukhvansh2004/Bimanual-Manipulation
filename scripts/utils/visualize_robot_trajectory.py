@@ -18,14 +18,15 @@ import threading
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.utils.env_utils import env_step, register_mesh_extraction_env
+from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.utils.object_factory import register_mesh_extraction_env
 from bimanual_manipulation.transforms import (
     TransformManager, 
     stream_transforms_to_meshcat, 
     MeshcatTFVisualizerConfig
 )
 from bimanual_manipulation.experiment_config import load_experiment
-from bimanual_manipulation.planning.utils.trajectory_utils import load_trajectory
+from bimanual_manipulation.planning.trajectory.utils import load_trajectory
 from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
 from bimanual_manipulation.planning.visualization import RobotMeshVisualizer, ObjectMeshVisualizer
 

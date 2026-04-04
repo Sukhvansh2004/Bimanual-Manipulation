@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from bimanual_manipulation.controllers.trajectory_planner import plan_quintic_trajectory
+from bimanual_manipulation.utils.trajectory_math import plan_quintic_trajectory
 from bimanual_manipulation.utils.se3 import (
     skew,
     unskew,

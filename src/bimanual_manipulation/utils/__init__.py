@@ -2,7 +2,10 @@
 Utilities module for bimanual_manipulation.
 
 This module contains reusable utility functions organized by domain:
+- mujoco_utils: MuJoCo model/data accessors (joint IDs, qpos, site errors)
+- mujoco_collision: Low-level MuJoCo collision detection
 - se3: SE(3) Lie algebra utilities for trajectory planning
+- trajectory_math: Pure trajectory math (quintic, resample)
 - pointcloud: Point cloud processing utilities
 - env_utils: Environment helpers (stepping, YCB objects, primitives)
 - mesh_utils: Mesh loading and surface sampling
@@ -11,7 +14,7 @@ This module contains reusable utility functions organized by domain:
 - meshcat_mj_utils: Meshcat ↔ MuJoCo bridge (not re-exported)
 """
 
-from bimanual_manipulation.utils.collision_utils import (
+from bimanual_manipulation.utils.mujoco_collision import (
     in_collision,
     check_inter_arm_collision,
     ensure_geom_caches,
@@ -54,19 +57,26 @@ from bimanual_manipulation.utils.pointcloud import (
 from bimanual_manipulation.utils.env_utils import (
     env_step,
     set_robot_config,
-    register_mesh_extraction_env,
     reset_action_persistence,
     get_action_persistence_manager,
     ActionPersistenceManager,
-    # Collision monitoring
+)
+
+from bimanual_manipulation.utils.monitors import (
     start_collision_monitor,
     stop_collision_monitor,
     get_collision_count,
-    # YCB utilities
+    start_object_monitor,
+    stop_object_monitor,
+    CollisionMonitor,
+    ObjectTrajectoryMonitor,
+)
+
+from bimanual_manipulation.utils.object_factory import (
+    register_mesh_extraction_env,
     get_available_ycb_objects,
     list_ycb_objects,
     resolve_mesh_path,
-    # Object specification helpers
     create_ycb_object,
     create_primitive_object,
 )

@@ -110,31 +110,6 @@ def enumerate_ik_solutions_for_arm(
     )
 
 
-def _get_jacobian_fn() -> Callable:
-    """Return the Jacobian function for the configured IK backend."""
-    backend = constants.IK_SOLVER_BACKEND
-    if backend == "eaik":
-        from bimanual_manipulation.planning.ik.eaik_solver import (
-            compute_arm_jacobian as _jac,
-        )
-        return _jac
-    elif backend == "scipy":
-        from bimanual_manipulation.planning.ik.scipy_solver import (
-            compute_arm_jacobian as _jac,
-        )
-        return _jac
-    elif backend == "mink":
-        from bimanual_manipulation.planning.ik.mink_solver import (
-            compute_arm_jacobian as _jac,
-        )
-        return _jac
-    else:
-        raise ValueError(
-            f"Unknown IK_SOLVER_BACKEND: {backend!r}. "
-            "Expected 'eaik', 'scipy', or 'mink'."
-        )
-
-
 def compute_arm_jacobian(
     env: DualArmEnvironment,
     *,
@@ -146,14 +121,16 @@ def compute_arm_jacobian(
 ) -> np.ndarray:
     """Compute the 6x7 geometric Jacobian at the EEF site.
 
-    Dispatches to the backend selected by
-    :data:`constants.IK_SOLVER_BACKEND`.
+    Delegates to the canonical implementation in
+    :func:`bimanual_manipulation.utils.mujoco_utils.compute_arm_jacobian`.
 
     Returns:
         ``np.ndarray`` of shape ``(6, 7)``.
     """
-    jac_fn = _get_jacobian_fn()
-    return jac_fn(
+    from bimanual_manipulation.utils.mujoco_utils import (
+        compute_arm_jacobian as _compute_arm_jacobian,
+    )
+    return _compute_arm_jacobian(
         env,
         robot_id=robot_id,
         arm=arm,

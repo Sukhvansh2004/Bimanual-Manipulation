@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 from scipy.spatial.transform import Rotation as R
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
+from bimanual_manipulation.utils.mujoco_utils import compute_arm_jacobian
 from bimanual_manipulation.planning.ik import ik_utils
-from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.utils import mujoco_utils
 from bimanual_manipulation.planning.ik.eaik_solver import (
-    compute_arm_jacobian,
     _fk_error,
     _sweep_values_for_joint,
     clear_robot_cache,
@@ -31,7 +31,7 @@ from bimanual_manipulation.planning.trajectory.generator import (
 from bimanual_manipulation.planning.collision_checker import (
     check_trajectory_feasibility,
 )
-from bimanual_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from bimanual_manipulation.planning.trajectory.utils import WaypointFeasibilityResult
 
 # General FK tolerance used for cross-backend IK verification.
 # This is the loosest tolerance across all backends (mink/scipy = 5e-3).
@@ -111,12 +111,11 @@ class TestPlanningModule:
         assert eef_traj[0].frame_id == "world"
 
     @patch('bimanual_manipulation.planning.collision_checker.mujoco')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.set_qpos')
+    @patch('bimanual_manipulation.planning.collision_checker.set_qpos')
     @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
     @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.in_collision')
+    @patch('bimanual_manipulation.planning.collision_checker.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.collision_checker.in_collision')
     def test_check_trajectory_feasibility_success(
         self,
         mock_in_collision, 
@@ -124,8 +123,7 @@ class TestPlanningModule:
         mock_get_ids, 
         mock_get_indices, 
         mock_set_qpos,
-        mock_utils_mujoco,
-        mock_gen_mujoco,
+        mock_mujoco,
         mock_env, 
         mock_tf_manager
     ):
@@ -150,20 +148,18 @@ class TestPlanningModule:
         assert results[0].ik_success is True
         assert results[0].collision_free is True
         mock_ik.assert_called() 
-        assert mock_utils_mujoco.mj_fwdPosition.called or mock_gen_mujoco.mj_fwdPosition.called
+        assert mock_mujoco.mj_fwdPosition.called
 
     @patch('bimanual_manipulation.planning.collision_checker.mujoco')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
     @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
     @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.collision_checker.enumerate_ik_solutions_for_arm')
     def test_check_trajectory_feasibility_ik_fail(
         self,
         mock_ik, 
         mock_get_ids, 
         mock_get_indices, 
-        mock_utils_mujoco, 
-        mock_gen_mujoco, 
+        mock_mujoco, 
         mock_env, 
         mock_tf_manager
     ):
@@ -185,12 +181,11 @@ class TestPlanningModule:
         assert results[0].is_feasible is False
 
     @patch('bimanual_manipulation.planning.collision_checker.mujoco')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.mujoco')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.set_qpos')
+    @patch('bimanual_manipulation.planning.collision_checker.set_qpos')
     @patch('bimanual_manipulation.planning.collision_checker.get_joint_qpos_indices')
     @patch('bimanual_manipulation.planning.collision_checker.get_arm_joint_ids')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.enumerate_ik_solutions_for_arm')
-    @patch('bimanual_manipulation.planning.utils.trajectory_utils.in_collision')
+    @patch('bimanual_manipulation.planning.collision_checker.enumerate_ik_solutions_for_arm')
+    @patch('bimanual_manipulation.planning.collision_checker.in_collision')
     def test_check_trajectory_feasibility_collision(
         self,
         mock_in_collision, 
@@ -198,8 +193,7 @@ class TestPlanningModule:
         mock_get_ids, 
         mock_get_indices, 
         mock_set_qpos,
-        mock_utils_mujoco, 
-        mock_gen_mujoco, 
+        mock_mujoco, 
         mock_env, 
         mock_tf_manager
     ):

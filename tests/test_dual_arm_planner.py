@@ -10,7 +10,7 @@ import numpy as np
 import mujoco
 
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils.mujoco_utils import (
     get_native_mj_object,
     get_robot_collision_geoms,
     get_object_collision_geoms,

@@ -25,7 +25,7 @@ from bimanual_manipulation.planning.assignment.cost import (
     compute_switching_cost,
     HandoverResult,
 )
-from bimanual_manipulation.planning.utils.assignment_utils import (
+from bimanual_manipulation.planning.assignment.assignment_utils import (
     normalize_trajectory_configs,
     apply_beam_pruning as _apply_beam_pruning,
 )

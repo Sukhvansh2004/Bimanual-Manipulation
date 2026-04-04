@@ -41,14 +41,15 @@ from bimanual_manipulation.controllers.arm import RobosuiteArmController
 from bimanual_manipulation.controllers.gripper import RobosuiteGripperController
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.transforms import StampedPose, TransformManager
-from bimanual_manipulation.utils.env_utils import (
-    env_step, register_mesh_extraction_env,
+from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.utils.monitors import (
     start_collision_monitor, stop_collision_monitor,
     start_object_monitor, stop_object_monitor,
 )
+from bimanual_manipulation.utils.object_factory import register_mesh_extraction_env
 from bimanual_manipulation.utils.suction_weld import is_object_grasped
 from bimanual_manipulation.experiment_config import load_experiment, ExperimentConfig
-from bimanual_manipulation.planning.utils.trajectory_utils import (
+from bimanual_manipulation.planning.trajectory.utils import (
     load_trajectory, WaypointFeasibilityResult
 )
 from bimanual_manipulation.planning.visualization.trajectory import (
@@ -61,7 +62,7 @@ from bimanual_manipulation.utils.primitives import (
 from bimanual_manipulation.planning.dual_arm import DualArmParallelPlanner
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
-from bimanual_manipulation.planning.utils.assignment_utils import (
+from bimanual_manipulation.planning.assignment.assignment_utils import (
     load_assignment_result,
     normalize_joint_angle,
 )

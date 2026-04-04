@@ -9,36 +9,277 @@ Provides:
 Replaces synthetic geometric checks with actual MuJoCo physics and IK checks.
 """
 
-import numpy as np
-from typing import List, Tuple, Union, Optional
 import logging
+from typing import List, Tuple, Union, Optional
+
+import mujoco
+import numpy as np
+
+from bimanual_manipulation import constants
+from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
 )
-from bimanual_manipulation.utils.collision_utils import in_collision
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.planning.trajectory.utils import (
+    WaypointFeasibilityResult,
+)
+from bimanual_manipulation.schema import GraspSchema
+from bimanual_manipulation.transforms import StampedPose, TransformManager
+from bimanual_manipulation.utils.mujoco_collision import in_collision
+from bimanual_manipulation.utils.mujoco_utils import (
     set_qpos,
     get_arm_joint_ids,
     get_joint_qpos_indices,
-    get_native_mj_object
+    get_native_mj_object,
 )
-from bimanual_manipulation.planning.utils.trajectory_utils import (
-    WaypointFeasibilityResult,
-    resolve_ignore_names,
-    process_waypoint,
-    process_dual_waypoint,
-)
-from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.transforms import StampedPose, TransformManager
-from bimanual_manipulation.schema import GraspSchema
-from bimanual_manipulation import constants
-from robosuite.utils import transform_utils as T
-import mujoco
+
 from contextlib import nullcontext
 
-# Configure logging
+from robosuite.utils import transform_utils as T
+
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Waypoint feasibility helpers (IK + collision)
+# ---------------------------------------------------------------------------
+
+
+def resolve_ignore_names(
+    object_name: Optional[str],
+    ignore_names: Optional[List[str]],
+    robot_id: Optional[int] = None,
+) -> Tuple[List[str], List[Tuple[str, str]]]:
+    """Resolve ignore names and ignore pairs for collision checking.
+
+    Object-gripper contacts for the *holding* robot are selectively ignored
+    via ``ignore_pairs`` so that object-arm collisions are still detected.
+
+    Args:
+        object_name: Geom name prefix of the grasped object (e.g. ``"flatPlate"``).
+        ignore_names: Extra geom prefixes to blanket-ignore (e.g. the *other*
+            robot ``["robot1", "gripper1"]``).
+        robot_id: The robot that is holding the object.  When provided, an
+            ``ignore_pair`` of ``(object_name, "gripper{robot_id}")`` is
+            generated so only the gripper-object contact is ignored.
+
+    Returns:
+        (ignore_names, ignore_pairs): The first list is passed to
+            ``in_collision`` as ``ignore_names`` and the second as
+            ``ignore_pairs``.
+    """
+    current_ignore_names = list(ignore_names) if ignore_names else []
+    ignore_pairs: List[Tuple[str, str]] = []
+
+    if object_name and robot_id is not None:
+        gripper_prefix = f"gripper{robot_id}"
+        ignore_pairs.append((object_name, gripper_prefix))
+
+    return current_ignore_names, ignore_pairs
+
+
+def process_waypoint(
+    env: DualArmEnvironment,
+    robot_id: int,
+    waypoint_index: int,
+    pose: StampedPose,
+    qpos_idx: np.ndarray,
+    check_collisions: bool,
+    ignore_names: List[str],
+    last_config: Optional[np.ndarray],
+    tf_manager: TransformManager,
+    arm: str = "right",
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
+) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
+    """Process a single waypoint: IK + Collision Check."""
+    target_pose = apply_ik_orientation_correction(pose)
+    site_name = f"gripper{robot_id}_{arm}_ft_frame"
+
+    solutions = enumerate_ik_solutions_for_arm(
+        env=env,
+        robot_id=robot_id,
+        target_pose=target_pose,
+        arm=arm,
+        site_name=site_name,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS,
+        env_lock=None,
+        tf_manager=tf_manager,
+        q_reference=last_config,
+    )
+
+    if not solutions:
+        logger.debug(f"  WP {waypoint_index}: IK failed")
+        return WaypointFeasibilityResult(
+            waypoint_index=waypoint_index,
+            eef_pose=pose,
+            joint_config=None,
+            is_feasible=False,
+            ik_success=False,
+            collision_free=True,
+        ), None
+
+    model = env.sim.model
+    data = env.sim.data
+
+    for q_sol in solutions:
+        collision_free = True
+        if check_collisions:
+            set_qpos(data, qpos_idx, q_sol)
+            mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
+            collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs)
+
+        if collision_free:
+            return WaypointFeasibilityResult(
+                waypoint_index=waypoint_index,
+                eef_pose=pose,
+                joint_config=q_sol,
+                is_feasible=True,
+                ik_success=True,
+                collision_free=True,
+            ), q_sol
+
+    logger.debug(f"  WP {waypoint_index}: IK succeeded but all in COLLISION")
+    first_sol = solutions[0]
+    return WaypointFeasibilityResult(
+        waypoint_index=waypoint_index,
+        eef_pose=pose,
+        joint_config=first_sol,
+        is_feasible=False,
+        ik_success=True,
+        collision_free=False,
+    ), first_sol
+
+
+def process_dual_waypoint(
+    env: DualArmEnvironment,
+    waypoint_index: int,
+    pose0: StampedPose,
+    pose1: StampedPose,
+    qpos_idx0: np.ndarray,
+    qpos_idx1: np.ndarray,
+    check_collisions: bool,
+    ignore_names: List[str],
+    last_config0: Optional[np.ndarray],
+    last_config1: Optional[np.ndarray],
+    tf_manager: TransformManager,
+    arm: str = "right",
+    ignore_pairs: Optional[List[Tuple[str, str]]] = None,
+) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
+    target0 = apply_ik_orientation_correction(pose0)
+    target1 = apply_ik_orientation_correction(pose1)
+
+    site0 = f"gripper0_{arm}_ft_frame"
+    site1 = f"gripper1_{arm}_ft_frame"
+
+    solutions0 = enumerate_ik_solutions_for_arm(
+        env=env, robot_id=0, target_pose=target0, arm=arm, site_name=site0,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS, env_lock=None,
+        tf_manager=tf_manager, q_reference=last_config0,
+    )
+    solutions1 = enumerate_ik_solutions_for_arm(
+        env=env, robot_id=1, target_pose=target1, arm=arm, site_name=site1,
+        max_solutions=constants.TRAJ_IK_MAX_SOLUTIONS, env_lock=None,
+        tf_manager=tf_manager, q_reference=last_config1,
+    )
+
+    model = env.sim.model
+    data = env.sim.data
+
+    if not solutions0 or not solutions1:
+        res0_ik = bool(solutions0)
+        res1_ik = bool(solutions1)
+
+        best_q0 = None
+        res0_col = False
+        if solutions0:
+            for q0 in solutions0:
+                if check_collisions:
+                    set_qpos(data, qpos_idx0, q0)
+                    if last_config1 is not None:
+                        set_qpos(data, qpos_idx1, last_config1)
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs):
+                        best_q0 = q0
+                        res0_col = True
+                        break
+                else:
+                    best_q0 = q0
+                    res0_col = True
+                    break
+            if best_q0 is None:
+                best_q0 = solutions0[0]
+                res0_col = False
+
+        best_q1 = None
+        res1_col = False
+        if solutions1:
+            for q1 in solutions1:
+                if check_collisions:
+                    set_qpos(data, qpos_idx1, q1)
+                    if last_config0 is not None:
+                        set_qpos(data, qpos_idx0, last_config0)
+                    mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
+                    if not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs):
+                        best_q1 = q1
+                        res1_col = True
+                        break
+                else:
+                    best_q1 = q1
+                    res1_col = True
+                    break
+            if best_q1 is None:
+                best_q1 = solutions1[0]
+                res1_col = False
+
+        res0 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose0, joint_config=best_q0,
+            is_feasible=(res0_ik and res0_col), ik_success=res0_ik, collision_free=res0_col,
+        )
+        res1 = WaypointFeasibilityResult(
+            waypoint_index=waypoint_index, eef_pose=pose1, joint_config=best_q1,
+            is_feasible=(res1_ik and res1_col), ik_success=res1_ik, collision_free=res1_col,
+        )
+        return res0, res1, best_q0, best_q1
+
+    pair_count = 0
+    for q0 in solutions0:
+        for q1 in solutions1:
+            pair_count += 1
+            collision_free = True
+            if check_collisions:
+                set_qpos(data, qpos_idx0, q0)
+                set_qpos(data, qpos_idx1, q1)
+                mujoco.mj_fwdPosition(get_native_mj_object(model), get_native_mj_object(data))
+                collision_free = not in_collision(env, env_lock=None, ignore_names=ignore_names, ignore_pairs=ignore_pairs)
+
+            if collision_free:
+                res0 = WaypointFeasibilityResult(
+                    waypoint_index=waypoint_index, eef_pose=pose0, joint_config=q0,
+                    is_feasible=True, ik_success=True, collision_free=True,
+                )
+                res1 = WaypointFeasibilityResult(
+                    waypoint_index=waypoint_index, eef_pose=pose1, joint_config=q1,
+                    is_feasible=True, ik_success=True, collision_free=True,
+                )
+                return res0, res1, q0, q1
+
+    logger.debug(f"  WP {waypoint_index}: Checked {pair_count} IK pairs, all in COLLISION")
+    res0 = WaypointFeasibilityResult(
+        waypoint_index=waypoint_index, eef_pose=pose0, joint_config=solutions0[0],
+        is_feasible=False, ik_success=True, collision_free=False,
+    )
+    res1 = WaypointFeasibilityResult(
+        waypoint_index=waypoint_index, eef_pose=pose1, joint_config=solutions1[0],
+        is_feasible=False, ik_success=True, collision_free=False,
+    )
+    return res0, res1, solutions0[0], solutions1[0]
+
+
+# ---------------------------------------------------------------------------
+# Grasp and trajectory feasibility checks
+# ---------------------------------------------------------------------------
 
 
 def check_single_grasp_feasibility(

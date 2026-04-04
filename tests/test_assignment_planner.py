@@ -39,7 +39,7 @@ from bimanual_manipulation.planning.assignment import (
     make_ik_solver_fn,
     make_jacobian_fns,
 )
-from bimanual_manipulation.planning.utils.assignment_utils import (
+from bimanual_manipulation.planning.assignment.assignment_utils import (
     save_assignment_result,
     load_assignment_result,
 )

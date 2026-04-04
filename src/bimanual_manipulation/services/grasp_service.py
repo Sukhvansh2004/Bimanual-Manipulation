@@ -18,7 +18,7 @@ from bimanual_manipulation.services.services_core import ServiceClient
 from bimanual_manipulation import constants
 from bimanual_manipulation.transforms import StampedPose, Transform, TransformManager
 from bimanual_manipulation.utils.pointcloud import validate_point_cloud
-from bimanual_manipulation.utils.env_utils import resolve_mesh_path
+from bimanual_manipulation.utils.object_factory import resolve_mesh_path
 from bimanual_manipulation.schema import GraspRequest, GraspResponse, ResponseStatus, GraspSchema
 
 from grasp_gen.utils.point_cloud_utils import filter_colliding_grasps

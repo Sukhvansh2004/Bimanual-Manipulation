@@ -12,7 +12,7 @@ import logging
 import mujoco
 import numpy as np
 
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils.mujoco_utils import (
     get_eef_site_name,
     set_qpos,
 )

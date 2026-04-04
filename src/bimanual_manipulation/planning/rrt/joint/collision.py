@@ -14,10 +14,10 @@ import numpy as np
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.utils.collision_utils import (
+from bimanual_manipulation.utils.mujoco_collision import (
     ensure_geom_caches,
 )
-from bimanual_manipulation.planning.utils.mujoco_utils import set_qpos
+from bimanual_manipulation.utils.mujoco_utils import set_qpos
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ in both delta and absolute input modes.
 Trajectory planning, execution, and visualization are delegated to
 dedicated modules for modularity:
 
-* :mod:`controllers.trajectory_planner` — quintic SE(3) planning
+* :mod:`utils.trajectory_math` — quintic SE(3) planning
 * :mod:`controllers.trajectory_executor` — mink/OSC/joint execution
 * :mod:`controllers.visualization` — MeshCat trajectory frames
 """
@@ -24,11 +24,11 @@ from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.controllers.trajectory_executor import TrajectoryExecutor
-from bimanual_manipulation.controllers.trajectory_planner import (
+from bimanual_manipulation.utils.trajectory_math import (
     plan_quintic_trajectory,
-    smoothen_trajectory,
+    smooth_trajectory,
 )
-from bimanual_manipulation.controllers.visualization import TrajectoryVisualizer
+from bimanual_manipulation.utils.trajectory_visualizer import TrajectoryVisualizer
 from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
     apply_ik_orientation_correction,
@@ -475,7 +475,7 @@ class RobosuiteArmController:
 
             if smoothen:
                 traj_num_steps = num_steps if num_steps is not None else len(trajectory)
-                positions, quaternions = smoothen_trajectory(
+                positions, quaternions = smooth_trajectory(
                     trajectory, traj_num_steps,
                     self.tf_manager, self.base_frame,
                 )

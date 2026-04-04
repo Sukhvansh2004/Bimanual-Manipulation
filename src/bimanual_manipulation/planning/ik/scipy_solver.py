@@ -20,7 +20,8 @@ from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.planning.ik.manipulability import (
     compute_manipulability_from_jacobian,
 )
-from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.utils import mujoco_utils
+from bimanual_manipulation.utils.mujoco_utils import compute_site_jacobian
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 
 logger = logging.getLogger(__name__)
@@ -278,7 +279,7 @@ def enumerate_ik_solutions_scipy(
             # Filter by manipulability and rank
             scored = []
             for q in unique:
-                J = _compute_jacobian(
+                J = compute_site_jacobian(
                     model_native, data_native, site_id,
                     joint_dof_idx, joint_qpos_idx, q, full_qpos,
                 )
@@ -301,66 +302,3 @@ def enumerate_ik_solutions_scipy(
         return solutions
 
 
-def _compute_jacobian(
-    model_native: mujoco.MjModel,
-    data_native: mujoco.MjData,
-    site_id: int,
-    arm_dof_idx: np.ndarray,
-    arm_qpos_idx: np.ndarray,
-    q_arm: np.ndarray,
-    full_qpos: np.ndarray,
-) -> np.ndarray:
-    """Compute 6x7 geometric Jacobian using raw MuJoCo."""
-    q_full = full_qpos.copy()
-    q_full[arm_qpos_idx] = q_arm
-    data_native.qpos[:] = q_full
-    mujoco.mj_fwdPosition(model_native, data_native)
-
-    jacp = np.zeros((3, model_native.nv))
-    jacr = np.zeros((3, model_native.nv))
-    mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-    return np.vstack([jacp[:, arm_dof_idx], jacr[:, arm_dof_idx]])
-
-
-def compute_arm_jacobian(
-    env: DualArmEnvironment,
-    *,
-    robot_id: int,
-    arm: str = "right",
-    q_config: Optional[np.ndarray] = None,
-    site_name: Optional[str] = None,
-    env_lock=None,
-) -> np.ndarray:
-    """Compute the 6x7 geometric Jacobian at the EEF site.
-
-    Returns:
-        ``np.ndarray`` of shape ``(6, 7)``.
-    """
-    ctx = env_lock if env_lock is not None else nullcontext()
-    with ctx:
-        model = env.sim.model
-        data = env.sim.data
-
-        joint_ids = mujoco_utils.get_arm_joint_ids(model, robot_id)
-        joint_qpos_idx = mujoco_utils.get_joint_qpos_indices(model, joint_ids)
-        joint_dof_idx = mujoco_utils.get_joint_dof_indices(model, joint_ids)
-
-        if site_name is None:
-            site_name = mujoco_utils.get_eef_site_name(robot_id, arm=arm)
-
-        model_native = mujoco_utils.get_native_mj_object(model)
-        data_native = mujoco_utils.get_native_mj_object(data)
-
-        site_id = mujoco.mj_name2id(
-            model_native, mujoco.mjtObj.mjOBJ_SITE, site_name,
-        )
-        if site_id < 0:
-            raise RuntimeError(f"MuJoCo site '{site_name}' not found in model")
-
-        full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
-        q_arm = np.asarray(q_config, dtype=float) if q_config is not None else full_qpos[joint_qpos_idx]
-
-        return _compute_jacobian(
-            model_native, data_native, site_id,
-            joint_dof_idx, joint_qpos_idx, q_arm, full_qpos,
-        )

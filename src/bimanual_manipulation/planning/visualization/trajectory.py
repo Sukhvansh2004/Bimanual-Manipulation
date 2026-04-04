@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from grasp_gen.utils.meshcat_utils import make_frame
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from bimanual_manipulation.planning.trajectory.utils import WaypointFeasibilityResult
 from bimanual_manipulation.planning.assignment.models import TrajectoryBundle
 from bimanual_manipulation.utils.primitives import HandoverTrajectory
 

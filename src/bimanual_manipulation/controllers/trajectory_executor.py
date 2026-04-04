@@ -20,8 +20,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.utils import mujoco_utils as mu
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils import mujoco_utils as mu
+from bimanual_manipulation.utils.mujoco_utils import (
     get_robot_collision_geoms,
     get_object_collision_geoms,
     get_environment_collision_geoms,

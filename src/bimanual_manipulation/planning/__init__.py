@@ -13,7 +13,7 @@ utils
     Low-level shared utilities (collision, MuJoCo helpers, etc.).
 """
 
-from bimanual_manipulation.planning.grasp_generator import GraspGenerator
+from bimanual_manipulation.services.grasp_generator import GraspGenerator
 from bimanual_manipulation.planning.collision_checker import (
     find_feasible_grasp_pairs,
     check_single_grasp_feasibility,
@@ -74,7 +74,7 @@ from bimanual_manipulation.planning.dual_arm import (
 )
 
 # ── Utils / trajectory ────────────────────────────────────────────────────
-from bimanual_manipulation.planning.utils.trajectory_utils import (
+from bimanual_manipulation.planning.trajectory.utils import (
     WaypointFeasibilityResult,
 )
 

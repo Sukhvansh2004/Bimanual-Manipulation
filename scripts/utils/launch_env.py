@@ -32,7 +32,7 @@ import logging
 
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation.transforms import TransformManager
-from bimanual_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.object_factory import (
     get_available_ycb_objects,
     list_ycb_objects,
     create_primitive_object,

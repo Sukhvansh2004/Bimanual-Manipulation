@@ -27,7 +27,7 @@ from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.utils import mujoco_utils
 from bimanual_manipulation.planning.ik.scipy_solver import (
     _fk_objective_and_grad,
     _generate_seeds,

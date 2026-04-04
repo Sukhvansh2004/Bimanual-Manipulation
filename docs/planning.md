@@ -142,7 +142,7 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 
 | Module | Purpose |
 |--------|--------|
-| `collision_utils.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
+| `mujoco_collision.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
 | `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
 | `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
 | `visualization_utils.py` | General Meshcat visualization helpers |

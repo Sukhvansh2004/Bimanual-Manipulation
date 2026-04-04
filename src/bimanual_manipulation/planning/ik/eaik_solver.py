@@ -29,7 +29,8 @@ from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.planning.ik.manipulability import (
     compute_manipulability_from_jacobian,
 )
-from bimanual_manipulation.planning.utils import mujoco_utils
+from bimanual_manipulation.utils import mujoco_utils
+from bimanual_manipulation.utils.mujoco_utils import compute_site_jacobian
 from bimanual_manipulation.transforms import StampedPose, TransformManager
 
 logger = logging.getLogger(__name__)
@@ -166,34 +167,6 @@ def _build_eaik_robot(locked_joint: int, locked_value: float) -> Optional[UrdfRo
     except Exception:
         logger.debug("EAIK: cannot lock joint %d at %.4f", locked_joint, locked_value)
         return None
-
-
-def _compute_jacobian_mujoco(
-    model_native: mujoco.MjModel,
-    data_native: mujoco.MjData,
-    site_id: int,
-    arm_dof_idx: np.ndarray,
-    arm_qpos_idx: np.ndarray,
-    q_arm: np.ndarray,
-    full_qpos: np.ndarray,
-) -> np.ndarray:
-    """Compute 6×7 geometric Jacobian using raw MuJoCo (no mink).
-
-    Returns the Jacobian in the world frame, stacked as
-    ``[J_translation; J_rotation]`` of shape ``(6, 7)``.
-    """
-    q_full = full_qpos.copy()
-    q_full[arm_qpos_idx] = q_arm
-
-    data_native.qpos[:] = q_full
-    mujoco.mj_fwdPosition(model_native, data_native)
-
-    jacp = np.zeros((3, model_native.nv))
-    jacr = np.zeros((3, model_native.nv))
-    mujoco.mj_jacSite(model_native, data_native, jacp, jacr, site_id)
-
-    # Slice to arm DOFs only → (6, 7)
-    return np.vstack([jacp[:, arm_dof_idx], jacr[:, arm_dof_idx]])
 
 
 def _sweep_values_for_joint(
@@ -419,9 +392,9 @@ def _filter_and_rank_solutions(
     # Score by manipulability, with FK verification
     scored: List[Tuple[float, np.ndarray]] = []
     for q in unique:
-        # _compute_jacobian_mujoco calls mj_fwdPosition internally,
+        # compute_site_jacobian calls mj_fwdPosition internally,
         # so site_xpos / site_xmat are up-to-date afterwards.
-        J = _compute_jacobian_mujoco(
+        J = compute_site_jacobian(
             model_native, data_native, site_id,
             arm_dof_idx, arm_qpos_idx, q, full_qpos,
         )
@@ -578,51 +551,4 @@ def enumerate_ik_solutions_eaik(
         return solutions
 
 
-def compute_arm_jacobian(
-    env: DualArmEnvironment,
-    *,
-    robot_id: int,
-    arm: str = "right",
-    q_config: Optional[np.ndarray] = None,
-    site_name: Optional[str] = None,
-    env_lock=None,
-) -> np.ndarray:
-    """Compute the 6×7 geometric Jacobian at the EEF site using raw MuJoCo.
 
-    Drop-in replacement for the mink-based ``compute_arm_jacobian`` that
-    avoids creating a ``mink.Configuration`` (saves ~0.6ms per call).
-
-    The Jacobian maps 7-DOF joint velocities to 6-D spatial velocities
-    ``[v_x, v_y, v_z, ω_x, ω_y, ω_z]`` in the **world frame**.
-
-    Args:
-        env: The dual-arm simulation environment.
-        robot_id: Index of the robot (0 or 1).
-        arm: Which arm (``"right"`` or ``"left"``).
-        q_config: Joint configuration ``(7,)`` to evaluate at.
-            If *None*, uses the current simulation state.
-        site_name: Override for the MuJoCo site name.
-        env_lock: Optional threading lock.
-
-    Returns:
-        ``np.ndarray`` of shape ``(6, 7)``.
-    """
-
-    ctx = env_lock if env_lock is not None else nullcontext()
-    with ctx:
-        data = env.sim.data
-
-        rc = _get_robot_cache(env, robot_id, arm=arm, site_name=site_name)
-        data_native = mujoco_utils.get_native_mj_object(data)
-
-        full_qpos = np.array(data.qpos, copy=True, dtype=float).ravel()
-
-        if q_config is not None:
-            q_arm = np.asarray(q_config, dtype=float)
-        else:
-            q_arm = full_qpos[rc.joint_qpos_idx]
-
-        return _compute_jacobian_mujoco(
-            rc.model_native, data_native, rc.site_id,
-            rc.joint_dof_idx, rc.joint_qpos_idx, q_arm, full_qpos,
-        )

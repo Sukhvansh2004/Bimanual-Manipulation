@@ -37,7 +37,7 @@ import meshcat.geometry as g
 import numpy as np
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.utils.assignment_utils import (
+from bimanual_manipulation.planning.assignment.assignment_utils import (
     load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.result import AssignmentResult
@@ -48,7 +48,8 @@ from bimanual_manipulation.transforms import (
     MeshcatTFVisualizerConfig,
 )
 from bimanual_manipulation.environments import make_dual_arm_env
-from bimanual_manipulation.utils.env_utils import env_step, register_mesh_extraction_env
+from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.utils.object_factory import register_mesh_extraction_env
 from bimanual_manipulation.experiment_config import load_experiment
 from bimanual_manipulation.planning.visualization import RobotMeshVisualizer
 

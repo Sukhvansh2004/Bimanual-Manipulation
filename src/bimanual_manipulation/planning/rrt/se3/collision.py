@@ -14,7 +14,7 @@ import numpy as np
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
-from bimanual_manipulation.planning.utils.mujoco_utils import get_native_mj_object
+from bimanual_manipulation.utils.mujoco_utils import get_native_mj_object
 from robosuite.utils import transform_utils as T
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def object_in_collision(
         data: MuJoCo data (native or wrapped).
         object_geom_ids: Array of geom IDs belonging to the object.
         robot_mask: Boolean mask ``(ngeom,)`` — True for robot/gripper geoms
-            (obtain via ``collision_utils.get_robot_geom_mask``).
+            (obtain via ``mujoco_collision.get_robot_geom_mask``).
         contact_threshold: Contact distance threshold.
 
     Returns:

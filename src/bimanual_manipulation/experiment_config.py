@@ -17,7 +17,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.utils.env_utils import create_ycb_object, create_primitive_object
+from bimanual_manipulation.utils.object_factory import create_ycb_object, create_primitive_object
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
 
 logger = logging.getLogger(__name__)

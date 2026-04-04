@@ -20,14 +20,14 @@ import meshcat.geometry as g
 from bimanual_manipulation.transforms import TransformManager
 from bimanual_manipulation import constants
 from bimanual_manipulation.utils.meshcat_mj_utils import mujoco_geom_to_meshcat
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
     set_qpos,
     get_native_mj_object
 )
 # Import WaypointFeasibilityResult from trajectory_utils (the source of truth)
-from bimanual_manipulation.planning.utils.trajectory_utils import WaypointFeasibilityResult
+from bimanual_manipulation.planning.trajectory.utils import WaypointFeasibilityResult
 
 logger = logging.getLogger(__name__)
 

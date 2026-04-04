@@ -28,15 +28,13 @@ from bimanual_manipulation.transforms import (
     MeshcatTFVisualizerConfig,
     stream_transforms_to_meshcat,
 )
-from bimanual_manipulation.utils.env_utils import (
-    env_step,
-    register_mesh_extraction_env,
-)
+from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.utils.object_factory import register_mesh_extraction_env
 from bimanual_manipulation import constants
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
 
 from bimanual_manipulation.planning.trajectory import generate_object_trajectory
-from bimanual_manipulation.planning.utils.trajectory_utils import save_trajectory
+from bimanual_manipulation.planning.trajectory.utils import save_trajectory
 from bimanual_manipulation.planning.visualization.trajectory import visualize_trajectory
 from bimanual_manipulation.planning.visualization.object_mesh import ObjectMeshVisualizer
 from bimanual_manipulation.experiment_config import (

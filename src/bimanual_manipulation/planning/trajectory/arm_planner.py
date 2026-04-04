@@ -26,7 +26,7 @@ from bimanual_manipulation.planning.rrt.joint import (
     make_ee_pos_fn,
 )
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils.mujoco_utils import (
     get_native_mj_object,
     get_arm_joint_ids,
     get_joint_qpos_indices,

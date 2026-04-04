@@ -168,7 +168,7 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   │   └── generator.py                 # Object/EEF trajectory generation
 │   │   ├── visualization/                   # Meshcat + matplotlib visualization
 │   │   └── utils/                           # Planning sub-utilities
-│   │       ├── collision_utils.py           # MuJoCo collision helpers
+│   │       ├── mujoco_collision.py           # MuJoCo collision helpers
 │   │       ├── mujoco_utils.py              # Native MuJoCo object access
 │   │       ├── trajectory_utils.py          # Waypoint feasibility data structures
 │   │       ├── visualization_utils.py       # Meshcat planning visualization

@@ -15,7 +15,7 @@ import numpy as np
 import robosuite.utils.transform_utils as T
 
 from bimanual_manipulation.environments import DualArmEnvironment
-from bimanual_manipulation.utils.collision_utils import (
+from bimanual_manipulation.utils.mujoco_collision import (
     check_inter_arm_collision,
     in_collision,
 )
@@ -25,7 +25,7 @@ from bimanual_manipulation.planning.ik.ik_utils import (
 from bimanual_manipulation.planning.ik.ik_utils import (
     enumerate_ik_solutions_for_arm,
 )
-from bimanual_manipulation.planning.utils.mujoco_utils import (
+from bimanual_manipulation.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_eef_site_name,
     get_environment_collision_geoms,
