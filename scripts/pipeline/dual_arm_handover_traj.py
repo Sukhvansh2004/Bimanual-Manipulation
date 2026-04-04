@@ -62,7 +62,7 @@ from bimanual_manipulation.utils.primitives import (
 from bimanual_manipulation.planning.dual_arm import DualArmParallelPlanner
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 from bimanual_manipulation.planning.trajectory.arm_planner import plan_arm_trajectory
-from bimanual_manipulation.planning.assignment.assignment_utils import (
+from bimanual_manipulation.planning.assignment.utils import (
     load_assignment_result,
     normalize_joint_angle,
 )

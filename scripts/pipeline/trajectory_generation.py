@@ -122,7 +122,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
 
-def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, vis_args=None):
+def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, collision_ignore_waypoints=None, vis_args=None):
     """Worker function to evaluate a single robot trajectory."""
     global worker_env, worker_tf_manager, worker_vis
     
@@ -145,7 +145,8 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
             object_trajectory=object_trajectory,
             object_name=object_name,
             tf_manager=worker_tf_manager,
-            ignore_names=ignore_names
+            ignore_names=ignore_names,
+            collision_ignore_waypoints=collision_ignore_waypoints,
         )
         
         # Visualize in worker process
@@ -479,6 +480,7 @@ def main() -> None:
             object_trajectory=object_trajectory, 
             object_name=object_name, 
             ignore_names=["robot1", "gripper1"],
+            collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints,
             vis_args=vis_args
         )
         robot0_trajectory_results = pool.map(eval_func0, robot0_tasks)
@@ -493,6 +495,7 @@ def main() -> None:
             object_trajectory=object_trajectory, 
             object_name=object_name, 
             ignore_names=["robot0", "gripper0", "geo_snout"],
+            collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints,
             vis_args=vis_args
         )
         robot1_trajectory_results = pool.map(eval_func1, robot1_tasks)

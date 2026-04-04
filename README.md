@@ -136,21 +136,22 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   ├── system_manager.py                    # DualArmManipulationSystem orchestrator
 │   ├── controllers/                         # Arm and gripper controllers
 │   │   ├── arm.py                           # SE(3) trajectory tracking with Lie algebra
-│   │   └── gripper.py                       # Gripper open/close control
+│   │   ├── gripper.py                       # Gripper open/close control
+│   │   └── trajectory_executor.py           # Joint trajectory execution
 │   ├── environments/                        # Robosuite environment factory (YCB support)
 │   ├── perception/                          # Object detection and grasp prediction
 │   │   ├── object_detector.py               # FastSAM-based detection
 │   │   └── grasp_predictor.py               # GraspGen wrapper
 │   ├── planning/                            # Trajectory planning and validation
-│   │   ├── collision_checker.py             # Single/dual-arm grasp feasibility
-│   │   ├── grasp_generator.py               # High-level grasp sampling API
+│   │   ├── collision_checker.py             # Single/dual-arm feasibility + waypoint processing
 │   │   ├── assignment/                      # Segment assignment planner (Viterbi DP)
 │   │   │   ├── models.py                    # ObjectTrajectory, RobotTrajectory, TrajectoryBundle
 │   │   │   ├── cost.py                      # Segment cost, cost matrix, switching cost
 │   │   │   ├── solver.py                    # Viterbi DP solver
 │   │   │   ├── result.py                    # AssignmentResult dataclass + NPZ I/O
 │   │   │   ├── trajectory_io.py             # Load trajectories from disk → TrajectoryBundle
-│   │   │   └── factories.py                 # IK / Jacobian / collision-check closures
+│   │   │   ├── factories.py                 # IK / Jacobian / collision-check closures
+│   │   │   └── utils.py                     # Normalization, smoothness, manipulability helpers
 │   │   ├── dual_arm/                        # Reactive dual-arm parallel execution (mink QP)
 │   │   ├── ik/                              # Inverse kinematics subpackage
 │   │   │   ├── ik_utils.py                  # Backend-agnostic IK dispatch & orientation helpers
@@ -162,23 +163,19 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   │   ├── core.py                      # Generic bi-directional RRT-Connect
 │   │   │   ├── se3/                         # SE(3) object trajectory planning
 │   │   │   └── joint/                       # Joint-space arm trajectory planning
-│   │   ├── trajectory/                      # High-level trajectory planners
+│   │   ├── trajectory/                      # High-level trajectory planners & I/O
 │   │   │   ├── object_planner.py            # RRT-Connect in SE(3) + Bézier smoothing
 │   │   │   ├── arm_planner.py               # Joint-space RRT + smoothing pipeline
-│   │   │   └── generator.py                 # Object/EEF trajectory generation
-│   │   ├── visualization/                   # Meshcat + matplotlib visualization
-│   │   └── utils/                           # Planning sub-utilities
-│   │       ├── mujoco_collision.py           # MuJoCo collision helpers
-│   │       ├── mujoco_utils.py              # Native MuJoCo object access
-│   │       ├── trajectory_utils.py          # Waypoint feasibility data structures
-│   │       ├── visualization_utils.py       # Meshcat planning visualization
-│   │       ├── robot_mesh_visualizer.py     # Robot mesh rendering in Meshcat
-│   │       └── object_mesh_visualizer.py    # Object mesh rendering in Meshcat
-│   ├── services/                            # Microservices
+│   │   │   ├── generator.py                 # Object/EEF trajectory generation
+│   │   │   └── utils.py                     # Trajectory save/load (NPZ) & WaypointFeasibilityResult
+│   │   └── visualization/                   # Meshcat + matplotlib visualization
+│   ├── services/                            # Microservices (ZMQ)
 │   │   ├── services_core.py                 # ServiceManager & ServiceClient (port 5555)
 │   │   ├── fastsam_service.py               # FastSAM detection (port 5551)
 │   │   ├── grasp_service.py                 # GraspGen prediction (port 5552)
-│   │   └── move_to_pose_service.py          # MoveToPose / trajectory following (port 5553)
+│   │   ├── grasp_generator.py               # High-level grasp sampling API
+│   │   ├── move_to_pose_service.py          # MoveToPose / trajectory following (port 5553)
+│   │   └── service_helpers.py               # Convenience wrappers for interactive use
 │   ├── transforms/                          # Coordinate frame management (tf-like)
 │   │   ├── stamped_pose.py                  # StampedPose and Transform classes
 │   │   ├── transform_manager.py             # Frame tree and transform lookup
@@ -186,17 +183,21 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   ├── utils/                               # Shared utilities
 │   │   ├── se3.py                           # SE(3) / so(3) Lie algebra utilities
 │   │   ├── pointcloud.py                    # Point cloud processing & deprojection
-│   │   ├── env_utils.py                     # Environment helpers (YCB, primitives, stepping)
+│   │   ├── env_utils.py                     # Environment stepping & action persistence
+│   │   ├── object_factory.py                # YCB / primitive object creation & mesh extraction
+│   │   ├── monitors.py                      # CollisionMonitor & ObjectTrajectoryMonitor
+│   │   ├── mujoco_collision.py              # MuJoCo collision detection & geom helpers
+│   │   ├── mujoco_utils.py                  # MuJoCo model/data accessors & Jacobian computation
 │   │   ├── mesh_utils.py                    # Mesh loading and sampling
 │   │   ├── meshcat_mj_utils.py              # Meshcat ↔ MuJoCo bridge
 │   │   ├── primitives.py                    # DualArmHandoverPlanner, grasp/release primitives
-│   │   ├── trajectory_math.py               # Quintic profiling, joint-space trajectory math
+│   │   ├── trajectory_math.py               # Quintic profiling, SE(3) trajectory smoothing
+│   │   ├── trajectory_visualizer.py         # Meshcat trajectory visualization
 │   │   └── suction_weld.py                  # Suction gripper weld constraints
 │   ├── models/grippers/                     # Custom gripper models (suction)
 │   ├── assets/                              # Gripper XMLs and mesh files
 │   └── teleop/                              # Keyboard teleoperation
 ├── scripts/
-│   ├── generate_all_trajs.py                # Batch trajectory generation for all experiments
 │   ├── pipeline/                            # Core planning pipeline scripts
 │   │   ├── trajectory_generation.py         # Single-mode trajectory generation
 │   │   ├── dual_trajectory_generation.py    # Dual-arm trajectory generation
@@ -216,15 +217,13 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   └── teleop_dual_arm.py               # Keyboard teleoperation
 │   └── evaluation/                          # Evaluation & benchmarking
 │       ├── run_all.py                       # Run all evaluations
-│       ├── run_paper_evaluation.py          # Paper experiment harness
 │       ├── analyze.py                       # Result analysis
-│       ├── paper_metrics.py                 # Paper-specific metrics
 │       ├── profile_assignment.py            # Assignment planner profiling
 │       ├── configs.py                       # Evaluation configurations
 │       ├── metrics.py                       # Metric computation
 │       └── results_store.py                 # Result persistence
-├── experiments/                             # JSON experiment configurations (4 main + extras)
-├── tests/                                   # Pytest test suite
+├── experiments/                             # JSON experiment configurations
+├── tests/                                   # Pytest test suite (546 tests)
 ├── data/                                    # Pre-recorded trajectory data (NPZ files)
 ├── models/                                  # Pre-trained models (FastSAM-x.pt)
 └── deps/                                    # Dependencies (GraspGen, GraspGenModels, YCB_Dataset)

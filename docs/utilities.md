@@ -176,7 +176,7 @@ When `image_flipped=True`, the function internally converts v coordinates back t
 
 ## Environment Utilities (`env_utils.py`)
 
-Helpers for interacting with the robosuite simulation environment.
+Helpers for stepping and managing the robosuite simulation environment.
 
 ### Core Functions
 
@@ -184,22 +184,24 @@ Helpers for interacting with the robosuite simulation environment.
 from bimanual_manipulation.utils.env_utils import (
     env_step,                         # Step the environment with action persistence
     set_robot_config,                 # Set robot joint configuration
-    register_mesh_extraction_env,     # Register env for mesh extraction
     ActionPersistenceManager,         # Manage action persistence across steps
     reset_action_persistence,
     get_action_persistence_manager,
 )
 ```
 
-### YCB Object Support
+### Object Factory (`object_factory.py`)
+
+YCB and primitive object creation utilities.
 
 ```python
-from bimanual_manipulation.utils.env_utils import (
+from bimanual_manipulation.utils.object_factory import (
     get_available_ycb_objects,   # List available YCB objects in the dataset
     list_ycb_objects,            # Print available objects
     resolve_mesh_path,           # Get mesh file path for a YCB object
     create_ycb_object,           # Create a YCB object specification dict
     create_primitive_object,     # Create a primitive (box, cylinder, etc.) spec
+    register_mesh_extraction_env,# Register env for mesh extraction
 )
 
 # List available objects
@@ -208,6 +210,17 @@ objects = get_available_ycb_objects()
 # Create specs for environment construction
 ycb_spec = create_ycb_object("mug", position=[0.5, 0, 0.85])
 prim_spec = create_primitive_object("box", "plate", size=[0.2, 0.2, 0.02], position=[0.3, 0, 0.85])
+```
+
+### Monitors (`monitors.py`)
+
+Runtime collision detection and object trajectory tracking.
+
+```python
+from bimanual_manipulation.utils.monitors import (
+    CollisionMonitor,            # Counts collisions during execution
+    ObjectTrajectoryMonitor,     # Records object poses over time
+)
 ```
 
 ## Mesh Utilities (`mesh_utils.py`)

@@ -3,7 +3,7 @@
 Provides :class:`AssignmentResult` — the output of
 :func:`~solver.compute_optimal_robot_assignment`.
 
-See :mod:`~bimanual_manipulation.planning.assignment.assignment_utils` for
+See :mod:`~bimanual_manipulation.planning.assignment.utils` for
 NPZ persistence helpers (``save_assignment_result`` /
 ``load_assignment_result``).
 """

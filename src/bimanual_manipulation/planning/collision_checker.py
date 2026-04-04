@@ -576,7 +576,8 @@ def check_trajectory_feasibility(
     check_collisions: bool = True,
     env_lock = None,
     ignore_names: Optional[List[str]] = None,
-    arm: str = "right"
+    arm: str = "right",
+    collision_ignore_waypoints: Optional[List[int]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], bool]:
     """
     Check trajectory feasibility and return detailed per-waypoint results.
@@ -592,6 +593,8 @@ def check_trajectory_feasibility(
         env_lock: Optional threading.RLock
         ignore_names: List of geom names to ignore in collision checking.
         arm: Arm side ("right" or "left").
+        collision_ignore_waypoints: Waypoint indices to skip collision checking for.
+            Useful for waypoints near tight clearances where collisions are expected.
         
     Returns:
         Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
@@ -640,6 +643,8 @@ def check_trajectory_feasibility(
             current_ignore_names, current_ignore_pairs = resolve_ignore_names(object_name, ignore_names, robot_id=robot_id)
             logger.debug(f"Collision checking: ignore_names={current_ignore_names}, ignore_pairs={current_ignore_pairs}")
 
+            ignore_set = set(collision_ignore_waypoints) if collision_ignore_waypoints else set()
+
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
                 if object_trajectory is not None and obj_joint_addr is not None:
@@ -649,14 +654,15 @@ def check_trajectory_feasibility(
                     data.qpos[obj_joint_addr:obj_joint_addr+3] = pos
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
-                # 2. Check Waypoint
+                # 2. Check Waypoint (skip collision check for ignored waypoints)
+                wp_check_collisions = check_collisions and (i not in ignore_set)
                 result, new_config = process_waypoint(
                     env=env,
                     robot_id=robot_id,
                     waypoint_index=i,
                     pose=pose,
                     qpos_idx=qpos_idx,
-                    check_collisions=check_collisions,
+                    check_collisions=wp_check_collisions,
                     ignore_names=current_ignore_names,
                     last_config=last_config,
                     tf_manager=tf_manager,
@@ -692,7 +698,8 @@ def check_dual_trajectory_feasibility(
     check_collisions: bool = True,
     env_lock = None,
     ignore_names: Optional[List[str]] = None,
-    arm: str = "right"
+    arm: str = "right",
+    collision_ignore_waypoints: Optional[List[int]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], List[WaypointFeasibilityResult], bool]:
     """
     Check simultaneous feasibility of two robot trajectories.
@@ -742,6 +749,9 @@ def check_dual_trajectory_feasibility(
             last_config0 = None 
             last_config1 = None
             
+            # Build set of waypoint indices to skip collision checking
+            ignore_set = set(collision_ignore_waypoints) if collision_ignore_waypoints else set()
+            
             # Resolve ignore names and pairs for dual-arm
             # Both robots hold the object at different times, so create pairs for both grippers
             current_ignore_names, current_ignore_pairs = resolve_ignore_names(object_name, ignore_names)
@@ -762,6 +772,7 @@ def check_dual_trajectory_feasibility(
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Check Waypoint for both
+                wp_check_collisions = check_collisions and (i not in ignore_set)
                 res0, res1, new_config0, new_config1 = process_dual_waypoint(
                     env=env,
                     waypoint_index=i,
@@ -769,7 +780,7 @@ def check_dual_trajectory_feasibility(
                     pose1=eef_trajectory1[i],
                     qpos_idx0=qpos_idx0,
                     qpos_idx1=qpos_idx1,
-                    check_collisions=check_collisions,
+                    check_collisions=wp_check_collisions,
                     ignore_names=current_ignore_names,
                     last_config0=last_config0,
                     last_config1=last_config1,

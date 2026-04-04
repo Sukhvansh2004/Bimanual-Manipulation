@@ -36,7 +36,7 @@ from bimanual_manipulation.planning.assignment.models import (
 from bimanual_manipulation.planning.ik.manipulability import (
     compute_trajectory_manipulability,
 )
-from bimanual_manipulation.planning.assignment.assignment_utils import (
+from bimanual_manipulation.planning.assignment.utils import (
     compute_smoothness as _compute_smoothness,
     compute_manipulability_cost as _compute_manipulability_cost,
     frame_id_at as _frame_id_at,

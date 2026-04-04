@@ -37,7 +37,7 @@ import meshcat.geometry as g
 import numpy as np
 
 from bimanual_manipulation import constants
-from bimanual_manipulation.planning.assignment.assignment_utils import (
+from bimanual_manipulation.planning.assignment.utils import (
     load_assignment_result,
 )
 from bimanual_manipulation.planning.assignment.result import AssignmentResult

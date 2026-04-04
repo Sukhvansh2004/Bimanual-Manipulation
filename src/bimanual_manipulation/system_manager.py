@@ -55,6 +55,8 @@ class DualArmManipulationSystem:
             has_renderer: bool = True,
             table_full_size: Optional[Any] = None,
             start_services: bool = True,
+            server_host: Optional[str] = None,
+            server_port: int = constants.SERVICE_MANAGER_PORT,
             ):
         
         self.custom_objects = custom_objects
@@ -68,6 +70,8 @@ class DualArmManipulationSystem:
         self.use_grasp_service = use_grasp_service
         self.has_renderer = has_renderer
         self.start_services = start_services
+        self.server_host = server_host
+        self.server_port = server_port
         # Use RLock to prevent deadlocks (TransformManager re-acquires it)
         self.env_lock = threading.RLock()
 
@@ -300,54 +304,70 @@ class DualArmManipulationSystem:
             logger.info(f"   Registered dynamic TF frame '{frame_id}'")
         
     def _start_services(self):
-        """Start all services."""
+        """Start services.
+        
+        In client-only mode (server_host is set), connects to a remote
+        ServiceManager instead of starting one locally. GPU-bound services
+        (FastSAM, Grasp) are assumed to run on the remote server.
+        Only the local MoveToPose service is started.
+        """
         try:
-            # Start Service Manager
-            logger.info("   Starting Service Manager...")
-            self.service_manager = ServiceManager()
-            self.service_manager.start()
-            time.sleep(0.5)
-            logger.info("   ✓ Service Manager started")
-            
-            # Initialize client
-            self.service_client = ServiceClient()
-            
-            # Start FastSAM service
-            if self.use_fastsam:
-                logger.info("   Starting FastSAM service...")
-                assert self.env is not None
-                self.fastsam_service = FastSAMService(
-                    visualize=self.visualize,
-                    debug=False,
-                    tf_manager=self.tf_manager,
+            if self.server_host:
+                # Client-only mode: connect to remote ServiceManager
+                logger.info("   Client-only mode: connecting to remote server at %s:%d...",
+                            self.server_host, self.server_port)
+                self.service_client = ServiceClient(
+                    manager_host=self.server_host,
+                    manager_port=self.server_port,
                 )
-                self.fastsam_service.start()
+                logger.info("   ✓ Connected to remote Service Manager")
+            else:
+                # Full mode: start local ServiceManager + GPU services
+                logger.info("   Starting Service Manager...")
+                self.service_manager = ServiceManager()
+                self.service_manager.start()
                 time.sleep(0.5)
+                logger.info("   ✓ Service Manager started")
                 
-                # Set initial prompt
-                self.service_client.call('fastsam_service', {
-                    'command': 'SET_PROMPT',
-                    'prompt': self.detection_prompt
-                })
-                logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
-            else:
-                logger.info("   FastSAM service disabled by flag")
+                # Initialize client
+                self.service_client = ServiceClient()
+                
+                # Start FastSAM service
+                if self.use_fastsam:
+                    logger.info("   Starting FastSAM service...")
+                    assert self.env is not None
+                    self.fastsam_service = FastSAMService(
+                        visualize=self.visualize,
+                        debug=False,
+                        tf_manager=self.tf_manager,
+                    )
+                    self.fastsam_service.start()
+                    time.sleep(0.5)
+                    
+                    # Set initial prompt
+                    self.service_client.call('fastsam_service', {
+                        'command': 'SET_PROMPT',
+                        'prompt': self.detection_prompt
+                    })
+                    logger.info(f"   ✓ FastSAM service started (prompt: '{self.detection_prompt}')")
+                else:
+                    logger.info("   FastSAM service disabled by flag")
+                
+                # Start Grasp service
+                if self.use_grasp_service:
+                    logger.info("   Starting Grasp service...")
+                    self.grasp_service = GraspService(
+                        tf_manager=self.tf_manager,
+                        debug=self.debug,
+                        visualize=self.visualize,
+                    )
+                    self.grasp_service.start()
+                    time.sleep(0.5)
+                    logger.info("   ✓ Grasp service started")
+                else:
+                    logger.info("   Grasp service disabled by flag")
             
-            # Start Grasp service
-            if self.use_grasp_service:
-                logger.info("   Starting Grasp service...")
-                self.grasp_service = GraspService(
-                    tf_manager=self.tf_manager,
-                    debug=self.debug,
-                    visualize=self.visualize,
-                )
-                self.grasp_service.start()
-                time.sleep(0.5)
-                logger.info("   ✓ Grasp service started")
-            else:
-                logger.info("   Grasp service disabled by flag")
-            
-            # Start Move To Pose service
+            # Start Move To Pose service (always local — needs env access)
             logger.info("   Starting Move To Pose service...")
             self.move_service = MoveToPoseService()
             # Register controllers

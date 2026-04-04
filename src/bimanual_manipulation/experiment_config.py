@@ -57,6 +57,7 @@ class PlanningConfig:
     lift_height: float = constants.OBJECT_TRAJ_LIFT_HEIGHT
     approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
     rrt_bounds: Optional[np.ndarray] = None  # (2, 3) array [[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]
+    collision_ignore_waypoints: Optional[List[int]] = None  # Waypoint indices to skip collision checking
 
 
 @dataclass
@@ -251,6 +252,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         lift_height=plan_raw.get("lift_height", constants.OBJECT_TRAJ_LIFT_HEIGHT),
         approach_offset=plan_raw.get("approach_offset", constants.OBJECT_TRAJ_APPROACH_OFFSET),
         rrt_bounds=rrt_bounds,
+        collision_ignore_waypoints=plan_raw.get("collision_ignore_waypoints", None),
     )
 
     # --- collision filter ---

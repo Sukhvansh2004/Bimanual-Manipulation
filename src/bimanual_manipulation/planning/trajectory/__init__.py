@@ -29,10 +29,18 @@ from bimanual_manipulation.planning.trajectory.generator import (
     generate_object_trajectory,
     generate_end_effector_trajectory,
 )
+from bimanual_manipulation.planning.trajectory.utils import (
+    save_trajectory,
+    load_trajectory,
+    WaypointFeasibilityResult,
+)
 
 __all__ = [
     "plan_object_trajectory",
     "plan_arm_trajectory",
     "generate_object_trajectory",
     "generate_end_effector_trajectory",
+    "save_trajectory",
+    "load_trajectory",
+    "WaypointFeasibilityResult",
 ]

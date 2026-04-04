@@ -138,16 +138,24 @@ Wraps the GraspGen service to provide high-level grasp sampling APIs.
 | `mink_solver.py` | QP-based iterative differential IK via mink |
 | `manipulability.py` | Yoshikawa manipulability measure and trajectory-level wrappers |
 
-### 6. Planning Utilities (`planning/utils/`)
+### 6. Trajectory Utilities (`planning/trajectory/utils.py`)
+
+Trajectory I/O and feasibility data types:
+
+| Symbol | Purpose |
+|--------|--------|
+| `WaypointFeasibilityResult` | Dataclass for per-waypoint IK + collision results |
+| `save_trajectory()` | Save EEF/object trajectories + feasibility to NPZ |
+| `load_trajectory()` | Load trajectories from NPZ files |
+
+### 6a. Planning Visualization (`planning/visualization/`)
 
 | Module | Purpose |
 |--------|--------|
-| `mujoco_collision.py` | MuJoCo geom ID lookups, robot geom masks, collision filtering |
-| `mujoco_utils.py` | Native MuJoCo model/data access for direct C API calls |
-| `trajectory_utils.py` | `WaypointFeasibilityResult` dataclass for per-waypoint results |
-| `visualization_utils.py` | General Meshcat visualization helpers |
-| `robot_mesh_visualizer.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
-| `object_mesh_visualizer.py` | Object mesh rendering along planned trajectory |
+| `trajectory.py` | Meshcat trajectory visualization helpers |
+| `robot_mesh.py` | Robot mesh rendering in Meshcat (ghost robots along trajectory) |
+| `object_mesh.py` | Object mesh rendering along planned trajectory |
+| `handover.py` | Handover visualization |
 
 ### 7. Dual-Arm Parallel Planner (`dual_arm/`)
 
