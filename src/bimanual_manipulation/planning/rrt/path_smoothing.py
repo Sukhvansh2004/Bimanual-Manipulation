@@ -142,7 +142,7 @@ def densify_generic(
 
 def compute_bezier_control_points(
     waypoints: List[np.ndarray],
-    tension: float = None,
+    tension: float = constants.BEZIER_TENSION,
 ) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """Compute cubic Bézier control points for a polyline.
 
@@ -165,9 +165,6 @@ def compute_bezier_control_points(
     n = len(waypoints)
     if n < 2:
         return []
-
-    if tension is None:
-        tension = constants.BEZIER_TENSION
 
     tangents = []
     for i in range(n):
@@ -206,8 +203,7 @@ def bezier_smooth_generic(
     collision_fn: Callable[[Any], bool],
     eval_segment_fn: Callable[[list, int, int], list],
     linear_fallback_fn: Callable[[Any, Any, int], list],
-    samples_per_segment: int = None,
-    tension: float = None,
+    samples_per_segment: int = constants.BEZIER_SAMPLES_PER_SEGMENT,
 ) -> list:
     """Domain-agnostic per-segment Bézier smoothing with collision fallback.
 
@@ -237,8 +233,6 @@ def bezier_smooth_generic(
     Returns:
         Densely sampled smoothed path.
     """
-    if samples_per_segment is None:
-        samples_per_segment = constants.BEZIER_SAMPLES_PER_SEGMENT
 
     if len(path) <= 1:
         return list(path)
