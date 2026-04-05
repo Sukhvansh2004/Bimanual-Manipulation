@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
+import subprocess
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -94,7 +95,7 @@ class ResultAggregator:
             "n_assign_ok": n_assign_ok,
             "n_exec": n_exec,
             "assign_rate": (n_assign_ok / n) * 100 if n > 0 else 0.0,
-            "exec_rate": (n_exec / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
+            "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
@@ -168,7 +169,7 @@ class ResultAggregator:
             "n_assign_ok": n_assign_ok,
             "n_exec": n_exec,
             "assign_rate": (n_assign_ok / n_total) * 100 if n_total > 0 else 0.0,
-            "exec_rate": (n_exec / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
+            "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n_total) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
@@ -635,6 +636,7 @@ def main():
     parser = argparse.ArgumentParser(description="Detailed result analysis")
     parser.add_argument("--results-dir", type=str, default=str(RESULTS_ROOT))
     parser.add_argument("--output-dir", type=str, default=None)
+    parser.add_argument("--pdf", action="store_true", help="Generate PDF from the Markdown report")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
@@ -666,6 +668,19 @@ def main():
             print(f"{exp:<35} {cfg:<30} {s['assign_rate']:>8.1f}% {s['exec_rate']:>7.1f}% {s['success_rate']:>7.1f}% {s['cost_mean']:>10.1f}")
 
     logger.info(f"Analysis complete. Full report at {out_dir}/comprehensive_report.md")
+
+    if args.pdf:
+        md_path = out_dir / "comprehensive_report.md"
+        md_to_pdf_script = _PROJECT_ROOT / "scripts" / "utils" / "md_to_pdf.py"
+        logger.info("Generating PDF from Markdown report...")
+        result = subprocess.run(
+            [sys.executable, str(md_to_pdf_script), str(md_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            logger.info(result.stdout.strip())
+        else:
+            logger.error(f"PDF generation failed: {result.stderr.strip()}")
 
 if __name__ == "__main__":
     main()
