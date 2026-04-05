@@ -177,7 +177,7 @@ def main():
 
     if args.experiments:
         experiments = sorted(args.experiments)
-    else:
+    else: # Run all the experiments if none are specified; discover them by looking for JSON files in the experiments directory
         exp_dir = Path(_PROJECT_ROOT) / "experiments"
         experiments = sorted(f.stem for f in exp_dir.glob("*.json"))
     
