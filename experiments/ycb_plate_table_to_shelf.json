@@ -49,7 +49,9 @@
         "rrt_bounds": [
             [-0.6, -0.4, 0.9],
             [0.5, 0.4, 1.7]
-        ]
+        ],
+        "collision_ignore_waypoints": [0],
+        "collision_ignore_waypoint_pairs": [["gripper1", "table"]]
     },
     "collision_filter": {
         "relevant_patterns": ["plate", "tshelf", "table_shelf"]

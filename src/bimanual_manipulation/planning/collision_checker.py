@@ -578,6 +578,8 @@ def check_trajectory_feasibility(
     ignore_names: Optional[List[str]] = None,
     arm: str = "right",
     collision_ignore_waypoints: Optional[List[int]] = None,
+    collision_ignore_waypoint_names: Optional[List[str]] = None,
+    collision_ignore_waypoint_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], bool]:
     """
     Check trajectory feasibility and return detailed per-waypoint results.
@@ -595,6 +597,13 @@ def check_trajectory_feasibility(
         arm: Arm side ("right" or "left").
         collision_ignore_waypoints: Waypoint indices to skip collision checking for.
             Useful for waypoints near tight clearances where collisions are expected.
+        collision_ignore_waypoint_names: Geom name prefixes to additionally ignore
+            at the waypoints listed in collision_ignore_waypoints. When None (and
+            collision_ignore_waypoint_pairs is also None), all collision checking
+            is skipped at those waypoints.
+        collision_ignore_waypoint_pairs: Geom prefix pairs ``(a, b)`` to
+            additionally ignore at the waypoints listed in
+            collision_ignore_waypoints.
         
     Returns:
         Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
@@ -644,6 +653,11 @@ def check_trajectory_feasibility(
             logger.debug(f"Collision checking: ignore_names={current_ignore_names}, ignore_pairs={current_ignore_pairs}")
 
             ignore_set = set(collision_ignore_waypoints) if collision_ignore_waypoints else set()
+            # Determine whether ignored waypoints use selective or blanket ignore
+            has_selective_ignore = (
+                collision_ignore_waypoint_names is not None
+                or collision_ignore_waypoint_pairs is not None
+            )
 
             for i, pose in enumerate(eef_trajectory):
                 # 1. Update Object Pose if provided
@@ -655,7 +669,17 @@ def check_trajectory_feasibility(
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Check Waypoint (skip collision check for ignored waypoints)
-                wp_check_collisions = check_collisions and (i not in ignore_set)
+                wp_check_collisions = check_collisions
+                wp_ignore_names = current_ignore_names
+                wp_ignore_pairs = current_ignore_pairs
+                if i in ignore_set:
+                    if has_selective_ignore:
+                        # Merge extra ignore names/pairs for this waypoint
+                        wp_ignore_names = current_ignore_names + (collision_ignore_waypoint_names or [])
+                        wp_ignore_pairs = current_ignore_pairs + (collision_ignore_waypoint_pairs or [])
+                    else:
+                        # No specific names/pairs → skip all collision checking
+                        wp_check_collisions = False
                 result, new_config = process_waypoint(
                     env=env,
                     robot_id=robot_id,
@@ -663,11 +687,11 @@ def check_trajectory_feasibility(
                     pose=pose,
                     qpos_idx=qpos_idx,
                     check_collisions=wp_check_collisions,
-                    ignore_names=current_ignore_names,
+                    ignore_names=wp_ignore_names,
                     last_config=last_config,
                     tf_manager=tf_manager,
                     arm=arm,
-                    ignore_pairs=current_ignore_pairs,
+                    ignore_pairs=wp_ignore_pairs,
                 )
                 
                 results.append(result)
@@ -700,6 +724,8 @@ def check_dual_trajectory_feasibility(
     ignore_names: Optional[List[str]] = None,
     arm: str = "right",
     collision_ignore_waypoints: Optional[List[int]] = None,
+    collision_ignore_waypoint_names: Optional[List[str]] = None,
+    collision_ignore_waypoint_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], List[WaypointFeasibilityResult], bool]:
     """
     Check simultaneous feasibility of two robot trajectories.
@@ -751,6 +777,10 @@ def check_dual_trajectory_feasibility(
             
             # Build set of waypoint indices to skip collision checking
             ignore_set = set(collision_ignore_waypoints) if collision_ignore_waypoints else set()
+            has_selective_ignore = (
+                collision_ignore_waypoint_names is not None
+                or collision_ignore_waypoint_pairs is not None
+            )
             
             # Resolve ignore names and pairs for dual-arm
             # Both robots hold the object at different times, so create pairs for both grippers
@@ -772,7 +802,15 @@ def check_dual_trajectory_feasibility(
                     data.qpos[obj_joint_addr+3:obj_joint_addr+7] = quat
                 
                 # 2. Check Waypoint for both
-                wp_check_collisions = check_collisions and (i not in ignore_set)
+                wp_check_collisions = check_collisions
+                wp_ignore_names = current_ignore_names
+                wp_ignore_pairs = current_ignore_pairs
+                if i in ignore_set:
+                    if has_selective_ignore:
+                        wp_ignore_names = current_ignore_names + (collision_ignore_waypoint_names or [])
+                        wp_ignore_pairs = current_ignore_pairs + (collision_ignore_waypoint_pairs or [])
+                    else:
+                        wp_check_collisions = False
                 res0, res1, new_config0, new_config1 = process_dual_waypoint(
                     env=env,
                     waypoint_index=i,
@@ -781,12 +819,12 @@ def check_dual_trajectory_feasibility(
                     qpos_idx0=qpos_idx0,
                     qpos_idx1=qpos_idx1,
                     check_collisions=wp_check_collisions,
-                    ignore_names=current_ignore_names,
+                    ignore_names=wp_ignore_names,
                     last_config0=last_config0,
                     last_config1=last_config1,
                     tf_manager=tf_manager,
                     arm=arm,
-                    ignore_pairs=current_ignore_pairs,
+                    ignore_pairs=wp_ignore_pairs,
                 )
                 
                 results0.append(res0)

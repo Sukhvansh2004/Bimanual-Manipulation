@@ -122,7 +122,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
 
-def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, collision_ignore_waypoints=None, vis_args=None):
+def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, collision_ignore_waypoints=None, collision_ignore_waypoint_names=None, collision_ignore_waypoint_pairs=None, vis_args=None):
     """Worker function to evaluate a single robot trajectory."""
     global worker_env, worker_tf_manager, worker_vis
     
@@ -147,6 +147,8 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
             tf_manager=worker_tf_manager,
             ignore_names=ignore_names,
             collision_ignore_waypoints=collision_ignore_waypoints,
+            collision_ignore_waypoint_names=collision_ignore_waypoint_names,
+            collision_ignore_waypoint_pairs=collision_ignore_waypoint_pairs,
         )
         
         # Visualize in worker process
@@ -481,6 +483,8 @@ def main() -> None:
             object_name=object_name, 
             ignore_names=["robot1", "gripper1"],
             collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints,
+            collision_ignore_waypoint_names=plan_cfg.collision_ignore_waypoint_names,
+            collision_ignore_waypoint_pairs=plan_cfg.collision_ignore_waypoint_pairs,
             vis_args=vis_args
         )
         robot0_trajectory_results = pool.map(eval_func0, robot0_tasks)
@@ -496,6 +500,8 @@ def main() -> None:
             object_name=object_name, 
             ignore_names=["robot0", "gripper0", "geo_snout"],
             collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints,
+            collision_ignore_waypoint_names=plan_cfg.collision_ignore_waypoint_names,
+            collision_ignore_waypoint_pairs=plan_cfg.collision_ignore_waypoint_pairs,
             vis_args=vis_args
         )
         robot1_trajectory_results = pool.map(eval_func1, robot1_tasks)

@@ -58,6 +58,8 @@ class PlanningConfig:
     approach_offset: float = constants.OBJECT_TRAJ_APPROACH_OFFSET
     rrt_bounds: Optional[np.ndarray] = None  # (2, 3) array [[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]
     collision_ignore_waypoints: Optional[List[int]] = None  # Waypoint indices to skip collision checking
+    collision_ignore_waypoint_names: Optional[List[str]] = None  # Geom prefixes to ignore at those waypoints
+    collision_ignore_waypoint_pairs: Optional[List[Tuple[str, str]]] = None  # Geom prefix pairs to ignore at those waypoints
 
 
 @dataclass
@@ -253,6 +255,10 @@ def load_experiment(path: str) -> ExperimentConfig:
         approach_offset=plan_raw.get("approach_offset", constants.OBJECT_TRAJ_APPROACH_OFFSET),
         rrt_bounds=rrt_bounds,
         collision_ignore_waypoints=plan_raw.get("collision_ignore_waypoints", None),
+        collision_ignore_waypoint_names=plan_raw.get("collision_ignore_waypoint_names", None),
+        collision_ignore_waypoint_pairs=[
+            tuple(p) for p in plan_raw["collision_ignore_waypoint_pairs"]
+        ] if plan_raw.get("collision_ignore_waypoint_pairs") else None,
     )
 
     # --- collision filter ---

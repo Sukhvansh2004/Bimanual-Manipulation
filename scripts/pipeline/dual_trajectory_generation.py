@@ -126,7 +126,7 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
     except Exception as e:
         logging.error(f"Worker initialization failed: {e}")
 
-def evaluate_pair(pair_info, object_trajectory, object_name, collision_ignore_waypoints=None):
+def evaluate_pair(pair_info, object_trajectory, object_name, collision_ignore_waypoints=None, collision_ignore_waypoint_names=None, collision_ignore_waypoint_pairs=None):
     """
     Worker function to evaluate a single pair of grasps using the persistent environment.
     """
@@ -153,6 +153,8 @@ def evaluate_pair(pair_info, object_trajectory, object_name, collision_ignore_wa
             tf_manager=worker_tf_manager,
             ignore_names=["geo_snout"],
             collision_ignore_waypoints=collision_ignore_waypoints,
+            collision_ignore_waypoint_names=collision_ignore_waypoint_names,
+            collision_ignore_waypoint_pairs=collision_ignore_waypoint_pairs,
         )
         
         if all_feasible:
@@ -385,7 +387,7 @@ def main() -> None:
         initializer=init_worker,
         initargs=(ycb_objects, custom_objects, log_level, collision_relevant_patterns, table_full_size)
     ) as pool:
-        eval_func = partial(evaluate_pair, object_trajectory=object_trajectory, object_name=object_name, collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints)
+        eval_func = partial(evaluate_pair, object_trajectory=object_trajectory, object_name=object_name, collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints, collision_ignore_waypoint_names=plan_cfg.collision_ignore_waypoint_names, collision_ignore_waypoint_pairs=plan_cfg.collision_ignore_waypoint_pairs)
         all_results = pool.map(eval_func, grasp_pairs)
     
     # Filter out None results from workers
