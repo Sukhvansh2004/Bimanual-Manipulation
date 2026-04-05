@@ -164,6 +164,8 @@ def main():
                              "iterations and already-finished experiments")
     parser.add_argument("--reuse-object-traj", action="store_true",
                         help="Reuse cached object trajectories across iterations")
+    parser.add_argument("--base-seed", type=int, default=42,
+                        help="Base random seed (iteration i uses base_seed + i)")
     args = parser.parse_args()
 
     setup_logging(args.log_file)
@@ -237,7 +239,7 @@ def main():
                     sys.executable, TRAJ_GEN_SCRIPT,
                     "--experiment", f"experiments/{exp}.json",
                     "--save-traj", "--no-meshcat",
-                    "--workers", str(args.workers), "--seed", str(42 + i),
+                    "--workers", str(args.workers), "--seed", str(args.base_seed + i),
                 ]
                 if args.reuse_object_traj:
                     gen_cmd.append("--reuse-object-traj")
@@ -256,7 +258,7 @@ def main():
                     sys.executable, TRAJ_GEN_SCRIPT,
                     "--experiment", f"experiments/{exp}.json",
                     "--save-traj", "--no-meshcat",
-                    "--workers", str(args.workers), "--seed", str(42 + i), "--no-dpp",
+                    "--workers", str(args.workers), "--seed", str(args.base_seed + i), "--no-dpp",
                 ]
                 if args.reuse_object_traj:
                     no_dpp_cmd.append("--reuse-object-traj")
