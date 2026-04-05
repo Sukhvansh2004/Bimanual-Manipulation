@@ -92,7 +92,9 @@ class ResultAggregator:
         return {
             "n": n,
             "n_assign_ok": n_assign_ok,
+            "n_exec": n_exec,
             "assign_rate": (n_assign_ok / n) * 100 if n > 0 else 0.0,
+            "exec_rate": (n_exec / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
@@ -164,7 +166,9 @@ class ResultAggregator:
         return {
             "n": n_total,
             "n_assign_ok": n_assign_ok,
+            "n_exec": n_exec,
             "assign_rate": (n_assign_ok / n_total) * 100 if n_total > 0 else 0.0,
+            "exec_rate": (n_exec / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n_total) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
@@ -317,6 +321,25 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     plt.savefig(out_dir / "global_assignment_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
+    # 6b. Execution Success Rate Heatmap (of valid assignments)
+    plt.figure(figsize=(hm_w, hm_h))
+    data_exec = np.zeros((n_exp, n_cfg))
+    for i, exp in enumerate(agg.exps):
+        for j, cfg in enumerate(agg.configs):
+            stats = agg.get_stats(exp, cfg)
+            data_exec[i, j] = stats["exec_rate"] if stats else 0
+    im = plt.imshow(data_exec, cmap="Purples", vmin=0, vmax=100, aspect='auto')
+    plt.colorbar(im, label="Execution Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
+            plt.text(j, i, f"{data_exec[i,j]:.0f}", ha="center", va="center", color="black", fontsize=6)
+    plt.title("Execution Rate (%) — Valid Assignments That Were Executed")
+    plt.tight_layout()
+    plt.savefig(out_dir / "global_execution_success_heatmap.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
     # 7. Grasp Success Rate Heatmap
     plt.figure(figsize=(hm_w, hm_h))
     data_grasp = np.zeros((n_exp, n_cfg))
@@ -402,10 +425,10 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
         gs = agg.get_global_stats(cfg)
         if not gs:
             continue
-        stages = [gs["assign_rate"], gs["grasp_rate"],
+        stages = [gs["assign_rate"], gs["exec_rate"], gs["grasp_rate"],
                   gs["ho_rate_mean"] if not np.isnan(gs["ho_rate_mean"]) else 0,
                   gs["success_rate"]]
-        stage_labels = ["Assignment", "Grasp", "Handover", "Task"]
+        stage_labels = ["Assignment", "Execution", "Grasp", "Handover", "Task"]
         ax.plot(stage_labels, stages, marker='o', label=cfg, linewidth=2, markersize=6)
     ax.set_ylabel("Success Rate (%)")
     ax.set_ylim(-5, 105)
@@ -487,8 +510,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
         "\n## 1. Global Aggregate by Configuration",
         "\nThis section averages performance metrics across all experiments for each configuration.",
-        "\n| Configuration | Assign % | Grasp % | Success % | Handover % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+        "\n| Configuration | Assign % | Exec % | Grasp % | Success % | Handover % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
     ]
 
     for cfg in agg.configs:
@@ -498,12 +521,13 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         po = _fmt(s.get('place_ori_mean'), '.1f')
         hr = _fmt(s.get('ho_rate_mean'), '.1f')
         ar = _fmt(s.get('assign_rate'), '.1f')
+        er = _fmt(s.get('exec_rate'), '.1f')
         gr = _fmt(s.get('grasp_rate'), '.1f')
-        lines.append(f"| {cfg} | {ar}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
+        lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
 
     lines.append("\n## 2. Detailed Summary Table")
-    lines.append("\n| Experiment | Configuration | Runs | Assign % | Grasp % | Success % | Handover % | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
-    lines.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
+    lines.append("\n| Experiment | Configuration | Runs | Assign % | Exec % | Grasp % | Success % | Handover % | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
+    lines.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
     
     for exp in agg.exps:
         for cfg in agg.configs:
@@ -512,10 +536,11 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
             cost_str = f"{s['cost_mean']:.1f} ± {s['cost_std']:.1f}"
             hr = _fmt(s.get('ho_rate_mean'), '.1f')
             ar = _fmt(s.get('assign_rate'), '.1f')
+            er = _fmt(s.get('exec_rate'), '.1f')
             gr = _fmt(s.get('grasp_rate'), '.1f')
             pp = f"{s['place_pos_mean']:.4f} ± {s['place_pos_std']:.4f}" if not np.isnan(s['place_pos_mean']) else 'N/A'
             po = f"{s['place_ori_mean']:.1f} ± {s['place_ori_std']:.1f}" if not np.isnan(s['place_ori_mean']) else 'N/A'
-            lines.append(f"| {exp} | {cfg} | {s['n']} | {ar}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
+            lines.append(f"| {exp} | {cfg} | {s['n']} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
 
     lines.append("\n## 3. Key Findings and Visualizations")
     lines.append("\n### 3.1 Success Rates")
@@ -531,6 +556,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("![Placement Error Boxplots](figures/global_placement_error_boxplots.png)")
     lines.append("\n### 3.6 Assignment Success")
     lines.append("![Assignment Success](figures/global_assignment_success_heatmap.png)")
+    lines.append("\n### 3.6b Execution Success (of valid assignments)")
+    lines.append("![Execution Success](figures/global_execution_success_heatmap.png)")
     lines.append("\n### 3.7 Grasp Success")
     lines.append("![Grasp Success](figures/global_grasp_success_heatmap.png)")
     lines.append("\n### 3.8 Handover Success")
@@ -588,17 +615,18 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
-        lines.append("| Config | Assign % | Grasp % | Success % | Handover % | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        lines.append("| Config | Assign % | Exec % | Grasp % | Success % | Handover % | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
             hr = _fmt(s.get('ho_rate_mean'), '.1f')
             ar = _fmt(s.get('assign_rate'), '.1f')
+            er = _fmt(s.get('exec_rate'), '.1f')
             gr = _fmt(s.get('grasp_rate'), '.1f')
             pp = _fmt(s.get('place_pos_mean'), '.4f')
             po = _fmt(s.get('place_ori_mean'), '.1f')
-            lines.append(f"| {cfg} | {ar}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} |")
+            lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} |")
 
     out_path.write_text("\n".join(lines))
     logger.info(f"Markdown report generated: {out_path}")
@@ -628,14 +656,14 @@ def main():
     write_markdown_report(agg, out_dir / "comprehensive_report.md")
     
     # Simple console summary
-    print(f"\n{'='*100}")
-    print(f"{'Experiment':<35} {'Config':<30} {'Succ %':>8} {'Cost Avg':>10}")
-    print(f"{'='*100}")
+    print(f"\n{'='*115}")
+    print(f"{'Experiment':<35} {'Config':<30} {'Assign %':>9} {'Exec %':>8} {'Succ %':>8} {'Cost Avg':>10}")
+    print(f"{'='*115}")
     for exp in agg.exps:
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
-            print(f"{exp:<35} {cfg:<30} {s['success_rate']:>7.1f}% {s['cost_mean']:>10.1f}")
+            print(f"{exp:<35} {cfg:<30} {s['assign_rate']:>8.1f}% {s['exec_rate']:>7.1f}% {s['success_rate']:>7.1f}% {s['cost_mean']:>10.1f}")
 
     logger.info(f"Analysis complete. Full report at {out_dir}/comprehensive_report.md")
 
