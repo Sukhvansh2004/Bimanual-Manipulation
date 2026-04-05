@@ -34,7 +34,7 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [-0.30, 0.10, 1.25],
+            "position": [-0.30, 0.10, 1.265],
             "quaternion": [0, 1, 0, 0],
             "_comment": "Inverted (180° around Y) on the elevated rack"
         }

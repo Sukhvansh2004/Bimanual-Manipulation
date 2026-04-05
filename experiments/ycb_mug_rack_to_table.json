@@ -12,7 +12,7 @@
             },
             {
                 "ycb_name": "mug",
-                "position": [-0.30, 0.10, 1.25],
+                "position": [-0.30, 0.10, 1.265],
                 "quaternion": [0, 1, 0, 0],
                 "_comment": "Mug inverted (180° around Y): opening faces down on rack"
             }
