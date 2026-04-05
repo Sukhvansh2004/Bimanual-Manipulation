@@ -11,7 +11,6 @@ import argparse
 import logging
 import os
 import sys
-import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -71,29 +70,36 @@ class ResultAggregator:
         grasp_ok = sum(1 for r in rs if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs if r.execution)
 
-        # Grasp breakdown by gripper type
+        # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
         for r in rs:
-            g = getattr(r.planning, 'grasp_gripper', '') if r.planning else ''
-            if g:
-                grasp_by_gripper[g]["total"] += 1
-                if r.execution and r.execution.grasp_success:
-                    grasp_by_gripper[g]["ok"] += 1
+            gr = getattr(r.execution, 'grasp_result', None) if r.execution else None
+            if gr and isinstance(gr, dict) and gr.get("gripper"):
+                grasp_by_gripper[gr["gripper"]]["total"] += 1
+                if gr.get("success"):
+                    grasp_by_gripper[gr["gripper"]]["ok"] += 1
 
-        # Handover direction counts
-        ho_dir_counts = defaultdict(lambda: {"planned": 0, "in_success": 0})
+        # Handover direction counts (from execution-side handover_results)
+        # Exclude lost-before-handover records: those are not real attempts.
+        ho_dir_counts = defaultdict(lambda: {"attempted": 0, "succeeded": 0})
+        n_lost_object = 0
         for r in rs:
-            dirs = getattr(r.planning, 'handover_directions', []) if r.planning else []
-            task_ok = r.execution and r.execution.task_success
-            for d in dirs:
-                ho_dir_counts[d]["planned"] += 1
-                if task_ok:
-                    ho_dir_counts[d]["in_success"] += 1
+            ho_list = getattr(r.execution, 'handover_results', []) if r.execution else []
+            for ho in ho_list:
+                if ho.get("reason") == "object_lost_before_handover":
+                    n_lost_object += 1
+                    continue
+                d = ho.get("direction", "")
+                if d:
+                    ho_dir_counts[d]["attempted"] += 1
+                    if ho.get("success"):
+                        ho_dir_counts[d]["succeeded"] += 1
 
         return {
             "n": n,
             "n_assign_ok": n_assign_ok,
             "n_exec": n_exec,
+            "n_lost_object": n_lost_object,
             "assign_rate": (n_assign_ok / n) * 100 if n > 0 else 0.0,
             "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n) * 100,
@@ -145,29 +151,36 @@ class ResultAggregator:
         grasp_ok = sum(1 for r in rs_all if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs_all if r.execution)
 
-        # Grasp breakdown by gripper type
+        # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
         for r in rs_all:
-            g = getattr(r.planning, 'grasp_gripper', '') if r.planning else ''
-            if g:
-                grasp_by_gripper[g]["total"] += 1
-                if r.execution and r.execution.grasp_success:
-                    grasp_by_gripper[g]["ok"] += 1
+            gr = getattr(r.execution, 'grasp_result', None) if r.execution else None
+            if gr and isinstance(gr, dict) and gr.get("gripper"):
+                grasp_by_gripper[gr["gripper"]]["total"] += 1
+                if gr.get("success"):
+                    grasp_by_gripper[gr["gripper"]]["ok"] += 1
 
-        # Handover direction counts
-        ho_dir_counts = defaultdict(lambda: {"planned": 0, "in_success": 0})
+        # Handover direction counts (from execution-side handover_results)
+        # Exclude lost-before-handover records: those are not real attempts.
+        ho_dir_counts = defaultdict(lambda: {"attempted": 0, "succeeded": 0})
+        n_lost_object = 0
         for r in rs_all:
-            dirs = getattr(r.planning, 'handover_directions', []) if r.planning else []
-            task_ok = r.execution and r.execution.task_success
-            for d in dirs:
-                ho_dir_counts[d]["planned"] += 1
-                if task_ok:
-                    ho_dir_counts[d]["in_success"] += 1
+            ho_list = getattr(r.execution, 'handover_results', []) if r.execution else []
+            for ho in ho_list:
+                if ho.get("reason") == "object_lost_before_handover":
+                    n_lost_object += 1
+                    continue
+                d = ho.get("direction", "")
+                if d:
+                    ho_dir_counts[d]["attempted"] += 1
+                    if ho.get("success"):
+                        ho_dir_counts[d]["succeeded"] += 1
 
         return {
             "n": n_total,
             "n_assign_ok": n_assign_ok,
             "n_exec": n_exec,
+            "n_lost_object": n_lost_object,
             "assign_rate": (n_assign_ok / n_total) * 100 if n_total > 0 else 0.0,
             "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n_total) * 100,
@@ -583,6 +596,7 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
 
     # -- 3.13 Grasp Success by Gripper Type --
     lines.append("\n### 3.13 Grasp Success by Gripper Type")
+    lines.append("\nPer-gripper grasp success from **execution-side** `grasp_result` records.")
     lines.append("\n| Experiment | Config | Gripper | Attempts | Grasp OK | Rate |")
     lines.append("| :--- | :--- | :--- | :---: | :---: | :---: |")
     for exp in agg.exps:
@@ -597,9 +611,11 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
                 rate = (ok / t * 100) if t > 0 else 0.0
                 lines.append(f"| {exp} | {cfg} | {gripper} | {t} | {ok} | {rate:.1f}% |")
 
-    # -- 3.14 Handover Direction Breakdown --
-    lines.append("\n### 3.14 Handover Direction Breakdown")
-    lines.append("\n| Experiment | Config | Direction | Planned | In Successful Runs | Rate |")
+    # -- 3.14 Handover Success by Direction --
+    lines.append("\n### 3.14 Handover Success by Direction")
+    lines.append("\nPer-direction handover success from **execution-side** `handover_results` records.")
+    lines.append("Each row counts individual handover *attempts* and their outcomes (not task-level).")
+    lines.append("\n| Experiment | Config | Direction | Attempted | Succeeded | Rate |")
     lines.append("| :--- | :--- | :--- | :---: | :---: | :---: |")
     for exp in agg.exps:
         for cfg in agg.configs:
@@ -608,10 +624,25 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
                 continue
             hdc = s.get("ho_dir_counts", {})
             for direction in sorted(hdc.keys()):
-                p = hdc[direction]["planned"]
-                ok = hdc[direction]["in_success"]
-                rate = (ok / p * 100) if p > 0 else 0.0
-                lines.append(f"| {exp} | {cfg} | {direction} | {p} | {ok} | {rate:.1f}% |")
+                att = hdc[direction]["attempted"]
+                succ = hdc[direction]["succeeded"]
+                rate = (succ / att * 100) if att > 0 else 0.0
+                lines.append(f"| {exp} | {cfg} | {direction} | {att} | {succ} | {rate:.1f}% |")
+
+    # -- 3.15 Object Lost Before Handover --
+    lines.append("\n### 3.15 Object Lost Before Handover")
+    lines.append("\nHandovers that were **aborted** because the giver had already lost the object during transport.")
+    lines.append("These are excluded from the direction success counts above.")
+    lines.append("\n| Experiment | Config | Lost Before Handover |")
+    lines.append("| :--- | :--- | :---: |")
+    for exp in agg.exps:
+        for cfg in agg.configs:
+            s = agg.get_stats(exp, cfg)
+            if not s:
+                continue
+            n_lost = s.get("n_lost_object", 0)
+            if n_lost > 0:
+                lines.append(f"| {exp} | {cfg} | {n_lost} |")
 
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
@@ -642,7 +673,7 @@ def main():
     results_dir = Path(args.results_dir)
     out_dir = Path(args.output_dir) if args.output_dir else results_dir
     fig_dir = out_dir / "figures"
-    
+
     logger.info(f"Loading results from {results_dir}...")
     results = load_all_results(results_dir)
     if not results:

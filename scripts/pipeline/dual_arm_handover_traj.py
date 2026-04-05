@@ -159,6 +159,11 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Gripper-type mapping (Robot 0 = finger, Robot 1 = suction)
+# ---------------------------------------------------------------------------
+_ROBOT_GRIPPER = {0: "finger", 1: "suction"}
+
+# ---------------------------------------------------------------------------
 # Execution metrics tracker
 # ---------------------------------------------------------------------------
 
@@ -172,6 +177,7 @@ class ExecutionTracker:
         self.place_success = False
         self.n_handovers_attempted = 0
         self.n_handovers_succeeded = 0
+        self.n_handovers_lost_object = 0
         self.n_collision_incidents = 0
         self.execution_start_time = 0.0
         self.execution_time_s = 0.0
@@ -183,6 +189,8 @@ class ExecutionTracker:
         self.placement_orientation_error: Optional[float] = None  # degrees (None = not verified)
         self.object_mean_tracking_error: float = 0.0  # mean nearest-waypoint error (m)
         self.object_max_tracking_error: float = 0.0   # max nearest-waypoint error (m)
+        self.handover_results: List[Dict] = []  # per-handover outcome records
+        self.grasp_result: Optional[Dict] = None  # initial grasp outcome record
 
     @property
     def handover_success_rate(self) -> float:
@@ -219,6 +227,7 @@ class ExecutionTracker:
             "place_success": self.place_success,
             "n_handovers_attempted": self.n_handovers_attempted,
             "n_handovers_succeeded": self.n_handovers_succeeded,
+            "n_handovers_lost_object": self.n_handovers_lost_object,
             "handover_success_rate": self.handover_success_rate,
             "n_collision_incidents": self.n_collision_incidents,
             "n_switches": self.n_switches,
@@ -229,6 +238,8 @@ class ExecutionTracker:
             "object_mean_tracking_error": self.object_mean_tracking_error,
             "object_max_tracking_error": self.object_max_tracking_error,
             "error_message": self.error_message,
+            "handover_results": self.handover_results,
+            "grasp_result": self.grasp_result,
         }
 
     def save(self, path: str):
@@ -926,6 +937,12 @@ def execute_grasp(
     else:
         tracker.grasp_success = True
 
+    tracker.grasp_result = {
+        "robot": current_robot,
+        "gripper": _ROBOT_GRIPPER.get(current_robot, "unknown"),
+        "success": tracker.grasp_success,
+    }
+
     if assignment is not None:
         tracker.n_switches = len(assignment.handover_points)
 
@@ -1172,6 +1189,9 @@ def execute_handover_sequence(
     """
     tracker.n_handovers_attempted += 1
     other_robot = 1 - current_robot
+    giver_gripper = _ROBOT_GRIPPER.get(current_robot, "unknown")
+    receiver_gripper = _ROBOT_GRIPPER.get(other_robot, "unknown")
+    direction = f"{giver_gripper}\u2192{receiver_gripper}"
     logger.info(
         "Executing handover at waypoint %d (robot %d -> robot %d)...",
         current_idx, current_robot, other_robot,
@@ -1186,6 +1206,16 @@ def execute_handover_sequence(
                 current_idx, current_robot, obj_name,
             )
             tracker.transport_success = False
+            tracker.handover_results.append({
+                "waypoint": current_idx,
+                "giver": current_robot,
+                "receiver": other_robot,
+                "giver_gripper": giver_gripper,
+                "receiver_gripper": receiver_gripper,
+                "direction": direction,
+                "success": False,
+                "reason": "object_lost_before_handover",
+            })
             return False
 
     # Transfer arm holds position
@@ -1244,6 +1274,23 @@ def execute_handover_sequence(
     else:
         # Fallback: use arm convergence (original behaviour)
         handover_ok = receiver_converged
+
+    # Build per-handover record
+    ho_record: Dict[str, Any] = {
+        "waypoint": current_idx,
+        "giver": current_robot,
+        "receiver": other_robot,
+        "giver_gripper": giver_gripper,
+        "receiver_gripper": receiver_gripper,
+        "direction": direction,
+        "success": handover_ok,
+    }
+    if obj_name:
+        ho_record["receiver_holds_post"] = receiver_holds
+        ho_record["object_fallen"] = not obj_safe
+        if not handover_ok:
+            ho_record["reason"] = "object_fallen" if not obj_safe else "receiver_no_hold"
+    tracker.handover_results.append(ho_record)
 
     if handover_ok:
         tracker.n_handovers_succeeded += 1

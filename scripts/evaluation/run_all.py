@@ -88,30 +88,6 @@ DATA_DIR = _PROJECT_ROOT / "data"
 
 _ASSIGNMENT_SCRIPT = str(_PROJECT_ROOT / "scripts" / "pipeline" / "segment_assignment.py")
 
-_ROBOT_GRIPPER = {0: "finger", 1: "suction"}
-
-
-def _enrich_planning_from_npz(exp_result, asgn_npz_path: str) -> None:
-    """Read assignment sequence from NPZ to populate grasp_gripper and handover_directions."""
-    if not os.path.isfile(asgn_npz_path) or exp_result.planning is None:
-        return
-    if exp_result.planning.total_cost >= float("inf"):
-        return
-    try:
-        asgn = np.load(asgn_npz_path, allow_pickle=True)
-        seq = asgn["sequence"].tolist()
-        hp = asgn["handover_points"].tolist() if "handover_points" in asgn.files else []
-        exp_result.planning.grasp_gripper = _ROBOT_GRIPPER.get(seq[0], f"robot{seq[0]}")
-        dirs = []
-        for pt in hp:
-            if pt > 0:
-                src = _ROBOT_GRIPPER.get(seq[pt - 1], f"robot{seq[pt - 1]}")
-                dst = _ROBOT_GRIPPER.get(seq[pt], f"robot{seq[pt]}")
-                dirs.append(f"{src}→{dst}")
-        exp_result.planning.handover_directions = dirs
-    except Exception as exc:
-        logger.debug("Could not enrich planning from NPZ: %s", exc)
-
 
 def _child_preexec() -> None:
     """Ask the kernel to send SIGTERM to this child when its parent dies.
@@ -140,6 +116,7 @@ def run_assignment_subprocess(
     no_env: bool = False,
     timeout: int = 14400,
     results_dir: Optional[Path] = None,
+    output_assignment: Optional[str] = None,
 ) -> ExperimentResult:
     """Run assignment planning via subprocess (calls segment_assignment.py).
 
@@ -151,11 +128,12 @@ def run_assignment_subprocess(
         exp_json_path: Path to the experiment JSON file.
         data_dir: Directory containing trajectory NPZ files.
         cfg: Ablation config dict.
-        output_dir: Directory where assignment_results.npz will be saved.
+        output_dir: Working directory for this config (metrics JSON lives here).
         metrics_file: Path to write the planning metrics JSON.
         no_env: Skip environment creation (--no-env).
         timeout: Subprocess timeout in seconds (default: 4 hours).
         results_dir: Directory for log files (default: RESULTS_ROOT).
+        output_assignment: Save assignment NPZ directly to this path.
 
     Returns:
         ExperimentResult with planning metrics populated.
@@ -171,7 +149,6 @@ def run_assignment_subprocess(
         sys.executable, _ASSIGNMENT_SCRIPT,
         "--experiment", exp_json_path,
         "--data-dir", data_dir,
-        "--output-dir", output_dir,
         "--output-metrics", metrics_file,
         "--no-plot",
     ]
@@ -193,6 +170,8 @@ def run_assignment_subprocess(
         cmd.extend(["--switch-cost-override", str(cfg["switch_cost_override"])])
     if not cfg["use_ik"] or no_env:
         cmd.append("--no-env")
+    if output_assignment is not None:
+        cmd.extend(["--output-assignment", output_assignment])
 
     logger.info("    Command: %s", " ".join(cmd))
 
@@ -457,6 +436,8 @@ def run_experiment(
         # Output paths for this config
         config_data_dir = Path(cfg_data_dir) / "configs" / cid
         metrics_file = str(config_data_dir / "planning_metrics.json")
+        _rdir = results_dir or RESULTS_ROOT
+        asgn_file = str(_rdir / exp_name / f"assignment_{cid}.npz")
 
         exp_result = run_assignment_subprocess(
             exp_json_path=exp_json_path,
@@ -466,23 +447,18 @@ def run_experiment(
             metrics_file=metrics_file,
             no_env=no_env,
             results_dir=results_dir,
-        )
-
-        # Enrich planning with gripper / handover direction from NPZ
-        _enrich_planning_from_npz(
-            exp_result, str(config_data_dir / "assignment_results.npz")
+            output_assignment=asgn_file,
         )
 
         # Optionally run headless execution
         if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
-            asgn_file = str(config_data_dir / "assignment_results.npz")
             if os.path.isfile(asgn_file):
                 exec_metrics = run_execution(
                     exp_json_path=exp_json_path,
                     assignment_file=asgn_file,
                     experiment_name=exp_name,
                     config_label=cfg["label"],
-                    results_dir=results_dir or RESULTS_ROOT,
+                    results_dir=_rdir,
                     config_id_str=cid,
                     data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
                 )
@@ -539,6 +515,8 @@ def run_single_config(
 
     config_data_dir = Path(cfg_data_dir) / "configs" / cid
     metrics_file = str(config_data_dir / "planning_metrics.json")
+    _rdir = results_dir or RESULTS_ROOT
+    asgn_file = str(_rdir / exp_name / f"assignment_{cid}.npz")
 
     exp_result = run_assignment_subprocess(
         exp_json_path=exp_json_path,
@@ -548,26 +526,24 @@ def run_single_config(
         metrics_file=metrics_file,
         no_env=no_env,
         results_dir=results_dir,
+        output_assignment=asgn_file,
     )
 
-    _enrich_planning_from_npz(exp_result, str(config_data_dir / "assignment_results.npz"))
-
     if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
-        asgn_file = str(config_data_dir / "assignment_results.npz")
         if os.path.isfile(asgn_file):
             exec_metrics = run_execution(
                 exp_json_path=exp_json_path,
                 assignment_file=asgn_file,
                 experiment_name=exp_name,
                 config_label=label,
-                results_dir=results_dir or RESULTS_ROOT,
+                results_dir=_rdir,
                 config_id_str=cid,
                 data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
             )
             if exec_metrics is not None:
                 exp_result.execution = exec_metrics
         else:
-            logger.warning("    Assignment NPZ not found — skipping execution")
+            logger.warning("    Assignment NPZ not found at %s — skipping execution", asgn_file)
 
     save_result(exp_result, results_dir)
     return exp_result
@@ -843,7 +819,9 @@ def main():
                 else:
                     cfg_data_dir = data_dir
 
-                asgn_file = str(Path(cfg_data_dir) / "configs" / cid / "assignment_results.npz")
+                asgn_file_results = str(results_dir / exp_name / f"assignment_{cid}.npz")
+                asgn_file_data = str(Path(cfg_data_dir) / "configs" / cid / "assignment_results.npz")
+                asgn_file = asgn_file_results if os.path.isfile(asgn_file_results) else asgn_file_data
 
                 if not os.path.isfile(asgn_file):
                     logger.warning("  %s × %s — no assignment NPZ found, skipping", exp_name, cfg["label"])

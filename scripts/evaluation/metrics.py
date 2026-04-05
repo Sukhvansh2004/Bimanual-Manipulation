@@ -52,9 +52,10 @@ class PlanningMetrics:
     # Planning time
     planning_time_s: float = 0.0
 
-    # Gripper / handover direction info (populated by orchestrator from NPZ)
+    # Gripper / handover direction info (populated from assignment sequence)
     grasp_gripper: str = ""            # "finger" or "suction"
     handover_directions: List[str] = field(default_factory=list)  # e.g. ["finger→suction"]
+    sequence: List[int] = field(default_factory=list)  # robot assignment per segment
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -71,6 +72,7 @@ class ExecutionMetrics:
     handover_success_rate: float = 0.0  # successful handovers / attempted
     n_handovers_attempted: int = 0
     n_handovers_succeeded: int = 0
+    n_handovers_lost_object: int = 0  # handovers where object was lost before attempt
     n_collision_incidents: int = 0
     execution_time_s: float = 0.0
 
@@ -86,6 +88,17 @@ class ExecutionMetrics:
     object_max_tracking_error: float = 0.0
     placement_position_error: float = 0.0   # metres
     placement_orientation_error: float = 0.0  # degrees
+
+    # Per-handover results: list of dicts with keys:
+    #   waypoint (int), giver (int), receiver (int), giver_gripper (str),
+    #   receiver_gripper (str), direction (str e.g. "finger→suction"),
+    #   success (bool), object_held_pre (bool), receiver_holds_post (bool),
+    #   object_fallen (bool)
+    handover_results: List[Dict] = field(default_factory=list)
+
+    # Per-grasp result: dict with keys:
+    #   robot (int), gripper (str e.g. "finger"/"suction"), success (bool)
+    grasp_result: Optional[Dict] = None
 
     error_message: str = ""
 
@@ -166,19 +179,22 @@ def extract_planning_metrics(
     metrics.mean_task_cost = float(asgn["task_costs"].mean())
     metrics.total_switching_cost = float(asgn["switching_costs"].sum())
 
-    # --- Trajectory paths / indices resolution ---
-    if "trajectory_paths" in asgn.files:
-        traj_paths = asgn["trajectory_paths"]
-    elif "trajectory_indices" in asgn.files:
-        # Legacy format: trajectory_indices → construct paths
-        traj_indices = asgn["trajectory_indices"]
-        traj_paths = np.array([
-            f"robot{sequence[i]}_trajectory_{traj_indices[i]}.npz"
-            for i in range(len(sequence))
-        ])
-    else:
-        logger.warning("No trajectory_paths or trajectory_indices in %s", assignment_file)
+    # --- Derive gripper / handover direction info from sequence ---
+    _ROBOT_GRIPPER = {0: "finger", 1: "suction"}
+    metrics.sequence = sequence.tolist()
+    if len(sequence) > 0:
+        metrics.grasp_gripper = _ROBOT_GRIPPER.get(int(sequence[0]), "")
+    for hp in metrics.handover_points:
+        if 0 < hp < len(sequence):
+            src = _ROBOT_GRIPPER.get(int(sequence[hp - 1]), "?")
+            dst = _ROBOT_GRIPPER.get(int(sequence[hp]), "?")
+            metrics.handover_directions.append(f"{src}→{dst}")
+
+    # --- Trajectory paths resolution ---
+    if "trajectory_paths" not in asgn.files:
+        logger.warning("No trajectory_paths in %s", assignment_file)
         return metrics
+    traj_paths = asgn["trajectory_paths"]
 
     # --- Compute manipulability along the assigned path ---
     manip_values = []

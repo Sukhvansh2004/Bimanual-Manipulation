@@ -63,11 +63,17 @@ def load_result(path: Path) -> ExperimentResult:
 
     planning = None
     if "planning" in d and d["planning"] is not None:
-        planning = PlanningMetrics(**d["planning"])
+        planning = PlanningMetrics(**{
+            k: v for k, v in d["planning"].items()
+            if k in PlanningMetrics.__dataclass_fields__
+        })
 
     execution = None
     if "execution" in d and d["execution"] is not None:
-        execution = ExecutionMetrics(**d["execution"])
+        execution = ExecutionMetrics(**{
+            k: v for k, v in d["execution"].items()
+            if k in ExecutionMetrics.__dataclass_fields__
+        })
 
     return ExperimentResult(
         experiment=d["experiment"],

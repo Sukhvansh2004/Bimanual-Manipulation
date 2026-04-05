@@ -166,8 +166,9 @@ def main() -> None:
         help="Number of robot-1 trajectories to evaluate (default: all).",
     )
     parser.add_argument(
-        "--output-dir", type=str, default=None,
-        help="Directory to save assignment_results.npz (default: data dir itself).",
+        "--output-assignment", type=str, default=None,
+        help="Save assignment_results.npz directly to this file path "
+             "(e.g. in the results dir).  When omitted, saves to <data-dir>/assignment_results.npz.",
     )
     parser.add_argument(
         "--output-metrics", type=str, default=None,
@@ -400,9 +401,11 @@ def main() -> None:
     _print_summary(result)
 
     # --- Save result ---
-    save_dir = args.output_dir if args.output_dir is not None else data_dir
-    os.makedirs(save_dir, exist_ok=True)
-    out_path = os.path.join(save_dir, "assignment_results.npz")
+    if args.output_assignment is not None:
+        out_path = args.output_assignment
+    else:
+        out_path = os.path.join(data_dir, "assignment_results.npz")
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     save_assignment_result(result, out_path)
 
     # --- Write JSON metrics if requested ---
@@ -417,7 +420,7 @@ def main() -> None:
 
     # --- Optional assignment bar chart ---
     if not args.no_plot:
-        chart_path = os.path.join(save_dir, "assignment_result.png")
+        chart_path = os.path.join(os.path.dirname(out_path), "assignment_result.png")
         visualize_assignment_result(result, save_path=chart_path)
 
     # --- cProfile output ---
@@ -502,15 +505,27 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
         )
         feas_rates[robot_id] = n_fully_feasible / max(n_total, 1)
 
+    _ROBOT_GRIPPER = {0: "finger", 1: "suction"}
+    seq_list = sequence.tolist() if hasattr(sequence, "tolist") else list(sequence)
+    hp_list = (result.handover_points.tolist()
+               if hasattr(result.handover_points, "tolist")
+               else list(result.handover_points))
+
+    grasp_gripper = _ROBOT_GRIPPER.get(int(sequence[0]), "") if len(sequence) > 0 else ""
+    handover_dirs = []
+    for hp in hp_list:
+        if 0 < hp < len(sequence):
+            src = _ROBOT_GRIPPER.get(int(sequence[hp - 1]), "?")
+            dst = _ROBOT_GRIPPER.get(int(sequence[hp]), "?")
+            handover_dirs.append(f"{src}→{dst}")
+
     return {
         "experiment": exp_cfg.name,
         "config_label": "",          # filled by orchestrator if needed
         "total_cost": float(result.total_cost),
         "n_segments": len(sequence),
-        "n_handovers": len(result.handover_points),
-        "handover_points": result.handover_points.tolist()
-            if hasattr(result.handover_points, "tolist")
-            else list(result.handover_points),
+        "n_handovers": len(hp_list),
+        "handover_points": hp_list,
         "mean_task_cost": float(np.mean(result.task_costs)),
         "total_switching_cost": float(np.sum(result.switching_costs)),
         "mean_manipulability": mean_manip,
@@ -519,6 +534,9 @@ def _build_planning_metrics(result, exp_cfg, data_dir, planning_time, jacobian_f
         "feasibility_rate_robot1": feas_rates[1],
         "assigned_feasibility_rate": feasible_count / max(len(sequence), 1),
         "planning_time_s": planning_time,
+        "grasp_gripper": grasp_gripper,
+        "handover_directions": handover_dirs,
+        "sequence": seq_list,
     }
 
 
