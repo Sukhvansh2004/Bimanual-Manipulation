@@ -674,6 +674,32 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         global_rate = global_ho_total_succ / global_ho_total_att * 100
         lines.append(f"| **Total** | **{global_ho_total_att}** | **{global_ho_total_succ}** | **{global_rate:.1f}%** |")
 
+    # -- 3.17 Global Grasp Success by Gripper Type --
+    lines.append("\n### 3.17 Global Grasp Success by Gripper Type")
+    lines.append("\nNet grasp success aggregated across **all** experiments and configurations.")
+    global_grasp_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
+    global_grasp_total = 0
+    global_grasp_ok = 0
+    for r in agg.raw_results:
+        gr = getattr(r.execution, 'grasp_result', None) if r.execution else None
+        if gr and isinstance(gr, dict) and gr.get("gripper"):
+            gripper = gr["gripper"]
+            global_grasp_gripper[gripper]["total"] += 1
+            global_grasp_total += 1
+            if gr.get("success"):
+                global_grasp_gripper[gripper]["ok"] += 1
+                global_grasp_ok += 1
+    lines.append("\n| Gripper | Attempts | Grasp OK | Success Rate |")
+    lines.append("| :--- | :---: | :---: | :---: |")
+    for gripper in sorted(global_grasp_gripper.keys()):
+        t = global_grasp_gripper[gripper]["total"]
+        ok = global_grasp_gripper[gripper]["ok"]
+        rate = (ok / t * 100) if t > 0 else 0.0
+        lines.append(f"| {gripper} | {t} | {ok} | {rate:.1f}% |")
+    if global_grasp_total > 0:
+        global_grasp_rate = global_grasp_ok / global_grasp_total * 100
+        lines.append(f"| **Total** | **{global_grasp_total}** | **{global_grasp_ok}** | **{global_grasp_rate:.1f}%** |")
+
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
