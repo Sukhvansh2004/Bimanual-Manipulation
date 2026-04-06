@@ -69,6 +69,7 @@ class ResultAggregator:
         ho_rates = [r.execution.handover_success_rate for r in rs if r.execution]
         grasp_ok = sum(1 for r in rs if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs if r.execution)
+        transport_ok = sum(1 for r in rs if r.execution and r.execution.transport_success)
 
         # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
@@ -104,6 +105,7 @@ class ResultAggregator:
             "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
+            "transport_rate": (transport_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
             "cost_mean": np.mean(costs) if costs else np.nan,
             "cost_std": np.std(costs) if len(costs) > 1 else 0.0,
@@ -150,6 +152,7 @@ class ResultAggregator:
         ho_rates = [r.execution.handover_success_rate for r in rs_all if r.execution]
         grasp_ok = sum(1 for r in rs_all if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs_all if r.execution)
+        transport_ok = sum(1 for r in rs_all if r.execution and r.execution.transport_success)
 
         # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
@@ -185,6 +188,7 @@ class ResultAggregator:
             "exec_rate": (successes / n_assign_ok) * 100 if n_assign_ok > 0 else 0.0,
             "success_rate": (successes / n_total) * 100,
             "grasp_rate": (grasp_ok / n_exec) * 100 if n_exec > 0 else 0.0,
+            "transport_rate": (transport_ok / n_exec) * 100 if n_exec > 0 else 0.0,
             "ho_rate_mean": np.mean(ho_rates) * 100 if ho_rates else np.nan,
             "cost_mean": np.mean(costs) if costs else np.nan,
             "ho_mean": np.mean(hos) if hos else np.nan,
@@ -395,6 +399,26 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
     plt.savefig(out_dir / "global_handover_success_heatmap.png", dpi=150, bbox_inches='tight')
     plt.close()
 
+    # 8b. Transport Success Rate Heatmap
+    plt.figure(figsize=(hm_w, hm_h))
+    data_transport = np.zeros((n_exp, n_cfg))
+    for i, exp in enumerate(agg.exps):
+        for j, cfg in enumerate(agg.configs):
+            stats = agg.get_stats(exp, cfg)
+            if stats:
+                data_transport[i, j] = stats["transport_rate"]
+    im = plt.imshow(data_transport, cmap="YlGn", vmin=0, vmax=100, aspect='auto')
+    plt.colorbar(im, label="Transport Success Rate (%)", shrink=0.8)
+    plt.xticks(range(n_cfg), agg.configs, rotation=45, ha='right', fontsize=7)
+    plt.yticks(range(n_exp), agg.exps, fontsize=7)
+    for i in range(n_exp):
+        for j in range(n_cfg):
+            plt.text(j, i, f"{data_transport[i,j]:.0f}", ha="center", va="center", color="black", fontsize=6)
+    plt.title("Transport Success Rate (%)")
+    plt.tight_layout()
+    plt.savefig(out_dir / "global_transport_success_heatmap.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
     # 9. Collision Incidents per Experiment (grouped bar)
     fig, ax = plt.subplots(figsize=(16, 8))
     x = np.arange(len(agg.exps))
@@ -576,6 +600,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("![Grasp Success](figures/global_grasp_success_heatmap.png)")
     lines.append("\n### 3.8 Handover Success")
     lines.append("![Handover Success](figures/global_handover_success_heatmap.png)")
+    lines.append("\n### 3.8b Transport Success")
+    lines.append("![Transport Success](figures/global_transport_success_heatmap.png)")
     lines.append("\n### 3.9 Collision Incidents")
     lines.append("![Collisions](figures/global_collision_incidents.png)")
     lines.append("\n### 3.10 Planning Time")
@@ -700,11 +726,24 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         global_grasp_rate = global_grasp_ok / global_grasp_total * 100
         lines.append(f"| **Total** | **{global_grasp_total}** | **{global_grasp_ok}** | **{global_grasp_rate:.1f}%** |")
 
+    # -- 3.18 Transport Success (global table) --
+    lines.append("\n### 3.18 Global Transport Success by Configuration")
+    lines.append("\nTransport success: object was still held by the carrying arm upon reaching the placement pose.")
+    lines.append("\n| Configuration | Executed Runs | Transport OK | Transport Rate |")
+    lines.append("| :--- | :---: | :---: | :---: |")
+    for cfg in agg.configs:
+        s = agg.get_global_stats(cfg)
+        if not s: continue
+        n_e = s["n_exec"]
+        t_ok = sum(1 for r in agg.raw_results if r.config_label == cfg and r.execution and r.execution.transport_success)
+        rate = (t_ok / n_e * 100) if n_e > 0 else 0.0
+        lines.append(f"| {cfg} | {n_e} | {t_ok} | {rate:.1f}% |")
+
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
-        lines.append("| Config | Assign % | Exec % | Grasp % | Success % | Handover % | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        lines.append("| Config | Assign % | Exec % | Grasp % | Transport % | Success % | Handover % | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
@@ -712,9 +751,10 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
             ar = _fmt(s.get('assign_rate'), '.1f')
             er = _fmt(s.get('exec_rate'), '.1f')
             gr = _fmt(s.get('grasp_rate'), '.1f')
+            tr = _fmt(s.get('transport_rate'), '.1f')
             pp = _fmt(s.get('place_pos_mean'), '.4f')
             po = _fmt(s.get('place_ori_mean'), '.1f')
-            lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} |")
+            lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {tr}% | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} |")
 
     out_path.write_text("\n".join(lines))
     logger.info(f"Markdown report generated: {out_path}")
