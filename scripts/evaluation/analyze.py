@@ -644,6 +644,36 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
             if n_lost > 0:
                 lines.append(f"| {exp} | {cfg} | {n_lost} |")
 
+    # -- 3.16 Global Handover Success by Direction --
+    lines.append("\n### 3.16 Global Handover Success by Direction")
+    lines.append("\nNet handover success aggregated across **all** experiments and configurations.")
+    lines.append("Only valid attempts are counted (object held by giver before handover).")
+    global_ho_dir = defaultdict(lambda: {"attempted": 0, "succeeded": 0})
+    global_ho_total_att = 0
+    global_ho_total_succ = 0
+    for r in agg.raw_results:
+        ho_list = getattr(r.execution, 'handover_results', []) if r.execution else []
+        for ho in ho_list:
+            if ho.get("reason") == "object_lost_before_handover":
+                continue
+            d = ho.get("direction", "")
+            if d:
+                global_ho_dir[d]["attempted"] += 1
+                global_ho_total_att += 1
+                if ho.get("success"):
+                    global_ho_dir[d]["succeeded"] += 1
+                    global_ho_total_succ += 1
+    lines.append("\n| Direction | Valid Attempts | Succeeded | Success Rate |")
+    lines.append("| :--- | :---: | :---: | :---: |")
+    for direction in sorted(global_ho_dir.keys()):
+        att = global_ho_dir[direction]["attempted"]
+        succ = global_ho_dir[direction]["succeeded"]
+        rate = (succ / att * 100) if att > 0 else 0.0
+        lines.append(f"| {direction} | {att} | {succ} | {rate:.1f}% |")
+    if global_ho_total_att > 0:
+        global_rate = global_ho_total_succ / global_ho_total_att * 100
+        lines.append(f"| **Total** | **{global_ho_total_att}** | **{global_ho_total_succ}** | **{global_rate:.1f}%** |")
+
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
