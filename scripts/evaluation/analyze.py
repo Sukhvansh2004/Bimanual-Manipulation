@@ -764,16 +764,44 @@ def main():
     parser.add_argument("--results-dir", type=str, default=str(RESULTS_ROOT))
     parser.add_argument("--output-dir", type=str, default=None)
     parser.add_argument("--pdf", action="store_true", help="Generate PDF from the Markdown report")
+    parser.add_argument(
+        "--experiments", nargs="+", default=None,
+        help="Only analyse these experiments (e.g. flatPlate_box_to_box mug_inversion). "
+             "Default: all experiments.",
+    )
+    parser.add_argument(
+        "--iterations", nargs="+", type=int, default=None,
+        help="Only analyse these iteration numbers (e.g. 1 2 3). Default: all iterations.",
+    )
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
     out_dir = Path(args.output_dir) if args.output_dir else results_dir
     fig_dir = out_dir / "figures"
 
-    logger.info(f"Loading results from {results_dir}...")
-    results = load_all_results(results_dir)
+    # When specific iterations are requested, load only from those iter_N dirs
+    if args.iterations is not None:
+        results: List[ExperimentResult] = []
+        for it in sorted(args.iterations):
+            iter_dir = results_dir / f"iter_{it}"
+            if iter_dir.is_dir():
+                results.extend(load_all_results(iter_dir))
+            else:
+                logger.warning(f"Iteration directory not found: {iter_dir}")
+        logger.info(f"Loaded results from iteration(s) {args.iterations}")
+    else:
+        logger.info(f"Loading results from {results_dir}...")
+        results = load_all_results(results_dir)
+
+    # Filter by experiment name if requested
+    if args.experiments is not None:
+        exp_set = set(args.experiments)
+        before = len(results)
+        results = [r for r in results if r.experiment in exp_set]
+        logger.info(f"Filtered to experiments {args.experiments}: {before} -> {len(results)} results")
+
     if not results:
-        logger.error("No result files found. Ensure the iterative pipeline has completed.")
+        logger.error("No result files found. Check --experiments / --iterations filters.")
         return
 
     agg = ResultAggregator(results)
