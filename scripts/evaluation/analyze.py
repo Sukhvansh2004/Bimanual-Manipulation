@@ -70,6 +70,9 @@ class ResultAggregator:
         grasp_ok = sum(1 for r in rs if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs if r.execution)
         transport_ok = sum(1 for r in rs if r.execution and r.execution.transport_success)
+        plan_manip = [r.planning.mean_manipulability for r in rs if r.planning and r.planning.total_cost < 1e10]
+        exec_manip = [r.execution.mean_manipulability for r in rs if r.execution]
+        exec_time = [r.execution.execution_time_s for r in rs if r.execution]
 
         # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
@@ -114,6 +117,9 @@ class ResultAggregator:
             "err_max": np.max(max_errs) if max_errs else 0.0,
             "coll_mean": np.mean(colls) if colls else 0.0,
             "ptime_mean": np.mean(ptime) if ptime else 0.0,
+            "plan_manip_mean": np.mean(plan_manip) if plan_manip else np.nan,
+            "exec_manip_mean": np.mean(exec_manip) if exec_manip else np.nan,
+            "exec_time_mean": np.mean(exec_time) if exec_time else np.nan,
             "place_pos_mean": np.mean(pos_errs) if pos_errs else np.nan,
             "place_pos_std": np.std(pos_errs) if len(pos_errs) > 1 else 0.0,
             "place_ori_mean": np.mean(ori_errs) if ori_errs else np.nan,
@@ -153,6 +159,9 @@ class ResultAggregator:
         grasp_ok = sum(1 for r in rs_all if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs_all if r.execution)
         transport_ok = sum(1 for r in rs_all if r.execution and r.execution.transport_success)
+        plan_manip = [r.planning.mean_manipulability for r in rs_all if r.planning and r.planning.total_cost < 1e10]
+        exec_manip = [r.execution.mean_manipulability for r in rs_all if r.execution]
+        exec_time = [r.execution.execution_time_s for r in rs_all if r.execution]
 
         # Grasp breakdown by gripper type (from execution-side grasp_result)
         grasp_by_gripper = defaultdict(lambda: {"total": 0, "ok": 0})
@@ -196,6 +205,9 @@ class ResultAggregator:
             "err_max": np.max(max_errs) if max_errs else 0.0,
             "coll_mean": np.mean(colls) if colls else 0.0,
             "ptime_mean": np.mean(ptime) if ptime else 0.0,
+            "plan_manip_mean": np.mean(plan_manip) if plan_manip else np.nan,
+            "exec_manip_mean": np.mean(exec_manip) if exec_manip else np.nan,
+            "exec_time_mean": np.mean(exec_time) if exec_time else np.nan,
             "place_pos_mean": np.mean(pos_errs) if pos_errs else np.nan,
             "place_ori_mean": np.mean(ori_errs) if ori_errs else np.nan,
             "grasp_by_gripper": dict(grasp_by_gripper),
@@ -548,8 +560,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
         "\n## 1. Global Aggregate by Configuration",
         "\nThis section averages performance metrics across all experiments for each configuration.",
-        "\n| Configuration | Assign % | Exec % | Grasp % | Success % | Handover % | Plan Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+        "\n| Configuration | Assign % | Exec % | Grasp % | Success % | Handover % | Mean Cost | Mean Manip | Plan Time (s) | Exec Time (s) | Avg HOs | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) | Collisions |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
     ]
 
     for cfg in agg.configs:
@@ -561,11 +573,14 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
         ar = _fmt(s.get('assign_rate'), '.1f')
         er = _fmt(s.get('exec_rate'), '.1f')
         gr = _fmt(s.get('grasp_rate'), '.1f')
-        lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {s['ptime_mean']:.2f} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
+        cm = _fmt(s.get('cost_mean'), '.1f')
+        mm = _fmt(s.get('exec_manip_mean'), '.4f')
+        et = _fmt(s.get('exec_time_mean'), '.1f')
+        lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {cm} | {mm} | {s['ptime_mean']:.2f} | {et} | {s['ho_mean']:.1f} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} | {s['coll_mean']:.1f} |")
 
     lines.append("\n## 2. Detailed Summary Table")
-    lines.append("\n| Experiment | Configuration | Runs | Assign % | Exec % | Grasp % | Success % | Handover % | Cost (Avg ± Std) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
-    lines.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: |")
+    lines.append("\n| Experiment | Configuration | Runs | Assign % | Exec % | Grasp % | Success % | Handover % | Cost (Avg ± Std) | Mean Manip | Exec Time (s) | Mean Err (m) | Max Err (m) | Place Pos Err (m) | Place Ori Err (°) |")
+    lines.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |")
     
     for exp in agg.exps:
         for cfg in agg.configs:
@@ -576,9 +591,11 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
             ar = _fmt(s.get('assign_rate'), '.1f')
             er = _fmt(s.get('exec_rate'), '.1f')
             gr = _fmt(s.get('grasp_rate'), '.1f')
+            mm = _fmt(s.get('exec_manip_mean'), '.4f')
+            et = _fmt(s.get('exec_time_mean'), '.1f')
             pp = f"{s['place_pos_mean']:.4f} ± {s['place_pos_std']:.4f}" if not np.isnan(s['place_pos_mean']) else 'N/A'
             po = f"{s['place_ori_mean']:.1f} ± {s['place_ori_std']:.1f}" if not np.isnan(s['place_ori_mean']) else 'N/A'
-            lines.append(f"| {exp} | {cfg} | {s['n']} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {cost_str} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
+            lines.append(f"| {exp} | {cfg} | {s['n']} | {ar}% | {er}% | {gr}% | {s['success_rate']:.1f}% | {hr}% | {cost_str} | {mm} | {et} | {s['err_mean']:.4f} | {s['err_max']:.4f} | {pp} | {po} |")
 
     lines.append("\n## 3. Key Findings and Visualizations")
     lines.append("\n### 3.1 Success Rates")
@@ -742,8 +759,8 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     lines.append("\n## 4. Per-Experiment Details")
     for exp in agg.exps:
         lines.append(f"\n### {exp.replace('_', ' ').title()}")
-        lines.append("| Config | Assign % | Exec % | Grasp % | Transport % | Success % | Handover % | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) |")
-        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        lines.append("| Config | Assign % | Exec % | Grasp % | Transport % | Success % | Handover % | Mean Cost | Mean Manip | Avg HOs | Avg Collisions | Place Pos (m) | Place Ori (°) | Plan Time (s) | Exec Time (s) |")
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         for cfg in agg.configs:
             s = agg.get_stats(exp, cfg)
             if not s: continue
@@ -752,9 +769,12 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
             er = _fmt(s.get('exec_rate'), '.1f')
             gr = _fmt(s.get('grasp_rate'), '.1f')
             tr = _fmt(s.get('transport_rate'), '.1f')
+            cm = _fmt(s.get('cost_mean'), '.1f')
+            mm = _fmt(s.get('exec_manip_mean'), '.4f')
             pp = _fmt(s.get('place_pos_mean'), '.4f')
             po = _fmt(s.get('place_ori_mean'), '.1f')
-            lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {tr}% | {s['success_rate']:.1f}% | {hr}% | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} |")
+            et = _fmt(s.get('exec_time_mean'), '.1f')
+            lines.append(f"| {cfg} | {ar}% | {er}% | {gr}% | {tr}% | {s['success_rate']:.1f}% | {hr}% | {cm} | {mm} | {s['ho_mean']:.1f} | {s['coll_mean']:.1f} | {pp} | {po} | {s['ptime_mean']:.2f} | {et} |")
 
     out_path.write_text("\n".join(lines))
     logger.info(f"Markdown report generated: {out_path}")
