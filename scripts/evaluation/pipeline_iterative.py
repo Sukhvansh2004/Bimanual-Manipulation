@@ -164,7 +164,7 @@ def main():
                              "iterations and already-finished experiments")
     parser.add_argument("--reuse-object-traj", action="store_true",
                         help="Reuse cached object trajectories across iterations")
-    parser.add_argument("--base-seed", type=int, default=42,
+    parser.add_argument("--base-seed", type=int, default=497,
                         help="Base random seed (iteration i uses base_seed + i)")
     args = parser.parse_args()
 
