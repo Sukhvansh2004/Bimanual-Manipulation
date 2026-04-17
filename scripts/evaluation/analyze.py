@@ -66,7 +66,19 @@ class ResultAggregator:
         ptime = [r.planning.planning_time_s for r in rs if r.planning]
         pos_errs = [r.execution.placement_position_error for r in rs if r.execution and r.execution.placement_position_error is not None]
         ori_errs = [r.execution.placement_orientation_error for r in rs if r.execution and r.execution.placement_orientation_error is not None]
-        ho_rates = [r.execution.handover_success_rate for r in rs if r.execution]
+        # Recompute handover success rate from per-handover records,
+        # excluding object_lost_before_handover (not a genuine attempt).
+        ho_rates = []
+        for r in rs:
+            if not r.execution:
+                continue
+            ho_list = getattr(r.execution, 'handover_results', []) or []
+            real = [h for h in ho_list if h.get("reason") != "object_lost_before_handover"]
+            if real:
+                ho_rates.append(sum(1 for h in real if h.get("success")) / len(real))
+            elif not ho_list:
+                # No handovers planned — vacuously 1.0
+                ho_rates.append(1.0)
         grasp_ok = sum(1 for r in rs if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs if r.execution)
         transport_ok = sum(1 for r in rs if r.execution and r.execution.transport_success)
@@ -155,7 +167,19 @@ class ResultAggregator:
         ptime = [r.planning.planning_time_s for r in rs_all if r.planning]
         pos_errs = [r.execution.placement_position_error for r in rs_all if r.execution and r.execution.placement_position_error is not None]
         ori_errs = [r.execution.placement_orientation_error for r in rs_all if r.execution and r.execution.placement_orientation_error is not None]
-        ho_rates = [r.execution.handover_success_rate for r in rs_all if r.execution]
+        # Recompute handover success rate from per-handover records,
+        # excluding object_lost_before_handover (not a genuine attempt).
+        ho_rates = []
+        for r in rs_all:
+            if not r.execution:
+                continue
+            ho_list = getattr(r.execution, 'handover_results', []) or []
+            real = [h for h in ho_list if h.get("reason") != "object_lost_before_handover"]
+            if real:
+                ho_rates.append(sum(1 for h in real if h.get("success")) / len(real))
+            elif not ho_list:
+                # No handovers planned — vacuously 1.0
+                ho_rates.append(1.0)
         grasp_ok = sum(1 for r in rs_all if r.execution and r.execution.grasp_success)
         n_exec = sum(1 for r in rs_all if r.execution)
         transport_ok = sum(1 for r in rs_all if r.execution and r.execution.transport_success)
