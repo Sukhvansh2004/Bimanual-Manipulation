@@ -34,7 +34,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 ### Quick Install
 
 ```bash
-git clone --recursive https://github.com/Sukhvansh2004/Bimanual-Manipulation.git
+git clone --recursive git@github.com:Sukhvansh2004/Bimanual-Manipulation.git
 cd Bimanual-Manipulation
 bash install.sh
 ```
