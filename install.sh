@@ -103,6 +103,8 @@ echo "[5/9] Installing PyTorch ${PYTORCH_VERSION} + CUDA ${CUDA_VERSION}..."
 pip install torch==${PYTORCH_VERSION} torchvision==${TORCHVISION_VERSION} \
     --index-url "https://download.pytorch.org/whl/cu${CUDA_VERSION//./}"
 
+pip install "setuptools<70.0.0"
+
 echo "  Installing torch-scatter and torch-cluster..."
 pip install torch-scatter torch-cluster \
     -f "https://data.pyg.org/whl/torch-${PYTORCH_VERSION}+cu${CUDA_VERSION//./}.html"
