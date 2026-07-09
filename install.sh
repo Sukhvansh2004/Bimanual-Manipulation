@@ -138,6 +138,7 @@ pip install -e .
 
 # Install supplementary packages not in pyproject.toml
 pip install pyrender scene-synthesizer
+pip install PyOpenGL==3.1.5 PyOpenGL-accelerate
 
 # ── Step 9: Verify ────────────────────────────────────────────
 echo ""
@@ -160,7 +161,7 @@ check('torch + CUDA',          lambda: (__import__('torch'), print(f'    torch {
 check('mujoco',                lambda: __import__('mujoco'))
 check('robosuite',             lambda: __import__('robosuite'))
 check('open3d',                lambda: __import__('open3d'))
-check('EAIK',                  lambda: __import__('EAIK'))
+check('eaik',                  lambda: __import__('eaik'))
 check('mink',                  lambda: __import__('mink'))
 check('grasp_gen',             lambda: __import__('grasp_gen'))
 check('pointnet2_ops',         lambda: __import__('pointnet2_ops'))
