@@ -170,7 +170,7 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   │   └── utils.py                     # Trajectory save/load (NPZ) & WaypointFeasibilityResult
 │   │   └── visualization/                   # Meshcat + matplotlib visualization
 │   ├── services/                            # Microservices (ZMQ)
-│   │   ├── services_core.py                 # ServiceManager & ServiceClient (port 5555)
+│   │   ├── services_core.py                 # ServiceManager & ServiceClient (port 6000)
 │   │   ├── fastsam_service.py               # FastSAM detection (port 5551)
 │   │   ├── grasp_service.py                 # GraspGen prediction (port 5552)
 │   │   ├── grasp_generator.py               # High-level grasp sampling API
@@ -578,7 +578,7 @@ The config is loaded via `load_experiment()` into typed dataclasses (`Experiment
 
 All services communicate via ZMQ with JSON messages.
 
-### Service Manager (port 5555)
+### Service Manager (port 6000)
 Service discovery and registration.
 
 ### FastSAM Service (port 5551)
