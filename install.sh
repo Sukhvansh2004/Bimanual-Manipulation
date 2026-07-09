@@ -115,7 +115,7 @@ pip install "numpy>=1.21.0,<2.0.0"
 # ── Step 6: MuJoCo ────────────────────────────────────────────
 echo ""
 echo "[6/9] Installing MuJoCo..."
-pip install mujoco
+pip install mujoco==3.9
 
 # ── Step 7: GraspGen + PointNet2 CUDA ops ─────────────────────
 echo ""
