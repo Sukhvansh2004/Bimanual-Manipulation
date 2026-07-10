@@ -9,7 +9,7 @@ Optionally starts the MoveToPose service as well.
 
 Usage:
     python scripts/utils/launch_server.py
-    python scripts/utils/launch_server.py --host 0.0.0.0 --port 6000
+    python scripts/utils/launch_server.py --host 0.0.0.0 --port 6006
     python scripts/utils/launch_server.py --no-fastsam          # grasp only
     python scripts/utils/launch_server.py --no-grasp             # fastsam only
     python scripts/utils/launch_server.py --move-to-pose         # include MoveToPose
