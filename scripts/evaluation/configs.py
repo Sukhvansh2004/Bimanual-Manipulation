@@ -163,7 +163,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     # Table 1 (Method Comparison): Proposed, Greedy, Single Robot, No Diversity
     # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability
     # NOTE: NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY, BEAM_STRIDE],
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY, BEAM_STRIDE, STRIDE_1, STRIDE_3, STRIDE_5, BEAM_5, BEAM_10, BEAM_20],
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -171,8 +171,8 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 PAPER_EXPERIMENTS = [
-    "ycb_plate_table_to_shelf",
-    "ycb_plate_shelf_to_table",
+    "flatPlate_table_to_shelf",
+    "flatPlate_shelf_to_table",
     "mug_inversion",
     "flatPlate_box_to_box",
 ]

@@ -102,6 +102,9 @@ def _best_same_robot_transition(
     cr: int,
     ct: int,
     trajectory_info: Dict[int, Tuple[int, int]],
+    segment_idx: int,
+    current_state: int,
+    step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> Tuple[float, int, float]:
     """Find the best same-robot predecessor for state ``(cr, ct)``.
 
@@ -111,6 +114,16 @@ def _best_same_robot_transition(
     for acc_cost, ps in alive_prev:
         pr, pt = trajectory_info[ps]
         if pr == cr and pt == ct:
+            if step_feasibility is not None:
+                step_ok = step_feasibility.get((cr, ct))
+                wp = segment_idx + 1  # segment i spans waypoints [i, i+1]
+                if step_ok is not None and wp < len(step_ok) and not step_ok[wp]:
+                    logger.debug(
+                        "Seg %d state %d (robot%d traj%d): same-robot "
+                        "transition blocked — joint step exceeds threshold",
+                        segment_idx, current_state, cr, ct,
+                    )
+                    return np.inf, -1, 0.0
             return acc_cost, ps, 0.0
     return np.inf, -1, 0.0
 
@@ -242,24 +255,8 @@ def _forward_pass(
             # Phase 1: same-robot
             best_cost, best_prev, best_sw = _best_same_robot_transition(
                 alive_prev, cr, ct, trajectory_info,
+                i, cs, step_feasibility,
             )
-
-            # Reject same-robot continuation when the joint step from
-            # waypoint i to i+1 exceeds the threshold.  Cross-robot
-            # transitions are unaffected because the handover primitive
-            # allows the receiving robot to reconfigure.
-            if best_prev != -1 and step_feasibility is not None:
-                step_ok = step_feasibility.get((cr, ct))
-                wp = i + 1  # segment i spans waypoints [i, i+1]
-                if step_ok is not None and wp < len(step_ok) and not step_ok[wp]:
-                    logger.debug(
-                        "Seg %d state %d (robot%d traj%d): same-robot "
-                        "transition blocked — joint step exceeds threshold",
-                        i, cs, cr, ct,
-                    )
-                    best_cost = np.inf
-                    best_prev = -1
-                    best_sw = 0.0
 
             # Phase 2: cross-robot (only at stride boundaries)
             if i % handover_stride == 0:
