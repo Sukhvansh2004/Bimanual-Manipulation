@@ -39,7 +39,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
 from scripts.evaluation.configs import BASELINE, AblationConfig, config_id, PAPER_EXPERIMENTS
-from scripts.evaluation.results_store import RESULTS_ROOT
+from scripts.evaluation.results_store import RESULTS_ROOT, load_result
 from scripts.evaluation.run_all import discover_experiments, run_single_config
 
 logger = logging.getLogger(__name__)
@@ -94,6 +94,60 @@ def _write_csv(path: Path, rows: List[Dict]) -> None:
             writer.writerows(rows)
 
 
+def _result_path(results_dir: Path, exp_name: str, cfg: AblationConfig) -> Path:
+    return results_dir / exp_name / f"{config_id(cfg)}.json"
+
+
+def _is_completed_job(result_path: Path, require_execution: bool) -> bool:
+    if not result_path.is_file():
+        return False
+    try:
+        res = load_result(result_path)
+    except Exception:
+        return False
+
+    if res.planning is None:
+        return False
+
+    # If execution metrics are required, ensure successful planning runs
+    # have execution populated. Failed planning runs are considered complete.
+    if require_execution and res.planning.total_cost < float("inf") and res.execution is None:
+        return False
+
+    return True
+
+
+def _to_detail_row(
+    exp_name: str,
+    alpha: float,
+    beta: float,
+    cfg: AblationConfig,
+    result,
+) -> Dict:
+    return {
+        "experiment": exp_name,
+        "alpha": alpha,
+        "beta": beta,
+        "config_id": config_id(cfg),
+        "assignment_succeeded": bool(
+            result and result.planning and result.planning.total_cost < float("inf")
+        ),
+        "task_success": (
+            bool(result.execution.task_success)
+            if result and result.execution is not None else None
+        ),
+        "object_mean_tracking_error": (
+            float(result.execution.object_mean_tracking_error)
+            if result and result.execution is not None else float("nan")
+        ),
+        "placement_orientation_error": (
+            float(result.execution.placement_orientation_error)
+            if result and result.execution is not None and result.execution.placement_orientation_error is not None
+            else float("nan")
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grid search alpha/beta for assignment solver")
     parser.add_argument("--alpha-values", nargs="+", type=float,
@@ -112,6 +166,8 @@ def main() -> None:
                         help="Directory for per-run JSONs and grid summaries")
     parser.add_argument("--no-env", action="store_true",
                         help="Skip environment creation for assignment (faster, no IK/Jacobian)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume an interrupted sweep by skipping completed jobs with existing result JSONs")
     parser.add_argument("--no-execute", action="store_true",
                         help="Skip headless execution. Success/error metrics will then be empty.")
     args = parser.parse_args()
@@ -142,12 +198,25 @@ def main() -> None:
     logger.info("Experiments: %s", ", ".join(Path(p).stem for p in experiments))
     logger.info("Grid size: %d alpha x %d beta = %d pairs", len(args.alpha_values), len(args.beta_values), len(pair_cfgs))
     logger.info("Results dir: %s", results_dir)
+    logger.info(
+        "Trajectory fairness: this sweep does not regenerate trajectories; "
+        "all alpha/beta pairs use the same object trajectory files from disk."
+    )
+    if args.resume:
+        logger.info("Resume mode enabled: completed jobs will be skipped.")
 
     detail_rows: List[Dict] = []
     progress = tqdm(total=total_jobs, desc="alpha/beta sweep", unit="job")
     for exp_json in experiments:
         exp_name = Path(exp_json).stem
         for alpha, beta, cfg in pair_cfgs:
+            result_path = _result_path(results_dir, exp_name, cfg)
+            if args.resume and _is_completed_job(result_path, require_execution=not args.no_execute):
+                result = load_result(result_path)
+                detail_rows.append(_to_detail_row(exp_name, alpha, beta, cfg, result))
+                progress.update(1)
+                continue
+
             result = run_single_config(
                 exp_json_path=exp_json,
                 cfg=cfg,
@@ -155,28 +224,7 @@ def main() -> None:
                 results_dir=results_dir,
                 execute=not args.no_execute,
             )
-            detail_rows.append({
-                "experiment": exp_name,
-                "alpha": alpha,
-                "beta": beta,
-                "config_id": config_id(cfg),
-                "assignment_succeeded": bool(
-                    result and result.planning and result.planning.total_cost < float("inf")
-                ),
-                "task_success": (
-                    bool(result.execution.task_success)
-                    if result and result.execution is not None else None
-                ),
-                "object_mean_tracking_error": (
-                    float(result.execution.object_mean_tracking_error)
-                    if result and result.execution is not None else float("nan")
-                ),
-                "placement_orientation_error": (
-                    float(result.execution.placement_orientation_error)
-                    if result and result.execution is not None and result.execution.placement_orientation_error is not None
-                    else float("nan")
-                ),
-            })
+            detail_rows.append(_to_detail_row(exp_name, alpha, beta, cfg, result))
             progress.update(1)
     progress.close()
 

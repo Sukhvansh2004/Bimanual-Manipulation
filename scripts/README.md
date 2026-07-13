@@ -64,26 +64,29 @@ python scripts/evaluation/pipeline_iterative.py --paper --iterations 5 --resume
 Each iteration generates both standard and no-DPP trajectories, then runs
 assignment + execution for all requested configs.
 
+### Alpha/Beta Grid Search (Assignment Weights)
+Sweep assignment weights and compare task success + tracking metrics:
+```bash
+# Uses default sweep ranges:
+python scripts/evaluation/alpha_beta_grid.py --paper
+
+# Custom sweep for selected experiments:
+python scripts/evaluation/alpha_beta_grid.py \
+	--only flatPlate_box_to_box mug_inversion \
+	--alpha-values 5 10 20 \
+	--beta-values 0 0.5 1 2
+
+# Resume after interruption:
+python scripts/evaluation/alpha_beta_grid.py --paper --resume
+```
+
+Notes:
+- The script does not regenerate trajectories.
+- All alpha/beta pairs reuse the same pre-generated object trajectories, ensuring fair comparison.
+- `--resume` skips completed `(experiment, alpha, beta)` jobs using existing result JSONs.
+- Outputs are written to `results/alpha_beta_grid/` by default:
+	- `alpha_beta_grid_details.csv`
+	- `alpha_beta_grid_summary.csv`
+	- `alpha_beta_grid_summary.json`
+
 ---
-
-## Paper Evaluation (IROS 2026)
-
-To reproduce paper results:
-1. `./scripts/generate_trajs.sh --paper`
-2. `./scripts/segment_assignment.sh --paper`
-3. `./scripts/execution.sh --paper`
-4. `python scripts/evaluation/analyze.py`
-
-### Paper Tasks (4)
-- `ycb_plate_table_to_shelf`
-- `ycb_plate_shelf_to_table`
-- `mug_inversion`
-- `flatPlate_box_to_box`
-
-### Paper Configs (6)
-- **Proposed** (full method)
-- **Greedy** (beam=1)
-- **Single Robot** (switch_cost=∞)
-- **No Diversity** (use_dpp=False)
-- **No Switching Penalty** (C_switch=0)
-- **No Manipulability** (β=0)
