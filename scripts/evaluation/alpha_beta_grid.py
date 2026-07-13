@@ -22,6 +22,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import csv
 import itertools
 import json
@@ -40,7 +41,11 @@ sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
 from scripts.evaluation.configs import BASELINE, AblationConfig, config_id, PAPER_EXPERIMENTS
 from scripts.evaluation.results_store import RESULTS_ROOT, load_result
-from scripts.evaluation.run_all import discover_experiments, run_single_config
+from scripts.evaluation.run_all import (
+    discover_experiments,
+    run_single_config,
+    single_config_worker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +153,50 @@ def _to_detail_row(
     }
 
 
+def _to_detail_row_from_dict(
+    exp_name: str,
+    alpha: float,
+    beta: float,
+    cfg: AblationConfig,
+    result_dict: Dict | None,
+) -> Dict:
+    if not result_dict:
+        return {
+            "experiment": exp_name,
+            "alpha": alpha,
+            "beta": beta,
+            "config_id": config_id(cfg),
+            "assignment_succeeded": False,
+            "task_success": None,
+            "object_mean_tracking_error": float("nan"),
+            "placement_orientation_error": float("nan"),
+        }
+
+    planning = result_dict.get("planning")
+    execution = result_dict.get("execution")
+    return {
+        "experiment": exp_name,
+        "alpha": alpha,
+        "beta": beta,
+        "config_id": config_id(cfg),
+        "assignment_succeeded": bool(
+            planning is not None and planning.get("total_cost", float("inf")) < float("inf")
+        ),
+        "task_success": (
+            bool(execution.get("task_success")) if execution is not None else None
+        ),
+        "object_mean_tracking_error": (
+            float(execution.get("object_mean_tracking_error", float("nan")))
+            if execution is not None else float("nan")
+        ),
+        "placement_orientation_error": (
+            float(execution.get("placement_orientation_error"))
+            if execution is not None and execution.get("placement_orientation_error") is not None
+            else float("nan")
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grid search alpha/beta for assignment solver")
     parser.add_argument("--alpha-values", nargs="+", type=float,
@@ -164,6 +213,8 @@ def main() -> None:
                         help="Run only the paper experiment subset")
     parser.add_argument("--results-dir", type=str, default=None,
                         help="Directory for per-run JSONs and grid summaries")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="Number of parallel workers for (experiment, alpha, beta) jobs")
     parser.add_argument("--no-env", action="store_true",
                         help="Skip environment creation for assignment (faster, no IK/Jacobian)")
     parser.add_argument("--resume", action="store_true",
@@ -197,6 +248,7 @@ def main() -> None:
 
     logger.info("Experiments: %s", ", ".join(Path(p).stem for p in experiments))
     logger.info("Grid size: %d alpha x %d beta = %d pairs", len(args.alpha_values), len(args.beta_values), len(pair_cfgs))
+    logger.info("Workers: %d", args.workers)
     logger.info("Results dir: %s", results_dir)
     logger.info(
         "Trajectory fairness: this sweep does not regenerate trajectories; "
@@ -206,7 +258,9 @@ def main() -> None:
         logger.info("Resume mode enabled: completed jobs will be skipped.")
 
     detail_rows: List[Dict] = []
+    pending_jobs: List[tuple[str, str, float, float, AblationConfig]] = []
     progress = tqdm(total=total_jobs, desc="alpha/beta sweep", unit="job")
+
     for exp_json in experiments:
         exp_name = Path(exp_json).stem
         for alpha, beta, cfg in pair_cfgs:
@@ -215,8 +269,11 @@ def main() -> None:
                 result = load_result(result_path)
                 detail_rows.append(_to_detail_row(exp_name, alpha, beta, cfg, result))
                 progress.update(1)
-                continue
+            else:
+                pending_jobs.append((exp_json, exp_name, alpha, beta, cfg))
 
+    if args.workers <= 1:
+        for exp_json, exp_name, alpha, beta, cfg in pending_jobs:
             result = run_single_config(
                 exp_json_path=exp_json,
                 cfg=cfg,
@@ -226,7 +283,38 @@ def main() -> None:
             )
             detail_rows.append(_to_detail_row(exp_name, alpha, beta, cfg, result))
             progress.update(1)
+    else:
+        with ProcessPoolExecutor(max_workers=args.workers) as ex:
+            future_map = {
+                ex.submit(
+                    single_config_worker,
+                    exp_json,
+                    cfg,
+                    args.no_env,
+                    str(results_dir),
+                    (not args.no_execute),
+                ): (exp_name, alpha, beta, cfg)
+                for exp_json, exp_name, alpha, beta, cfg in pending_jobs
+            }
+
+            for fut in as_completed(future_map):
+                exp_name, alpha, beta, cfg = future_map[fut]
+                try:
+                    result_dict = fut.result()
+                except Exception as exc:
+                    logger.error(
+                        "Worker failed for %s (alpha=%s, beta=%s): %s",
+                        exp_name, alpha, beta, exc,
+                    )
+                    result_dict = None
+
+                detail_rows.append(
+                    _to_detail_row_from_dict(exp_name, alpha, beta, cfg, result_dict)
+                )
+                progress.update(1)
+
     progress.close()
+    detail_rows.sort(key=lambda r: (r["experiment"], float(r["alpha"]), float(r["beta"])))
 
     summary_rows: List[Dict] = []
     for alpha, beta, _cfg in pair_cfgs:

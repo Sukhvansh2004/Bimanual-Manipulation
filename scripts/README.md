@@ -78,11 +78,15 @@ python scripts/evaluation/alpha_beta_grid.py \
 
 # Resume after interruption:
 python scripts/evaluation/alpha_beta_grid.py --paper --resume
+
+# Parallel sweep with 4 workers:
+python scripts/evaluation/alpha_beta_grid.py --paper --workers 4
 ```
 
 Notes:
 - The script does not regenerate trajectories.
 - All alpha/beta pairs reuse the same pre-generated object trajectories, ensuring fair comparison.
+- `--workers N` runs `(experiment, alpha, beta)` jobs in parallel.
 - `--resume` skips completed `(experiment, alpha, beta)` jobs using existing result JSONs.
 - Outputs are written to `results/alpha_beta_grid/` by default:
 	- `alpha_beta_grid_details.csv`
