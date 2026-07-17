@@ -6,7 +6,7 @@
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.35, 0.0, 1.20],
+                "position": [-0.35, 0.0, 1.15],
                 "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             }
@@ -16,7 +16,7 @@
                 "type": "box",
                 "name": "shelfMount",
                 "size": [0.22, 0.42, 0.30],
-                "position": [-0.35, 0.0, 1.05],
+                "position": [-0.35, 0.0, 1.00],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.45, 0.35, 0.20, 1.0],
@@ -27,7 +27,7 @@
                 "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.30, 0.05, 1.344],
+                "position": [-0.30, 0.05, 1.294],
                 "quaternion": [-0.5, 0.5, 0.5, 0.5],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
@@ -45,7 +45,7 @@
     },
     "planning": {
         "num_grasps": 200,
-        "num_entropy_grasps": 40,
+        "num_entropy_grasps": 60,
         "gripper_types": ["finger", "suction"],
         "collision_check": null,
         "num_steps": 50,
