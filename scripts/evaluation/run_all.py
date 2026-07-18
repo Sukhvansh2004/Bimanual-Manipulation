@@ -117,6 +117,7 @@ def run_assignment_subprocess(
     timeout: int = 14400,
     results_dir: Optional[Path] = None,
     output_assignment: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> ExperimentResult:
     """Run assignment planning via subprocess (calls segment_assignment.py).
 
@@ -172,6 +173,8 @@ def run_assignment_subprocess(
         cmd.append("--no-env")
     if output_assignment is not None:
         cmd.extend(["--output-assignment", output_assignment])
+    if seed is not None:
+        cmd.extend(["--seed", str(seed)])
 
     logger.info("    Command: %s", " ".join(cmd))
 
@@ -286,6 +289,7 @@ def run_execution(
     config_id_str: str,
     timeout: int = 600,
     data_dir: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> Optional[ExecutionMetrics]:
     """Run the dual-arm execution script headlessly for a single config.
 
@@ -311,6 +315,8 @@ def run_execution(
     ]
     if data_dir is not None:
         cmd.extend(["--data-dir", data_dir])
+    if seed is not None:
+        cmd.extend(["--seed", str(seed)])
 
     logger.info("    Running execution: %s × %s", experiment_name, config_label)
     logger.info("    Command: %s", " ".join(cmd))
@@ -380,6 +386,7 @@ def run_experiment(
     no_env: bool = False,
     results_dir: Optional[Path] = None,
     execute: bool = False,
+    seed: Optional[int] = None,
 ) -> List[ExperimentResult]:
     """Run all ablation configs for a single experiment.
 
@@ -448,6 +455,7 @@ def run_experiment(
             no_env=no_env,
             results_dir=results_dir,
             output_assignment=asgn_file,
+            seed=seed,
         )
 
         # Optionally run headless execution
@@ -461,6 +469,7 @@ def run_experiment(
                     results_dir=_rdir,
                     config_id_str=cid,
                     data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
+                    seed=seed,
                 )
                 if exec_metrics is not None:
                     exp_result.execution = exec_metrics
@@ -480,6 +489,7 @@ def run_single_config(
     no_env: bool = False,
     results_dir: Optional[Path] = None,
     execute: bool = False,
+    seed: Optional[int] = None,
 ) -> Optional[ExperimentResult]:
     """Run one (experiment, config) pair.
 
@@ -527,6 +537,7 @@ def run_single_config(
         no_env=no_env,
         results_dir=results_dir,
         output_assignment=asgn_file,
+        seed=seed,
     )
 
     if execute and exp_result.planning and exp_result.planning.total_cost < float("inf"):
@@ -539,6 +550,7 @@ def run_single_config(
                 results_dir=_rdir,
                 config_id_str=cid,
                 data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
+                seed=seed,
             )
             if exec_metrics is not None:
                 exp_result.execution = exec_metrics
@@ -555,6 +567,7 @@ def single_config_worker(
     no_env: bool,
     results_dir_str: str,
     execute: bool = False,
+    seed: Optional[int] = None,
 ) -> Optional[dict]:
     """Run a single (experiment, config) job in a worker process.
 
@@ -568,7 +581,9 @@ def single_config_worker(
         force=True,
     )
     results_dir = Path(results_dir_str)
-    result = run_single_config(exp_json_path, cfg, no_env, results_dir, execute)
+    result = run_single_config(
+        exp_json_path, cfg, no_env, results_dir, execute, seed,
+    )
     return result.to_dict() if result else None
 
 
@@ -754,6 +769,10 @@ def main():
         help="Skip (experiment, config) pairs that already have a valid "
              "result (finite cost) in the results directory.",
     )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Random seed forwarded to segment_assignment.py for reproducibility.",
+    )
 
     args = parser.parse_args()
 
@@ -836,6 +855,7 @@ def main():
                     config_id_str=cid,
                     timeout=args.exec_timeout,
                     data_dir=cfg_data_dir if cfg_data_dir != data_dir else None,
+                    seed=args.seed,
                 )
 
                 # Load existing planning result if available
@@ -902,6 +922,7 @@ def main():
                 no_env=args.no_env,
                 results_dir=results_dir,
                 execute=args.execute,
+                seed=args.seed,
             )
             if result:
                 all_results.append(result)
@@ -934,6 +955,7 @@ def main():
                     args.no_env,
                     str(results_dir),
                     args.execute,
+                    args.seed,
                 ): (Path(ep).stem, cfg["label"])
                 for ep, cfg in jobs
             }

@@ -301,6 +301,7 @@ def main():
                 "--only", *ready_experiments,
                 "--execute",
                 "--workers", str(args.workers),
+                "--seed", str(args.base_seed + i),
                 "--results-dir", str(iter_results_dir),
             ]
             # Always pass --resume to run_all so it skips already-completed
