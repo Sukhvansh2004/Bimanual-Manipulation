@@ -4,6 +4,16 @@
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
         "table_offset": [0.0, 0.0, 0.912],
+        "robot_base_configs": [
+            {
+                "position": [0.0, 0.1, 0.0],
+                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678]
+            },
+            {
+                "position": [0.0, -0.1, 0.0],
+                "quaternion": [0.0, 0.0, -0.70710678, 0.70710678]
+            }
+        ],
         "ycb_objects": [
             {
                 "ycb_name": "mug",

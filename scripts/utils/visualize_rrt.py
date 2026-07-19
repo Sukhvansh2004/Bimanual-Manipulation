@@ -153,6 +153,7 @@ def main():
         use_camera_obs=False,
         table_full_size=exp_cfg.table_full_size,
         table_offset=exp_cfg.table_offset,
+        robot_base_configs=exp_cfg.robot_base_configs,
     )
     env.reset()
     for _ in range(10):

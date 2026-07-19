@@ -55,6 +55,7 @@ class DualArmManipulationSystem:
             has_renderer: bool = True,
             table_full_size: Optional[Any] = None,
             table_offset: Optional[Any] = None,
+            robot_base_configs: Optional[Any] = None,
             start_services: bool = True,
             server_host: Optional[str] = None,
             server_port: int = constants.SERVICE_MANAGER_PORT,
@@ -64,6 +65,7 @@ class DualArmManipulationSystem:
         self.ycb_objects = ycb_objects
         self.table_full_size = table_full_size
         self.table_offset = table_offset
+        self.robot_base_configs = robot_base_configs
         self.visualize = visualize
         self.debug = debug
         self.detection_prompt = detection_prompt
@@ -158,6 +160,7 @@ class DualArmManipulationSystem:
             has_renderer=self.has_renderer,
             table_full_size=self.table_full_size,
             table_offset=self.table_offset,
+            robot_base_configs=self.robot_base_configs,
         )
         if self.has_renderer:
             logger.debug("Adding VisualizationWrapper to environment...")
@@ -172,6 +175,7 @@ class DualArmManipulationSystem:
             has_renderer=False,
             table_full_size=self.table_full_size,
             table_offset=self.table_offset,
+            robot_base_configs=self.robot_base_configs,
         )
         logger.info("   ✓ Environments created")
 

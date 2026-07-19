@@ -95,6 +95,7 @@ def main() -> int:
     custom_objects = exp_cfg.custom_objects
     table_full_size = exp_cfg.table_full_size
     table_offset = exp_cfg.table_offset
+    robot_base_configs = exp_cfg.robot_base_configs
     enable_meshcat = exp_cfg.visualization.enable_meshcat
 
     # Create and start system
@@ -110,6 +111,7 @@ def main() -> int:
         use_grasp_service=args.use_graspgen,
         table_full_size=table_full_size,
         table_offset=table_offset,
+        robot_base_configs=robot_base_configs,
     )
 
     atexit.register(lambda: system.stop())
