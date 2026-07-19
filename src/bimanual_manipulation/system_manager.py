@@ -34,6 +34,10 @@ from bimanual_manipulation.transforms.meshcat_tf_visualizer import (
     stream_transforms_to_meshcat,
 )
 from bimanual_manipulation.utils.env_utils import env_step, set_robot_config
+from bimanual_manipulation.utils.real_robot_bridge import (
+    mark_real_robot_env,
+    unmark_real_robot_env,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +169,12 @@ class DualArmManipulationSystem:
         if self.has_renderer:
             logger.debug("Adding VisualizationWrapper to environment...")
             self.env = VisualizationWrapper(self.env)
-        
+
+        # Designate THIS env as the real-execution env: only its env_step calls mirror to the
+        # physical robot (when BIMANUAL_REAL_ROBOT is enabled). The planning_env below is
+        # deliberately NOT marked, so its feasibility rollouts never touch the hardware.
+        mark_real_robot_env(self.env)
+
         # Create a separate headless environment for planning (the "Twin Env")
         # This prevents wild jumping behavior in the viewer during RRT planning.
         logger.info("   Creating separate planning environment (headless)...")
@@ -467,6 +476,7 @@ class DualArmManipulationSystem:
             except Exception:
                 pass
             try:
+                unmark_real_robot_env(self.env)
                 if hasattr(self.env, "close"):
                     self.env.close()
             except Exception:
