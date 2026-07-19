@@ -296,6 +296,34 @@ class TestLoadExperimentMinimalJSON:
         cfg = load_experiment(minimal_json)
         assert cfg.planning.rrt_bounds is None
 
+    def test_table_offset_none_by_default(self, minimal_json):
+        cfg = load_experiment(minimal_json)
+        assert cfg.table_offset is None
+
+    def test_table_offset_parsed(self, tmp_path):
+        data = {
+            "name": "table_offset_test",
+            "description": "",
+            "environment": {
+                "table_full_size": [1.0, 0.75, 0.05],
+                "table_offset": [0.0, 0.0, 0.8],
+                "ycb_objects": [],
+                "custom_objects": [],
+            },
+            "task": {
+                "manipulated_object": "obj",
+                "target_pose": {
+                    "position": [0.1, 0.2, 0.3],
+                    "quaternion": [0, 0, 0, 1],
+                },
+            },
+        }
+        p = tmp_path / "table_offset_test.json"
+        p.write_text(json.dumps(data))
+
+        cfg = load_experiment(str(p))
+        assert cfg.table_offset == (0.0, 0.0, 0.8)
+
 
 class TestLoadExperimentRRTBounds:
     """Test RRT bounds parsing edge cases."""

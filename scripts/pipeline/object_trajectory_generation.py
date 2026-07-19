@@ -117,6 +117,7 @@ def main():
         has_offscreen_renderer=False,
         use_camera_obs=False,
         table_full_size=exp_cfg.table_full_size,
+        table_offset=exp_cfg.table_offset,
     )
     env.reset()
     for _ in range(10):

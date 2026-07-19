@@ -134,6 +134,7 @@ class ExperimentConfig:
     assignment: AssignmentConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
     table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
+    table_offset: Optional[Tuple[float, float, float]] = None  # (x, y, z) world offset of table top reference
     gripper_grasp_offsets: Optional[Dict[str, Dict[str, Any]]] = None  # per-gripper offset overrides
 
 
@@ -226,6 +227,10 @@ def load_experiment(path: str) -> ExperimentConfig:
     if "table_full_size" in env_cfg:
         tfs = env_cfg["table_full_size"]
         table_full_size = (float(tfs[0]), float(tfs[1]), float(tfs[2]))
+    table_offset = None
+    if "table_offset" in env_cfg:
+        to = env_cfg["table_offset"]
+        table_offset = (float(to[0]), float(to[1]), float(to[2]))
 
     # --- task ---
     task_raw = raw["task"]
@@ -347,6 +352,7 @@ def load_experiment(path: str) -> ExperimentConfig:
         assignment=assignment,
         raw=raw,
         table_full_size=table_full_size,
+        table_offset=table_offset,
         gripper_grasp_offsets=gripper_grasp_offsets,
     )
 

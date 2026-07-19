@@ -94,6 +94,7 @@ def main() -> int:
     ycb_objects = exp_cfg.ycb_objects
     custom_objects = exp_cfg.custom_objects
     table_full_size = exp_cfg.table_full_size
+    table_offset = exp_cfg.table_offset
     enable_meshcat = exp_cfg.visualization.enable_meshcat
 
     # Create and start system
@@ -108,6 +109,7 @@ def main() -> int:
         use_fastsam=args.use_fastsam,
         use_grasp_service=args.use_graspgen,
         table_full_size=table_full_size,
+        table_offset=table_offset,
     )
 
     atexit.register(lambda: system.stop())

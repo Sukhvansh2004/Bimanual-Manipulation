@@ -93,6 +93,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Default args matching TwoArmHandover where applicable
         env_configuration=constants.DEFAULT_ENV_CONFIG,
         table_full_size=constants.DEFAULT_TABLE_SIZE,
+        table_offset: Optional[Tuple[float, float, float]] = None,
         table_friction=constants.DEFAULT_TABLE_FRICTION,
         use_object_obs=constants.DEFAULT_USE_OBJECT_OBS,
         **kwargs
@@ -109,7 +110,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Settings
         self.table_full_size = table_full_size
         self.table_friction = table_friction
-        self.table_offset = [0, 0, 0.9] # Default offset
+        self.table_offset = list(table_offset) if table_offset is not None else [0, 0, 0.9]
         self.use_object_obs = use_object_obs
         
         super().__init__(
@@ -434,6 +435,7 @@ def make_dual_arm_env(
     controller_name: str = constants.DEFAULT_CONTROLLER_NAME,
     input_type: str = constants.DEFAULT_INPUT_TYPE,
     table_full_size: Optional[Tuple] = None,
+    table_offset: Optional[Tuple[float, float, float]] = None,
 ) -> DualArmEnvironment:
     """
     Creates a DualArmEnvironment configured for a dual-arm Franka task.
@@ -541,6 +543,7 @@ def make_dual_arm_env(
         "ignore_done": constants.DEFAULT_IGNORE_DONE,
         "render_camera": constants.DEFAULT_RENDER_CAMERA,
         'table_full_size': table_full_size if table_full_size is not None else constants.DEFAULT_TABLE_SIZE,
+        'table_offset': table_offset,
     }
 
     env = DualArmEnvironment(
