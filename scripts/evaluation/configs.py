@@ -164,6 +164,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability
     # NOTE: NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
     "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY, BEAM_STRIDE, STRIDE_1, STRIDE_3, STRIDE_5, BEAM_5, BEAM_10, BEAM_20],
+    "custom": [BEAM_STRIDE]
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
