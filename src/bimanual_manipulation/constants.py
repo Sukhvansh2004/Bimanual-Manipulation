@@ -360,6 +360,7 @@ DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.75, 0.75, 0.05)
+DEFAULT_TABLE_OFFSET = (0.0, 0.0, 0.9)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
 # Number of arm joints on a Franka Panda (excludes gripper DOF).

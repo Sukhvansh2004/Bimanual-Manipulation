@@ -93,7 +93,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Default args matching TwoArmHandover where applicable
         env_configuration=constants.DEFAULT_ENV_CONFIG,
         table_full_size=constants.DEFAULT_TABLE_SIZE,
-        table_offset: Optional[Tuple[float, float, float]] = None,
+        table_offset = constants.DEFAULT_TABLE_OFFSET,
         table_friction=constants.DEFAULT_TABLE_FRICTION,
         use_object_obs=constants.DEFAULT_USE_OBJECT_OBS,
         **kwargs
@@ -110,7 +110,7 @@ class DualArmEnvironment(TwoArmEnv):
         # Settings
         self.table_full_size = table_full_size
         self.table_friction = table_friction
-        self.table_offset = list(table_offset) if table_offset is not None else [0, 0, 0.9]
+        self.table_offset = table_offset
         self.use_object_obs = use_object_obs
         
         super().__init__(
