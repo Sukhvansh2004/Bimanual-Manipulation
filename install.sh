@@ -97,6 +97,24 @@ conda env config vars set C_INCLUDE_PATH="${CONDA_PREFIX}/include:${CONDA_PREFIX
 conda deactivate
 conda activate "${ENV_NAME}"
 
+# Determine TORCH_CUDA_ARCH_LIST so CUDA extension builds (pointnet2_ops, etc.)
+# don't rely on auto-detecting a live GPU — that fails with an IndexError from
+# torch's _get_cuda_arch_flags() on build hosts where no GPU is visible
+# (e.g. a login node, or a container without --gpus).
+if command -v nvidia-smi &> /dev/null; then
+    DETECTED_ARCHES="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | sort -u | paste -sd';' -)"
+else
+    DETECTED_ARCHES=""
+fi
+if [ -n "${DETECTED_ARCHES}" ]; then
+    export TORCH_CUDA_ARCH_LIST="${DETECTED_ARCHES}+PTX"
+    echo "  Detected GPU compute capability → TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}"
+else
+    export TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6;8.9;9.0+PTX"
+    echo "  No GPU visible at build time → defaulting TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}"
+fi
+conda env config vars set TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" -n "${ENV_NAME}"
+
 # ── Step 5: PyTorch + CUDA extensions ─────────────────────────
 echo ""
 echo "[5/9] Installing PyTorch ${PYTORCH_VERSION} + CUDA ${CUDA_VERSION}..."
