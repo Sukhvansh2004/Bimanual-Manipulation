@@ -6,6 +6,7 @@ Service Manager - Central orchestrator for distributed services.
 import zmq
 import threading
 import logging
+import json
 from typing import Dict, Any, Optional, cast
 
 from bimanual_manipulation import constants
@@ -59,8 +60,30 @@ class ServiceClient:
 
             # Set timeout
             if socket.poll(timeout=constants.ZMQ_MANAGER_TIMEOUT):
-                response = cast(Dict[str, Any], socket.recv_json())
-                return response
+                raw = socket.recv()
+                try:
+                    text = raw.decode("utf-8")
+                    response = cast(Dict[str, Any], json.loads(text))
+                    return response
+                except UnicodeDecodeError:
+                    first_bytes = raw[:16].hex()
+                    return ResponseStatus(
+                        status='error',
+                        message=(
+                            f"Service manager at {endpoint} returned non-UTF8/binary data "
+                            f"(first bytes: {first_bytes}). This usually means a protocol mismatch "
+                            "(e.g., msgpack server on the JSON port)."
+                        )
+                    ).model_dump()
+                except json.JSONDecodeError as e:
+                    preview = raw[:120].decode("utf-8", errors="replace")
+                    return ResponseStatus(
+                        status='error',
+                        message=(
+                            f"Service manager at {endpoint} returned invalid JSON: {e}. "
+                            f"Payload preview: {preview}"
+                        )
+                    ).model_dump()
             else:
                 return ResponseStatus(status='error', message='Request timeout').model_dump()
 

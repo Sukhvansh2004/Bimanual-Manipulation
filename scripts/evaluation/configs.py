@@ -114,9 +114,14 @@ BEAM_5 = _cfg("Beam=5", beam_width=5)
 BEAM_10 = _cfg("Beam=10", beam_width=10)
 BEAM_20 = _cfg("Beam=20", beam_width=20)
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 8. Misc.
+# ═══════════════════════════════════════════════════════════════════════════
+
+BEAM_STRIDE = _cfg("Beam=10, Stride=3", beam_width=10, handover_stride=3, clearance_radius=0.03)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 8. Method Comparisons (for Paper Table 1)
+# 9. Method Comparisons (for Paper Table 1)
 # ═══════════════════════════════════════════════════════════════════════════
 # These correspond to the four methods compared in the paper:
 #   Greedy         — beam_width=1 (locally optimal, no look-ahead)
@@ -158,7 +163,7 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
     # Table 1 (Method Comparison): Proposed, Greedy, Single Robot, No Diversity
     # Table 2 (Ablation Study):    Proposed, No Switching Penalty, No Manipulability
     # NOTE: NO_DIVERSITY has use_dpp=False → run_experiment() auto-switches to data/<task>_no_dpp/
-    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY],
+    "paper": [PROPOSED, GREEDY, SINGLE_ROBOT, NO_DIVERSITY, NO_SWITCH_PENALTY, NO_MANIPULABILITY, BEAM_STRIDE, STRIDE_1, STRIDE_3, STRIDE_5, BEAM_5, BEAM_10, BEAM_20],
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -166,8 +171,8 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 PAPER_EXPERIMENTS = [
-    "ycb_plate_table_to_shelf",
-    "ycb_plate_shelf_to_table",
+    "flatPlate_table_to_shelf",
+    "flatPlate_shelf_to_table",
     "mug_inversion",
     "flatPlate_box_to_box",
 ]

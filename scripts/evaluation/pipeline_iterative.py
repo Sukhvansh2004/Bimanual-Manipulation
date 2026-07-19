@@ -31,7 +31,12 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from scripts.evaluation.configs import ALL_ABLATIONS, config_id, ALL_CONFIGS
+from scripts.evaluation.configs import (
+    ALL_ABLATIONS,
+    ALL_CONFIGS,
+    PAPER_EXPERIMENTS,
+    config_id,
+)
 
 TRAJ_GEN_SCRIPT = "scripts/pipeline/trajectory_generation.py"
 RUN_ALL_SCRIPT = "scripts/evaluation/run_all.py"
@@ -175,11 +180,27 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    if args.experiments:
+    if args.paper:
+        if args.experiments:
+            requested = set(args.experiments)
+            experiments = sorted(exp for exp in PAPER_EXPERIMENTS if exp in requested)
+            missing = sorted(requested - set(PAPER_EXPERIMENTS))
+            if missing:
+                logger.warning(
+                    "--paper is set; ignoring non-paper experiments from --experiments: %s",
+                    ", ".join(missing),
+                )
+        else:
+            experiments = sorted(PAPER_EXPERIMENTS)
+    elif args.experiments:
         experiments = sorted(args.experiments)
-    else: # Run all the experiments if none are specified; discover them by looking for JSON files in the experiments directory
+    else:  # Run all experiments if none are specified
         exp_dir = Path(_PROJECT_ROOT) / "experiments"
         experiments = sorted(f.stem for f in exp_dir.glob("*.json"))
+
+    if not experiments:
+        logger.error("No experiments selected after applying flags.")
+        return
     
     iters = args.iterations
     
@@ -280,6 +301,7 @@ def main():
                 "--only", *ready_experiments,
                 "--execute",
                 "--workers", str(args.workers),
+                "--seed", str(args.base_seed + i),
                 "--results-dir", str(iter_results_dir),
             ]
             # Always pass --resume to run_all so it skips already-completed

@@ -12,7 +12,7 @@ All service implementations live in `src/bimanual_manipulation/services/`:
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| Service Manager | 5555 | Service discovery and registration |
+| Service Manager | 6006 | Service discovery and registration |
 | FastSAM Service | 5551 | Object detection and segmentation |
 | Grasp Service | 5552 | 6-DOF grasp prediction |
 | MoveToPose Service | 5553 | Autonomous arm control |
@@ -21,7 +21,7 @@ All service implementations live in `src/bimanual_manipulation/services/`:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Service Manager (5555)                      │
+│                      Service Manager (6006)                      │
 │                   Service Discovery & Registry                   │
 └─────────────────────────────────────────────────────────────────┘
          │                    │                    │
@@ -272,7 +272,7 @@ All service ports and timeouts are defined in `src/bimanual_manipulation/constan
 ```python
 # Network Configuration
 DEFAULT_HOST = 'localhost'
-SERVICE_MANAGER_PORT = 5555
+SERVICE_MANAGER_PORT = 6006
 FASTSAM_SERVICE_PORT = 5551
 GRASP_SERVICE_PORT = 5552
 MOVE_TO_POSE_SERVICE_PORT = 5553
