@@ -3,11 +3,11 @@
     "description": "Orientation-correction dual-handover: a YCB mug starts inverted (upside-down) on the left side of the table. A central wall blocks direct transfer, forcing the trajectory to detour around the +y corridor. Robot-1 (suction gripper) grasps the exposed bottom surface (facing up), lifts it, and hands off to Robot-0 (finger gripper) around the wall. Robot-0 re-grasps the mug by its rim, reorients it to upright, and places it on the right side of the table. The wall plus the 180° orientation change make the suction-to-finger handover essential.",
     "environment": {
         "table_full_size": [1.0, 0.75, 0.05],
-        "table_offset": [0.0, 0.0, 0.8],
+        "table_offset": [0.0, 0.0, 0.912],
         "ycb_objects": [
             {
                 "ycb_name": "mug",
-                "position": [-0.2, 0.0, 0.855],
+                "position": [-0.2, 0.0, 0.967],
                 "quaternion": [0, 1, 0, 0],
                 "_comment": "Mug inverted (180° around Y-axis): bottom faces up, handle faces +y"
             }
@@ -17,12 +17,12 @@
                 "type": "box",
                 "name": "wallObstacle",
                 "size": [0.06, 0.30, 0.25],
-                "position": [0.0, 0.0, 0.925],
+                "position": [0.0, 0.0, 1.037],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
                 "rgba": [0.4, 0.4, 0.4, 0.8],
                 "is_static": true,
-                "_comment": "Central wall: x=±0.03, y=±0.15, z=0.80–1.05. Blocks direct transfer, forcing the mug through a dual-arm handover."
+                "_comment": "Central wall: x=±0.03, y=±0.15, z=0.912–1.162. Blocks direct transfer, forcing the mug through a dual-arm handover."
             }
         ]
     },
@@ -30,7 +30,7 @@
         "manipulated_object": "mug_0",
         "start_pose": null,
         "target_pose": {
-            "position": [0.2, 0.0, 0.827],
+            "position": [0.2, 0.0, 0.939],
             "quaternion": [0, 0, 0, 1],
             "_comment": "Upright mug on the right side, handle pointing same direction as start (+y)"
         }
@@ -44,7 +44,7 @@
         "lift_height": 0.2,
         "approach_offset": 0.25,
         "rrt_bounds": [
-            [-0.5, -0.5, 0.8],
+            [-0.5, -0.5, 0.9],
             [0.5, 0.5, 2.0]
         ]
     },
