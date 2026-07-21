@@ -200,7 +200,7 @@ def _to_detail_row_from_dict(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grid search alpha/beta for assignment solver")
     parser.add_argument("--alpha-values", nargs="+", type=float,
-                        default=[2.5, 5.0, 10.0, 20.0, 40.0],
+                        default=[2.5, 5.0, 10.0, 20.0, 40.0, 50.0],
                         help="List of alpha values to sweep (default: 2.5 5 10 20 40)")
     parser.add_argument("--beta-values", nargs="+", type=float,
                         default=[0.0, 0.25, 0.5, 1.0, 2.0, 4.0],
