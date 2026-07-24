@@ -97,6 +97,24 @@ conda env config vars set C_INCLUDE_PATH="${CONDA_PREFIX}/include:${CONDA_PREFIX
 conda deactivate
 conda activate "${ENV_NAME}"
 
+# Determine TORCH_CUDA_ARCH_LIST so CUDA extension builds (pointnet2_ops, etc.)
+# don't rely on auto-detecting a live GPU — that fails with an IndexError from
+# torch's _get_cuda_arch_flags() on build hosts where no GPU is visible
+# (e.g. a login node, or a container without --gpus).
+if command -v nvidia-smi &> /dev/null; then
+    DETECTED_ARCHES="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | sort -u | paste -sd';' -)"
+else
+    DETECTED_ARCHES=""
+fi
+if [ -n "${DETECTED_ARCHES}" ]; then
+    export TORCH_CUDA_ARCH_LIST="${DETECTED_ARCHES}+PTX"
+    echo "  Detected GPU compute capability → TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}"
+else
+    export TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6;8.9;9.0+PTX"
+    echo "  No GPU visible at build time → defaulting TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}"
+fi
+conda env config vars set TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}" -n "${ENV_NAME}"
+
 # ── Step 5: PyTorch + CUDA extensions ─────────────────────────
 echo ""
 echo "[5/9] Installing PyTorch ${PYTORCH_VERSION} + CUDA ${CUDA_VERSION}..."
@@ -115,7 +133,7 @@ pip install "numpy>=1.21.0,<2.0.0"
 # ── Step 6: MuJoCo ────────────────────────────────────────────
 echo ""
 echo "[6/9] Installing MuJoCo..."
-pip install mujoco
+pip install mujoco==3.9
 
 # ── Step 7: GraspGen + PointNet2 CUDA ops ─────────────────────
 echo ""
@@ -138,6 +156,7 @@ pip install -e .
 
 # Install supplementary packages not in pyproject.toml
 pip install pyrender scene-synthesizer
+pip install PyOpenGL==3.1.5 PyOpenGL-accelerate
 
 # ── Step 9: Verify ────────────────────────────────────────────
 echo ""
@@ -160,7 +179,7 @@ check('torch + CUDA',          lambda: (__import__('torch'), print(f'    torch {
 check('mujoco',                lambda: __import__('mujoco'))
 check('robosuite',             lambda: __import__('robosuite'))
 check('open3d',                lambda: __import__('open3d'))
-check('EAIK',                  lambda: __import__('EAIK'))
+check('eaik',                  lambda: __import__('eaik'))
 check('mink',                  lambda: __import__('mink'))
 check('grasp_gen',             lambda: __import__('grasp_gen'))
 check('pointnet2_ops',         lambda: __import__('pointnet2_ops'))

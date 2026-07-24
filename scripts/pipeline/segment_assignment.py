@@ -43,6 +43,7 @@ import io
 import json
 import logging
 import os
+import random
 import pstats
 import sys
 import threading
@@ -197,6 +198,10 @@ def main() -> None:
         help="Visualize each evaluated handover attempt in Meshcat "
              "(requires --no-env to be off).",
     )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Random seed for reproducibility.",
+    )
 
     args = parser.parse_args()
 
@@ -206,6 +211,11 @@ def main() -> None:
 
     debug = args.debug or exp_cfg.runtime.debug
     setup_logging(logging.DEBUG if debug else logging.INFO)
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        logger.info("Set random seeds to %d", args.seed)
 
     logger.info("Loaded experiment: %s – %s", exp_cfg.name, exp_cfg.description)
 

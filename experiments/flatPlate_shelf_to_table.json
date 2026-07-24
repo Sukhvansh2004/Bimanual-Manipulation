@@ -2,22 +2,33 @@
     "name": "flatPlate_shelf_to_table",
     "description": "Move a flat plate from a tabletop shelf slot back down to the table surface.",
     "environment": {
-        "table_full_size": [1.0, 0.75, 0.05],
+        "table_full_size": [1.2, 0.75, 0.05],
         "ycb_objects": [
             {
                 "ycb_name": "table_shelf",
-                "position": [-0.25, 0.0, 0.9],
-                "quaternion": [0, 0, 0, 1],
+                "position": [-0.35, 0.0, 1.15],
+                "quaternion": [0, 0, 0.70710678, 0.70710678],
                 "is_static": true
             }
         ],
         "custom_objects": [
             {
                 "type": "box",
+                "name": "shelfMount",
+                "size": [0.22, 0.42, 0.30],
+                "position": [-0.35, 0.0, 1.00],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.35, 0.20, 1.0],
+                "is_static": true,
+                "_comment": "Stand/mount to elevate the shelf above the table surface"
+            },
+            {
+                "type": "box",
                 "name": "flatPlate",
                 "size": [0.26, 0.26, 0.02],
-                "position": [-0.2, -0.05, 1.04],
-                "quaternion": [0, 0.70710678, 0, 0.70710678],
+                "position": [-0.30, 0.05, 1.294],
+                "quaternion": [-0.5, 0.5, 0.5, 0.5],
                 "density": 100,
                 "friction": [1.0, 1.0, 1.0],
                 "rgba": null
@@ -28,21 +39,21 @@
         "manipulated_object": "flatPlate",
         "start_pose": null,
         "target_pose": {
-            "position": [0.1, 0.0, 0.91],
+            "position": [0.1, 0.0, 0.912],
             "quaternion": [0, 0, 0, 1]
         }
     },
     "planning": {
         "num_grasps": 200,
-        "num_entropy_grasps": 40,
+        "num_entropy_grasps": 60,
         "gripper_types": ["finger", "suction"],
         "collision_check": null,
         "num_steps": 50,
         "lift_height": 0.2,
         "approach_offset": 0.3,
         "rrt_bounds": [
-            [-0.5, -0.4, 0.9],
-            [0.5, 0.4, 1.4]
+            [-0.6, -0.4, 0.9],
+            [0.5, 0.4, 1.7]
         ]
     },
     "collision_filter": {

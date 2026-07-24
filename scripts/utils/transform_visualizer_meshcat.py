@@ -6,7 +6,7 @@ It creates its own environment as a demo and streams that env's TF.
 
 Prereqs:
 - Start a meshcat server in another terminal: `meshcat-server`
-  (default: websocket/ui on http://127.0.0.1:7000, ZMQ bridge on tcp://127.0.0.1:6000)
+    (default: websocket/ui on http://127.0.0.1:7000, ZMQ bridge on tcp://127.0.0.1:6000)
 
 Usage:
   python scripts/utils/transform_visualizer_meshcat.py

@@ -170,7 +170,7 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   │   └── utils.py                     # Trajectory save/load (NPZ) & WaypointFeasibilityResult
 │   │   └── visualization/                   # Meshcat + matplotlib visualization
 │   ├── services/                            # Microservices (ZMQ)
-│   │   ├── services_core.py                 # ServiceManager & ServiceClient (port 5555)
+│   │   ├── services_core.py                 # ServiceManager & ServiceClient (port 6006)
 │   │   ├── fastsam_service.py               # FastSAM detection (port 5551)
 │   │   ├── grasp_service.py                 # GraspGen prediction (port 5552)
 │   │   ├── grasp_generator.py               # High-level grasp sampling API
@@ -217,6 +217,8 @@ To change: `conda env config vars set MUJOCO_GL=glx -n dual_arm_manipulation`
 │   │   └── teleop_dual_arm.py               # Keyboard teleoperation
 │   └── evaluation/                          # Evaluation & benchmarking
 │       ├── run_all.py                       # Run all evaluations
+│       ├── pipeline_iterative.py            # Multi-iteration robustness runner
+│       ├── alpha_beta_grid.py               # Alpha-Beta Grid Search
 │       ├── analyze.py                       # Result analysis
 │       ├── profile_assignment.py            # Assignment planner profiling
 │       ├── configs.py                       # Evaluation configurations
@@ -337,6 +339,28 @@ python scripts/generate_all_trajs.py --workers 4
 |----------|---------|-------------|
 | `--only` | all | Run only the listed experiment names (without `.json`) |
 | `--workers` | from config | Override `num_workers` for all experiments |
+
+#### `scripts/evaluation/pipeline_iterative.py`
+
+Full evaluation runner for **multi-seed robustness experiments**. For each iteration, it generates both standard and no-DPP trajectories for the requested experiments, then invokes the evaluation framework (`run_all.py`) to perform assignment and execution across the selected configs. Supports crash-resilient resume and optional reuse of cached object trajectories.
+
+```bash
+python scripts/evaluation/pipeline_iterative.py --experiments mug_inversion --iterations 5
+python scripts/evaluation/pipeline_iterative.py --paper --iterations 5
+python scripts/evaluation/pipeline_iterative.py --paper --iterations 5 --resume
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--experiments` | all experiments | Run only the listed experiment names |
+| `--iterations` | `1` | Number of full pipeline iterations to run |
+| `--workers` | `4` | Number of workers passed to generation/evaluation steps |
+| `--paper` | `False` | Run only the paper configuration set |
+| `--ablations` | all configs | Run only the named ablation groups |
+| `--resume` | `False` | Skip completed iterations and resume from the first incomplete one |
+| `--reuse-object-traj` | `False` | Reuse cached object trajectories across iterations |
+| `--base-seed` | `497` | Base RNG seed; iteration `i` uses `base_seed + i` |
+| `--log-file` | `None` | Append execution logs to the given file |
 
 ---
 
@@ -578,7 +602,7 @@ The config is loaded via `load_experiment()` into typed dataclasses (`Experiment
 
 All services communicate via ZMQ with JSON messages.
 
-### Service Manager (port 5555)
+### Service Manager (port 6006)
 Service discovery and registration.
 
 ### FastSAM Service (port 5551)

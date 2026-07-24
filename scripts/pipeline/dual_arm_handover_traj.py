@@ -30,6 +30,7 @@ import json
 import logging
 import numpy as np
 import argparse
+import random
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import meshcat
@@ -561,6 +562,8 @@ def parse_args() -> argparse.Namespace:
                         help="Disable meshcat visualization")
     parser.add_argument("--data-dir", type=str, default=None,
                         help="Directory containing trajectory NPZ files")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducibility")
     return parser.parse_args()
 
 
@@ -598,6 +601,16 @@ def load_and_configure_experiment(args) -> ExperimentConfig:
 
     debug = args.debug or exp_cfg.runtime.debug
     setup_logging(logging.DEBUG if debug else logging.INFO)
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        try:
+            import torch
+            torch.manual_seed(args.seed)
+        except Exception:
+            logger.debug("Torch unavailable for seeding; continuing with numpy/random only.")
+        logger.info("Set random seeds to %d", args.seed)
 
     return exp_cfg
 

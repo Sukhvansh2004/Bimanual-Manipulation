@@ -30,6 +30,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.21.0,<2.0.0",
     "scipy>=1.7.0",
+    "mujoco==3.9.0",
     "pydantic>=2.0.0",
     "robosuite>=1.4.0",
     "ultralytics>=8.0.0",  # For FastSAM
