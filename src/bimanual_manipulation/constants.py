@@ -360,6 +360,7 @@ DEFAULT_ROBOT_TYPES = ['Panda', 'Panda']
 DEFAULT_GRIPPER_TYPES_ENV = ['PandaGripper', 'PandaSuctionGripper']
 DEFAULT_ENV_CONFIG = 'opposed'
 DEFAULT_TABLE_SIZE = (0.75, 0.75, 0.05)
+DEFAULT_TABLE_OFFSET = (0.0, 0.0, 0.9)
 DEFAULT_TABLE_FRICTION = (1.0, 5e-3, 1e-4)
 DEFAULT_USE_OBJECT_OBS = True
 # Number of arm joints on a Franka Panda (excludes gripper DOF).
@@ -440,9 +441,13 @@ CONTROLLER_ACTION_DIMS = {
 # Joints 1-4: 2.175 rad/s, Joints 5-7: 2.610 rad/s
 FRANKA_VELOCITY_LIMITS = np.array([2.175, 2.175, 2.175, 2.175, 2.610, 2.610, 2.610])
 
-# Default home joint configuration for Franka Panda (radians)
+# Default home joint configuration for Franka Panda (radians).
+# joint1 is yawed to +0.6 rad to splay the two opposed arms apart at home: with joint1=0.0
+# both end-effectors met near the table centre (~0.12 m apart) and nearly collided during
+# real-world execution. At +0.6 the EEFs splay symmetrically (to x=+/-0.27) giving ~0.61 m
+# separation at the same height (verified in sim), while keeping every other joint unchanged.
 FRANKA_HOME_JOINT_POSITION = np.array([
-    0.0,     # joint1
+    0.6,     # joint1  (yaw: splay opposed arms apart to avoid EEF collision at home)
     -0.5,    # joint2  (more upright than default 0.196)
     0.0,     # joint3
     -2.0,    # joint4  (less bent than default -2.618)

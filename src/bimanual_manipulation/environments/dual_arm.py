@@ -90,9 +90,11 @@ class DualArmEnvironment(TwoArmEnv):
         self,
         custom_objects: Optional[List[Dict[str, Any]]] = None,
         ycb_objects: Optional[List[Dict[str, Any]]] = None,
+        robot_base_configs: Optional[List[Dict[str, np.ndarray]]] = None,
         # Default args matching TwoArmHandover where applicable
         env_configuration=constants.DEFAULT_ENV_CONFIG,
         table_full_size=constants.DEFAULT_TABLE_SIZE,
+        table_offset = constants.DEFAULT_TABLE_OFFSET,
         table_friction=constants.DEFAULT_TABLE_FRICTION,
         use_object_obs=constants.DEFAULT_USE_OBJECT_OBS,
         **kwargs
@@ -109,7 +111,10 @@ class DualArmEnvironment(TwoArmEnv):
         # Settings
         self.table_full_size = table_full_size
         self.table_friction = table_friction
-        self.table_offset = [0, 0, 0.9] # Default offset
+        self.table_offset = table_offset
+        self.robot_base_configs = robot_base_configs
+        if self.robot_base_configs is None:
+            self.robot_base_configs = constants.ROBOT_CONFIGURATIONS.get(env_configuration)
         self.use_object_obs = use_object_obs
         
         super().__init__(
@@ -129,8 +134,8 @@ class DualArmEnvironment(TwoArmEnv):
             robot.init_qpos = constants.FRANKA_HOME_JOINT_POSITION.copy()
 
         # 2. Adjust robot base positions
-        if self.env_configuration in constants.ROBOT_CONFIGURATIONS:
-            configs = constants.ROBOT_CONFIGURATIONS[self.env_configuration]
+        configs = self.robot_base_configs
+        if configs is not None:
             
             for i, robot in enumerate(self.robots):
                 if i >= len(configs):
@@ -152,7 +157,8 @@ class DualArmEnvironment(TwoArmEnv):
                 # Rotate the mounting point vector (e.g. for opposed config)
                 xpos = rot_mat @ np.array(xpos)
                 
-                # Add offset
+                # cfg['position'] is a delta from robosuite's default table-mounted
+                # spawn position for this robot, not an absolute world-frame base pose.
                 xpos += cfg['position']
                 
                 # Set base position and orientation
@@ -434,6 +440,8 @@ def make_dual_arm_env(
     controller_name: str = constants.DEFAULT_CONTROLLER_NAME,
     input_type: str = constants.DEFAULT_INPUT_TYPE,
     table_full_size: Optional[Tuple] = None,
+    table_offset: Optional[Tuple[float, float, float]] = None,
+    robot_base_configs: Optional[List[Dict[str, np.ndarray]]] = None,
 ) -> DualArmEnvironment:
     """
     Creates a DualArmEnvironment configured for a dual-arm Franka task.
@@ -541,6 +549,8 @@ def make_dual_arm_env(
         "ignore_done": constants.DEFAULT_IGNORE_DONE,
         "render_camera": constants.DEFAULT_RENDER_CAMERA,
         'table_full_size': table_full_size if table_full_size is not None else constants.DEFAULT_TABLE_SIZE,
+        'table_offset': table_offset,
+        'robot_base_configs': robot_base_configs,
     }
 
     env = DualArmEnvironment(
