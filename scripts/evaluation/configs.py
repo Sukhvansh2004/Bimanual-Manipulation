@@ -173,9 +173,9 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
 
 PAPER_EXPERIMENTS = [
     "flatPlate_table_to_shelf",
-    "flatPlate_shelf_to_table",
     "mug_inversion",
     "flatPlate_box_to_box",
+    "ycb_plate_shelf_to_table",
 ]
 
 # Flat list of all unique configs for running everything
