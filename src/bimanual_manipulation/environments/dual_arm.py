@@ -283,6 +283,27 @@ class DualArmEnvironment(TwoArmEnv):
             except ValueError as e:
                 logger.warning(f"Could not find body for '{name}' (root_body='{obj.root_body}'): {e}")
 
+        # Hide MuJoCo gripper / TCP helper sites (axis cylinders and TCP ray-like marker).
+        # These are useful for debugging but visually noisy for normal execution.
+        self._hide_gripper_tcp_sites()
+
+    def _hide_gripper_tcp_sites(self) -> None:
+        """Disable visibility of gripper / TCP debug sites in the MuJoCo viewer."""
+        site_suffixes = ("grip_site_cylinder", "ee_x", "ee_y", "ee_z", "grip_site")
+        hidden = 0
+
+        try:
+            for site_id, site_name in enumerate(self.sim.model.site_names):
+                if any(site_name.endswith(suffix) for suffix in site_suffixes):
+                    self.sim.model.site_rgba[site_id, 3] = 0.0
+                    hidden += 1
+        except Exception as e:
+            logger.debug(f"Failed to hide gripper/TCP sites: {e}")
+            return
+
+        if hidden > 0:
+            logger.debug(f"Hidden {hidden} gripper/TCP visualization sites.")
+
     def _setup_observables(self):
         """
         Sets up observables to be used for this environment.
