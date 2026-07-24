@@ -439,8 +439,8 @@ def make_dual_arm_env(
     camera_width: int = constants.DEFAULT_CAMERA_WIDTH,
     controller_name: str = constants.DEFAULT_CONTROLLER_NAME,
     input_type: str = constants.DEFAULT_INPUT_TYPE,
-    table_full_size: Optional[Tuple] = None,
-    table_offset: Optional[Tuple[float, float, float]] = None,
+    table_full_size: Tuple[float, float, float] = constants.DEFAULT_TABLE_SIZE,
+    table_offset: Tuple[float, float, float] = constants.DEFAULT_TABLE_OFFSET,
     robot_base_configs: Optional[List[Dict[str, np.ndarray]]] = None,
 ) -> DualArmEnvironment:
     """
@@ -548,7 +548,7 @@ def make_dual_arm_env(
         "horizon": constants.DEFAULT_HORIZON,
         "ignore_done": constants.DEFAULT_IGNORE_DONE,
         "render_camera": constants.DEFAULT_RENDER_CAMERA,
-        'table_full_size': table_full_size if table_full_size is not None else constants.DEFAULT_TABLE_SIZE,
+        'table_full_size': table_full_size,
         'table_offset': table_offset,
         'robot_base_configs': robot_base_configs,
     }
