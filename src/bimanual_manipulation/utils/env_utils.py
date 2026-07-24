@@ -13,6 +13,11 @@ from scipy.spatial.transform import Rotation as R
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 from bimanual_manipulation.utils.monitors import _collision_monitor, _object_monitor
+from bimanual_manipulation.utils.real_robot_bridge import (
+    get_real_robot_bridge,
+    is_real_robot_env,
+    reset_real_robot_bridge,
+)
 from bimanual_manipulation.utils.suction_weld import apply_suction_weld
 
 logger = logging.getLogger(__name__)
@@ -318,6 +323,14 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
     obs = env.step(full_action)
     apply_suction_weld(env, full_action)
 
+    # Mirror the executed action onto the real hardware. Gated two ways: opt-in via
+    # BIMANUAL_REAL_ROBOT (else get_real_robot_bridge() is None -> no-op for all the offline
+    # planning/visualization callers), AND per-env -- only the env explicitly designated with
+    # mark_real_robot_env() mirrors, so the pipeline's separate planning_env never does.
+    real_bridge = get_real_robot_bridge()
+    if real_bridge is not None and is_real_robot_env(env):
+        real_bridge.mirror(env, full_action)
+
     # Collision monitoring (no-op when monitor is disabled)
     _collision_monitor.check(env)
 
@@ -331,6 +344,9 @@ def reset_action_persistence():
     """Reset the action persistence manager state. Call after env.reset()."""
     global _action_manager
     _action_manager = ActionPersistenceManager()
+    # After a reset the sim teleports to its start config; force the real arms to ease in to
+    # the new configuration on the next mirrored command instead of jumping.
+    reset_real_robot_bridge()
 
 
 def get_action_persistence_manager() -> ActionPersistenceManager:

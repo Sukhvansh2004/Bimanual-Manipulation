@@ -81,7 +81,7 @@ constants.ZMQ_SERVICE_CALL_TIMEOUT = 15 * 50 * 1000
 worker_env = None
 worker_tf_manager = None
 
-def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patterns=None, table_full_size=None):
+def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patterns=None, table_full_size=None, table_offset=None, robot_base_configs=None):
     """Initialize worker process by creating a persistent environment.
     
     Args:
@@ -92,6 +92,8 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
             any of these patterns (or are robot geoms) keep their collisions.
             All other geoms get contype=0 for faster collision checking.
         table_full_size: Optional tuple (x, y, z) to override the default table dimensions.
+        table_offset: Optional tuple (x, y, z) to override the table world offset.
+        robot_base_configs: Optional per-robot base overrides from the experiment.
     """
     setup_logging(log_level)
     global worker_env, worker_tf_manager
@@ -105,6 +107,8 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
             has_offscreen_renderer=False,
             use_camera_obs=False,
             table_full_size=table_full_size,
+            table_offset=table_offset,
+            robot_base_configs=robot_base_configs,
         )
         worker_env.reset()
         # Allow environment to settle
@@ -238,6 +242,8 @@ def main() -> None:
     object_name = exp_cfg.task.manipulated_object
     collision_relevant_patterns = exp_cfg.collision_filter.relevant_patterns
     table_full_size = exp_cfg.table_full_size
+    table_offset = exp_cfg.table_offset
+    robot_base_configs = exp_cfg.robot_base_configs
     
     logger.info("Creating planning environment with %d YCB + %d custom objects...",
                 len(ycb_objects), len(custom_objects))
@@ -250,6 +256,8 @@ def main() -> None:
         has_offscreen_renderer=False,
         use_camera_obs=False,
         table_full_size=table_full_size,
+        table_offset=table_offset,
+        robot_base_configs=robot_base_configs,
     )
     env.reset()
     # Allow environment to settle
@@ -385,7 +393,7 @@ def main() -> None:
     with multiprocessing.Pool(
         processes=num_workers,
         initializer=init_worker,
-        initargs=(ycb_objects, custom_objects, log_level, collision_relevant_patterns, table_full_size)
+        initargs=(ycb_objects, custom_objects, log_level, collision_relevant_patterns, table_full_size, table_offset, robot_base_configs)
     ) as pool:
         eval_func = partial(evaluate_pair, object_trajectory=object_trajectory, object_name=object_name, collision_ignore_waypoints=plan_cfg.collision_ignore_waypoints, collision_ignore_waypoint_names=plan_cfg.collision_ignore_waypoint_names, collision_ignore_waypoint_pairs=plan_cfg.collision_ignore_waypoint_pairs)
         all_results = pool.map(eval_func, grasp_pairs)

@@ -280,6 +280,8 @@ def main():
     custom_objects = []
     ycb_objects = []
     table_full_size = None
+    table_offset = None
+    robot_base_configs = None
     exp_cfg = None
     
     # 1. Experiment-based setup (takes priority)
@@ -289,6 +291,8 @@ def main():
         ycb_objects = exp_cfg.ycb_objects
         custom_objects = exp_cfg.custom_objects
         table_full_size = exp_cfg.table_full_size
+        table_offset = exp_cfg.table_offset
+        robot_base_configs = exp_cfg.robot_base_configs
     
     # 2. Ad-hoc objects (appended to experiment objects if both given)
     if args.with_objects:
@@ -316,6 +320,8 @@ def main():
             ycb_objects=ycb_objects,
             has_renderer=not args.headless and not args.no_render,
             table_full_size=table_full_size,
+            table_offset=table_offset,
+            robot_base_configs=robot_base_configs,
         )
         
         logger.info("Resetting environment...")

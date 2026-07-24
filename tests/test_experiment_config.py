@@ -296,6 +296,72 @@ class TestLoadExperimentMinimalJSON:
         cfg = load_experiment(minimal_json)
         assert cfg.planning.rrt_bounds is None
 
+    def test_table_offset_none_by_default(self, minimal_json):
+        cfg = load_experiment(minimal_json)
+        assert cfg.table_offset is None
+
+    def test_robot_base_configs_none_by_default(self, minimal_json):
+        cfg = load_experiment(minimal_json)
+        assert cfg.robot_base_configs is None
+
+    def test_table_offset_parsed(self, tmp_path):
+        data = {
+            "name": "table_offset_test",
+            "description": "",
+            "environment": {
+                "table_full_size": [1.0, 0.75, 0.05],
+                "table_offset": [0.0, 0.0, 0.8],
+                "ycb_objects": [],
+                "custom_objects": [],
+            },
+            "task": {
+                "manipulated_object": "obj",
+                "target_pose": {
+                    "position": [0.1, 0.2, 0.3],
+                    "quaternion": [0, 0, 0, 1],
+                },
+            },
+        }
+        p = tmp_path / "table_offset_test.json"
+        p.write_text(json.dumps(data))
+
+        cfg = load_experiment(str(p))
+        assert cfg.table_offset == (0.0, 0.0, 0.8)
+
+    def test_robot_base_configs_parsed(self, tmp_path):
+        data = {
+            "name": "robot_base_test",
+            "description": "",
+            "environment": {
+                "ycb_objects": [],
+                "custom_objects": [],
+                "robot_base_configs": [
+                    {
+                        "position": [0.0, 0.1, 0.0],
+                        "quaternion": [0.0, 0.0, 0.70710678, 0.70710678],
+                    },
+                    {
+                        "position": [0.0, -0.1, 0.0],
+                        "quaternion": [0.0, 0.0, -0.70710678, 0.70710678],
+                    },
+                ],
+            },
+            "task": {
+                "manipulated_object": "obj",
+                "target_pose": {
+                    "position": [0.1, 0.2, 0.3],
+                    "quaternion": [0, 0, 0, 1],
+                },
+            },
+        }
+        p = tmp_path / "robot_base_test.json"
+        p.write_text(json.dumps(data))
+
+        cfg = load_experiment(str(p))
+        assert cfg.robot_base_configs is not None
+        np.testing.assert_array_equal(cfg.robot_base_configs[0]["position"], [0.0, 0.1, 0.0])
+        np.testing.assert_array_equal(cfg.robot_base_configs[1]["position"], [0.0, -0.1, 0.0])
+
 
 class TestLoadExperimentRRTBounds:
     """Test RRT bounds parsing edge cases."""

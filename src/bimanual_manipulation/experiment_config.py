@@ -134,6 +134,8 @@ class ExperimentConfig:
     assignment: AssignmentConfig
     raw: Dict[str, Any]  # original JSON dict for pass-through
     table_full_size: Optional[Tuple[float, float, float]] = None  # (length_x, width_y, thickness_z)
+    table_offset: Optional[Tuple[float, float, float]] = None  # (x, y, z) world offset of table top reference
+    robot_base_configs: Optional[List[Dict[str, np.ndarray]]] = None  # per-robot base position/quaternion overrides
     gripper_grasp_offsets: Optional[Dict[str, Dict[str, Any]]] = None  # per-gripper offset overrides
 
 
@@ -226,6 +228,18 @@ def load_experiment(path: str) -> ExperimentConfig:
     if "table_full_size" in env_cfg:
         tfs = env_cfg["table_full_size"]
         table_full_size = (float(tfs[0]), float(tfs[1]), float(tfs[2]))
+    table_offset = None
+    if "table_offset" in env_cfg:
+        to = env_cfg["table_offset"]
+        table_offset = (float(to[0]), float(to[1]), float(to[2]))
+    robot_base_configs = None
+    if "robot_base_configs" in env_cfg:
+        robot_base_configs = []
+        for cfg in env_cfg["robot_base_configs"]:
+            robot_base_configs.append({
+                "position": np.array(cfg["position"], dtype=float),
+                "quaternion": np.array(cfg["quaternion"], dtype=float),
+            })
 
     # --- task ---
     task_raw = raw["task"]
@@ -347,6 +361,8 @@ def load_experiment(path: str) -> ExperimentConfig:
         assignment=assignment,
         raw=raw,
         table_full_size=table_full_size,
+        table_offset=table_offset,
+        robot_base_configs=robot_base_configs,
         gripper_grasp_offsets=gripper_grasp_offsets,
     )
 

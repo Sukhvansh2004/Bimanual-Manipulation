@@ -34,6 +34,10 @@ from bimanual_manipulation.transforms.meshcat_tf_visualizer import (
     stream_transforms_to_meshcat,
 )
 from bimanual_manipulation.utils.env_utils import env_step, set_robot_config
+from bimanual_manipulation.utils.real_robot_bridge import (
+    mark_real_robot_env,
+    unmark_real_robot_env,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +58,8 @@ class DualArmManipulationSystem:
             use_grasp_service: bool = True,
             has_renderer: bool = True,
             table_full_size: Optional[Any] = None,
+            table_offset: Optional[Any] = None,
+            robot_base_configs: Optional[Any] = None,
             start_services: bool = True,
             server_host: Optional[str] = None,
             server_port: int = constants.SERVICE_MANAGER_PORT,
@@ -62,6 +68,8 @@ class DualArmManipulationSystem:
         self.custom_objects = custom_objects
         self.ycb_objects = ycb_objects
         self.table_full_size = table_full_size
+        self.table_offset = table_offset
+        self.robot_base_configs = robot_base_configs
         self.visualize = visualize
         self.debug = debug
         self.detection_prompt = detection_prompt
@@ -155,11 +163,18 @@ class DualArmManipulationSystem:
             ycb_objects=self.ycb_objects, 
             has_renderer=self.has_renderer,
             table_full_size=self.table_full_size,
+            table_offset=self.table_offset,
+            robot_base_configs=self.robot_base_configs,
         )
         if self.has_renderer:
             logger.debug("Adding VisualizationWrapper to environment...")
             self.env = VisualizationWrapper(self.env)
-        
+
+        # Designate THIS env as the real-execution env: only its env_step calls mirror to the
+        # physical robot (when BIMANUAL_REAL_ROBOT is enabled). The planning_env below is
+        # deliberately NOT marked, so its feasibility rollouts never touch the hardware.
+        mark_real_robot_env(self.env)
+
         # Create a separate headless environment for planning (the "Twin Env")
         # This prevents wild jumping behavior in the viewer during RRT planning.
         logger.info("   Creating separate planning environment (headless)...")
@@ -168,6 +183,8 @@ class DualArmManipulationSystem:
             ycb_objects=self.ycb_objects,
             has_renderer=False,
             table_full_size=self.table_full_size,
+            table_offset=self.table_offset,
+            robot_base_configs=self.robot_base_configs,
         )
         logger.info("   ✓ Environments created")
 
@@ -459,6 +476,7 @@ class DualArmManipulationSystem:
             except Exception:
                 pass
             try:
+                unmark_real_robot_env(self.env)
                 if hasattr(self.env, "close"):
                     self.env.close()
             except Exception:
