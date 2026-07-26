@@ -19,9 +19,9 @@
         "ycb_objects": [
             {
                 "ycb_name": "plate",
-                "position": [-0.53, 0.00, 0.93],
-                "quaternion": [-0.46390379, 0.46390379, -0.53366026, -0.53366026],
-                "_comment": "Plate starts stably seated in the middle (2nd) shelf compartment, slightly shifted toward the right side."
+                "position": [-0.44, 0.00, 0.93],
+                "quaternion": [-0.53366026, -0.53366026, 0.46390379, -0.46390379],
+                "_comment": "Plate starts in the middle (2nd) shelf compartment, nudged slightly out toward the robots and flipped so its convex side faces the opposite side."
             }
         ],
         "custom_objects": [
