@@ -43,6 +43,7 @@ from bimanual_manipulation.experiment_config import (
     list_experiments,
     ExperimentConfig,
 )
+from bimanual_manipulation.utils.env_utils import env_step, reset_action_persistence
 import bimanual_manipulation.constants as constants
 
 # Configure logging
@@ -326,6 +327,7 @@ def main():
         
         logger.info("Resetting environment...")
         env.reset()
+        reset_action_persistence()
         
         if not args.no_render and not args.headless:
             env.render()
@@ -339,7 +341,8 @@ def main():
         else:
             logger.info("Visualization mode. Press Ctrl+C to exit.")
             while True:
-                env.step(np.zeros(env.action_dim))
+                # Use persistent stepping so absolute controllers hold current posture.
+                env_step(env, action=None)
                 if not args.no_render and not args.headless:
                     env.render()
                 time.sleep(0.02)

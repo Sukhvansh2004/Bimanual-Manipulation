@@ -52,10 +52,10 @@ def _cfg(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 1. Baseline  (default experiment JSON values — α=10, β=1, beam=10)
+# 1. Baseline  (default experiment JSON values — α=40, β=0.5)
 # ═══════════════════════════════════════════════════════════════════════════
 
-BASELINE = _cfg("Baseline (α=10, β=1)", clearance_radius=0.03)
+BASELINE = _cfg("Baseline (α=40, β=0.5)", clearance_radius=0.03)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. Ablation: Without Switching Penalty  (C_switch = 0)
@@ -173,9 +173,9 @@ ALL_ABLATIONS: Dict[str, List[AblationConfig]] = {
 
 PAPER_EXPERIMENTS = [
     "flatPlate_table_to_shelf",
-    "flatPlate_shelf_to_table",
     "mug_inversion",
     "flatPlate_box_to_box",
+    "ycb_plate_shelf_to_table",
 ]
 
 # Flat list of all unique configs for running everything
