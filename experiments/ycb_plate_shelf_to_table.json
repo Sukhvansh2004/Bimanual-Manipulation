@@ -19,7 +19,7 @@
         "ycb_objects": [
             {
                 "ycb_name": "plate",
-                "position": [-0.53, 0.06, 0.93],
+                "position": [-0.53, 0.00, 0.93],
                 "quaternion": [-0.46390379, 0.46390379, -0.53366026, -0.53366026],
                 "_comment": "Plate starts stably seated in the middle (2nd) shelf compartment, slightly shifted toward the right side."
             }
