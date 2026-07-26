@@ -3,30 +3,89 @@
     "description": "Move a YCB plate from a tabletop shelf slot back to the table surface.",
     "environment": {
         "table_full_size": [1.2, 0.75, 0.05],
-        "ycb_objects": [
+        "table_offset": [0.0, 0.0, 0.785],
+        "robot_base_configs": [
             {
-                "ycb_name": "table_shelf",
-                "position": [-0.35, 0.0, 1.20],
-                "quaternion": [0, 0, 0.70710678, 0.70710678],
-                "is_static": true
+                "position": [0.0, 0.2275, -0.097],
+                "quaternion": [0.0, 0.0, 0.70710678, 0.70710678],
+                "_comment": "Sets robot0 base to y=-0.5325 m from table center (pair spacing 1.065 m) and base z≈0.815 m"
             },
             {
+                "position": [0.0, -0.2275, -0.097],
+                "quaternion": [0.0, 0.0, -0.70710678, 0.70710678],
+                "_comment": "Sets robot1 base to y=+0.5325 m from table center (pair spacing 1.065 m) and base z≈0.815 m"
+            }
+        ],
+        "ycb_objects": [
+            {
                 "ycb_name": "plate",
-                "position": [-0.30, 0.05, 1.34],
-                "quaternion": [-0.5, 0.5, 0.5, 0.5]
+                "position": [-0.53, 0.06, 0.93],
+                "quaternion": [-0.46390379, 0.46390379, -0.53366026, -0.53366026],
+                "_comment": "Plate starts stably seated in the middle (2nd) shelf compartment, slightly shifted toward the right side."
             }
         ],
         "custom_objects": [
             {
                 "type": "box",
-                "name": "shelfMount",
-                "size": [0.22, 0.42, 0.30],
-                "position": [-0.35, 0.0, 1.05],
+                "name": "shelf_bottom",
+                "size": [0.24, 0.75, 0.015],
+                "position": [-0.49, 0.0, 0.7925],
                 "quaternion": [0, 0, 0, 1],
                 "density": 5000,
-                "rgba": [0.45, 0.35, 0.20, 1.0],
+                "rgba": [0.45, 0.30, 0.15, 1.0],
                 "is_static": true,
-                "_comment": "Stand/mount to elevate the shelf above the table surface"
+                "_comment": "Shelf center is 0.49 m from table center along -x. Shelf width 0.75 m, depth 0.24 m, height 0.615 m, open from front and back."
+            },
+            {
+                "type": "box",
+                "name": "shelf_roof",
+                "size": [0.24, 0.75, 0.015],
+                "position": [-0.49, 0.0, 1.3925],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.30, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "shelf_side_left",
+                "size": [0.24, 0.015, 0.615],
+                "position": [-0.49, 0.3675, 1.0925],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.30, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "shelf_side_right",
+                "size": [0.24, 0.015, 0.615],
+                "position": [-0.49, -0.3675, 1.0925],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.30, 0.15, 1.0],
+                "is_static": true
+            },
+            {
+                "type": "box",
+                "name": "shelf_divider_1",
+                "size": [0.24, 0.015, 0.615],
+                "position": [-0.49, -0.125, 1.0925],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.30, 0.15, 1.0],
+                "is_static": true,
+                "_comment": "Two internal dividers plus side walls create 3 equal-width compartments; each compartment is open at front and back."
+            },
+            {
+                "type": "box",
+                "name": "shelf_divider_2",
+                "size": [0.24, 0.015, 0.615],
+                "position": [-0.49, 0.125, 1.0925],
+                "quaternion": [0, 0, 0, 1],
+                "density": 5000,
+                "rgba": [0.45, 0.30, 0.15, 1.0],
+                "is_static": true
             }
         ]
     },
@@ -34,7 +93,7 @@
         "manipulated_object": "plate_0",
         "start_pose": null,
         "target_pose": {
-            "position": [0.1, 0.0, 0.912],
+            "position": [0.1, 0.0, 0.797],
             "quaternion": [0, 0, 0, 1]
         }
     },
@@ -47,14 +106,14 @@
         "lift_height": 0.2,
         "approach_offset": 0.3,
         "rrt_bounds": [
-            [-0.6, -0.4, 0.9],
+            [-0.6, -0.4, 0.75],
             [0.5, 0.4, 1.7]
         ],
         "collision_ignore_waypoints": [50],
         "collision_ignore_waypoint_pairs": [["gripper1", "table"]]
     },
     "collision_filter": {
-        "relevant_patterns": ["plate", "tshelf", "table_shelf"]
+        "relevant_patterns": ["plate", "shelf_"]
     },
     "visualization": {
         "visualize_mesh": true,
