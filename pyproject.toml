@@ -32,7 +32,7 @@ dependencies = [
     "scipy>=1.7.0",
     "mujoco==3.9.0",
     "pydantic>=2.0.0",
-    "robosuite>=1.4.0",
+    "robosuite==1.5.1",
     "ultralytics>=8.0.0",  # For FastSAM
     "pynput>=1.7.0",  # For keyboard teleoperation
     "torch>=2.1.0",
