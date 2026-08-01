@@ -203,6 +203,43 @@ def get_object_collision_geoms(model, object_name: Optional[str]) -> List[str]:
     ]
 
 
+def get_object_free_joint_qpos_indices(
+    model, object_name: Optional[str],
+) -> Optional[np.ndarray]:
+    """Return the 7 qpos indices of *object_name*'s free joint.
+
+    Robosuite names an object's root body ``<name>_main`` (falling back
+    to ``<name>``).  A movable object owns a single free joint whose
+    qpos layout is ``[x, y, z, qw, qx, qy, qz]``.
+
+    Args:
+        model: Native MuJoCo model.
+        object_name: Object instance name (e.g. ``"mug_0"``), or ``None``.
+
+    Returns:
+        ``(7,)`` array of qpos indices, or ``None`` when the object is
+        unknown or static (no free joint).
+    """
+    if not object_name:
+        return None
+
+    body_id = -1
+    for candidate in (f"{object_name}_main", object_name):
+        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, candidate)
+        if bid >= 0:
+            body_id = bid
+            break
+    if body_id < 0:
+        return None
+
+    for jid in range(model.njnt):
+        if (int(model.jnt_bodyid[jid]) == body_id
+                and int(model.jnt_type[jid]) == mujoco.mjtJoint.mjJNT_FREE):
+            adr = int(model.jnt_qposadr[jid])
+            return np.arange(adr, adr + 7)
+    return None
+
+
 def get_environment_collision_geoms(
     model,
     robot_ids: Sequence[int],

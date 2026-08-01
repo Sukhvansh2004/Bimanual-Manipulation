@@ -25,10 +25,14 @@ from bimanual_manipulation.utils.mujoco_utils import (
     get_arm_joint_ids,
     get_joint_qpos_indices,
     get_native_mj_object,
+    get_object_free_joint_qpos_indices,
 )
 from bimanual_manipulation.planning.rrt.joint.collision import (
     check_arm_config_collision,
     collision_free_joint_segment,
+)
+from bimanual_manipulation.planning.rrt.joint.utilities import (
+    build_temporal_samples,
 )
 from bimanual_manipulation.planning.rrt.path_smoothing import (
     shortcut_generic,
@@ -52,7 +56,7 @@ def shortcut_joint_path(
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = None,
     manipulated_object: Optional[str] = None,
-    check_object_collisions: bool = False,
+    object_qpos_trajectory: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     """Shortcut-smooth a joint-space path by randomly removing waypoints.
 
@@ -74,6 +78,10 @@ def shortcut_joint_path(
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
         max_temporal_samples: Max sampled arm A configs.
+        manipulated_object: Name of the object arm A is carrying.
+        object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
+            trajectory of the object arm A is carrying, aligned with
+            *q_other_arm_trajectory*.
 
     Returns:
         Smoothed path (list of joint configurations).
@@ -103,28 +111,20 @@ def shortcut_joint_path(
         prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
         arm_b_geom_ids_list = get_geom_ids_for_patterns(prefixes)
         
-        # If arm B is holding the object, include its geoms in the check
-        if check_object_collisions and manipulated_object:
-            obj_geoms = get_geom_ids_for_patterns([manipulated_object])
-            arm_b_geom_ids_list.extend(obj_geoms)
-
         arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
 
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
-        # Build arm A sample list for temporal checking
-        if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
-            n_traj = len(q_other_arm_trajectory)
-            if n_traj <= max_temporal_samples:
-                q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
-            else:
-                indices = np.unique(
-                    np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
-                )
-                q_a_samples = [q_other_arm_trajectory[i] for i in indices]
-        else:
-            q_a_samples = [q_other_arm]
+        # Build (arm A config, carried-object pose) snapshots
+        obj_qpos_idx = (
+            get_object_free_joint_qpos_indices(native_model, manipulated_object)
+            if object_qpos_trajectory is not None else None
+        )
+        temporal_samples = build_temporal_samples(
+            q_other_arm, q_other_arm_trajectory, max_temporal_samples,
+            object_qpos_trajectory,
+        )
 
         try:
             def _seg_free(q1, q2):
@@ -134,8 +134,9 @@ def shortcut_joint_path(
                         q_a, qpos_idx_a, qpos_idx_b,
                         native_model, native_data, arm_b_geom_ids,
                         skip_endpoints=True,
+                        obj_qpos_idx=obj_qpos_idx, obj_qpos=obj_q,
                     )
-                    for q_a in q_a_samples
+                    for q_a, obj_q in temporal_samples
                 )
 
             return shortcut_generic(
@@ -196,7 +197,7 @@ def bezier_smooth_joint_path(
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = None,
     manipulated_object: Optional[str] = None,
-    check_object_collisions: bool = False,
+    object_qpos_trajectory: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
     """Smooth a joint-space path with per-segment cubic Bézier curves.
 
@@ -219,6 +220,10 @@ def bezier_smooth_joint_path(
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
         max_temporal_samples: Max sampled arm A configs.
+        manipulated_object: Name of the object arm A is carrying.
+        object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
+            trajectory of the object arm A is carrying, aligned with
+            *q_other_arm_trajectory*.
 
     Returns:
         Densely sampled smoothed path (list of joint configurations).
@@ -250,28 +255,20 @@ def bezier_smooth_joint_path(
         prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
         arm_b_geom_ids_list = get_geom_ids_for_patterns(prefixes)
         
-        # If arm B is holding the object, include its geoms in the check
-        if check_object_collisions and manipulated_object:
-            obj_geoms = get_geom_ids_for_patterns([manipulated_object])
-            arm_b_geom_ids_list.extend(obj_geoms)
-
         arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
 
         qpos_backup = np.array(data.qpos, copy=True)
         qvel_backup = np.array(data.qvel, copy=True)
 
-        # Build arm A sample list for temporal checking
-        if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
-            n_traj = len(q_other_arm_trajectory)
-            if n_traj <= max_temporal_samples:
-                q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
-            else:
-                indices = np.unique(
-                    np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
-                )
-                q_a_samples = [q_other_arm_trajectory[i] for i in indices]
-        else:
-            q_a_samples = [q_other_arm]
+        # Build (arm A config, carried-object pose) snapshots
+        obj_qpos_idx = (
+            get_object_free_joint_qpos_indices(native_model, manipulated_object)
+            if object_qpos_trajectory is not None else None
+        )
+        temporal_samples = build_temporal_samples(
+            q_other_arm, q_other_arm_trajectory, max_temporal_samples,
+            object_qpos_trajectory,
+        )
 
         try:
             def _collision(q):
@@ -280,8 +277,9 @@ def bezier_smooth_joint_path(
                         env, q, qpos_idx_b,
                         q_a, qpos_idx_a,
                         native_model, native_data, arm_b_geom_ids,
+                        obj_qpos_idx, obj_q,
                     )
-                    for q_a in q_a_samples
+                    for q_a, obj_q in temporal_samples
                 )
 
             def _eval_segment(path_local, seg_idx, sps):

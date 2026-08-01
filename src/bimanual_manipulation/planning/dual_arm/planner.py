@@ -43,18 +43,25 @@ from __future__ import annotations
 
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import nullcontext
 from typing import List, Optional, TYPE_CHECKING, Union
 
 import mink
 import numpy as np
 import mujoco
+from scipy.spatial.transform import Rotation as R
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.environments import DualArmEnvironment
 from bimanual_manipulation.transforms.stamped_pose import StampedPose
 from bimanual_manipulation.utils.env_utils import env_step
+from bimanual_manipulation.utils.mujoco_utils import (
+    get_arm_joint_ids,
+    get_joint_qpos_indices,
+    get_native_mj_object,
+    get_object_free_joint_qpos_indices,
+    set_qpos,
+)
 from bimanual_manipulation.utils.trajectory_math import (
     resample_joint_trajectory,
     plan_quintic_joint_trajectory,
@@ -214,12 +221,9 @@ class DualArmParallelPlanner:
         n_a = len(traj_a)
 
         # ── Plan / normalise arm B's reference trajectory ─────────────
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            future_b: Future = pool.submit(
-                self._resolve_trajectory_b, target_b, n_a,
-                q_warm_start_b, traj_a,
-            )
-            ref_traj_b = future_b.result()
+        ref_traj_b = self._resolve_trajectory_b(
+            target_b, n_a, q_warm_start_b, traj_a,
+        )
 
         if ref_traj_b is None:
             logger.error(
@@ -292,7 +296,7 @@ class DualArmParallelPlanner:
     ) -> ParallelExecutionResult:
         """Like :meth:`execute_parallel` but arm A receives an EEF trajectory.
 
-        Each ``StampedPose`` is converted to joint space via sequential IK.
+        Each ``StampedPose`` is converted to joint space via IK.
         """
         joint_traj_a = eef_to_joint_trajectory(
             self.arm_a, traj_a, q_warm_start=q_warm_start_a,
@@ -567,6 +571,109 @@ class DualArmParallelPlanner:
             self.planning_env.sim.data.qvel[:] = self.env.sim.data.qvel
             self.planning_env.sim.forward()
 
+    def _carried_object_qpos_trajectory(
+        self, traj_a: Optional[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        """Object free-joint qpos for every config in arm A's trajectory.
+
+        Arm A — is the arm holding ``manipulated_object``
+        while this planner runs.  The RRT collision checks teleport
+        arm A along *traj_a*, but a friction-grasped object does not
+        follow along: it stays frozen wherever it happens to be, so
+        arm B would gladly plan a path straight through the volume the
+        object actually sweeps.
+
+        The object is therefore treated as rigidly attached to arm A's
+        end-effector at the relative transform observed right now, and
+        its pose is forward-kinematically re-derived for each config in
+        *traj_a*.
+
+        Must be called *after* :meth:`_sync_planning_env`.
+
+        Returns:
+            ``(N, 7)`` array of ``[x, y, z, qw, qx, qy, qz]``, or
+            ``None`` when there is no movable object to track or arm A
+            is not holding it.
+        """
+        if not self.manipulated_object or traj_a is None or len(traj_a) == 0:
+            return None
+
+        native_model = get_native_mj_object(self.planning_env.sim.model)
+        native_data = get_native_mj_object(self.planning_env.sim.data)
+
+        obj_qpos_idx = get_object_free_joint_qpos_indices(
+            native_model, self.manipulated_object,
+        )
+        if obj_qpos_idx is None:
+            # Static object — it never moves, so the frozen pose the
+            # collision checker already sees is the correct one.
+            return None
+
+        eef_body_name = self.arm_a._eef_body_name()
+        eef_body_id = mujoco.mj_name2id(
+            native_model, mujoco.mjtObj.mjOBJ_BODY, eef_body_name,
+        )
+        if eef_body_id < 0:
+            logger.debug(
+                "Arm A EEF body '%s' not found — carried-object "
+                "tracking disabled.", eef_body_name,
+            )
+            return None
+
+        jids_a = get_arm_joint_ids(native_model, self.arm_a.robot_id)
+        qpos_idx_a = get_joint_qpos_indices(native_model, jids_a)
+
+        ctx = self.env_lock if self.env_lock else nullcontext()
+        with ctx:
+            qpos_backup = np.array(native_data.qpos, copy=True)
+            qvel_backup = np.array(native_data.qvel, copy=True)
+            try:
+                mujoco.mj_kinematics(native_model, native_data)
+                eef_pos = np.array(native_data.xpos[eef_body_id], copy=True)
+                eef_rot = np.array(
+                    native_data.xmat[eef_body_id], copy=True,
+                ).reshape(3, 3)
+
+                obj_pos = np.array(native_data.qpos[obj_qpos_idx[:3]])
+                obj_quat_wxyz = np.array(native_data.qpos[obj_qpos_idx[3:]])
+
+                offset = float(np.linalg.norm(obj_pos - eef_pos))
+                if offset > constants.CARRIED_OBJECT_ATTACH_RADIUS:
+                    logger.debug(
+                        "Object '%s' is %.3f m from arm A's EEF — treating "
+                        "it as un-grasped, no carried-object tracking.",
+                        self.manipulated_object, offset,
+                    )
+                    return None
+
+                # Object pose expressed in arm A's EEF frame.
+                rel_pos = eef_rot.T @ (obj_pos - eef_pos)
+                obj_rot = R.from_quat(np.roll(obj_quat_wxyz, -1))
+                rel_rot = R.from_matrix(eef_rot).inv() * obj_rot
+
+                obj_traj = np.empty((len(traj_a), 7), dtype=np.float64)
+                for i, q_a in enumerate(traj_a):
+                    set_qpos(native_data, qpos_idx_a, q_a)
+                    mujoco.mj_kinematics(native_model, native_data)
+                    pos_i = np.array(native_data.xpos[eef_body_id])
+                    rot_i = np.array(
+                        native_data.xmat[eef_body_id],
+                    ).reshape(3, 3)
+                    obj_traj[i, :3] = pos_i + rot_i @ rel_pos
+                    quat_xyzw = (R.from_matrix(rot_i) * rel_rot).as_quat()
+                    obj_traj[i, 3:] = np.roll(quat_xyzw, 1)
+            finally:
+                native_data.qpos[:] = qpos_backup
+                native_data.qvel[:] = qvel_backup
+                mujoco.mj_forward(native_model, native_data)
+
+        logger.info(
+            "Tracking carried object '%s' across %d arm A configs for "
+            "arm B's collision checks.",
+            self.manipulated_object, len(obj_traj),
+        )
+        return obj_traj
+
     def _plan_collision_free_trajectory_b(
         self,
         target_pose: StampedPose,
@@ -640,6 +747,7 @@ class DualArmParallelPlanner:
             "Temporal collision: using all %d arm A configs.",
             len(traj_a),
         )
+        obj_traj = self._carried_object_qpos_trajectory(traj_a_temporal)
 
         q_arm_a_ref = traj_a[-1]
         start_q = self.arm_b.get_joint_positions()
@@ -658,6 +766,8 @@ class DualArmParallelPlanner:
                     env_lock=self.env_lock,
                     rrt_vis=self.rrt_vis,
                     q_other_arm_trajectory=traj_a_temporal,
+                    manipulated_object=self.manipulated_object,
+                    object_qpos_trajectory=obj_traj,
                 )
                 if rrt_success:
                     logger.info(
@@ -701,6 +811,7 @@ class DualArmParallelPlanner:
             )
 
         q_arm_a_ref = traj_a[-1]
+        obj_traj = self._carried_object_qpos_trajectory(traj_a)
 
         try:
             rrt_traj, rrt_success = plan_arm_trajectory(
@@ -714,6 +825,8 @@ class DualArmParallelPlanner:
                 env_lock=self.env_lock,
                 rrt_vis=self.rrt_vis,
                 q_other_arm_trajectory=traj_a,
+                manipulated_object=self.manipulated_object,
+                object_qpos_trajectory=obj_traj,
             )
             if rrt_success:
                 logger.info(
