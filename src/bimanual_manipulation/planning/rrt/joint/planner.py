@@ -32,6 +32,7 @@ from bimanual_manipulation.utils.mujoco_utils import (
     get_joint_qpos_indices,
     get_joint_limits,
     get_native_mj_object,
+    get_object_free_joint_qpos_indices,
 )
 from bimanual_manipulation.planning.rrt.joint.collision import (
     check_arm_config_collision,
@@ -42,6 +43,7 @@ from bimanual_manipulation.planning.rrt.joint.utilities import (
     steer,
     sample_random_config,
     make_ee_pos_fn,
+    build_temporal_samples,
 )
 from bimanual_manipulation.planning.rrt.visualizer import RRTVisualizer
 
@@ -83,7 +85,7 @@ def rrt_connect_joint_space(
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     max_temporal_samples: int = constants.ARM_RRT_TEMPORAL_SAMPLES,
     manipulated_object: Optional[str] = None,
-    check_object_collisions: bool = False,
+    object_qpos_trajectory: Optional[np.ndarray] = None,
 ) -> JointRRTResult:
     """Plan a collision-free joint-space path for arm B using RRT-Connect.
 
@@ -119,29 +121,30 @@ def rrt_connect_joint_space(
             sampled from *q_other_arm_trajectory* for temporal
             collision checking.  Defaults to
             ``constants.ARM_RRT_TEMPORAL_SAMPLES``.
+        manipulated_object: Name of the object arm A is carrying.
+        object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
+            trajectory of the object **arm A is carrying**, aligned
+            with *q_other_arm_trajectory*.  Keeps the carried object
+            an obstacle at every sampled instant.
 
     Returns:
         :class:`JointRRTResult` with success flag and path.
     """
-    # ── Build list of arm A configs for collision checking ─────────
+    # ── Build (arm A config, object pose) snapshots ────────────────
     #    When a trajectory is provided, sample representative configs
     #    for conservative temporal collision avoidance.
+    temporal_samples = build_temporal_samples(
+        q_other_arm, q_other_arm_trajectory, max_temporal_samples,
+        object_qpos_trajectory,
+    )
     if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
-        n_traj = len(q_other_arm_trajectory)
-        if n_traj <= max_temporal_samples:
-            q_a_samples = [q_other_arm_trajectory[i] for i in range(n_traj)]
-        else:
-            indices = np.unique(
-                np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
-            )
-            q_a_samples = [q_other_arm_trajectory[i] for i in indices]
         logger.info(
             "Temporal collision checking: using %d sampled arm A "
-            "configs from trajectory of length %d.",
-            len(q_a_samples), n_traj,
+            "configs from trajectory of length %d%s.",
+            len(temporal_samples), len(q_other_arm_trajectory),
+            " (with carried-object poses)"
+            if object_qpos_trajectory is not None else "",
         )
-    else:
-        q_a_samples = [np.asarray(q_other_arm)]
 
     ctx = env_lock if env_lock is not None else nullcontext()
 
@@ -168,11 +171,19 @@ def rrt_connect_joint_space(
         prefixes = [f"robot{robot_id_b}_", f"gripper{robot_id_b}_"]
         arm_b_geom_ids_list = get_geom_ids_for_patterns(prefixes)
         
-        # If arm B is holding the object, include its geoms in the check
-        if check_object_collisions and manipulated_object:
-            obj_geoms = get_geom_ids_for_patterns([manipulated_object])
-            arm_b_geom_ids_list.extend(obj_geoms)
-            logger.info("Including geoms of '%s' in arm B collision checks.", manipulated_object)
+        # qpos slot used to re-pose the object arm A is carrying.
+        # The object rides with arm A, never with arm B, so its geoms
+        # stay out of arm B's set — they are obstacles, not payload.
+        obj_qpos_idx = (
+            get_object_free_joint_qpos_indices(native_model, manipulated_object)
+            if object_qpos_trajectory is not None else None
+        )
+        if object_qpos_trajectory is not None and obj_qpos_idx is None:
+            logger.warning(
+                "No free joint found for '%s' — carried-object poses "
+                "cannot be applied during collision checking.",
+                manipulated_object,
+            )
 
         arm_b_geom_ids = np.array(arm_b_geom_ids_list, dtype=int)
         if len(arm_b_geom_ids) == 0:
@@ -191,8 +202,9 @@ def rrt_connect_joint_space(
                     q_a, qpos_idx_a, qpos_idx_b,
                     native_model, native_data, arm_b_geom_ids,
                     skip_endpoints=False,
+                    obj_qpos_idx=obj_qpos_idx, obj_qpos=obj_q,
                 )
-                for q_a in q_a_samples
+                for q_a, obj_q in temporal_samples
             )
             if direct_ok:
                 logger.info(
@@ -220,8 +232,9 @@ def rrt_connect_joint_space(
                         env, q, qpos_idx_b,
                         q_a, qpos_idx_a,
                         native_model, native_data, arm_b_geom_ids,
+                        obj_qpos_idx, obj_q,
                     )
-                    for q_a in q_a_samples
+                    for q_a, obj_q in temporal_samples
                 )
 
             def _seg_free(q1, q2):
@@ -231,8 +244,9 @@ def rrt_connect_joint_space(
                         q_a, qpos_idx_a, qpos_idx_b,
                         native_model, native_data, arm_b_geom_ids,
                         skip_endpoints=True,
+                        obj_qpos_idx=obj_qpos_idx, obj_qpos=obj_q,
                     )
-                    for q_a in q_a_samples
+                    for q_a, obj_q in temporal_samples
                 )
 
             def _sample():

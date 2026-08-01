@@ -1,13 +1,15 @@
 """
 Joint-space utilities for the arm RRT planner.
 
-Provides distance, steering, random sampling, and FK-based
-end-effector position mapping for Meshcat visualisation.
+Provides distance, steering, random sampling, temporal-sample
+construction, and FK-based end-effector position mapping for Meshcat
+visualisation.
 """
 
 from __future__ import annotations
 
 import logging
+from typing import List, Optional, Tuple
 
 import mujoco
 import numpy as np
@@ -18,6 +20,69 @@ from bimanual_manipulation.utils.mujoco_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def build_temporal_samples(
+    q_other_arm: np.ndarray,
+    q_other_arm_trajectory: Optional[np.ndarray],
+    max_temporal_samples: int,
+    object_qpos_trajectory: Optional[np.ndarray] = None,
+) -> List[Tuple[np.ndarray, Optional[np.ndarray]]]:
+    """Build the ``(q_a, object_qpos)`` snapshots for temporal checking.
+
+    When *q_other_arm_trajectory* is given, arm A is not a static
+    obstacle — it sweeps through the workspace.  Rather than checking
+    arm B against a single arm A configuration, the planner checks it
+    against a fixed number of configurations sampled uniformly along
+    the trajectory.
+
+    *object_qpos_trajectory* carries the pose of the object **arm A is
+    holding** at those same instants (free-joint qpos, ``[x, y, z, qw,
+    qx, qy, qz]``).  Without it the object would stay frozen at its
+    current pose while arm A teleports along its trajectory, so arm B
+    could happily plan straight through the carried object.
+
+    Args:
+        q_other_arm: Static fallback configuration of arm A ``(7,)``.
+        q_other_arm_trajectory: Optional ``(N, 7)`` arm A trajectory.
+        max_temporal_samples: Upper bound on the number of snapshots.
+        object_qpos_trajectory: Optional ``(N, 7)`` object free-joint
+            qpos trajectory, index-aligned with
+            *q_other_arm_trajectory*.
+
+    Returns:
+        List of ``(q_a, object_qpos)`` pairs; ``object_qpos`` is
+        ``None`` when no object trajectory was supplied.
+    """
+    if q_other_arm_trajectory is not None and len(q_other_arm_trajectory) > 1:
+        n_traj = len(q_other_arm_trajectory)
+        if n_traj <= max_temporal_samples:
+            indices = np.arange(n_traj)
+        else:
+            indices = np.unique(
+                np.linspace(0, n_traj - 1, max_temporal_samples, dtype=int)
+            )
+        q_a_samples = [np.asarray(q_other_arm_trajectory[i]) for i in indices]
+    else:
+        indices = None
+        q_a_samples = [np.asarray(q_other_arm)]
+
+    if object_qpos_trajectory is None or len(object_qpos_trajectory) == 0:
+        return [(q_a, None) for q_a in q_a_samples]
+
+    obj_traj = np.asarray(object_qpos_trajectory)
+    if indices is None:
+        # Arm A is a static obstacle at the *end* of its motion, so the
+        # object sits at its final carried pose.
+        obj_samples = [obj_traj[-1]]
+    elif len(obj_traj) == len(q_other_arm_trajectory):
+        obj_samples = [obj_traj[i] for i in indices]
+    else:
+        # Different sampling rates — map by normalised time.
+        src = np.linspace(0, len(obj_traj) - 1, len(q_other_arm_trajectory))
+        obj_samples = [obj_traj[int(round(src[i]))] for i in indices]
+
+    return list(zip(q_a_samples, obj_samples))
 
 
 def joint_distance(q1: np.ndarray, q2: np.ndarray) -> float:

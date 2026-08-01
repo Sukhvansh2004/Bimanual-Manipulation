@@ -287,6 +287,59 @@ class DualArmEnvironment(TwoArmEnv):
         # These are useful for debugging but visually noisy for normal execution.
         self._hide_gripper_tcp_sites()
 
+        # Render objects with their visual mesh only, not their collision hulls.
+        self._hide_duplicated_collision_visuals()
+
+    def _hide_duplicated_collision_visuals(self) -> None:
+        """Stop rendering the auto-generated visual twins of collision geoms.
+
+        robosuite's ``duplicate_collision_geoms`` gives every group-0 collision
+        geom of an XML object a group-1 twin named ``<collision_geom>_visual``,
+        so a YCB mesh draws its blocky convex-decomposition hulls on top of its
+        real visual mesh (e.g. ``mug_0_mug_collision_geom_3_visual`` over
+        ``mug_0_mug_visual_geom``).
+
+        Demoting those twins to group 0 hides them everywhere collision geoms
+        are already hidden — the passive viewer sets ``geomgroup[0] = 0``, and
+        camera renders do too while ``render_collision_mesh`` is False.  Contact
+        dynamics are untouched: the twins keep their ``contype``/``conaffinity``
+        of 0 and their mass, and geom groups only affect rendering.
+
+        A twin is demoted only when its body also carries a visual geom of its
+        own.  Primitives (``BoxObject`` and friends) are drawn *by* their twin,
+        so demoting theirs would make them invisible.
+        """
+        model = self.sim.model
+        demoted = 0
+
+        try:
+            names = [model.geom_id2name(i) for i in range(model.ngeom)]
+            collision_geoms = {
+                name for i, name in enumerate(names)
+                if name and model.geom_group[i] == 0
+            }
+            twins = {
+                i for i, name in enumerate(names)
+                if name and model.geom_group[i] == 1
+                and name.endswith("_visual")
+                and name[: -len("_visual")] in collision_geoms
+            }
+            bodies_with_own_visual = {
+                int(model.geom_bodyid[i]) for i in range(model.ngeom)
+                if model.geom_group[i] == 1 and i not in twins
+            }
+
+            for i in twins:
+                if int(model.geom_bodyid[i]) in bodies_with_own_visual:
+                    model.geom_group[i] = 0
+                    demoted += 1
+        except Exception as e:
+            logger.debug(f"Failed to hide duplicated collision visuals: {e}")
+            return
+
+        if demoted > 0:
+            logger.debug(f"Hidden {demoted} duplicated collision-mesh visual geoms.")
+
     def _hide_gripper_tcp_sites(self) -> None:
         """Disable visibility of gripper / TCP debug sites in the MuJoCo viewer."""
         site_suffixes = ("grip_site_cylinder", "ee_x", "ee_y", "ee_z", "grip_site")

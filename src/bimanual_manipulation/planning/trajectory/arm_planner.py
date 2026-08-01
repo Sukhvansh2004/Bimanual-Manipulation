@@ -56,7 +56,7 @@ def plan_arm_trajectory(
     rrt_vis: Optional[RRTVisualizer] = None,
     q_other_arm_trajectory: Optional[np.ndarray] = None,
     manipulated_object: Optional[str] = None,
-    check_object_collisions: bool = False,
+    object_qpos_trajectory: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, bool]:
     """Plan a collision-free joint trajectory for arm B — full pipeline.
 
@@ -84,9 +84,11 @@ def plan_arm_trajectory(
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
-        manipulated_object: Name of the object being manipulated.
-        check_object_collisions: If True, include the object in arm B's
-            collision checks (assumes arm B holds it).
+        manipulated_object: Name of the object arm A is carrying.
+        object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
+            trajectory of the object **arm A carries**, aligned with
+            *q_other_arm_trajectory*.  All stages then treat the moving
+            object as an obstacle for arm B.
 
     Returns:
         Tuple of ``(trajectory, planning_success)`` where trajectory is
@@ -111,7 +113,7 @@ def plan_arm_trajectory(
         rrt_vis=rrt_vis,
         q_other_arm_trajectory=q_other_arm_trajectory,
         manipulated_object=manipulated_object,
-        check_object_collisions=check_object_collisions,
+        object_qpos_trajectory=object_qpos_trajectory,
     )
 
     if result.success:
@@ -131,7 +133,7 @@ def plan_arm_trajectory(
             max_iterations=smoothing_iterations,
             q_other_arm_trajectory=q_other_arm_trajectory,
             manipulated_object=manipulated_object,
-            check_object_collisions=check_object_collisions,
+            object_qpos_trajectory=object_qpos_trajectory,
         )
         logger.info(
             "Phase 1 shortcutting: %d -> %d waypoints.  "
@@ -148,7 +150,7 @@ def plan_arm_trajectory(
             env_lock=env_lock,
             q_other_arm_trajectory=q_other_arm_trajectory,
             manipulated_object=manipulated_object,
-            check_object_collisions=check_object_collisions,
+            object_qpos_trajectory=object_qpos_trajectory,
         )
 
         # Visualize the smoothed path in MeshCat

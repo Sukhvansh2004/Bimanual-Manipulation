@@ -31,6 +31,8 @@ def check_arm_config_collision(
     native_model,
     native_data,
     arm_b_geom_ids: np.ndarray,
+    obj_qpos_idx: np.ndarray = None,
+    obj_qpos: np.ndarray = None,
     *,
     contact_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
 ) -> bool:
@@ -53,6 +55,12 @@ def check_arm_config_collision(
         native_model: Low-level ``mujoco.MjModel``.
         native_data: Low-level ``mujoco.MjData``.
         arm_b_geom_ids: Array of geom IDs belonging to arm B.
+        obj_qpos_idx: Optional qpos indices of the manipulated object's
+            free joint ``(7,)``.
+        obj_qpos: Optional free-joint qpos of the object carried by
+            arm A at this instant.  Teleporting arm A does not drag a
+            friction-grasped object along, so the pose has to be
+            imposed explicitly for arm B to see it as an obstacle.
         contact_threshold: Contact distance threshold.
 
     Returns:
@@ -63,7 +71,9 @@ def check_arm_config_collision(
 
     set_qpos(data, qpos_idx_a, q_a)
     set_qpos(data, qpos_idx_b, q_b)
-    
+    if obj_qpos_idx is not None and obj_qpos is not None:
+        set_qpos(data, obj_qpos_idx, obj_qpos)
+
     # Use mj_forward instead of mj_fwdPosition to resolve equality 
     # constraints (welds). This is crucial for checking collisions 
     # of the manipulated object while it is being held.
@@ -105,6 +115,8 @@ def collision_free_joint_segment(
     arm_b_geom_ids: np.ndarray,
     resolution: float = None,
     skip_endpoints: bool = False,
+    obj_qpos_idx: np.ndarray = None,
+    obj_qpos: np.ndarray = None,
 ) -> bool:
     """Check if a straight-line joint-space segment is collision-free.
 
@@ -123,6 +135,10 @@ def collision_free_joint_segment(
         arm_b_geom_ids: Geom IDs belonging to arm B.
         resolution: Angular resolution (radians) between checks.
         skip_endpoints: If ``True``, skip checks at exact start/end.
+        obj_qpos_idx: Optional qpos indices of the manipulated object's
+            free joint ``(7,)``.
+        obj_qpos: Optional free-joint qpos of the object carried by
+            arm A at this instant.
 
     Returns:
         ``True`` if the segment is collision-free.
@@ -143,6 +159,7 @@ def collision_free_joint_segment(
         if check_arm_config_collision(
             env, q_interp, qpos_idx_b, q_a, qpos_idx_a,
             native_model, native_data, arm_b_geom_ids,
+            obj_qpos_idx, obj_qpos,
         ):
             return False
     return True
