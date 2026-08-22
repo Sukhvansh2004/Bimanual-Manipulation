@@ -2,6 +2,12 @@
 
 A comprehensive framework for dual-arm Franka robot manipulation with advanced perception, trajectory planning, teleoperation, and autonomous control modes.
 
+[![CI](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/ci.yml/badge.svg)](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/ci.yml)
+[![Project page](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/deploy-pages.yml)
+
+> **Paper:** *Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation* — under review at IEEE-RAS Humanoids 2026.
+> 📄 [Project page, paper and video](https://sukhvansh2004.github.io/Bimanual-Manipulation/) · site source in [`web/`](web/)
+
 ## Features
 
 - **Dual-Arm Control**: Coordinated manipulation with two Franka Panda robots (parallel-jaw + suction grippers)
@@ -825,6 +831,38 @@ python -m pytest tests/test_environments.py -v           # Environment setup
 python -m pytest tests/test_fastsam_detection.py -v      # FastSAM service
 python -m pytest tests/test_services.py -v               # Service manager
 python -m pytest tests/test_move_to_pose_service.py -v   # MoveToPose service
+```
+
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request to
+`main`:
+
+| Job | What it does |
+|-----|--------------|
+| **Website** | Type-checks, lints and builds the project page in [`web/`](web/) |
+| **Python (syntax · configs)** | Byte-compiles `src/`, `scripts/` and `tests/`, and validates every experiment JSON |
+| **Test suite (CPU)** | Installs CPU wheels and runs all 536 tests on a stock GitHub runner |
+
+The test job needs neither a GPU nor the CUDA build from `install.sh`. Two things make that work:
+
+- **CPU wheels throughout.** `torch`/`torchvision` come from the `+cpu` index and
+  `torch-scatter`/`torch-cluster` from the matching PyG index; every remaining dependency ships a
+  manylinux cp310 wheel, so nothing is compiled in CI. MuJoCo renders through OSMesa
+  (`MUJOCO_GL=osmesa`), so no GPU and no X server are needed.
+- **A stub for GraspGen's PointNet2 CUDA extension.** Importing `bimanual_manipulation` reaches
+  `grasp_gen.grasp_server` via `perception/grasp_predictor.py`, which needs `pointnet2_ops` — a CUDA
+  build whose JIT fallback requires `nvcc`. The suite never invokes a PointNet2 kernel, so
+  [`.github/ci/stubs/pointnet2_ops/`](.github/ci/stubs/pointnet2_ops/) supplies an import-only shim
+  that raises loudly if anything actually calls into it. It is only on `PYTHONPATH` inside CI; a
+  real GPU environment shadows it with the compiled extension.
+
+To reproduce the CI run locally on a machine without a GPU:
+
+```bash
+MUJOCO_GL=osmesa CUDA_VISIBLE_DEVICES="" \
+PYTHONPATH="$PWD/.github/ci/stubs" \
+python -m pytest tests/ -q
 ```
 
 ## Documentation
