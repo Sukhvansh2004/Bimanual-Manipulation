@@ -27,15 +27,19 @@ function Authors() {
               ) : (
                 label
               )}
+              {/* A real character, not a CSS ::after, so the byline survives
+                  copy-paste and reads correctly to a screen reader. */}
+              {i < paper.authors.length - 1 && <span className="sep">·</span>}
             </span>
           )
         })}
       </div>
       <div className="affils">
-        {paper.affiliations.map((f) => (
-          <span key={f.id} style={{ marginRight: 16 }}>
+        {paper.affiliations.map((f, i) => (
+          <span key={f.id}>
             {multiAffil && <sup>{f.id}</sup>}
             {f.name}
+            {i < paper.affiliations.length - 1 && <span className="sep">·</span>}
           </span>
         ))}
       </div>

@@ -27,16 +27,22 @@ export const paper: Paper = {
     'Two mismatched grippers, one globally optimal plan — turning a single human demonstration into a feasible dual-arm execution.',
   venue: 'Under review · IEEE-RAS Humanoids 2026',
 
-  // TODO: replace with the final author list before the site goes public.
-  // `note` marks equal contribution etc.; `url` is optional.
+  // `url` is optional — add homepages / Scholar profiles as they become available.
+  // Set `affiliation` to the matching id below; superscripts only render when
+  // there is more than one affiliation.
   authors: [
     { name: 'Sukhvansh Jain', url: 'https://github.com/Sukhvansh2004', affiliation: 1 },
-    { name: 'Co-author Name', affiliation: 1, placeholder: true },
-    { name: 'Co-author Name', affiliation: 1, placeholder: true },
-    { name: 'Senior Author Name', affiliation: 1, placeholder: true },
+    { name: 'Narendra Dhar', affiliation: 1 },
+    { name: 'Anurag Maurya', affiliation: 2 },
+    { name: 'Ravi Prakash', affiliation: 2 },
+    { name: 'Shivam Vats', affiliation: 3 },
   ],
-  // TODO: replace with the real affiliation(s).
-  affiliations: [{ id: 1, name: 'Affiliation — TODO', placeholder: true }],
+  // Numbered in the order each institution first appears in the byline.
+  affiliations: [
+    { id: 1, name: 'Indian Institute of Technology Mandi' },
+    { id: 2, name: 'Indian Institute of Science, Bangalore' },
+    { id: 3, name: 'Brown University' },
+  ],
 
   links: {
     pdf: asset('assets/paper.pdf'),
@@ -502,7 +508,8 @@ bash install.sh`,
 
 export const bibtex: string = `@inproceedings{jain2026embodiment,
   title     = {Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation},
-  author    = {Jain, Sukhvansh and TODO, Co-authors},
+  author    = {Jain, Sukhvansh and Dhar, Narendra and Maurya, Anurag and
+               Prakash, Ravi and Vats, Shivam},
   booktitle = {IEEE-RAS International Conference on Humanoid Robots (Humanoids)},
   year      = {2026},
   note      = {Under review}
