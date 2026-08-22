@@ -140,20 +140,32 @@ jobs:
             libosmesa6 libosmesa6-dev libgl1 libglx-mesa0 libglu1-mesa \
             libglew-dev libglfw3 libegl1 patchelf
 
+      # Mirrors install.sh steps 5–8, with the CUDA indexes swapped for their
+      # CPU equivalents and the PointNet2 CUDA build replaced by the stub.
+
       - name: Install PyTorch (CPU build)
         run: |
           python -m pip install --upgrade pip wheel
           pip install torch==2.1.0 torchvision==0.16.0 \
             --index-url https://download.pytorch.org/whl/cpu
+          pip install "setuptools<70.0.0"
           pip install torch-scatter torch-cluster \
             -f https://data.pyg.org/whl/torch-2.1.0+cpu.html
           pip install "numpy>=1.21.0,<2.0.0"
+          pip install mujoco==3.9
 
-      - name: Install GraspGen (without the CUDA PointNet2 ops)
-        run: pip install -e deps/GraspGen
+      - name: Install GraspGen (skipping the CUDA PointNet2 ops)
+        run: |
+          pip install -e deps/GraspGen
+          pip install PyOpenGL==3.1.5
 
       - name: Install the package
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -e ".[dev]"
+          # Supplementary packages install.sh adds outside pyproject.toml —
+          # grasp_gen.dataset.renderer imports pyrender at module load.
+          pip install pyrender scene-synthesizer
+          pip install PyOpenGL==3.1.5 PyOpenGL-accelerate
 
       - name: Report the environment
         run: |
