@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -117,9 +117,16 @@ jobs:
       # plugins that are incompatible with this pytest version.
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
     steps:
+      # `submodules: recursive` cannot be used here: deps/GraspGenModels is a
+      # gitlink in the index with no matching entry in .gitmodules (install.sh
+      # clones those weights straight from HuggingFace), and git aborts the
+      # whole recursive update with "No url found for submodule path". Check
+      # out the two properly registered submodules explicitly instead — the
+      # model weights are not needed, since the suite mocks GraspGen inference.
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Check out submodules
+        run: git submodule update --init --depth=1 deps/GraspGen deps/YCB_Dataset
 
       - uses: actions/setup-python@v5
         with:
