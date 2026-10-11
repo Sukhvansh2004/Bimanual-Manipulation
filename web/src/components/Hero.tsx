@@ -34,15 +34,17 @@ function Authors() {
           )
         })}
       </div>
-      <div className="affils">
-        {paper.affiliations.map((f, i) => (
-          <span key={f.id}>
-            {multiAffil && <sup>{f.id}</sup>}
-            {f.name}
-            {i < paper.affiliations.length - 1 && <span className="sep">·</span>}
-          </span>
-        ))}
-      </div>
+      {paper.affiliations.length > 0 && (
+        <div className="affils">
+          {paper.affiliations.map((f, i) => (
+            <span key={f.id}>
+              {multiAffil && <sup>{f.id}</sup>}
+              {f.name}
+              {i < paper.affiliations.length - 1 && <span className="sep">·</span>}
+            </span>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -51,7 +53,7 @@ export default function Hero() {
   return (
     <header className="hero" id="top">
       <div className="wrap">
-        <span className="venue">{paper.venue}</span>
+        {paper.venue && <span className="venue">{paper.venue}</span>}
         <h1>{paper.title}</h1>
         <p className="hero-tagline">{paper.tagline}</p>
 

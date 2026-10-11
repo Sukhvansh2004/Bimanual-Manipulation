@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 
 export interface Author {
   name: string
-  affiliation: number
+  /** Id of the matching entry in `Paper.affiliations`, if any. */
+  affiliation?: number
   url?: string
   /** Marks a name that still has to be filled in before publishing. */
   placeholder?: boolean
@@ -17,7 +18,8 @@ export interface Affiliation {
 export interface Paper {
   title: string
   tagline: string
-  venue: string
+  /** Venue or status line shown above the title; omitted when unset. */
+  venue?: string
   authors: Author[]
   affiliations: Affiliation[]
   links: {

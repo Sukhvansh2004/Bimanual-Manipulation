@@ -8,11 +8,9 @@ export default function Cite() {
         <div className="cite-grid">
           <div>
             <div className="eyebrow">Citation</div>
-            <h2 className="h2">BibTeX</h2>
-            <p className="lede" style={{ marginBottom: 22 }}>
-              The paper is under review; this entry will be updated with the final venue details on
-              acceptance.
-            </p>
+            <h2 className="h2" style={{ marginBottom: 22 }}>
+              BibTeX
+            </h2>
             <div className="copy-wrap">
               <pre>
                 <code>{bibtex}</code>

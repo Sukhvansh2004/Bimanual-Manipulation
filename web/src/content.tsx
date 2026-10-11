@@ -25,24 +25,19 @@ export const paper: Paper = {
   title: 'Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation',
   tagline:
     'Two mismatched grippers, one globally optimal plan — turning a single human demonstration into a feasible dual-arm execution.',
-  venue: 'Under review · IEEE-RAS Humanoids 2026',
 
-  // `url` is optional — add homepages / Scholar profiles as they become available.
-  // Set `affiliation` to the matching id below; superscripts only render when
-  // there is more than one affiliation.
+  // Same order as the paper. `url` is optional — add homepages / Scholar
+  // profiles as they become available.
   authors: [
-    { name: 'Sukhvansh Jain', url: 'https://github.com/Sukhvansh2004', affiliation: 1 },
-    { name: 'Narendra Dhar', affiliation: 1 },
-    { name: 'Anurag Maurya', affiliation: 2 },
-    { name: 'Ravi Prakash', affiliation: 2 },
-    { name: 'Shivam Vats', affiliation: 3 },
+    { name: 'Sukhvansh Jain', url: 'https://github.com/Sukhvansh2004' },
+    { name: 'Anurag Maurya' },
+    { name: 'Shivam Vats' },
+    { name: 'Narendra Kumar Dhar' },
+    { name: 'Ravi Prakash' },
   ],
-  // Numbered in the order each institution first appears in the byline.
-  affiliations: [
-    { id: 1, name: 'Indian Institute of Technology Mandi' },
-    { id: 2, name: 'Indian Institute of Science, Bangalore' },
-    { id: 3, name: 'Brown University' },
-  ],
+  // Optional. To list institutions, give each author an `affiliation` id and add
+  // { id, name } entries here; superscripts only render with more than one.
+  affiliations: [],
 
   links: {
     pdf: asset('assets/paper.pdf'),
@@ -506,13 +501,11 @@ bash install.sh`,
   ],
 }
 
-export const bibtex: string = `@inproceedings{jain2026embodiment,
-  title     = {Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation},
-  author    = {Jain, Sukhvansh and Dhar, Narendra and Maurya, Anurag and
-               Prakash, Ravi and Vats, Shivam},
-  booktitle = {IEEE-RAS International Conference on Humanoid Robots (Humanoids)},
-  year      = {2026},
-  note      = {Under review}
+export const bibtex: string = `@misc{jain2026embodiment,
+  title  = {Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation},
+  author = {Jain, Sukhvansh and Maurya, Anurag and Vats, Shivam and
+            Dhar, Narendra Kumar and Prakash, Ravi},
+  year   = {2026}
 }`
 
 export const acknowledgements: { builtOn: { name: string; url: string; what: string }[] } = {

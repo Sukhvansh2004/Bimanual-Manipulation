@@ -4,7 +4,9 @@ export default function Footer() {
   return (
     <footer>
       <div className="wrap foot-inner">
-        <span>{paper.venue}. Website source lives in the project repository.</span>
+        <span>
+          {paper.venue && `${paper.venue}. `}Website source lives in the project repository.
+        </span>
         <div className="foot-links">
           <a href={paper.links.pdf} target="_blank" rel="noreferrer">
             Paper
