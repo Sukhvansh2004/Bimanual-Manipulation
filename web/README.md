@@ -29,11 +29,8 @@ structure, so a mistyped field fails `npm run typecheck` rather than the page.
 
 Things still marked TODO in `content.tsx`:
 
-- `paper.authors` — co-author names are placeholders (rendered with a dashed underline so they're
-  hard to miss). Replace them and drop the `placeholder: true` flag.
-- `paper.affiliations` — affiliation name.
-- `paper.links.arxiv` — set once a preprint is posted.
-- `bibtex` — author list.
+- `paper.links.arxiv` — set once the preprint is posted; the arXiv button appears automatically.
+- `paper.venue` and `bibtex` — switch to the arXiv entry (`eprint`, `archivePrefix`) once the ID exists.
 
 ## Assets
 

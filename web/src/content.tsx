@@ -119,7 +119,7 @@ export const pipeline: PipelineStep[] = [
     lede: 'A single human demonstration specifies what the object must do — not how the robot should do it.',
     body: [
       'The object trajectory is extracted by model-based 6D pose tracking with FoundationPose, using the known CAD mesh to enforce geometric consistency. Each estimate is conditioned on the previous pose for temporal coherence, and pose alignment is optimized between the observed depth and the rendered mesh.',
-      'The resulting poses are temporally filtered to suppress jitter while preserving rigid-body consistency, then discretized into N ordered segments ξᵢ = (pᵢ, pᵢ₊₁). The framework is agnostic to the source: an RRT* object-trajectory generator is also supported and used for the simulation sweeps.',
+      'The resulting poses are temporally filtered to suppress jitter while preserving rigid-body consistency, then discretized into N ordered segments ξᵢ = (pᵢ, pᵢ₊₁). The framework is agnostic to the source: an RRT-Connect planner in SE(3), with shortcutting and Bézier smoothing, generates the object trajectories for the simulation sweeps.',
     ],
     tags: ['FoundationPose', 'RGB-D', 'SE(3) segments'],
   },
@@ -146,7 +146,7 @@ export const pipeline: PipelineStep[] = [
     lede: 'Each (segment, arm, grasp) triple is either impossible or carries a price.',
     body: [
       'An action A_{i,j} transports the object from pᵢ to pᵢ₊₁ with arm R_j. It is feasible only if a valid grasp exists for that gripper at that pose and a collision-free motion exists — including the pick, the release and any handover primitive. An analytical EAIK solver evaluates exact endpoint reachability in microseconds and acts as a rapid feasibility filter; full self-collision, object, environment and dual-arm checks run in MuJoCo.',
-      'Feasible actions are priced by two terms: a smoothness cost penalizing large joint variation, and a manipulability cost penalizing near-singular configurations via the Yoshikawa index evaluated at both endpoints. A grid search over α ∈ {2.5 … 50} and β ∈ {0 … 4} settled on α = 40, β = 0.5.',
+      'Feasible actions are priced by two terms: a smoothness cost penalizing large joint variation, and a manipulability cost penalizing near-singular configurations via the Yoshikawa index evaluated at both endpoints. The weights are swept over α ∈ {2.5 … 50} and β ∈ {0 … 4} by a grid-search script; every experiment config in the repository sets α = 10, β = 1.',
     ],
     tags: ['EAIK analytical IK', 'MuJoCo collisions', 'Yoshikawa index'],
     math: [
@@ -225,7 +225,7 @@ export const tasks: Task[] = [
     id: 'C',
     color: '#199e70',
     name: 'Mug inversion',
-    why: 'An inverted mug prevents parallel-jaw rim grasping and requires a suction pickup. A handover to the parallel-jaw then enables flipping and upright placement in a container.',
+    why: 'An inverted mug prevents parallel-jaw rim grasping and requires a suction pickup. A handover to the parallel-jaw then lets the mug be flipped and placed upright on the far side of the table.',
     frames: [1, 2, 3, 4, 5].map((i) => asset(`assets/tasks/taskC_${i}.jpg`)),
     sequence: ['suction', 'handover', 'parallel-jaw'],
     metrics: { assign: 80.0, success: 80.0, handover: 100.0, switches: 1.0, plan: 84.67, exec: 63.8 },
@@ -406,9 +406,9 @@ export const setup: SpecItem[] = [
   { k: 'Grasps', v: 'GraspGen, 40 per gripper type (60 for Task A), collision-filtered' },
   { k: 'Collisions', v: 'MuJoCo — self-collision, object and environment meshes, dual-arm interactions' },
   { k: 'Dual-arm execution', v: 'Asymmetric leader–follower; follower tracks a reactive mink QP with collision-avoidance, velocity and joint-limit constraints' },
-  { k: 'Cost weights', v: 'α = 40 (smoothness), β = 0.5 (manipulability), from a 6 × 6 grid search' },
+  { k: 'Cost weights', v: 'α = 10 (smoothness), β = 1 (manipulability) in every experiment config; a 6 × 6 grid-search script sweeps both' },
   { k: 'Workstation', v: 'AMD Ryzen Threadripper PRO 7975WX · NVIDIA RTX 6000 Ada' },
-  { k: 'Evaluation', v: '520 simulated runs across four tasks and six method configurations' },
+  { k: 'Evaluation', v: '520 simulated runs: 4 tasks × 13 planner configurations × 10 seeds' },
 ]
 
 export const realWorld: {
@@ -435,7 +435,7 @@ export const limitations: string[] = [
 export const codebase: Codebase = {
   repo: 'https://github.com/Sukhvansh2004/Bimanual-Manipulation',
   stats: [
-    { v: '~35k', l: 'lines of Python' },
+    { v: '~42k', l: 'lines of Python' },
     { v: '536', l: 'unit tests' },
     { v: '13', l: 'experiment configs' },
     { v: 'MIT', l: 'licence' },
@@ -454,12 +454,12 @@ export const codebase: Codebase = {
     {
       path: 'planning/ik/',
       what: 'Backend-agnostic IK dispatch across analytical EAIK, L-BFGS-B and mink QP solvers, plus Yoshikawa manipulability measures.',
-      files: ['eaik_solver.py', 'mink_solver.py', 'manipulability.py'],
+      files: ['eaik_solver.py', 'mink_solver.py', 'scipy_solver.py', 'manipulability.py'],
     },
     {
       path: 'planning/dual_arm/',
       what: 'Reactive leader–follower parallel execution: the follower tracks its reference through a mink QP with collision-avoidance constraints.',
-      files: ['planner', 'controllers'],
+      files: ['planner.py', 'mink_setup.py', 'trajectory_helpers.py'],
     },
     {
       path: 'perception/ · services/',
@@ -475,10 +475,10 @@ export const codebase: Codebase = {
   quickstart: [
     {
       label: 'Install',
-      cmd: `git clone --recursive git@github.com:Sukhvansh2004/Bimanual-Manipulation.git
+      cmd: `git clone git@github.com:Sukhvansh2004/Bimanual-Manipulation.git
 cd Bimanual-Manipulation
 bash install.sh`,
-      note: 'Creates the conda env, pulls GraspGen weights and builds the CUDA ops. No sudo required.',
+      note: 'Initializes the GraspGen and YCB submodules, downloads the GraspGen weights, and creates the conda env with CUDA, PyTorch, MuJoCo and GraspGen. No sudo required.',
     },
     {
       label: 'Generate trajectories',
@@ -489,8 +489,8 @@ bash install.sh`,
     {
       label: 'Solve the assignment',
       cmd: `python scripts/pipeline/segment_assignment.py \\
-    --experiment experiments/mug_inversion.json --alpha 40 --beta 0.5`,
-      note: 'Builds the cost matrix and runs the Viterbi DP to get the optimal per-segment arm assignment.',
+    --experiment experiments/mug_inversion.json`,
+      note: 'Builds the cost matrix and runs the Viterbi DP to get the optimal per-segment arm assignment. Cost weights come from the experiment config; override with --alpha / --beta.',
     },
     {
       label: 'Execute the handover',
@@ -500,8 +500,8 @@ bash install.sh`,
     },
     {
       label: 'Reproduce the paper sweep',
-      cmd: `python scripts/evaluation/pipeline_iterative.py --paper --iterations 5`,
-      note: 'Runs the multi-seed robustness evaluation behind Tables I and II, with crash-resilient resume.',
+      cmd: `python scripts/evaluation/pipeline_iterative.py --paper --iterations 10`,
+      note: 'Runs the 10-seed evaluation behind Tables I and II (13 configurations × 4 tasks), with crash-resilient resume via --resume.',
     },
   ],
 }
