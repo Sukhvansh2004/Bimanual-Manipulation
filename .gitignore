@@ -8,5 +8,6 @@ MUJOCO_LOG.TXT
 pytest_output.log
 data/**
 results/**
+logs/
 !data/.gitkeep
 !results/.gitkeep

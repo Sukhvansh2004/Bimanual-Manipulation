@@ -219,6 +219,8 @@ def main() -> None:
                         help="Random seed for reproducibility")
     parser.add_argument("--no-dpp", action="store_true",
                         help="Disable DPP entropy maximization for grasp selection (overrides JSON)")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="Directory to save trajectories to (overrides JSON)")
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -243,6 +245,9 @@ def main() -> None:
     out_cfg = exp_cfg.output
     plan_cfg = exp_cfg.planning
     
+    if args.output_dir is not None:
+        out_cfg.output_dir = args.output_dir
+
     if args.no_dpp:
         plan_cfg.use_dpp = False
         if out_cfg.output_dir is None:

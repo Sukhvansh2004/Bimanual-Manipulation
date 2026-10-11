@@ -34,6 +34,21 @@ from bimanual_manipulation.utils.primitives import extract_grasp_transform
 
 logger = logging.getLogger(__name__)
 
+HandoverPrefilter = Callable[
+    [TrajectoryBundle, Dict[int, Tuple[int, int]], int, int, int, float, float], bool
+]
+"""``(trajectories, trajectory_info, segment_idx, prev_state, curr_state,
+acc_cost, best_cost) -> skip``.  Returning ``True`` rejects the candidate
+handover without exact evaluation."""
+
+HandoverOrder = Callable[
+    [TrajectoryBundle, Dict[int, Tuple[int, int]], int, List[Tuple[float, int]], int],
+    List[Tuple[float, int]],
+]
+"""``(trajectories, trajectory_info, segment_idx, candidates, curr_state) ->
+ordered_candidates``.  Reorders the cross-robot ``(acc_cost, prev_state)``
+candidates of one state so that promising handovers are evaluated first."""
+
 
 # ---------------------------------------------------------------------------
 # DP table initialisation
@@ -46,10 +61,23 @@ def _initialize_dp(
     beam_width: Optional[int],
     step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Create DP tables and populate segment 0.
+    """Create the DP tables and fill in the values for segment 0.
+
+    Args:
+        cost_matrix: ``(n_segments, n_states)`` task cost per segment and
+            state; ``inf`` marks infeasible states.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        initial_robot: If given, only states of this robot may start.
+        beam_width: Keep only this many lowest-cost states at segment 0
+            (``None`` or ``<= 0`` keeps all).
+        step_feasibility: Optional ``{(robot_id, traj_idx): (N,) bool}``;
+            ``False`` at waypoint 1 blocks the state at segment 0.
 
     Returns:
-        ``(J_star, prev_state, switch_cost_cache)``
+        ``(J_star, prev_state, switch_cost_cache)``, each of shape
+        ``(n_segments, n_states)``: cumulative cost (``inf`` = unreachable),
+        predecessor state index (``-1`` = none), and the switching cost
+        paid on entry to each state.
 
     Raises:
         ValueError: If no state is feasible at segment 0.
@@ -106,10 +134,25 @@ def _best_same_robot_transition(
     current_state: int,
     step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
 ) -> Tuple[float, int, float]:
-    """Find the best same-robot predecessor for state ``(cr, ct)``.
+    """Find the same-robot, same-trajectory predecessor of state ``(cr, ct)``.
+
+    A robot can only continue on the trajectory it is already following, so
+    the only valid same-robot predecessor is the identical state.
+
+    Args:
+        alive_prev: ``(cumulative_cost, state_idx)`` pairs alive at the
+            previous segment, sorted by cost.
+        cr: Robot id of the current state.
+        ct: Trajectory index of the current state.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        segment_idx: Index of the current segment.
+        current_state: Index of the current state (for logging).
+        step_feasibility: Optional ``{(robot_id, traj_idx): (N,) bool}``;
+            ``False`` at waypoint ``segment_idx + 1`` blocks the continuation.
 
     Returns:
-        ``(best_cost, best_prev_state, switching_cost=0.0)``
+        ``(best_cost, best_prev_state, switching_cost)``; ``(inf, -1, 0.0)``
+        when no valid predecessor exists. The switching cost is always 0.
     """
     for acc_cost, ps in alive_prev:
         pr, pt = trajectory_info[ps]
@@ -150,11 +193,48 @@ def _best_cross_robot_transition(
     collision_check_fn,
     handover_clearance_fn,
     handover_callback: Optional[Callable[[HandoverResult], None]],
+    handover_prefilter: Optional[HandoverPrefilter] = None,
+    handover_order: Optional[HandoverOrder] = None,
 ) -> Tuple[float, int, float, int, int]:
-    """Evaluate cross-robot handover transitions for segment *i*, state *cs*.
+    """Find the best handover predecessor (other robot) for state *cs*.
+
+    Candidates are visited in increasing cumulative cost; the loop stops once
+    a candidate's cumulative cost alone reaches the incumbent *best_cost*.
+
+    Args:
+        alive_prev: ``(cumulative_cost, state_idx)`` pairs alive at segment
+            ``i - 1``, sorted by cost.
+        cr: Robot id of the current state.
+        best_cost: Incumbent best cost for *cs* (e.g. from the same-robot
+            transition); only strictly better handovers replace it.
+        i: Index of the current segment (handover location).
+        trajectories: Trajectory bundle for both arms.
+        cs: Index of the current state.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        transfer_feasibility: Optional ``{(r_from, t_from, r_to, t_to): bool}``
+            blocking specific handover pairs.
+        alpha: Smoothness weight of the handover cost.
+        beta: Manipulability weight of the handover cost.
+        epsilon: Numerical floor for the manipulability reciprocal.
+        ik_solver_fn: IK closure used to evaluate the handover primitive.
+        jacobian_fns: ``{robot_id: (q) -> J}`` for manipulability.
+        collision_check_fn: ``(q_arm0, q_arm1) -> collision_free``.
+        handover_clearance_fn: ``(object_pose) -> bool`` environment
+            clearance test.
+        handover_callback: Called with every exact handover evaluation.
+        handover_prefilter: Optional cheap test run before each exact
+            evaluation; returning ``True`` skips the candidate.
+        handover_order: Optional reordering of the cross-robot candidates
+            (e.g. best predicted total cost first). Without it, candidates
+            are visited by increasing cumulative cost and the loop stops at
+            the first one that cannot beat *best_cost*; with it, such
+            candidates are skipped individually.
 
     Returns:
-        ``(best_cost, best_prev, best_sw, n_ik_calls, n_pruned)``
+        ``(best_cost, best_prev, best_sw, n_ik_calls, n_pruned)``: updated
+        best cost, its predecessor (``-1`` if unchanged), the switching cost
+        paid, the number of exact handover evaluations, and the number of
+        candidates pruned by cost bound or prefilter.
     """
     n_ik = 0
     n_pruned = 0
@@ -162,12 +242,28 @@ def _best_cross_robot_transition(
     best_prev = -1
     best_sw = 0.0
 
-    for idx, (acc_cost, ps) in enumerate(alive_prev):
+    candidates = alive_prev
+    if handover_order is not None:
+        candidates = handover_order(
+            trajectories, trajectory_info, i,
+            [(a, ps) for a, ps in alive_prev if trajectory_info[ps][0] != cr], cs,
+        )
+
+    for idx, (acc_cost, ps) in enumerate(candidates):
         if acc_cost >= best_cost:
-            n_pruned += len(alive_prev) - idx
-            break
+            if handover_order is None:
+                # Sorted by cumulative cost: no later candidate can win either.
+                n_pruned += len(candidates) - idx
+                break
+            n_pruned += 1
+            continue
         pr, _ = trajectory_info[ps]
         if pr == cr:
+            continue
+        if handover_prefilter is not None and handover_prefilter(
+            trajectories, trajectory_info, i, ps, cs, acc_cost, best_cost,
+        ):
+            n_pruned += 1
             continue
 
         n_ik += 1
@@ -228,8 +324,46 @@ def _forward_pass(
     beam_width: Optional[int],
     handover_stride: int,
     step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
+    handover_prefilter: Optional[HandoverPrefilter] = None,
+    handover_order: Optional[HandoverOrder] = None,
 ) -> None:
-    """Run the Viterbi forward pass, filling *J_star* in-place."""
+    """Run the Viterbi forward pass over segments ``1 .. n_segments - 1``.
+
+    For each alive state, takes the cheaper of the same-robot continuation
+    and (at stride boundaries) the best handover from the other robot, then
+    applies beam pruning. Stops early if every state dies.
+
+    Args:
+        cost_matrix: ``(n_segments, n_states)`` task cost per segment/state.
+        J_star: ``(n_segments, n_states)`` cumulative cost table, filled
+            in place (segment 0 must already be initialised).
+        prev_state: ``(n_segments, n_states)`` predecessor table, filled
+            in place.
+        switch_cost_cache: ``(n_segments, n_states)`` switching cost paid on
+            entry to each state, filled in place.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        trajectories: Trajectory bundle for both arms.
+        transfer_feasibility: Optional ``{(r_from, t_from, r_to, t_to): bool}``
+            blocking specific handover pairs.
+        alpha: Smoothness weight of the handover cost.
+        beta: Manipulability weight of the handover cost.
+        epsilon: Numerical floor for the manipulability reciprocal.
+        ik_solver_fn: IK closure used to evaluate handover primitives.
+        jacobian_fns: ``{robot_id: (q) -> J}`` for manipulability.
+        collision_check_fn: ``(q_arm0, q_arm1) -> collision_free``.
+        handover_clearance_fn: ``(object_pose) -> bool`` environment
+            clearance test.
+        handover_callback: Called with every exact handover evaluation.
+        beam_width: Max surviving states per segment (``None`` = unlimited).
+        handover_stride: Handovers are only considered at segments divisible
+            by this value.
+        step_feasibility: Optional ``{(robot_id, traj_idx): (N,) bool}``
+            joint-step feasibility masks for same-robot continuations.
+        handover_prefilter: Optional cheap test run before each exact
+            handover evaluation; returning ``True`` skips the candidate.
+        handover_order: Optional reordering of each state's cross-robot
+            candidates before evaluation.
+    """
     n_segments, n_states = cost_matrix.shape
     t_dp_start = time.time()
     total_ik_calls = 0
@@ -271,6 +405,8 @@ def _forward_pass(
                         collision_check_fn=collision_check_fn,
                         handover_clearance_fn=handover_clearance_fn,
                         handover_callback=handover_callback,
+                        handover_prefilter=handover_prefilter,
+                        handover_order=handover_order,
                     )
                 )
                 seg_ik += n_ik
@@ -337,6 +473,20 @@ def _backtrack(
     ``normalized_configs`` array of shape ``(n_waypoints, DOF)``
     containing the active robot's joint configuration at each waypoint,
     with angles adjusted for continuity within joint limits.
+
+    Args:
+        cost_matrix: ``(n_segments, n_states)`` task cost per segment/state.
+        J_star: ``(n_segments, n_states)`` filled cumulative cost table.
+        prev_state: ``(n_segments, n_states)`` filled predecessor table.
+        switch_cost_cache: ``(n_segments, n_states)`` switching cost paid on
+            entry to each state.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        trajectories: Trajectory bundle for both arms.
+        normalized_configs_cache: Optional ``{(robot_id, traj_idx): (N, DOF)}``
+            angle-normalised joint configs.
+
+    Returns:
+        :class:`AssignmentResult` for the minimum-cost terminal state.
 
     Raises:
         ValueError: If no feasible terminal state exists.
@@ -556,11 +706,46 @@ def _solve_optimal_assignment(
     handover_stride: int = 1,
     normalized_configs_cache: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
     step_feasibility: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
+    handover_prefilter: Optional[HandoverPrefilter] = None,
+    handover_order: Optional[HandoverOrder] = None,
 ) -> AssignmentResult:
     """Solve the optimal assignment with a Viterbi-style DP.
 
     Delegates to :func:`_initialize_dp`, :func:`_forward_pass`, and
     :func:`_backtrack`.
+
+    Args:
+        cost_matrix: ``(n_segments, n_states)`` task cost per segment/state.
+        trajectory_info: Maps state index to ``(robot_id, traj_idx)``.
+        trajectories: Trajectory bundle for both arms.
+        transfer_feasibility: Optional ``{(r_from, t_from, r_to, t_to): bool}``
+            blocking specific handover pairs.
+        alpha: Smoothness weight of the handover cost.
+        beta: Manipulability weight of the handover cost.
+        epsilon: Numerical floor for the manipulability reciprocal.
+        ik_solver_fn: IK closure used to evaluate handover primitives.
+        jacobian_fns: ``{robot_id: (q) -> J}`` for manipulability.
+        collision_check_fn: ``(q_arm0, q_arm1) -> collision_free``.
+        handover_clearance_fn: ``(object_pose) -> bool`` environment
+            clearance test.
+        handover_callback: Called with every exact handover evaluation.
+        initial_robot: If given, only this robot may start the task.
+        beam_width: Max surviving states per segment (``None`` = unlimited).
+        handover_stride: Consider handovers only every this many segments.
+        normalized_configs_cache: Optional ``{(robot_id, traj_idx): (N, DOF)}``
+            angle-normalised joint configs for the result.
+        step_feasibility: Optional ``{(robot_id, traj_idx): (N,) bool}``
+            joint-step feasibility masks.
+        handover_prefilter: Optional cheap test run before each exact
+            handover evaluation; returning ``True`` skips the candidate.
+        handover_order: Optional reordering of each state's cross-robot
+            candidates before evaluation.
+
+    Returns:
+        :class:`AssignmentResult` with the optimal sequence.
+
+    Raises:
+        ValueError: If no feasible assignment exists.
     """
     n_segments, n_states = cost_matrix.shape
     logger.info(
@@ -589,6 +774,8 @@ def _solve_optimal_assignment(
         beam_width=beam_width,
         handover_stride=handover_stride,
         step_feasibility=step_feasibility,
+        handover_prefilter=handover_prefilter,
+        handover_order=handover_order,
     )
 
     return _backtrack(
@@ -619,6 +806,8 @@ def compute_optimal_robot_assignment(
     joint_limits_lo: np.ndarray = constants.FRANKA_JOINT_LIMITS_LO,
     joint_limits_hi: np.ndarray = constants.FRANKA_JOINT_LIMITS_HI,
     max_joint_step: float = constants.ASSIGNMENT_MAX_JOINT_STEP,
+    handover_prefilter: Optional[HandoverPrefilter] = None,
+    handover_order: Optional[HandoverOrder] = None,
 ) -> AssignmentResult:
     """Compute the globally optimal robot-to-segment assignment.
 
@@ -649,6 +838,13 @@ def compute_optimal_robot_assignment(
             consecutive waypoints.  Transitions exceeding this after
             angle normalisation are marked infeasible.  Defaults to
             :data:`constants.ASSIGNMENT_MAX_JOINT_STEP`.
+        handover_prefilter: Optional cheap test run before each exact
+            handover evaluation (see :data:`HandoverPrefilter`), e.g. a
+            learned feasibility / cost model.  Candidates it rejects are
+            treated as infeasible; accepted ones are still evaluated exactly.
+        handover_order: Optional reordering of each state's cross-robot
+            candidates (see :data:`HandoverOrder`), e.g. best predicted total
+            cost first so the incumbent tightens early.
 
     Returns:
         :class:`AssignmentResult` with the optimal sequence, cost breakdown,
@@ -727,6 +923,8 @@ def compute_optimal_robot_assignment(
             handover_stride=handover_stride,
             normalized_configs_cache=normalized_configs_cache,
             step_feasibility=step_feasibility,
+            handover_prefilter=handover_prefilter,
+            handover_order=handover_order,
         )
     finally:
         # Restore original joint configs so the caller's objects aren't
