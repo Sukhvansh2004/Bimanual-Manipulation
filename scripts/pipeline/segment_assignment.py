@@ -58,6 +58,7 @@ from bimanual_manipulation.experiment_config import (
     load_experiment,
     get_collision_filter_fn,
 )
+import bimanual_manipulation.planning.assignment.solver as solver_mod
 from bimanual_manipulation.planning.assignment import (
     compute_optimal_robot_assignment,
     load_all_trajectories,
@@ -65,6 +66,11 @@ from bimanual_manipulation.planning.assignment import (
     make_handover_clearance_fn,
     make_ik_solver_fn,
     make_jacobian_fns,
+)
+from bimanual_manipulation.planning.assignment.learned_filter import (
+    HandoverFeasibilityNet,
+    HandoverLogger,
+    LearnedHandoverFilter,
 )
 from bimanual_manipulation.planning.assignment.utils import (
     save_assignment_result,
@@ -201,6 +207,30 @@ def main() -> None:
     parser.add_argument(
         "--seed", type=int, default=None,
         help="Random seed for reproducibility.",
+    )
+    parser.add_argument(
+        "--handover-log", type=str, default=None,
+        help="Save features and outcomes of every exact handover evaluation "
+             "to this NPZ (training data for the learned filter).",
+    )
+    parser.add_argument(
+        "--learned-filter", type=str, default=None,
+        help="Path to a trained handover model; candidates predicted infeasible "
+             "or not to improve the best transition skip exact evaluation.",
+    )
+    parser.add_argument(
+        "--filter-threshold", type=float, default=0.1,
+        help="Minimum predicted P(feasible) for exact handover evaluation.",
+    )
+    parser.add_argument(
+        "--cost-slack", type=float, default=0.0,
+        help="Prune candidates with acc_cost + slack * predicted_cost >= best_cost "
+             "(0 disables cost-based pruning).",
+    )
+    parser.add_argument(
+        "--filter-order", action="store_true",
+        help="Evaluate each state's handover candidates best-predicted-first "
+             "(requires --learned-filter).",
     )
 
     args = parser.parse_args()
@@ -360,7 +390,6 @@ def main() -> None:
     # --- Apply switch cost override if specified ---
     _restore_fn = None
     if args.switch_cost_override is not None:
-        import bimanual_manipulation.planning.assignment.solver as solver_mod
         _original_sw = solver_mod.compute_switching_cost
         _override = args.switch_cost_override
 
@@ -374,6 +403,24 @@ def main() -> None:
         _restore_fn = lambda: setattr(solver_mod, "compute_switching_cost", _original_sw)
         logger.info("Switch cost override active: %.2f", _override)
 
+    # --- Learned handover filter / handover logging ---
+    learned_filter = None
+    if args.learned_filter is not None:
+        learned_filter = LearnedHandoverFilter(
+            HandoverFeasibilityNet.load(args.learned_filter),
+            threshold=args.filter_threshold,
+            cost_slack=args.cost_slack,
+        )
+        logger.info(
+            "Learned handover filter active: %s (threshold=%.2f, cost_slack=%.2f, order=%s)",
+            args.learned_filter, args.filter_threshold, args.cost_slack, args.filter_order,
+        )
+
+    handover_logger = None
+    if args.handover_log is not None:
+        handover_logger = HandoverLogger(trajectories, chain=handover_callback)
+        handover_callback = handover_logger
+
     # --- Run assignment planner (optionally profiled) ---
     profiler = None
     if args.profile:
@@ -381,21 +428,33 @@ def main() -> None:
         profiler.enable()
 
     t0 = time.time()
-    result = compute_optimal_robot_assignment(
-        trajectories,
-        transfer_feasibility=transfer_feasibility,
-        initial_robot=initial_robot,
-        alpha=alpha,
-        beta=beta,
-        epsilon=epsilon,
-        ik_solver_fn=ik_solver_fn,
-        jacobian_fns=jacobian_fns,
-        collision_check_fn=collision_check_fn,
-        handover_clearance_fn=handover_clearance_fn,
-        handover_callback=handover_callback,
-        beam_width=beam_width,
-        handover_stride=handover_stride,
-    )
+    try:
+        result = compute_optimal_robot_assignment(
+            trajectories,
+            transfer_feasibility=transfer_feasibility,
+            initial_robot=initial_robot,
+            alpha=alpha,
+            beta=beta,
+            epsilon=epsilon,
+            ik_solver_fn=ik_solver_fn,
+            jacobian_fns=jacobian_fns,
+            collision_check_fn=collision_check_fn,
+            handover_clearance_fn=handover_clearance_fn,
+            handover_callback=handover_callback,
+            beam_width=beam_width,
+            handover_stride=handover_stride,
+            handover_prefilter=learned_filter,
+            handover_order=(
+                learned_filter.order
+                if learned_filter is not None and args.filter_order else None
+            ),
+        )
+    finally:
+        if handover_logger is not None:
+            os.makedirs(os.path.dirname(args.handover_log) or ".", exist_ok=True)
+            handover_logger.save(args.handover_log)
+        if learned_filter is not None:
+            logger.info("Learned filter stats: %s", learned_filter.stats())
 
     planning_time = time.time() - t0
 
@@ -426,6 +485,8 @@ def main() -> None:
         metrics = _build_planning_metrics(
             result, exp_cfg, data_dir, planning_time, jacobian_fns,
         )
+        if learned_filter is not None:
+            metrics.update(learned_filter.stats())
         with open(args.output_metrics, "w") as f:
             json.dump(metrics, f, indent=2)
         logger.info("Metrics written to %s", args.output_metrics)
