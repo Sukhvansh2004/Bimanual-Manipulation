@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -36,6 +37,8 @@ from bimanual_manipulation.planning.assignment.learned_filter import (  # noqa: 
 
 THRESHOLDS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
 DEFAULT_WIDTH = {"mlp": 256, "transformer": 64}
+TRAIN_COLOR, VAL_COLOR = "#2a78d6", "#eb6834"  # validated categorical slots 1-2
+TEXT_SECONDARY, GRID = "#52514e", "#e4e3df"
 
 
 def load_logs(paths: Sequence[str]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -129,6 +132,130 @@ def cost_report(y: np.ndarray, cost: np.ndarray, pred: np.ndarray) -> Dict[str, 
     }
 
 
+def to_tensors(
+    X: np.ndarray, y: np.ndarray, cost: np.ndarray, device: str,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Move a split to *device* with log-cost targets and a feasible-cost mask.
+
+    Args:
+        X: ``(M, N_FEATURES)`` features.
+        y: ``(M,)`` feasibility labels.
+        cost: ``(M,)`` handover costs (``inf`` when infeasible).
+        device: Torch device.
+
+    Returns:
+        ``(X, y, log_cost, mask)`` tensors; ``mask`` is 1 where the cost is a
+        finite positive number of a feasible handover.
+    """
+    mask = (y == 1) & np.isfinite(cost) & (cost > 0)
+    log_cost = np.where(mask, np.log(np.where(mask, cost, 1.0)), 0.0)
+    return (
+        torch.as_tensor(X, device=device),
+        torch.as_tensor(y, device=device),
+        torch.as_tensor(log_cost, dtype=torch.float32, device=device),
+        torch.as_tensor(mask, dtype=torch.float32, device=device),
+    )
+
+
+def losses(
+    model: HandoverFeasibilityNet,
+    X: torch.Tensor, y: torch.Tensor, log_cost: torch.Tensor, mask: torch.Tensor,
+    pos_weight: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Feasibility and cost losses on one batch.
+
+    Args:
+        model: Model being trained.
+        X: ``(B, N_FEATURES)`` features.
+        y: ``(B,)`` feasibility labels.
+        log_cost: ``(B,)`` log handover-cost targets.
+        mask: ``(B,)`` 1 where the cost target is valid.
+        pos_weight: BCE weight on feasible samples.
+
+    Returns:
+        ``(feasibility_bce, cost_huber)``; the cost loss averages over valid
+        cost targets only.
+    """
+    logit, pred_log_cost = model.forward(X)
+    loss_feas = F.binary_cross_entropy_with_logits(logit, y, pos_weight=pos_weight)
+    loss_cost = (F.smooth_l1_loss(pred_log_cost, log_cost, reduction="none") * mask
+                 ).sum() / mask.sum().clamp(min=1.0)
+    return loss_feas, loss_cost
+
+
+def evaluate_losses(
+    model: HandoverFeasibilityNet,
+    split: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    pos_weight: torch.Tensor, batch: int = 8192,
+) -> Tuple[float, float, float]:
+    """Full-split losses and AUROC in eval mode.
+
+    Args:
+        model: Model being trained.
+        split: Output of :func:`to_tensors`.
+        pos_weight: BCE weight on feasible samples.
+        batch: Evaluation batch size.
+
+    Returns:
+        ``(feasibility_bce, cost_huber, auroc)`` over the whole split.
+    """
+    X, y, c, m = split
+    model.net.eval()
+    feas_sum, cost_sum, n_cost, scores = 0.0, 0.0, 0.0, []
+    with torch.no_grad():
+        for k in range(0, len(y), batch):
+            sl = slice(k, k + batch)
+            lf, lc = losses(model, X[sl], y[sl], c[sl], m[sl], pos_weight)
+            feas_sum += float(lf) * len(y[sl])
+            cost_sum += float(lc) * float(m[sl].sum())
+            n_cost += float(m[sl].sum())
+            scores.append(model.forward(X[sl])[0].cpu().numpy())
+    model.net.train()
+    return feas_sum / len(y), cost_sum / max(n_cost, 1.0), auroc(y.cpu().numpy(), np.concatenate(scores))
+
+
+def plot_history(history: Dict[str, List[float]], path: Path, title: str) -> None:
+    """Save train/validation loss curves and validation AUROC.
+
+    Args:
+        history: Per-epoch metrics recorded by :func:`main`.
+        path: Output figure path.
+        title: Figure title (architecture and split).
+    """
+    epochs = np.arange(1, len(history["train_feas"]) + 1)
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 2.8))
+    panels = (
+        (axes[0], "train_feas", "val_feas", "Feasibility loss (weighted BCE)"),
+        (axes[1], "train_cost", "val_cost", "Cost loss (Huber on log cost)"),
+    )
+    for ax, tr, va, ylabel in panels:
+        ax.plot(epochs, history[tr], color=TRAIN_COLOR, lw=2, label="train")
+        ax.plot(epochs, history[va], color=VAL_COLOR, lw=2, label="validation")
+        best = int(np.argmin(history[va]))
+        ax.plot(epochs[best], history[va][best], "o", color=VAL_COLOR, ms=8,
+                markeredgecolor="white", markeredgewidth=1.5)
+        ax.annotate(f"min validation (epoch {best + 1})", (epochs[best], history[va][best]),
+                    xytext=(8, -12), textcoords="offset points", ha="left",
+                    fontsize=7, color=TEXT_SECONDARY)
+        ax.set_yscale("log")
+        ax.set_ylabel(ylabel, fontsize=8, color=TEXT_SECONDARY)
+    axes[2].plot(epochs, history["train_auroc"], color=TRAIN_COLOR, lw=2, label="train")
+    axes[2].plot(epochs, history["val_auroc"], color=VAL_COLOR, lw=2, label="validation")
+    axes[2].set_ylabel("Feasibility AUROC", fontsize=8, color=TEXT_SECONDARY)
+    for ax in axes:
+        ax.set_xlabel("epoch", fontsize=8, color=TEXT_SECONDARY)
+        ax.tick_params(colors=TEXT_SECONDARY, labelsize=7, length=0)
+        ax.grid(axis="y", color=GRID, lw=0.8, which="both")
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.spines["bottom"].set_color(GRID)
+    axes[2].legend(fontsize=7, frameon=False, loc="lower right", labelcolor=TEXT_SECONDARY)
+    fig.suptitle(title, fontsize=9, color=TEXT_SECONDARY)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    print(f"Saved loss curves to {path}")
+
+
 def single_query_latency_ms(model: HandoverFeasibilityNet, X: np.ndarray, n: int = 500) -> float:
     """Median latency of one single-candidate prediction, as used in the DP.
 
@@ -180,13 +307,12 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.net.to(device)
 
-    feasible_cost = (ytr == 1) & np.isfinite(ctr) & (ctr > 0)
-    log_cost = np.where(feasible_cost, np.log(np.where(feasible_cost, ctr, 1.0)), 0.0)
-    Xtr_t = torch.as_tensor(Xtr, device=device)
-    ytr_t = torch.as_tensor(ytr, device=device)
-    ctr_t = torch.as_tensor(log_cost, dtype=torch.float32, device=device)
-    mtr_t = torch.as_tensor(feasible_cost, dtype=torch.float32, device=device)
+    train_split = to_tensors(Xtr, ytr, ctr, device)
+    val_split = to_tensors(Xte, yte, cte, device)
+    Xtr_t, ytr_t, ctr_t, mtr_t = train_split
     pos_weight = torch.tensor(args.pos_weight, device=device)
+    history: Dict[str, List[float]] = {k: [] for k in (
+        "train_feas", "train_cost", "train_auroc", "val_feas", "val_cost", "val_auroc")}
 
     opt = torch.optim.AdamW(model.net.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, args.epochs)
@@ -197,21 +323,24 @@ def main() -> None:
         total = 0.0
         for k in range(0, len(perm), batch):
             idx = perm[k:k + batch]
-            logit, pred_log_cost = model.forward(Xtr_t[idx])
-            loss_feas = F.binary_cross_entropy_with_logits(
-                logit, ytr_t[idx], pos_weight=pos_weight,
+            loss_feas, loss_cost = losses(
+                model, Xtr_t[idx], ytr_t[idx], ctr_t[idx], mtr_t[idx], pos_weight,
             )
-            m = mtr_t[idx]
-            loss_cost = (F.smooth_l1_loss(pred_log_cost, ctr_t[idx], reduction="none") * m
-                         ).sum() / m.sum().clamp(min=1.0)
             loss = loss_feas + args.cost_weight * loss_cost
             opt.zero_grad()
             loss.backward()
             opt.step()
             total += float(loss) * len(idx)
         sched.step()
+        for prefix, split in (("train", train_split), ("val", val_split)):
+            lf, lc, au = evaluate_losses(model, split, pos_weight)
+            history[f"{prefix}_feas"].append(lf)
+            history[f"{prefix}_cost"].append(lc)
+            history[f"{prefix}_auroc"].append(au)
         if (epoch + 1) % 10 == 0:
-            print(f"epoch {epoch + 1:3d}  loss {total / len(perm):.4f}")
+            print(f"epoch {epoch + 1:3d}  train loss {total / len(perm):.4f}  "
+                  f"val feas {history['val_feas'][-1]:.4f}  val cost {history['val_cost'][-1]:.4f}  "
+                  f"val AUROC {history['val_auroc'][-1]:.3f}")
 
     model.net.eval().cpu()
     p_tr, _ = model.predict(Xtr)
@@ -224,6 +353,7 @@ def main() -> None:
         "test_cost": cost_report(yte, cte, c_te),
         "arch": args.arch, "width": hidden, "n_parameters": model.n_parameters(),
         "latency_ms": single_query_latency_ms(model, Xte),
+        "history": history,
         "args": vars(args),
     }
     print(f"AUROC train {report['train_auroc']:.3f}  test {report['test_auroc']:.3f}  "
@@ -241,6 +371,8 @@ def main() -> None:
     with open(Path(args.output).with_suffix(".json"), "w") as f:
         json.dump(report, f, indent=2)
     print(f"Saved model to {args.output}")
+    plot_history(history, Path(args.output).with_suffix(".loss.png"),
+                 f"{args.arch}: train {len(args.train)} logs, validation {len(args.test)} logs")
 
 
 if __name__ == "__main__":
