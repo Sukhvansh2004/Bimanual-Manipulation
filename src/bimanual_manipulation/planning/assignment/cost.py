@@ -57,7 +57,32 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HandoverResult:
-    """Rich result from a handover primitive evaluation."""
+    """Rich result from a handover primitive evaluation.
+
+    Attributes:
+        cost: Handover cost ``alpha * C1 + beta * C2``, or ``inf`` when
+            infeasible.
+        feasible: ``True`` when IK succeeded for every pose and no
+            collision was detected.
+        transfer_robot_id: Robot handing the object over.
+        receiver_robot_id: Robot receiving the object.
+        segment_idx: Segment index at which the handover is evaluated
+            (``-1`` until annotated by :func:`compute_switching_cost`).
+        prev_traj_idx: Trajectory index of the transferring robot.
+        curr_traj_idx: Trajectory index of the receiving robot.
+        transfer_configs: Selected joint configs for the transferring arm
+            (hold followed by retreat).
+        receiver_configs: Selected joint configs for the receiving arm
+            (pre-grasp followed by approach).
+        n_collision_steps: Number of waypoints with no collision-free
+            candidate.
+        transfer_collision_mask: Per-waypoint collision flags for the
+            transferring arm (``True`` = in collision).
+        receiver_collision_mask: Per-waypoint collision flags for the
+            receiving arm (``True`` = in collision).
+        rejection_reason: Short reason string when infeasible, else ``""``.
+        object_pose: Object pose at the handover segment.
+    """
 
     cost: float
     feasible: bool
@@ -90,19 +115,25 @@ def compute_segment_cost(
 ) -> Tuple[float, bool]:
     """Compute the task cost for one trajectory segment ``[start_idx, end_idx]``.
 
-    Cost = α · C₁(smoothness) + β · C₂(manipulability).
+    Cost = α · C₁(smoothness) + β · C₂(manipulability), where C₁ is the
+    squared joint displacement between the first and last waypoint of the
+    segment and C₂ is ``sum(1 / (w + epsilon))`` over all waypoints in the
+    segment.  Without *jacobian_fn* the fast proxy manipulability from
+    :func:`compute_manipulability_simple` is used.
 
     Args:
         trajectory: Robot trajectory with feasibility and joint data.
         start_idx: First waypoint index.
-        end_idx: Last waypoint index (inclusive).
+        end_idx: Last waypoint index (inclusive); must be ``> start_idx``.
         alpha: Smoothness weight.
         beta: Manipulability weight.
         epsilon: Numerical floor for manipulability reciprocal.
         jacobian_fn: Optional ``(q) -> J`` for Yoshikawa manipulability.
 
     Returns:
-        ``(cost, is_feasible)`` — cost is ``inf`` when infeasible.
+        ``(cost, is_feasible)`` — cost is ``inf`` and *is_feasible* is
+        ``False`` when the index range is invalid or any waypoint in the
+        segment is infeasible.
     """
     n_waypoints = trajectory.n_waypoints
     if start_idx < 0 or end_idx >= n_waypoints or start_idx >= end_idx:
@@ -165,6 +196,10 @@ def compute_cost_matrix(
 ) -> Tuple[np.ndarray, Dict[int, Tuple[int, int]]]:
     """Build the per-segment cost for every ``(robot, trajectory)`` state.
 
+    States are numbered with all robot-0 trajectories first, followed by
+    all robot-1 trajectories.  Segment ``seg`` spans waypoints
+    ``[seg, seg + 1]`` and is scored with :func:`compute_segment_cost`.
+
     Args:
         robot0_trajectories: Robot 0 grasp trajectories.
         robot1_trajectories: Robot 1 grasp trajectories.
@@ -178,7 +213,9 @@ def compute_cost_matrix(
     Returns:
         ``(cost_matrix, trajectory_info)``
 
-        * ``cost_matrix[seg, state_idx]`` — task cost.
+        * ``cost_matrix`` — ``(n_segments, n_states)`` array where
+          ``cost_matrix[seg, state_idx]`` is the task cost (``inf`` when
+          the segment is infeasible or beyond the trajectory's length).
         * ``trajectory_info[state_idx]`` → ``(robot_id, traj_idx)``.
     """
     trajectory_info: Dict[int, Tuple[int, int]] = {}
@@ -231,12 +268,25 @@ def _solve_all_ik(
 ) -> Tuple[List[List[np.ndarray]], int]:
     """Solve IK for every pose, returning ALL candidate configs per pose.
 
+    Each pose is warm-started from the best candidate of the previous
+    pose, and candidates are sorted by distance to that warm start.
+    Exceptions raised by *ik_solver_fn* are counted as failures.
+
     When :data:`constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE` is ``True``
     iteration stops at the first failure, avoiding unnecessary IK calls.
+
+    Args:
+        poses: Target EEF poses, in order.
+        robot_id: Robot to solve IK for.
+        ik_solver_fn: ``(pose, robot_id, q_warm_start=...) -> result``
+            where *result* is ``None``, a single config, a list of
+            configs, or a tuple whose first element is one of those.
+        q_warm_start: Optional warm start for the first pose.
 
     Returns:
         ``(all_candidates, n_failed)`` where ``all_candidates[i]`` is a
         list of valid joint configs for pose *i* (empty on failure).
+        On early exit *all_candidates* is shorter than *poses*.
     """
     early_exit = constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE
     all_candidates: List[List[np.ndarray]] = []
@@ -283,8 +333,18 @@ def _select_collision_free_configs(
     Each waypoint's candidates are checked against a single fixed
     *other_config* (the opposing arm's config during that phase).
 
-    When :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION` is ``True``
-    iteration stops at the first colliding waypoint.
+    When no candidate is collision-free the first candidate is selected
+    and the step is flagged as colliding.  Waypoints with no candidates
+    are skipped.  When :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION`
+    is ``True`` iteration stops at the first colliding waypoint.
+
+    Args:
+        candidates_list: Per-waypoint lists of candidate configs for
+            this arm.
+        other_config: Fixed config of the opposing arm.
+        this_robot_id: Robot the candidates belong to (decides argument
+            order for *collision_check_fn*).
+        collision_check_fn: ``(q_arm0, q_arm1) -> collision_free``.
 
     Returns:
         ``(selected_configs, collision_mask)`` where *collision_mask* is a
@@ -331,11 +391,31 @@ def _compute_handover_primitive_cost(
 ) -> HandoverResult:
     """Evaluate cost of a handover primitive using the same C1 + C2 model.
 
-    Early-exit behaviour is controlled by
+    The transferring arm follows ``transfer_hold + transfer_retreat`` and
+    the receiving arm follows ``receiver_pre + receiver_approach``.  Any
+    IK failure or any colliding step makes the handover infeasible
+    (``inf`` cost); there is no soft penalty.  The early-exit flags
     :data:`constants.HANDOVER_EARLY_EXIT_ON_IK_FAILURE` and
-    :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION`.  When enabled the
-    function returns ``inf`` cost on the first IK failure / collision
-    instead of accumulating a soft penalty.
+    :data:`constants.HANDOVER_EARLY_EXIT_ON_COLLISION` only stop IK /
+    collision checking at the first failure to save time.
+
+    On success, C1 is the sum of squared consecutive joint displacements
+    of both arms (:func:`compute_smoothness`) and C2 the summed reciprocal
+    manipulability of both arms (:func:`compute_manipulability_cost`).
+
+    Args:
+        handover_trajectory: Handover EEF pose sequences for both arms.
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        epsilon: Numerical floor for manipulability reciprocal.
+        ik_solver_fn: IK callable (see :func:`_solve_all_ik`).
+        jacobian_fns: Optional ``{robot_id: (q) -> J}`` mapping.
+        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``.
+            When ``None`` no collision checking is done.
+        transfer_robot_id: Robot handing the object over.
+        receiver_robot_id: Robot receiving the object.
+        q_warm_start_transfer: IK warm start for the transferring arm.
+        q_warm_start_receiver: IK warm start for the receiving arm.
 
     Returns:
         :class:`HandoverResult` with cost, feasibility, resolved joint
@@ -467,8 +547,23 @@ def _select_handover_configs(
 ) -> Tuple[List[np.ndarray], List[np.ndarray], int, List[bool], List[bool]]:
     """Select one config per waypoint for both arms, preferring collision-free.
 
-    Phase 1: receiver approaches while transfer holds at hold pose.
+    Phase 1: receiver approaches while transfer holds at hold pose (each
+    receiver step is checked against the first transfer hold config).
     Phase 2: transfer retreats while receiver stays at final approach.
+    Transfer hold steps are never collision-checked.  When
+    *collision_check_fn* is ``None`` or either candidate list is empty,
+    the first candidate per waypoint is taken with no checks.
+
+    Args:
+        handover_trajectory: Handover trajectory (used for the number of
+            transfer hold poses).
+        transfer_candidates: Per-waypoint IK candidates for the
+            transferring arm (hold then retreat).
+        receiver_candidates: Per-waypoint IK candidates for the
+            receiving arm.
+        transfer_robot_id: Robot handing the object over.
+        receiver_robot_id: Robot receiving the object.
+        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``.
 
     Returns:
         ``(transfer_configs, receiver_configs, n_collision_steps,
@@ -535,13 +630,42 @@ def compute_switching_cost(
 ) -> float:
     """Compute the cost of switching from one arm to another at *segment_idx*.
 
-    Returns 0 when ``prev_robot == curr_robot``, ``inf`` when the transfer is
-    blocked by *transfer_feasibility*, environment clearance, or an inter-arm
-    collision, or the handover primitive cost otherwise.
+    Returns 0 when ``prev_robot == curr_robot``; ``inf`` when the transfer
+    is blocked by *transfer_feasibility* (checked in both directions),
+    *segment_idx* is beyond the object or either robot trajectory, the
+    environment-clearance check fails, either trajectory is infeasible at
+    *segment_idx*, or the handover primitive is infeasible (IK failure or
+    collision); :data:`constants.ASSIGNMENT_FALLBACK_SWITCH_COST` when
+    *ik_solver_fn* is ``None``; and the handover primitive cost otherwise.
 
     When *handover_callback* is provided it is called with a
-    :class:`HandoverResult` after every evaluated handover (both successful
-    and rejected).
+    :class:`HandoverResult` after every evaluated handover primitive (both
+    successful and rejected); early ``inf`` returns before primitive
+    evaluation do not trigger it.
+
+    Args:
+        prev_robot: Robot id active before the switch.
+        curr_robot: Robot id active after the switch.
+        segment_idx: Segment (waypoint) index at which the handover occurs.
+        trajectories: Bundle containing the object and robot trajectories.
+        prev_state_idx: DP state index before the switch.
+        curr_state_idx: DP state index after the switch.
+        trajectory_info: ``{state_idx: (robot_id, traj_idx)}`` mapping.
+        transfer_feasibility: Optional
+            ``{(r_from, t_from, r_to, t_to): feasible}`` constraints.
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        epsilon: Numerical floor for manipulability reciprocal.
+        ik_solver_fn: IK callable used to evaluate the handover primitive.
+        jacobian_fns: Optional ``{robot_id: (q) -> J}`` mapping.
+        collision_check_fn: Optional ``(q_arm0, q_arm1) -> collision_free``.
+        handover_clearance_fn: Optional ``(obj_pose) -> bool`` returning
+            ``True`` when the handover location is clear of obstacles.
+        handover_callback: Optional callback receiving each
+            :class:`HandoverResult`.
+
+    Returns:
+        Switching cost (``0.0``, a finite cost, or ``inf``).
     """
     if prev_robot == curr_robot:
         return 0.0

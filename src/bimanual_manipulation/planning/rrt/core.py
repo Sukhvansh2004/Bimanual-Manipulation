@@ -6,8 +6,8 @@ Provides a **domain-agnostic** bi-directional RRT-Connect implementation
 
 Domain-specific specialisations live in their own modules:
 
-* **SE(3)** — :mod:`planning.rrt.se3_planner` (``rrt_connect_se3``)
-* **Joint-space** — :mod:`planning.rrt.joint_planner` (``rrt_connect_joint_space``)
+* **SE(3)** — :mod:`planning.rrt.se3.planner` (``rrt_connect_se3``)
+* **Joint-space** — :mod:`planning.rrt.joint.planner` (``rrt_connect_joint_space``)
 """
 
 from __future__ import annotations
@@ -27,7 +27,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _TreeNode:
-    """Internal tree node used by :func:`rrt_connect_generic`."""
+    """Internal tree node used by :func:`rrt_connect_generic`.
+
+    Attributes:
+        state: The state stored at this node.
+        parent: Index of the parent node in the same tree (``-1`` for the root).
+    """
 
     state: Any
     parent: int = -1
@@ -38,7 +43,19 @@ def _generic_nearest(
     state: Any,
     distance_fn: Callable[[Any, Any], float],
 ) -> int:
-    """Return index of the nearest node in *tree* to *state*."""
+    """Return the index of the nearest node in *tree* to *state*.
+
+    Performs a linear scan over all nodes.
+
+    Args:
+        tree: List of tree nodes.
+        state: Query state.
+        distance_fn: ``(s1, s2) -> float`` metric between two states.
+
+    Returns:
+        Index of the node minimising ``distance_fn(node.state, state)``
+        (``0`` if *tree* is empty or all distances are ``inf``).
+    """
     best_idx = 0
     best_dist = float("inf")
     for i, node in enumerate(tree):
@@ -57,7 +74,23 @@ def _generic_extract_path(
     a_is_start: bool,
     copy_fn: Callable[[Any], Any],
 ) -> list:
-    """Extract the path from start to goal through two connected trees."""
+    """Extract the path from start to goal through two connected trees.
+
+    Walks parent pointers from ``tree_a[idx_a]`` and ``tree_b[idx_b]`` to
+    their roots and concatenates the two branches so the result always
+    runs from the start root to the goal root.
+
+    Args:
+        tree_a: First tree.
+        idx_a: Index of the connecting node in *tree_a*.
+        tree_b: Second tree.
+        idx_b: Index of the connecting node in *tree_b*.
+        a_is_start: ``True`` if *tree_a* is rooted at the start state.
+        copy_fn: ``(state) -> state`` used to copy each state into the path.
+
+    Returns:
+        List of copied states from the start root to the goal root.
+    """
     path_a: list = []
     idx = idx_a
     while idx >= 0:
@@ -126,8 +159,10 @@ def rrt_connect_generic(
         connect_max_steps: Maximum greedy-connect steps per iteration.
         on_extend: Optional ``(parent_state, new_state, a_is_start)``
             callback invoked when a new node is added to a tree.
-        on_collision: Optional ``(state,)`` callback invoked when a sample
-            is rejected due to collision.
+        on_collision: Optional ``(state,)`` callback invoked when an
+            extension of tree_a is rejected because the steered state or
+            the segment to it is in collision (not called during the
+            CONNECT phase).
         on_iteration: Optional ``(iteration, tree_a_size, tree_b_size)``
             callback invoked at the start of each iteration.
         log_interval: If > 0, log progress at INFO level every *log_interval*
@@ -135,7 +170,12 @@ def rrt_connect_generic(
 
     Returns:
         ``(success, path, iterations, tree_a_size, tree_b_size)`` where
-        *path* is a list of states from *start_state* to *goal_state*.
+        *path* is a list of states from *start_state* to *goal_state*
+        (empty on failure) and *iterations* is the number of iterations
+        run (``max_iterations`` on failure). The two tree sizes refer to
+        the internal ``tree_a`` / ``tree_b`` at return time; because the
+        trees are swapped between iterations, they are not guaranteed to
+        correspond to the start / goal trees respectively.
     """
     tree_a: List[_TreeNode] = [_TreeNode(state=copy_fn(start_state))]
     tree_b: List[_TreeNode] = [_TreeNode(state=copy_fn(goal_state))]

@@ -13,16 +13,18 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 def load_mesh_and_sample(mesh_file: str, num_points: int = 2048, scale: float = 1.0) -> Optional[np.ndarray]:
-    """
-    Load a mesh file and sample points from its surface.
-    
+    """Load a mesh file and sample points uniformly from its surface.
+
+    Multi-geometry scenes are concatenated into a single mesh.
+
     Args:
-        mesh_file: Path to the mesh file (.obj, .stl, .ply)
-        num_points: Number of points to sample
-        scale: Scale factor to apply to the mesh
-        
+        mesh_file: Path to the mesh file (.obj, .stl, .ply).
+        num_points: Number of points to sample.
+        scale: Scale factor to apply to the mesh.
+
     Returns:
-        Sampled point cloud (N, 3) or None if loading fails
+        ``float32`` point cloud of shape ``(num_points, 3)``, or ``None`` if
+        loading/sampling fails or the scene has no geometry.
     """
     try:
         mesh = trimesh.load(mesh_file)

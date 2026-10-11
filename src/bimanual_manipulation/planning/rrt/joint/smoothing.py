@@ -65,7 +65,8 @@ def shortcut_joint_path(
     waypoints are removed.
 
     When *q_other_arm_trajectory* is provided, uses temporal collision
-    checking (same semantics as :func:`rrt_connect_joint_space`).
+    checking (same semantics as :func:`rrt_connect_joint_space`). The
+    simulator ``qpos``/``qvel`` are restored before returning.
 
     Args:
         env: Simulation environment.
@@ -74,17 +75,21 @@ def shortcut_joint_path(
         robot_id_a: Robot ID of the other arm.
         robot_id_b: Robot ID of the planned arm.
         env_lock: Optional threading lock.
-        max_iterations: Number of random shortcut attempts.
+        max_iterations: Number of random shortcut attempts. Defaults to
+            :data:`constants.ARM_RRT_SMOOTHING_ITERATIONS` when ``None``.
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
-        max_temporal_samples: Max sampled arm A configs.
-        manipulated_object: Name of the object arm A is carrying.
+        max_temporal_samples: Max sampled arm A configs. Defaults to
+            :data:`constants.ARM_RRT_TEMPORAL_SAMPLES` when ``None``.
+        manipulated_object: Name of the object arm A is carrying; only
+            used when *object_qpos_trajectory* is given.
         object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
             trajectory of the object arm A is carrying, aligned with
             *q_other_arm_trajectory*.
 
     Returns:
-        Smoothed path (list of joint configurations).
+        Smoothed path (list of joint configurations). Paths with two or
+        fewer waypoints are returned as a copied list.
     """
     if max_iterations is None:
         max_iterations = constants.ARM_RRT_SMOOTHING_ITERATIONS
@@ -128,6 +133,15 @@ def shortcut_joint_path(
 
         try:
             def _seg_free(q1, q2):
+                """Check a segment's interior against every temporal snapshot.
+
+                Args:
+                    q1: Segment start configuration.
+                    q2: Segment end configuration.
+
+                Returns:
+                    ``True`` if collision-free for all snapshots.
+                """
                 return all(
                     collision_free_joint_segment(
                         env, q1, q2,
@@ -165,6 +179,9 @@ def densify_joint_path(
 
     Returns:
         Array of shape ``(num_steps, D)`` with D = joint dimension.
+
+    Raises:
+        ValueError: If *num_steps* ≤ 0 or *path* is empty.
     """
     if num_steps <= 0:
         raise ValueError("num_steps must be positive")
@@ -174,9 +191,28 @@ def densify_joint_path(
         return np.tile(path[0], (num_steps, 1))
 
     def _dist(q1, q2):
+        """Return the L2 joint-space distance.
+
+        Args:
+            q1: First configuration.
+            q2: Second configuration.
+
+        Returns:
+            Distance as a float.
+        """
         return float(np.linalg.norm(q1 - q2))
 
     def _interp(q1, q2, t):
+        """Linearly interpolate between two configurations.
+
+        Args:
+            q1: Start configuration.
+            q2: End configuration.
+            t: Interpolation parameter in ``[0, 1]``.
+
+        Returns:
+            Interpolated configuration.
+        """
         return q1 + t * (q2 - q1)
 
     result = densify_generic(
@@ -206,7 +242,8 @@ def bezier_smooth_joint_path(
     evaluation, and linear interpolation fallback.
 
     When *q_other_arm_trajectory* is provided, uses temporal collision
-    checking (same semantics as :func:`rrt_connect_joint_space`).
+    checking (same semantics as :func:`rrt_connect_joint_space`). The
+    simulator ``qpos``/``qvel`` are restored before returning.
 
     Args:
         env: Simulation environment.
@@ -216,17 +253,26 @@ def bezier_smooth_joint_path(
         robot_id_b: Robot ID of the planned arm.
         env_lock: Optional threading lock.
         samples_per_segment: Number of dense samples per segment.
-        tension: Bézier tension parameter (0 → linear, higher → curvier).
+            Defaults to :data:`constants.BEZIER_SAMPLES_PER_SEGMENT` when
+            ``None``.
+        tension: Bézier handle length as a fraction of the segment chord
+            (0 → linear, higher → curvier). Defaults to
+            :data:`constants.BEZIER_TENSION` when ``None``.
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
-        max_temporal_samples: Max sampled arm A configs.
-        manipulated_object: Name of the object arm A is carrying.
+        max_temporal_samples: Max sampled arm A configs. Defaults to
+            :data:`constants.ARM_RRT_TEMPORAL_SAMPLES` when ``None``.
+        manipulated_object: Name of the object arm A is carrying; only
+            used when *object_qpos_trajectory* is given.
         object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
             trajectory of the object arm A is carrying, aligned with
             *q_other_arm_trajectory*.
 
     Returns:
         Densely sampled smoothed path (list of joint configurations).
+        Paths with at most one waypoint are returned as a copied list; a
+        two-waypoint path is linearly interpolated without collision
+        checking (see :func:`path_smoothing.bezier_smooth_generic`).
     """
     if samples_per_segment is None:
         samples_per_segment = constants.BEZIER_SAMPLES_PER_SEGMENT
@@ -272,6 +318,14 @@ def bezier_smooth_joint_path(
 
         try:
             def _collision(q):
+                """Check arm B at *q* against every temporal snapshot.
+
+                Args:
+                    q: Arm B joint configuration.
+
+                Returns:
+                    ``True`` if any snapshot is in collision.
+                """
                 return any(
                     check_arm_config_collision(
                         env, q, qpos_idx_b,
@@ -283,6 +337,18 @@ def bezier_smooth_joint_path(
                 )
 
             def _eval_segment(path_local, seg_idx, sps):
+                """Evaluate the joint-space Bézier samples for one segment.
+
+                Recomputes control points for the whole path on each call.
+
+                Args:
+                    path_local: Full list of joint configurations.
+                    seg_idx: Segment index.
+                    sps: Samples per segment.
+
+                Returns:
+                    ``sps + 1`` joint configurations along the segment.
+                """
                 ctrl_segs = compute_bezier_control_points(
                     path_local, tension=tension,
                 )
@@ -293,6 +359,16 @@ def bezier_smooth_joint_path(
                 ]
 
             def _linear_fallback(start, end, num_samples):
+                """Linearly interpolate a segment as a Bézier fallback.
+
+                Args:
+                    start: Segment start configuration.
+                    end: Segment end configuration.
+                    num_samples: Number of intervals.
+
+                Returns:
+                    ``num_samples + 1`` configurations, inclusive of endpoints.
+                """
                 return [
                     start + (k / float(num_samples)) * (end - start)
                     for k in range(num_samples + 1)

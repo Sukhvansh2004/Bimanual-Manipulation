@@ -27,15 +27,16 @@ logger = logging.getLogger(__name__)
 def compute_manipulability_simple(joint_config: np.ndarray) -> float:
     """Compute a fast proxy manipulability for a joint configuration.
 
-    Combines (a) distance from joint limits, (b) joint angle variance,
-    and (c) penalty for extreme configurations.  Does **not** require the
-    full robot model.
+    Combines (a) mean distance of the wrapped angles from ``±π``,
+    (b) sigmoid of the joint angle variance, and (c) fraction of joints
+    not beyond ``0.9π`` (weights 0.4 / 0.3 / 0.3).  Actual joint limits
+    are **not** used, and the full robot model is not required.
 
     Args:
         joint_config: Joint configuration array of shape ``(n_joints,)``.
 
     Returns:
-        Manipulability value (higher is better, always > 0).
+        Manipulability value (higher is better, floored at ``1e-6``).
     """
     normalized = np.arctan2(np.sin(joint_config), np.cos(joint_config))
 
@@ -67,7 +68,7 @@ def compute_manipulability_from_jacobian(jacobian: np.ndarray) -> float:
         jacobian: Jacobian matrix of shape ``(m, n)``.
 
     Returns:
-        Manipulability value (≥ 0).
+        Manipulability value (floored at ``1e-6``).
     """
     s = np.linalg.svd(jacobian, compute_uv=False)
     return max(float(np.prod(s)), 1e-6)
@@ -86,7 +87,9 @@ def compute_trajectory_manipulability(
 
     Args:
         joint_configs: Array of shape ``(n_waypoints, n_joints)``.
-        use_jacobian: If *True*, use ``jacobian_fn`` for the Yoshikawa measure.
+        use_jacobian: If *True* and *jacobian_fn* is given, use the
+            Yoshikawa measure; otherwise use
+            :func:`compute_manipulability_simple`.
         jacobian_fn: ``(q) -> J`` — maps a joint config to its Jacobian.
 
     Returns:
@@ -113,11 +116,13 @@ def compute_average_manipulability(
 
     Args:
         joint_configs: Array of shape ``(n_waypoints, n_joints)``.
-        use_jacobian: If *True*, use ``jacobian_fn`` for the Yoshikawa measure.
+        use_jacobian: If *True* and *jacobian_fn* is given, use the
+            Yoshikawa measure; otherwise use
+            :func:`compute_manipulability_simple`.
         jacobian_fn: ``(q) -> J`` — maps a joint config to its Jacobian.
 
     Returns:
-        Average manipulability value.
+        Average manipulability value (``nan`` for an empty trajectory).
     """
     return float(np.mean(
         compute_trajectory_manipulability(joint_configs, use_jacobian, jacobian_fn)

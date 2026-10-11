@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""
-Dual-Arm Handover Demo using Trajectory Files and Experiment JSON Configs.
+"""Dual-arm handover execution from trajectory files and experiment JSON configs.
 
-By default, loads the optimal assignment result (``assignment_results.npz``)
-from the experiment's data directory.  Use ``--traj0`` and ``--traj1`` to
-bypass the assignment and specify trajectory files explicitly.
+By default, loads the assignment result (``assignment_results.npz``) from the
+experiment's data directory (or ``--data-dir`` / ``--assignment``) and executes
+it: pre-grasp RRT, grasp, parallel transport, handover(s), final segment,
+release and placement verification. Use ``--traj0`` and ``--traj1`` together
+to bypass the assignment and specify trajectory files explicitly. Execution
+metrics can be written to JSON with ``--output-metrics``.
 
-Assignment parameters from the experiment JSON can be overridden via CLI
-flags (e.g. ``--alpha``, ``--beta``, ``--initial-robot``).
+Assignment flags (e.g. ``--alpha``, ``--beta``, ``--initial-robot``) override
+the corresponding fields of the experiment's ``assignment`` config. Note that
+this script only loads a precomputed assignment, so these overrides are logged
+but do not change what is executed.
 
 Usage::
 
@@ -83,12 +87,18 @@ from bimanual_manipulation.utils.trajectory_math import (
 )
 
 def _realign_joint_segment(segment: list) -> list:
-    """Re-normalise each config in *segment* relative to its predecessor.
+    """Re-normalise each config in ``segment`` relative to its predecessor.
 
-    The first element (the actual robot state) is kept unchanged.  Every
-    subsequent config is shifted by multiples of 2π per joint to minimise
-    the step from the preceding config, eliminating reflex-angle jumps
-    that can arise when IK returns a valid-but-wrapped solution.
+    The first element (the actual robot state) is kept unchanged. Every
+    subsequent config is shifted by multiples of 2π per joint (within Franka
+    joint limits) to minimise the step from the preceding config, eliminating
+    reflex-angle jumps that can arise when IK returns a wrapped solution.
+
+    Args:
+        segment: Sequence of joint configurations, each of shape ``(7,)``.
+
+    Returns:
+        New list of configs; ``segment`` itself if it has at most one element.
     """
     if len(segment) <= 1:
         return segment
@@ -111,11 +121,18 @@ def _normalize_config_to_reference(
     actual: np.ndarray,
     reference: np.ndarray,
 ) -> np.ndarray:
-    """Return a copy of *actual* shifted per-joint by multiples of 2π to
-    be closest to *reference* within joint limits.
+    """Shift ``actual`` per joint by multiples of 2π to be closest to ``reference``.
 
-    This fixes the case where IK / mink returns a physically-equivalent
-    config that is 2π away on one or more joints.
+    Fixes the case where IK / mink returns a physically-equivalent config
+    that is 2π away on one or more joints. Results stay within Franka joint
+    limits.
+
+    Args:
+        actual: Joint configuration to normalise, shape ``(7,)``.
+        reference: Reference joint configuration, shape ``(7,)``.
+
+    Returns:
+        A normalised float copy of ``actual``.
     """
     out = np.array(actual, dtype=float)
     for j in range(len(out)):
@@ -132,7 +149,16 @@ def _log_joint_delta(
     actual: np.ndarray,
     expected: np.ndarray,
 ) -> float:
-    """Log per-joint delta between *actual* and *expected*; return max |delta|."""
+    """Log the per-joint delta between two configs at DEBUG level.
+
+    Args:
+        label: Tag included in the log line.
+        actual: Measured joint configuration.
+        expected: Planned joint configuration.
+
+    Returns:
+        Maximum absolute per-joint difference ``max|actual - expected|``.
+    """
     delta = np.asarray(actual) - np.asarray(expected)
     max_d = float(np.max(np.abs(delta)))
     logger.debug(
@@ -172,6 +198,7 @@ class ExecutionTracker:
     """Tracks metrics during task execution for later reporting."""
 
     def __init__(self):
+        """Initialize all metrics to their default (unsuccessful/zero) values."""
         self.task_success = False
         self.grasp_success = False
         self.transport_success = False
@@ -195,18 +222,36 @@ class ExecutionTracker:
 
     @property
     def handover_success_rate(self) -> float:
+        """Fraction of attempted handovers that succeeded (1.0 if none attempted)."""
         if self.n_handovers_attempted == 0:
             return 1.0
         return self.n_handovers_succeeded / self.n_handovers_attempted
 
     def set_jacobian_fns(self, jacobian_fns: Dict[int, Callable]):
+        """Set the per-robot Jacobian functions used for manipulability.
+
+        Args:
+            jacobian_fns: Mapping from robot id to a function ``q -> J``.
+        """
         self._jacobian_fns = jacobian_fns
 
     def record_joint_config(self, robot_id: int, q: np.ndarray):
+        """Record a copy of an executed joint configuration.
+
+        Args:
+            robot_id: Robot index (0 or 1).
+            q: Joint configuration.
+        """
         self.executed_joint_configs.append((robot_id, np.array(q, copy=True)))
 
     @property
     def mean_manipulability(self) -> float:
+        """Mean Yoshikawa manipulability over recorded joint configs.
+
+        Uses the robot's Jacobian function when set, otherwise falls back to
+        ``compute_trajectory_manipulability``. Returns 0.0 if no configs
+        were recorded.
+        """
         if not self.executed_joint_configs:
             return 0.0
         values = []
@@ -221,6 +266,7 @@ class ExecutionTracker:
         return float(np.mean(values))
 
     def to_dict(self) -> dict:
+        """Return all metrics as a JSON-serialisable dict."""
         return {
             "task_success": self.task_success,
             "grasp_success": self.grasp_success,
@@ -244,6 +290,11 @@ class ExecutionTracker:
         }
 
     def save(self, path: str):
+        """Write ``to_dict()`` as indented JSON.
+
+        Args:
+            path: Output JSON file path.
+        """
         with open(path, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
         logger.info("Execution metrics saved to %s", path)
@@ -254,6 +305,11 @@ class ExecutionTracker:
 # ---------------------------------------------------------------------------
 
 def setup_logging(level: int = logging.INFO) -> None:
+    """Configure root logging with a timestamped format.
+
+    Args:
+        level: Logging level for the root logger.
+    """
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -262,6 +318,14 @@ def setup_logging(level: int = logging.INFO) -> None:
 
 
 def find_first_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) -> Optional[int]:
+    """Return the index of the first feasible waypoint.
+
+    Args:
+        waypoint_results: Per-waypoint feasibility results.
+
+    Returns:
+        Index of the first result with ``is_feasible`` set, or ``None``.
+    """
     for i, res in enumerate(waypoint_results):
         if res.is_feasible:
             return i
@@ -269,6 +333,14 @@ def find_first_feasible_point(waypoint_results: List[WaypointFeasibilityResult])
 
 
 def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) -> Optional[int]:
+    """Return the index of the last feasible waypoint.
+
+    Args:
+        waypoint_results: Per-waypoint feasibility results.
+
+    Returns:
+        Index of the last result with ``is_feasible`` set, or ``None``.
+    """
     for i in reversed(range(len(waypoint_results))):
         if waypoint_results[i].is_feasible:
             return i
@@ -277,7 +349,13 @@ def find_last_feasible_point(waypoint_results: List[WaypointFeasibilityResult]) 
 
 def stabilise(env: DualArmEnvironment, env_lock: threading.RLock,
               steps: int = 50) -> None:
-    """Step the environment to stabilise after gripper actions."""
+    """Step the environment to stabilise after gripper actions.
+
+    Args:
+        env: Simulation environment.
+        env_lock: Lock held while stepping; skipped if falsy.
+        steps: Number of simulation steps.
+    """
     with env_lock if env_lock else nullcontext():
         for _ in range(steps):
             env_step(env)
@@ -298,16 +376,26 @@ def _object_held_by(
     obj_name: str,
     gripper: Optional[RobosuiteGripperController] = None,
 ) -> bool:
-    """Return ``True`` if *robot_id* is physically holding the object.
+    """Return ``True`` if ``robot_id`` is physically holding the object.
 
-    For **suction** grippers the suction weld equality constraint is
-    checked — if the weld is active the object is held.
+    For suction grippers the suction weld equality constraint is checked;
+    if the weld is active the object is held.
 
-    For **parallel-jaw** (or any non-suction) grippers, the MuJoCo
-    contact buffer is scanned for active contacts between the gripper's
-    geoms and the object's geoms.  This is robust for objects of any
-    size because it does not depend on the distance between the object
-    centre and the end-effector.
+    For parallel-jaw grippers (or when ``gripper`` is ``None``), the MuJoCo
+    contact buffer is scanned for contacts with distance at most
+    ``_CONTACT_DIST_THRESHOLD`` between non-visual ``gripper<robot_id>_*``
+    geoms and the geoms of the first body whose name contains ``obj_name``.
+
+    Args:
+        system: Running dual-arm system.
+        robot_id: Robot index (0 or 1).
+        arm: Arm controller of that robot (used for the suction weld check).
+        obj_name: Name (substring) of the object body.
+        gripper: Gripper controller; selects the suction check if suction.
+
+    Returns:
+        ``True`` if the object is held; ``False`` otherwise, including when
+        there are no contacts or the gripper/object geoms cannot be found.
     """
     env = system.env
     sim = env.sim
@@ -379,11 +467,19 @@ def _object_not_fallen(
     obj_name: str,
     min_z: float = 0.0,
 ) -> bool:
-    """Return ``True`` if the object has not fallen below *min_z*.
+    """Return ``True`` if the object has not fallen below ``min_z``.
 
-    A fallen object (below table height) is a clear sign that a grasp or
-    handover failed.  Default *min_z* = 0 (floor level in most robosuite
-    environments).
+    A fallen object is a clear sign that a grasp or handover failed.
+
+    Args:
+        system: Running dual-arm system.
+        obj_name: Name of the object.
+        min_z: World z threshold in metres (0 is floor level in most
+            robosuite environments).
+
+    Returns:
+        ``False`` if the object's z is below ``min_z``; ``True`` otherwise,
+        including when the object pose cannot be queried.
     """
     obj_pose = system.env.get_object_pose(obj_name)
     if obj_pose is None:
@@ -408,7 +504,23 @@ def _enumerate_ik_goals(
     env_lock: threading.RLock,
     q_warm_start: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
-    """Enumerate multiple IK solutions for *pose* and return a de-duplicated list."""
+    """Enumerate IK solutions for ``pose`` and return a de-duplicated list.
+
+    The pose is transformed into the arm's base frame and orientation-corrected
+    before calling ``enumerate_ik_solutions_for_arm``. Solutions within 0.05
+    rad (``np.allclose``) of an earlier one are dropped. Any exception is
+    logged at DEBUG level and yields the solutions collected so far.
+
+    Args:
+        arm: Arm controller to solve for.
+        env: Simulation environment.
+        pose: Target EEF pose (any frame).
+        env_lock: Simulation lock.
+        q_warm_start: Optional reference config used to bias solutions.
+
+    Returns:
+        List of joint configurations (possibly empty).
+    """
     goals: List[np.ndarray] = []
 
     try:
@@ -451,7 +563,26 @@ def _rrt_to_goal(
     gripper_action: float = -1.0,
     label: str = "target",
 ) -> bool:
-    """Try RRT to each IK goal candidate. Return True on first success."""
+    """Plan an RRT path to each IK goal in turn and follow the first that succeeds.
+
+    Args:
+        arm: Arm controller that executes the path.
+        goals: Candidate goal joint configurations.
+        start_q: Start joint configuration of ``arm``.
+        q_other_arm: Fixed joint configuration of the other arm.
+        robot_id_self: Robot index of ``arm``.
+        robot_id_other: Robot index of the other arm.
+        planning_env: Environment used for collision checking.
+        env_lock: Simulation lock.
+        rrt_vis: Optional RRT visualizer.
+        smoothen: Whether to smooth the followed joint trajectory.
+        gripper_action: Gripper command held while following the path.
+        label: Name of the target used in log messages.
+
+    Returns:
+        ``True`` if a path was planned and followed, ``False`` if every
+        candidate raised ``RuntimeError`` (or ``goals`` is empty).
+    """
     for gi, goal_q in enumerate(goals):
         try:
             rrt_traj, _ = plan_arm_trajectory(
@@ -492,7 +623,17 @@ def _visualize_assignment_segments(
     traj_cache: TrajCache,
     tf_manager: TransformManager,
 ) -> None:
-    """Visualize only the executed segments grouped by contiguous runs."""
+    """Visualize the executed segments, grouped into contiguous runs.
+
+    A run is a maximal range of waypoints with the same robot and
+    trajectory path in the assignment.
+
+    Args:
+        vis: Meshcat visualizer.
+        assignment: Assignment result defining robot and path per waypoint.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        tf_manager: Transform manager for frame conversion.
+    """
     seq = assignment.sequence
     paths = assignment.trajectory_paths
     n = len(seq)
@@ -528,6 +669,11 @@ def _visualize_assignment_segments(
 # ---------------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns:
+        Parsed ``argparse.Namespace``.
+    """
     parser = argparse.ArgumentParser(description="Dual-Arm Handover using Trajectory Files")
     parser.add_argument("--experiment", type=str, required=True,
                         help="Path to experiment JSON config")
@@ -572,7 +718,15 @@ def parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 def load_and_configure_experiment(args) -> ExperimentConfig:
-    """Load experiment JSON and apply CLI overrides."""
+    """Load the experiment JSON, apply CLI overrides, set up logging and seeds.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        The experiment config with assignment, smoothing and meshcat
+        overrides applied in place.
+    """
     exp_cfg = load_experiment(args.experiment)
     logger.info("Loaded experiment: %s - %s", exp_cfg.name, exp_cfg.description)
 
@@ -623,7 +777,16 @@ def create_system(
     exp_cfg: ExperimentConfig,
     headless: bool,
 ) -> Tuple[DualArmManipulationSystem, Optional[meshcat.Visualizer], Optional[RRTVisualizer]]:
-    """Create and start the dual-arm manipulation system."""
+    """Create and start the dual-arm manipulation system.
+
+    Args:
+        exp_cfg: Experiment configuration.
+        headless: If ``True``, disable the MuJoCo viewer.
+
+    Returns:
+        Tuple ``(system, vis, rrt_vis)``; ``vis`` and ``rrt_vis`` are ``None``
+        when execution visualization or Meshcat is disabled.
+    """
     vis_cfg = exp_cfg.visualization
     exec_cfg = exp_cfg.execution
 
@@ -662,11 +825,18 @@ def create_system(
 def _reconstruct_from_assignment(
     assignment: AssignmentResult,
 ) -> Tuple[TrajCache, GraspCache]:
-    """Rebuild *traj_cache* and *grasp_cache* from embedded assignment data.
+    """Rebuild ``traj_cache`` and ``grasp_cache`` from embedded assignment data.
 
     This allows execution without loading individual trajectory NPZ files.
-    A synthetic traj_cache entry is created for each unique trajectory path
-    referenced in the assignment.
+    Every unique trajectory path in the assignment maps to the same synthetic
+    entry built from the assigned per-waypoint EEF/object poses and
+    ``normalized_configs``.
+
+    Args:
+        assignment: Loaded assignment result.
+
+    Returns:
+        Tuple ``(traj_cache, grasp_cache)``.
     """
     n_wp = len(assignment.is_feasible)
     eef_poses = [
@@ -729,7 +899,28 @@ def load_trajectories(
     args: argparse.Namespace,
     exp_cfg: ExperimentConfig,
 ) -> Tuple[Optional[AssignmentResult], TrajCache, GraspCache, ExplicitPaths]:
-    """Load trajectories and (optionally) the assignment result."""
+    """Load trajectories and, in assignment mode, the assignment result.
+
+    If both ``--traj0`` and ``--traj1`` are given, those files are loaded and
+    grasps are extracted from their first waypoints. Otherwise the assignment
+    NPZ is resolved from ``--assignment``, ``execution.assignment_path`` or
+    ``<data_dir>/assignment_results.npz`` and execution data is
+    reconstructed from it.
+
+    Args:
+        args: Parsed CLI arguments.
+        exp_cfg: Experiment configuration.
+
+    Returns:
+        Tuple ``(assignment, traj_cache, grasp_cache, explicit_paths)``;
+        ``assignment`` is ``None`` in explicit mode and ``explicit_paths`` is
+        ``None`` in assignment mode.
+
+    Raises:
+        FileNotFoundError: If the assignment file does not exist.
+        ValueError: In explicit mode, if a trajectory lacks feasibility
+            results, joint configs or object poses, or grasp extraction fails.
+    """
     assignment: Optional[AssignmentResult] = None
     traj_cache: TrajCache = {}
     explicit_paths: ExplicitPaths = None
@@ -808,7 +999,15 @@ def visualize_segments(
     traj_cache: TrajCache,
     tf_manager: TransformManager,
 ) -> None:
-    """Visualize trajectory segments in MeshCat."""
+    """Visualize trajectory segments in Meshcat.
+
+    Args:
+        vis: Meshcat visualizer.
+        assignment: Assignment result; if ``None``, every cached trajectory
+            is drawn in full.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        tf_manager: Transform manager for frame conversion.
+    """
     if assignment is not None:
         _visualize_assignment_segments(vis, assignment, traj_cache, tf_manager)
     else:
@@ -832,7 +1031,18 @@ def _get_traj_path(
     robot_id: int,
     segment_idx: int,
 ) -> str:
-    """Return the trajectory cache key for a given robot/segment."""
+    """Return the trajectory cache key for a given robot/segment.
+
+    Args:
+        assignment: Assignment result, or ``None`` in explicit mode.
+        explicit_paths: Robot id to path mapping used when ``assignment``
+            is ``None``.
+        robot_id: Robot index (only used in explicit mode).
+        segment_idx: Waypoint index (clamped to the assignment length).
+
+    Returns:
+        Key into ``traj_cache``.
+    """
     if assignment is not None:
         idx = min(segment_idx, len(assignment.trajectory_paths) - 1)
         return assignment.trajectory_paths[idx]
@@ -844,7 +1054,17 @@ def _get_arms(
     robot_id: int,
 ) -> Tuple[RobosuiteArmController, RobosuiteGripperController,
            RobosuiteArmController, RobosuiteGripperController]:
-    """Return (active_arm, active_gripper, other_arm, other_gripper) for robot_id."""
+    """Return the arm/gripper controllers for the active and other robot.
+
+    Robot 0 maps to the left arm and robot 1 to the right arm.
+
+    Args:
+        system: Running dual-arm system.
+        robot_id: Index of the active robot.
+
+    Returns:
+        Tuple ``(active_arm, active_gripper, other_arm, other_gripper)``.
+    """
     if robot_id == 0:
         return system.left_arm, system.left_gripper, system.right_arm, system.right_gripper
     return system.right_arm, system.right_gripper, system.left_arm, system.left_gripper
@@ -857,9 +1077,17 @@ def _get_joint_configs(
 ) -> Optional[np.ndarray]:
     """Return the joint configs to use during execution.
 
-    When an assignment is available the normalised array is returned
-    directly.  Falls back to the raw trajectory configs when no
-    assignment is loaded (explicit-trajectory mode).
+    When an assignment is available its ``normalized_configs`` array is
+    returned directly. Otherwise (explicit-trajectory mode) the raw configs
+    of ``traj_path`` are returned.
+
+    Args:
+        assignment: Assignment result, or ``None``.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        traj_path: Cache key used in explicit mode.
+
+    Returns:
+        Joint configs of shape ``(N, 7)``, or ``None`` if unavailable.
     """
     if assignment is not None:
         return assignment.normalized_configs
@@ -881,11 +1109,23 @@ def plan_pregrasp_approach(
     """Move the active arm to the pre-grasp pose via collision-free RRT.
 
     Enumerates multiple IK solutions and tries each as an RRT goal.
-    *planned_q* (the joint config from the trajectory file at the grasp
-    index) is used as a warm-start for IK enumeration, biasing solutions
-    toward the configuration expected by downstream trajectory segments.
+    ``planned_q`` (the planned joint config at the grasp index) is used as a
+    warm-start for IK enumeration, biasing solutions toward the configuration
+    expected by downstream trajectory segments.
 
-    Raises RuntimeError if all RRT candidates fail.
+    Args:
+        system: Running dual-arm system.
+        current_arm: Arm that will grasp.
+        other_arm: Idle arm (held fixed for collision checking).
+        current_robot: Index of the grasping robot.
+        grasp_traj_data: Output of ``ObjectGraspPrimitive.generate_trajectory``;
+            must contain ``"pregrasp"``.
+        rrt_vis: Optional RRT visualizer.
+        smoothen: Whether to smooth the followed joint trajectory.
+        planned_q: Optional IK warm-start configuration.
+
+    Raises:
+        RuntimeError: If all RRT candidates fail (or no IK goal is found).
     """
     pregrasp_pose = grasp_traj_data["pregrasp"]
 
@@ -932,7 +1172,22 @@ def execute_grasp(
     assignment: Optional[AssignmentResult],
     obj_name: str = "",
 ) -> None:
-    """Follow approach trajectory, align to planned config, close gripper, and stabilise.
+    """Follow the grasp approach, close the gripper, and record the grasp outcome.
+
+    Sets ``tracker.grasp_success`` (via ``_object_held_by`` when ``obj_name``
+    is given, otherwise always ``True``), ``tracker.grasp_result`` and, in
+    assignment mode, ``tracker.n_switches``.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Arm that grasps.
+        current_gripper: Gripper of that arm.
+        current_robot: Index of the grasping robot.
+        grasp_traj_data: Grasp primitive output; must contain ``"approach"``.
+        q_warm_start: Optional IK warm-start for the approach.
+        tracker: Metrics tracker to update.
+        assignment: Assignment result, or ``None``.
+        obj_name: Object name for grasp verification; empty skips the check.
     """
     logger.info("Robot %d following grasp approach trajectory...", current_robot)
     current_arm.follow_trajectory(grasp_traj_data["approach"], q_warm_start=q_warm_start,
@@ -970,7 +1225,25 @@ def find_next_handover(
     current_idx: int,
     res_cur: List[WaypointFeasibilityResult],
 ) -> int:
-    """Return the next handover segment index, or -1 if none."""
+    """Return the next handover waypoint index, or -1 if none.
+
+    In assignment mode this is the first waypoint after ``current_idx`` whose
+    assigned robot differs from ``current_robot``. In explicit mode a
+    heuristic picks the latest waypoint feasible for both robots before the
+    current robot's first infeasible waypoint, or before its last feasible
+    waypoint if the other robot stays feasible longer.
+
+    Args:
+        assignment: Assignment result, or ``None``.
+        explicit_paths: Robot id to path mapping for explicit mode.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        current_robot: Index of the robot holding the object.
+        current_idx: Current waypoint index.
+        res_cur: Feasibility results of the current robot's trajectory.
+
+    Returns:
+        Handover waypoint index, or -1.
+    """
     if assignment is not None:
         for seg in range(current_idx + 1, len(assignment.sequence)):
             if assignment.sequence[seg] != current_robot:
@@ -1014,9 +1287,38 @@ def execute_parallel_to_handover(
     rrt_vis: Optional[RRTVisualizer],
     vis: Optional[meshcat.Visualizer],
 ) -> Tuple[HandoverTrajectory, Optional[np.ndarray], Optional[np.ndarray]]:
-    """Move arm A to handover while arm B moves to receiver pre-pose.
+    """Move arm A to the handover waypoint while arm B moves to its pre-pose.
 
-    Returns (h_traj, q_warm_recv, q_warm_transfer).
+    Plans the handover trajectory from the two grasps and the object pose at
+    ``handover_idx``, builds arm A's joint segment (with an alignment waypoint
+    if it is more than 0.05 rad from plan, 2π-realignment and quintic
+    velocity profiling) and runs both arms with ``DualArmParallelPlanner``.
+    Falls back to ``_recover_arm_b`` if arm B does not converge.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Transfer arm (A).
+        other_arm: Receiver arm (B).
+        current_robot: Index of the transfer robot.
+        current_idx: Current waypoint index.
+        handover_idx: Handover waypoint index.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        grasp_cache: Grasp transforms keyed by trajectory path.
+        assignment: Assignment result, or ``None``.
+        explicit_paths: Robot id to path mapping for explicit mode.
+        exp_cfg: Experiment configuration.
+        tracker: Metrics tracker to update.
+        rrt_vis: Optional RRT visualizer.
+        vis: Optional Meshcat visualizer for the handover plan.
+
+    Returns:
+        Tuple ``(h_traj, q_warm_recv, q_warm_transfer)``: the handover
+        trajectory and the planned receiver / transfer configs at the
+        handover waypoint (either may be ``None``).
+
+    Raises:
+        ValueError: In assignment mode, if ``handover_idx`` is not in
+            ``assignment.handover_points``.
     """
     cur_path = _get_traj_path(assignment, explicit_paths, current_robot, current_idx)
     next_path = _get_traj_path(assignment, explicit_paths, 1 - current_robot, handover_idx)
@@ -1157,7 +1459,20 @@ def _recover_arm_b(
     rrt_vis: Optional[RRTVisualizer],
     exp_cfg: ExperimentConfig,
 ) -> None:
-    """Attempt independent RRT recovery to get arm B to its target pose."""
+    """Attempt independent RRT recovery to get arm B to its target pose.
+
+    Failure is only logged; no exception is raised.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Arm A (held fixed for collision checking).
+        other_arm: Arm B to recover.
+        current_robot: Index of arm A's robot.
+        target_pose: Receiver pre-pose for arm B.
+        q_warm_start: Optional IK warm-start for arm B.
+        rrt_vis: Optional RRT visualizer.
+        exp_cfg: Experiment configuration (for ``execution.smoothen``).
+    """
     other_robot = 1 - current_robot
     logger.info(
         "Arm B (Robot %d) did not reach receiver pre-pose during "
@@ -1200,7 +1515,29 @@ def execute_handover_sequence(
 ) -> bool:
     """Execute the physical handover (hold -> approach -> gripper swap -> retreat).
 
-    Returns True if handover succeeded.
+    Increments ``tracker.n_handovers_attempted`` and appends a record to
+    ``tracker.handover_results``. With ``obj_name``, success means the
+    receiver holds the object and it has not fallen; the handover is aborted
+    (and ``tracker.transport_success`` set ``False``) if the transfer arm is
+    not holding the object beforehand. Without ``obj_name``, success is the
+    receiver approach converging.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Transfer arm.
+        current_gripper: Transfer gripper.
+        other_arm: Receiver arm.
+        other_gripper: Receiver gripper.
+        current_robot: Index of the transfer robot.
+        current_idx: Handover waypoint index.
+        h_traj: Planned handover trajectory.
+        q_warm_recv: Optional IK warm-start for the receiver.
+        q_warm_transfer: Optional IK warm-start for the transfer arm.
+        tracker: Metrics tracker to update.
+        obj_name: Object name for verification; empty disables it.
+
+    Returns:
+        ``True`` if the handover succeeded.
     """
     tracker.n_handovers_attempted += 1
     other_robot = 1 - current_robot
@@ -1269,7 +1606,7 @@ def execute_handover_sequence(
     # --- Object-aware handover verification ---
     handover_ok = False
     if obj_name:
-        # Primary check: receiver's suction weld active + object near its EEF
+        # Primary check: receiver holds the object (suction weld or gripper contact)
         receiver_holds = _object_held_by(system, other_robot, other_arm, obj_name, gripper=other_gripper)
         obj_safe = _object_not_fallen(system, obj_name)
 
@@ -1340,7 +1677,26 @@ def execute_final_segment(
 ) -> int:
     """Execute the last trajectory segment while moving the idle arm home.
 
-    Returns new current_idx.
+    Follows the current arm's configs up to the last feasible waypoint
+    (clamped to the assignment length) and sets
+    ``tracker.transport_success = True`` regardless of arm convergence.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Arm holding the object.
+        other_arm: Idle arm sent to ``FRANKA_HOME_JOINT_POSITION``.
+        current_robot: Index of the holding robot.
+        current_idx: Current waypoint index.
+        joints_cur: Planned joint configs, shape ``(N, 7)``.
+        res_cur: Feasibility results of the current trajectory.
+        assignment: Assignment result, or ``None``.
+        exp_cfg: Experiment configuration.
+        tracker: Metrics tracker to update.
+        rrt_vis: Optional RRT visualizer.
+
+    Returns:
+        The final waypoint index (``current_idx`` unchanged if there is no
+        later feasible waypoint).
     """
     last_idx = find_last_feasible_point(res_cur)
     if assignment is not None and last_idx is not None:
@@ -1401,7 +1757,12 @@ def execute_final_segment(
 
 
 def stop_monitors(tracker: ExecutionTracker) -> None:
-    """Stop collision and object monitors, record results."""
+    """Stop the collision and object monitors and record their results.
+
+    Args:
+        tracker: Metrics tracker; collision count and object tracking errors
+            are written to it.
+    """
     tracker.n_collision_incidents = stop_collision_monitor()
     if tracker.n_collision_incidents > 0:
         logger.warning(
@@ -1424,7 +1785,16 @@ def release_and_retreat(
     eef_cur: List[StampedPose],
     current_idx: int,
 ) -> None:
-    """Release the object and retreat the active arm."""
+    """Release the object and retreat the active arm.
+
+    Args:
+        system: Running dual-arm system.
+        current_arm: Arm holding the object.
+        current_gripper: Gripper of that arm.
+        current_robot: Index of the holding robot.
+        eef_cur: EEF trajectory of the current robot.
+        current_idx: Waypoint whose EEF pose is the release pose.
+    """
     logger.info("Robot %d releasing object and retreating...", current_robot)
     release_pose = eef_cur[current_idx]
     release_primitive = ReleaseRetreatPrimitive()
@@ -1444,7 +1814,18 @@ def verify_placement(
     exp_cfg: ExperimentConfig,
     tracker: ExecutionTracker,
 ) -> None:
-    """Check whether the object reached its target pose."""
+    """Check whether the object reached its target pose.
+
+    Success requires position error below 0.05 m and orientation error below
+    30 deg. If the object pose cannot be queried, ``place_success`` is set
+    ``True`` without checking.
+
+    Args:
+        system: Running dual-arm system.
+        exp_cfg: Experiment configuration with the target pose.
+        tracker: Metrics tracker; placement errors and ``place_success`` are
+            written to it.
+    """
     PLACE_POS_THRESHOLD = 0.05   # metres
     PLACE_ORI_THRESHOLD = 30.0   # degrees
 
@@ -1499,7 +1880,27 @@ def run_execution_loop(
     vis: Optional[meshcat.Visualizer],
     args: argparse.Namespace,
 ) -> None:
-    """Drive the full pick -> transport -> handover(s) -> place pipeline."""
+    """Drive the full pick -> transport -> handover(s) -> place pipeline.
+
+    Sets ``tracker.task_success`` from the grasp, transport, placement and
+    handover outcomes and records the execution time.
+
+    Args:
+        system: Running dual-arm system.
+        exp_cfg: Experiment configuration.
+        assignment: Assignment result, or ``None`` in explicit mode.
+        traj_cache: Trajectory cache keyed by trajectory path.
+        grasp_cache: Grasp transforms keyed by trajectory path.
+        explicit_paths: Robot id to path mapping for explicit mode.
+        tracker: Metrics tracker to update.
+        rrt_vis: Optional RRT visualizer.
+        vis: Optional Meshcat visualizer.
+        args: Parsed CLI arguments (``headless`` skips the final 5 s pause).
+
+    Raises:
+        RuntimeError: In explicit mode if neither trajectory has a feasible
+            waypoint, or if pre-grasp planning fails.
+    """
 
     # --- Determine starting robot / index ---
     if assignment is not None:
@@ -1677,6 +2078,12 @@ def run_execution_loop(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """Load the experiment and trajectories, execute them and save metrics.
+
+    Exceptions raised during loading or execution are logged and stored in
+    the tracker's ``error_message``; metrics are written to
+    ``--output-metrics`` (if given) and the system is stopped in all cases.
+    """
     args = parse_args()
     exp_cfg = load_and_configure_experiment(args)
     tracker = ExecutionTracker()

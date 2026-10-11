@@ -1,4 +1,4 @@
-# robosuite_franka_handoff package
+# bimanual_manipulation package
 
 from bimanual_manipulation import constants
 from bimanual_manipulation.controllers import RobosuiteArmController, RobosuiteGripperController

@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""
-Visualize Robot Trajectory in MeshCat.
+"""Visualize robot trajectories in MeshCat.
 
-This script loads a trajectory file (.npz) and visualizes:
+Loads one trajectory ``.npz`` file (or every ``.npz`` in a directory) and
+visualizes:
 1. The end-effector path (line and frames).
-2. Robot meshes at waypoints (green = feasible, red = infeasible).
-3. Coordinate frames for object trajectory (if available).
+2. Robot meshes at waypoints (green = feasible, red = infeasible), with
+   ``--robot-mesh-vis``.
+3. The object trajectory frames, with ``--visualize-object-trajectory``,
+   and object meshes, with ``--object-mesh-vis`` (last loaded file only).
+
+Usage:
+    python scripts/utils/visualize_robot_trajectory.py traj.npz \\
+        --experiment experiments/flatPlate_table_to_shelf.json --robot-mesh-vis
+    python scripts/utils/visualize_robot_trajectory.py data/<run>/ \\
+        --experiment experiments/flatPlate_table_to_shelf.json \\
+        --visualize-object-trajectory --object-mesh-vis --step 5 --clear
 """
 
 import argparse
@@ -35,6 +44,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def main():
+    """Parse CLI args, load trajectories, draw them in MeshCat, and block until Ctrl-C.
+
+    The robot ID is ``1`` if ``--robot-id 1`` is given; otherwise it is
+    inferred from ``robot0``/``robot1`` in each file name (so
+    ``--robot-id 0`` has no effect). Files that fail to load are logged and
+    skipped.
+    """
     parser = argparse.ArgumentParser(description="Visualize robot trajectory in MeshCat")
     parser.add_argument("path", type=str, help="Path to trajectory .npz file or directory")
     parser.add_argument("--experiment", type=str, required=True,

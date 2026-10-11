@@ -28,13 +28,22 @@ def plan_pose_to_joint_trajectory(
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Solve IK for *target_pose* and return a quintic reference trajectory.
 
-    Uses the arm's IK solver for the goal configuration.  Returns both
+    Uses the arm's IK solver for the goal configuration (after
+    transforming *target_pose* into the arm's base frame).  Returns both
     the trajectory and the solved target joints (needed by the RRT-based
     planner as the goal configuration).
 
+    Args:
+        arm: Arm controller providing IK and current joint positions.
+        target_pose: Goal EEF pose (any frame known to the arm's TF
+            manager).
+        num_steps: Number of waypoints in the quintic trajectory.
+        q_warm_start: Optional IK warm start.
+
     Returns:
-        ``(trajectory, target_joints)`` — either may be ``None`` on
-        IK failure.
+        ``(trajectory, target_joints)`` — ``(num_steps, DOF)`` quintic
+        trajectory from the current joints and the ``(DOF,)`` goal; both
+        are ``None`` on IK failure.
     """
     if target_pose.frame_id != arm.base_frame:
         target_pose = arm.tf_manager.transform_pose(target_pose, arm.base_frame)
@@ -60,7 +69,15 @@ def plan_pose_to_joint_trajectory(
 def normalise_trajectory(
     traj: Union[List[np.ndarray], np.ndarray],
 ) -> np.ndarray:
-    """Ensure trajectory is a 2-D numpy array."""
+    """Ensure trajectory is a 2-D ``float64`` numpy array.
+
+    Args:
+        traj: List of ``(DOF,)`` configs, a ``(DOF,)`` config, or an
+            ``(N, DOF)`` array.
+
+    Returns:
+        ``(N, DOF)`` array (a single config becomes ``(1, DOF)``).
+    """
     if isinstance(traj, list):
         traj = np.array(
             [np.asarray(w, dtype=np.float64) for w in traj],
@@ -77,7 +94,21 @@ def eef_to_joint_trajectory(
     eef_traj: List[StampedPose],
     q_warm_start: Optional[np.ndarray] = None,
 ) -> Optional[np.ndarray]:
-    """Convert an EEF trajectory to joint space by sequential IK."""
+    """Convert an EEF trajectory to joint space by sequential IK.
+
+    Each waypoint is warm-started from the previous solution.  When IK
+    fails at a waypoint, the current warm-start config is repeated
+    instead (a warning is logged); the function never returns ``None``.
+
+    Args:
+        arm: Arm controller providing IK.
+        eef_traj: EEF poses (any frame known to the arm's TF manager).
+        q_warm_start: Initial warm start; defaults to the arm's current
+            joint positions.
+
+    Returns:
+        ``(N, DOF)`` joint trajectory.
+    """
     joint_configs = []
     q_ws = (
         q_warm_start if q_warm_start is not None

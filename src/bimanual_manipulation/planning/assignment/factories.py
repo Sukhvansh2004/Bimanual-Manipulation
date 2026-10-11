@@ -44,27 +44,38 @@ def make_ik_solver_fn(
     """Create an IK-solver closure compatible with :func:`~solver.compute_optimal_robot_assignment`.
 
     The returned function has signature
-    ``(pose: StampedPose, robot_id: int, q_warm_start: Optional[np.ndarray] = None) -> Optional[np.ndarray]``
-    and internally delegates to EAIK analytical IK, applying the orientation
-    correction beforehand.
+    ``(pose: StampedPose, robot_id: int, q_warm_start: Optional[np.ndarray] = None) -> Optional[List[np.ndarray]]``
+    and internally delegates to :func:`enumerate_ik_solutions_for_arm`
+    (backend chosen by :data:`constants.IK_SOLVER_BACKEND`), applying the
+    orientation correction beforehand.
 
     Args:
         env: The dual-arm simulation environment.
         tf_manager: Transform manager for frame conversions.
         env_lock: Optional reentrant lock guarding the environment.
+
+    Returns:
+        IK-solver closure returning a list of joint configs, or ``None``
+        when no solution exists.
     """
     def _ik_solver(
         pose: StampedPose,
         robot_id: int,
         q_warm_start: Optional[np.ndarray] = None,
     ) -> tuple:
-        """Return ``(solutions_list, residual)``.
+        """Return all IK solutions for *pose*, or ``None`` if there are none.
 
-        Uses EAIK analytical IK for fast offline solving.
-        Returns all valid solutions (ranked by proximity to
-        *q_warm_start* when given) so the caller can evaluate
-        multiple candidates.  *residual* is 0.0 when at least one
-        solution is found, ``inf`` otherwise.
+        Solutions are ranked by proximity to *q_warm_start* when given,
+        so the caller can evaluate multiple candidates.
+
+        Args:
+            pose: Target EEF pose (body-frame convention; the orientation
+                correction is applied here).
+            robot_id: Robot to solve IK for.
+            q_warm_start: Optional reference config for ranking.
+
+        Returns:
+            List of ``(DOF,)`` joint configs, or ``None``.
         """
         corrected = apply_ik_orientation_correction(pose)
         solutions = enumerate_ik_solutions_for_arm(
@@ -89,20 +100,42 @@ def make_jacobian_fns(
     """Create per-robot Jacobian closures for :func:`~solver.compute_optimal_robot_assignment`.
 
     Returns a dict ``{0: jac_fn_robot0, 1: jac_fn_robot1}`` where each function
-    has signature ``(q: np.ndarray) -> np.ndarray`` (6×7 Jacobian).
+    has signature ``(q: np.ndarray) -> np.ndarray`` (``(6, DOF)`` Jacobian,
+    linear rows first, at the robot's right-arm EEF site).
 
-    Each closure lazily creates a ``mink.Configuration`` on first call and
-    reuses it via ``config.update(q=...)`` to avoid repeated ``MjData``
-    allocation (~0.55 ms → 0.01 ms per call).
+    Each closure lazily caches the arm's qpos/DOF indices and EEF site ID
+    on first call.  Every call writes *q* into the live ``env.sim.data``
+    qpos (other joints keep their current values), runs
+    ``mj_fwdPosition`` and ``mj_jacSite``.  The modified qpos is **not**
+    restored afterwards.
 
     Args:
         env: The dual-arm simulation environment.
         env_lock: Optional reentrant lock guarding the environment.
+
+    Returns:
+        ``{robot_id: jacobian_fn}`` for robots 0 and 1.
     """
     def _make_for_robot(robot_id: int) -> Callable[[np.ndarray], np.ndarray]:
+        """Build the Jacobian closure for one robot.
+
+        Args:
+            robot_id: Robot the closure computes Jacobians for.
+
+        Returns:
+            ``(q) -> J`` closure.
+        """
         _cached: dict = {}  # mutable container for lazy init
 
         def _jacobian_fn(q: np.ndarray) -> np.ndarray:
+            """Compute the EEF site Jacobian at arm config *q*.
+
+            Args:
+                q: ``(DOF,)`` arm joint configuration.
+
+            Returns:
+                ``(6, DOF)`` geometric Jacobian ``[J_pos; J_rot]``.
+            """
             ctx = env_lock if env_lock is not None else nullcontext()
             with ctx:
                 if not _cached:
@@ -160,6 +193,10 @@ def make_collision_check_fn(
         manipulated_object: Geom-name prefix of the manipulated object
             (e.g. ``"plate_0"``, ``"mug_0"``).  Contacts involving geoms
             whose names start with this prefix are ignored.
+
+    Returns:
+        ``(q_arm0, q_arm1) -> bool`` closure returning ``True`` when the
+        configuration is collision-free.
     """
     model = env.sim.model
     data = env.sim.data
@@ -178,7 +215,16 @@ def make_collision_check_fn(
     _ignore_names = [manipulated_object] if manipulated_object else None
 
     def _check(q_arm0: np.ndarray, q_arm1: np.ndarray) -> bool:
-        """Return True if the dual-arm configuration is collision-free."""
+        """Return True if the dual-arm configuration is collision-free.
+
+        Args:
+            q_arm0: ``(DOF,)`` joint config for robot 0.
+            q_arm1: ``(DOF,)`` joint config for robot 1.
+
+        Returns:
+            ``True`` if there is neither inter-arm nor arm-environment
+            contact.  Simulation qpos/qvel are restored afterwards.
+        """
         ctx = env_lock if env_lock is not None else nullcontext()
         with ctx:
             qpos_backup = np.array(data.qpos, copy=True)
@@ -231,8 +277,11 @@ def make_handover_clearance_fn(
     resulting contact array for mesh-to-mesh proximity — the same
     mechanism used by the suction-weld contact logic.
 
-    Falls back to a centre-distance heuristic when the manipulated object
-    has no free joint (cannot be repositioned).
+    Falls back to a centre-distance heuristic (object position vs.
+    environment geom centres, sampled once at factory time) when the
+    manipulated object has no free joint (cannot be repositioned) or no
+    geoms.  Always returns ``True`` when there are no environment geoms or
+    *manipulated_object* is ``None``.
 
     Args:
         env: The dual-arm simulation environment.
@@ -242,6 +291,10 @@ def make_handover_clearance_fn(
         manipulated_object: Name of the manipulated object (excluded from
             the environment geom list).
         env_lock: Optional reentrant lock guarding the environment.
+
+    Returns:
+        ``(obj_pose) -> bool`` closure returning ``True`` when the
+        location is clear for a handover.
     """
     native_model = get_native_mj_object(env.sim.model)
     native_data = get_native_mj_object(env.sim.data)
@@ -257,6 +310,14 @@ def make_handover_clearance_fn(
     if not env_geom_id_set or manipulated_object is None:
         # Nothing to collide with — clearance always passes.
         def _always_clear(obj_pose: StampedPose) -> bool:
+            """Return ``True`` unconditionally (nothing to collide with).
+
+            Args:
+                obj_pose: Candidate object pose (unused).
+
+            Returns:
+                Always ``True``.
+            """
             return True
         return _always_clear
 
@@ -296,6 +357,15 @@ def make_handover_clearance_fn(
             )
 
         def _clearance_ok_fallback(obj_pose: StampedPose) -> bool:
+            """Check centre-to-centre distance to every environment geom.
+
+            Args:
+                obj_pose: Candidate object pose (world frame).
+
+            Returns:
+                ``True`` if every environment geom centre is farther than
+                *clearance_radius* from ``obj_pose.position``.
+            """
             if env_geom_positions.shape[0] == 0:
                 return True
             dists = np.linalg.norm(
@@ -311,7 +381,18 @@ def make_handover_clearance_fn(
     }
 
     def _clearance_ok(obj_pose: StampedPose) -> bool:
-        """Return ``True`` when the object has sufficient mesh-to-mesh clearance."""
+        """Return ``True`` when the object has sufficient mesh-to-mesh clearance.
+
+        Simulation qpos/qvel and geom margins are restored afterwards.
+
+        Args:
+            obj_pose: Candidate object pose (world frame, ``xyzw``
+                quaternion).
+
+        Returns:
+            ``False`` if any object/environment contact has distance below
+            *clearance_radius*, else ``True``.
+        """
         ctx = env_lock if env_lock is not None else nullcontext()
         with ctx:
             # Snapshot simulation state

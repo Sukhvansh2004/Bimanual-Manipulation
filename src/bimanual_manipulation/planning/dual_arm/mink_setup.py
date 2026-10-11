@@ -42,7 +42,16 @@ def _build_velocity_dict(
     """Build a ``{joint_name: max_vel}`` dict for :class:`mink.VelocityLimit`.
 
     Extracts joint names from the MuJoCo model and maps each to its
-    corresponding Franka velocity limit based on joint index (1-7).
+    corresponding Franka velocity limit based on the trailing joint number
+    (1-7).  Joints whose number cannot be parsed are skipped with a
+    warning.
+
+    Args:
+        model: Native MuJoCo model.
+        joint_ids: Joint IDs to include.
+
+    Returns:
+        ``{joint_name: np.array([max_vel])}`` mapping.
     """
     vel_dict: dict = {}
     for jid in joint_ids:
@@ -66,7 +75,24 @@ if TYPE_CHECKING:
 
 @dataclass
 class MinkComponents:
-    """Bundle of all mink objects needed by the dual-arm planner."""
+    """Bundle of all mink objects needed by the dual-arm planner.
+
+    Attributes:
+        native_model: Native MuJoCo model.
+        config: Shared ``mink.Configuration``.
+        eef_task: ``FrameTask`` on arm B's EEF body.
+        posture_task: ``PostureTask`` regularising toward a target config.
+        damping_task: ``DampingTask`` minimum-norm regulariser.
+        freeze_task: ``DofFreezingTask`` pinning all DOFs except arm B's,
+            or ``None`` if there are none to freeze.
+        collision_limit: ``CollisionAvoidanceLimit`` for arm B, or
+            ``None`` when disabled or no geom pairs were found.
+        vel_limit: ``VelocityLimit`` for both arms' joints.
+        config_limit: ``ConfigurationLimit`` for all joints.
+        qpos_idx_a: qpos indices of arm A's joints.
+        qpos_idx_b: qpos indices of arm B's joints.
+        dof_idx_b: DOF indices of arm B's joints.
+    """
 
     native_model: mujoco.MjModel
     config: mink.Configuration
@@ -91,21 +117,21 @@ def build_mink_components(
 ) -> MinkComponents:
     """Construct all mink tasks, limits and constraints.
 
-    Parameters
-    ----------
-    env : DualArmEnvironment
-        Shared robosuite simulation.
-    arm_a, arm_b : RobosuiteArmController
-        Arm A has priority (pre-planned); arm B is reactively planned.
-    collision_check : bool
-        Whether to add a ``CollisionAvoidanceLimit``.
-    manipulated_object : str, optional
-        Grasped object name (adds object-vs-arm-B geom pairs).
+    The configuration is initialised from the current sim qpos, with
+    hinge/slide joints clipped to their limits.  The collision limit
+    covers arm B vs. arm A, arm B vs. the manipulated object, and arm B
+    vs. environment geoms.
 
-    Returns
-    -------
-    MinkComponents
-        All mink objects ready for use by the planner loop.
+    Args:
+        env: Shared robosuite simulation.
+        arm_a: Arm with priority (pre-planned trajectory).
+        arm_b: Arm that is reactively planned.
+        collision_check: Whether to add a ``CollisionAvoidanceLimit``.
+        manipulated_object: Grasped object name (adds object-vs-arm-B
+            geom pairs and is excluded from environment geoms).
+
+    Returns:
+        :class:`MinkComponents` ready for use by the planner loop.
     """
     model = env.sim.model
     nm = get_native_mj_object(model)
@@ -143,7 +169,7 @@ def build_mink_components(
         lm_damping=constants.MINK_LM_DAMPING,
     )
 
-    # ── PostureTask — biases toward current (comfortable) config ──────
+    # ── PostureTask — target is set per tick by the planner ───────────
     posture_task = mink.PostureTask(model=nm, cost=constants.MINK_POSTURE_COST)
 
     # ── DampingTask — minimum-norm regulariser ────────────────────────

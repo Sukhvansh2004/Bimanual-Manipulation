@@ -1,3 +1,8 @@
+"""Demo: open and close both grippers, pausing for Enter between steps.
+
+Usage:
+    python scripts/demos/gripper_move.py
+"""
 from bimanual_manipulation.controllers import RobosuiteGripperController
 from bimanual_manipulation.environments import make_dual_arm_env
 from bimanual_manipulation import constants
@@ -13,8 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 def test_gripper_sequence(env):
-    """
-    A test script to open and close both grippers in robosuite.
+    """Release, grasp, then release both robots' grippers interactively.
+
+    Waits for Enter (``input()``) before starting and after each step.
+
+    Args:
+        env: Dual-arm environment whose robot 0 and robot 1 grippers
+            are commanded.
     """
     logger.info("Initializing gripper controllers...")
     left_gripper = RobosuiteGripperController(env, arm_id="right", robot_id=0)

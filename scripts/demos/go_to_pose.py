@@ -1,3 +1,14 @@
+"""Demo: send each Panda arm to a Cartesian pose goal.
+
+Creates the dual-arm environment, streams its TF tree to MeshCat in a
+background thread, then moves robot 0 and robot 1 in turn to a position
+offset by ``[0.3, 0.3, 0.2]`` m from their current EEF positions (base
+frame) with identity orientation.
+
+Usage:
+    python scripts/demos/go_to_pose.py
+"""
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import time
@@ -19,17 +30,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class DualArmPoseController:
-    """
-    A robosuite-equivalent DualArmPoseController.
-    This controller manages two Panda robots in an opposed configuration.
-    
-    Note: Each Panda robot has a single arm with arm_id="right".
-    - Robot 0 (left side of table) 
-    - Robot 1 (right side of table)
+    """Pose-goal controller for two opposed single-arm Panda robots.
+
+    Wraps one ``RobosuiteArmController`` per robot. Each Panda has a
+    single arm with ``arm_id="right"``; robot 0 is treated as the
+    "left" arm and robot 1 as the "right" arm.
     """
     def __init__(self, env: DualArmEnvironment, env_lock: threading.RLock, tf_manager: TransformManager):
-        """
-        Initializes the controller with the environment.
+        """Create both arm controllers and print the initial EEF positions.
+
+        Args:
+            env: Dual-arm environment to control.
+            env_lock: Re-entrant lock guarding access to ``env``.
+            tf_manager: Transform manager used for frame lookups.
         """
         self.env = env
         self.tf_manager = tf_manager
@@ -43,7 +56,10 @@ class DualArmPoseController:
         self._print_arm_positions()
     
     def _print_arm_positions(self):
-        """Print current arm positions for debugging."""
+        """Print each robot's EEF position in its own base frame.
+
+        Lookup errors are caught and printed rather than raised.
+        """
         left_eef = "robot0_right_eef"
         right_eef = "robot1_right_eef"
         
@@ -60,13 +76,18 @@ class DualArmPoseController:
             print(f"  Error getting arm positions: {e}")
 
     def send_pose_goal(self, arm: str, position: list, orientation: list):
-        """
-        Sends a pose goal to the specified arm.
+        """Move the specified arm to a pose goal and print the result.
+
+        Blocks until ``move_to_pose`` returns, then prints the initial,
+        final and error positions. Invalid ``arm`` values or failed pose
+        lookups print a message and return without raising.
 
         Args:
-            arm (str): The arm to command, either 'left' (robot 0) or 'right' (robot 1).
-            position (list): A list of [x, y, z] coordinates.
-            orientation (list): A list of [x, y, z, w] quaternion components.
+            arm (str): Arm to command, ``'left'`` (robot 0) or ``'right'``
+                (robot 1); case-insensitive.
+            position (list): Target ``[x, y, z]`` in the robot's base frame.
+            orientation (list): Target quaternion ``[x, y, z, w]`` in the
+                robot's base frame.
         """
         pos = np.array(position)
         quat = np.array(orientation)

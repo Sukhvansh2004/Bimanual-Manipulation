@@ -47,7 +47,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RRTNode:
-    """A node in the RRT tree."""
+    """A node in an SE(3) RRT tree.
+
+    Attributes:
+        pos: Position, shape ``(3,)``.
+        quat: Orientation quaternion ``[x, y, z, w]``.
+        parent: Index of the parent node (``-1`` for the root).
+    """
 
     pos: np.ndarray
     quat: np.ndarray
@@ -56,7 +62,16 @@ class RRTNode:
 
 @dataclass
 class RRTResult:
-    """Result of the RRT-Connect planner."""
+    """Result of the SE(3) RRT-Connect planner.
+
+    Attributes:
+        success: Whether a collision-free path was found.
+        path: List of ``(pos, quat)`` waypoints from start to goal
+            (quaternions ``[x, y, z, w]``); empty on failure.
+        iterations: Number of RRT iterations run (``0`` for a direct path).
+        tree_a_size: Size of the internal tree_a at termination.
+        tree_b_size: Size of the internal tree_b at termination.
+    """
 
     success: bool
     path: List[Tuple[np.ndarray, np.ndarray]] = field(default_factory=list)
@@ -85,24 +100,36 @@ def rrt_connect_se3(
 ) -> RRTResult:
     """Plan a collision-free path for an object using RRT-Connect in SE(3).
 
-    Ignores collisions with robot arms and grippers.
+    Ignores collisions with robot arms and grippers. First tries the
+    direct start-to-goal segment (endpoints are not collision-checked);
+    if it is clear, returns a two-waypoint path without running RRT.
+    The object's ``qpos``/``qvel`` are restored (followed by
+    ``mj_forward``) before returning.
 
     Args:
         env: The simulation environment.
-        object_name: Name of the object to plan for.
+        object_name: Name of the object to plan for. Its geoms are found
+            by name prefix and its free joint must be named
+            ``f"{object_name}_joint0"``.
         start_pos: Start position ``[x, y, z]``.
         start_quat: Start quaternion ``[x, y, z, w]``.
-        goal_pos: Goal position.
-        goal_quat: Goal quaternion.
-        env_lock: Optional threading lock.
-        max_iterations: Maximum RRT iterations.
-        step_size: Step size for tree extension.
-        goal_bias: Probability of sampling the goal.
-        pos_bounds: Workspace bounds ``(2, 3)`` array.
+        goal_pos: Goal position ``[x, y, z]``.
+        goal_quat: Goal quaternion ``[x, y, z, w]``.
+        env_lock: Optional threading lock held for the whole planning call.
+        max_iterations: Maximum RRT iterations. Defaults to
+            :data:`constants.RRT_MAX_ITERATIONS` when ``None``.
+        step_size: Step size for tree extension. Defaults to
+            :data:`constants.RRT_STEP_SIZE` when ``None``.
+        goal_bias: Probability of sampling the goal. Defaults to
+            :data:`constants.RRT_GOAL_BIAS` when ``None``.
+        pos_bounds: Workspace bounds ``(2, 3)`` array. Defaults to
+            :data:`constants.RRT_WORKSPACE_BOUNDS` when ``None``.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
 
     Returns:
-        :class:`RRTResult` with success flag and path.
+        :class:`RRTResult` with success flag and path. ``success`` is
+        ``False`` (empty path) if the object has no geoms or its joint
+        cannot be found.
     """
     if max_iterations is None:
         max_iterations = constants.RRT_MAX_ITERATIONS
@@ -161,25 +188,66 @@ def rrt_connect_se3(
 
             # ── Build domain callbacks ────────────────────────────────
             def _distance(s1, s2):
+                """Return the weighted SE(3) distance between two states.
+
+                Args:
+                    s1: First ``(pos, quat)`` state.
+                    s2: Second ``(pos, quat)`` state.
+
+                Returns:
+                    Scalar distance.
+                """
                 return se3_pose_distance(
                     s1[0], s1[1], s2[0], s2[1], rotation_weight,
                 )
 
             def _steer_cb(from_s, to_s, step):
+                """Steer from one state toward another by at most *step*.
+
+                Args:
+                    from_s: Current ``(pos, quat)`` state.
+                    to_s: Target ``(pos, quat)`` state.
+                    step: Maximum step size.
+
+                Returns:
+                    The steered ``(pos, quat)`` state.
+                """
                 return steer(from_s[0], from_s[1], to_s[0], to_s[1], step)
 
             def _sample():
+                """Sample a random ``(pos, quat)`` state within *pos_bounds*.
+
+                Returns:
+                    The sampled ``(pos, quat)`` state.
+                """
                 return sample_random_pose(
                     pos_bounds, start_quat, goal_quat,
                 )
 
             def _collision(s):
+                """Check whether the object is in collision at a state.
+
+                Args:
+                    s: ``(pos, quat)`` state.
+
+                Returns:
+                    ``True`` if in collision.
+                """
                 return check_object_pose_collision(
                     env, object_name, s[0], s[1],
                     object_geom_ids, robot_mask, obj_joint_addr,
                 )
 
             def _seg_free(s1, s2):
+                """Check a segment for collisions, excluding its endpoints.
+
+                Args:
+                    s1: Segment start ``(pos, quat)``.
+                    s2: Segment end ``(pos, quat)``.
+
+                Returns:
+                    ``True`` if the segment interior is collision-free.
+                """
                 return collision_free_segment(
                     env, object_name,
                     s1[0], s1[1], s2[0], s2[1],
@@ -188,6 +256,14 @@ def rrt_connect_se3(
                 )
 
             def _copy(s):
+                """Return a copy of a ``(pos, quat)`` state.
+
+                Args:
+                    s: ``(pos, quat)`` state.
+
+                Returns:
+                    A new tuple with copied arrays.
+                """
                 return (s[0].copy(), s[1].copy())
 
             # ── Visualisation hooks ───────────────────────────────────
@@ -200,14 +276,34 @@ def rrt_connect_se3(
                 rrt_vis.draw_bounds(pos_bounds)
 
                 def _on_extend(parent_s, new_s, is_start):
+                    """Draw a new tree edge in the visualizer.
+
+                    Args:
+                        parent_s: Parent ``(pos, quat)`` state.
+                        new_s: New ``(pos, quat)`` state.
+                        is_start: ``True`` if the edge belongs to the
+                            start tree (drawn as tree_a).
+                    """
                     rrt_vis.draw_tree_edge(
                         parent_s[0], new_s[0], is_tree_a=is_start,
                     )
 
                 def _on_collision(s):
+                    """Draw a rejected sample in the visualizer.
+
+                    Args:
+                        s: Rejected ``(pos, quat)`` state.
+                    """
                     rrt_vis.draw_collision_sample(s[0])
 
                 def _on_iteration(it, ta_size, tb_size):
+                    """Forward iteration progress to the visualizer logger.
+
+                    Args:
+                        it: Iteration index.
+                        ta_size: Size of tree_a.
+                        tb_size: Size of tree_b.
+                    """
                     rrt_vis.log_iteration(it, ta_size, tb_size)
 
             # ── Run generic RRT-Connect ───────────────────────────────

@@ -40,9 +40,25 @@ def _fk_objective_and_grad(
 ) -> tuple:
     """Return (cost, gradient) for the IK objective.
 
-    Cost is ``||pos_err||^2 + ||rot_err||^2``.  The analytical gradient
-    is ``-2 J^T e`` where *J* is the geometric Jacobian and
-    *e = [pos_err; rot_err]*.
+    Cost is ``||pos_err||^2 + ||rot_err||^2`` with errors defined as
+    target minus achieved.  The gradient ``-2 J^T e`` (with *J* the
+    geometric site Jacobian and *e = [pos_err; rot_err]*) is exact for
+    the position term and a first-order approximation for the rotation
+    term.  Overwrites ``data_native.qpos``.
+
+    Args:
+        q_arm: ``(7,)`` arm configuration being evaluated.
+        model_native: Native MuJoCo model.
+        data_native: Native MuJoCo data (modified in place).
+        site_id: MuJoCo site ID for the EEF.
+        arm_qpos_idx: qpos indices for arm joints.
+        arm_dof_idx: DOF indices for arm joints.
+        full_qpos: Full model qpos vector (other joints held fixed).
+        target_pos: Desired position in world frame ``(3,)``.
+        R_target: Desired orientation in world frame.
+
+    Returns:
+        ``(cost, grad)`` with *grad* of shape ``(7,)``.
     """
     q_full = full_qpos.copy()
     q_full[arm_qpos_idx] = q_arm
@@ -96,12 +112,13 @@ def solve_ik_scipy(
         joint_lo: Lower joint limits ``(7,)``.
         joint_hi: Upper joint limits ``(7,)``.
         q_seeds: Initial guesses for the optimiser.
-        pos_tol: Max position error to accept a solution.
-        rot_tol: Max orientation error to accept a solution.
+        pos_tol: Max position error (m) to accept a solution.
+        rot_tol: Max orientation error (rad) to accept a solution.
         max_iter: Maximum L-BFGS-B iterations per seed.
 
     Returns:
-        List of converged joint configurations.
+        List of converged joint configurations ``(7,)``, at most one per
+        seed (may contain duplicates).
     """
     bounds = list(zip(joint_lo.tolist(), joint_hi.tolist()))
     solutions: List[np.ndarray] = []
@@ -153,10 +170,25 @@ def _generate_seeds(
 ) -> List[np.ndarray]:
     """Generate IK seed configurations.
 
-    If *q_reference* is given it is always the first seed, followed by
-    perturbations around it.  The current arm configuration *q_current*
-    is always included when provided.  Remaining slots use uniform
-    random seeds for coverage.
+    If *q_reference* is given it is the first seed, followed by
+    *q_current* (when provided and different) and Gaussian perturbations
+    (σ = 0.25 rad) around *q_reference* for the remaining slots.
+    Otherwise *q_current* (when provided) and ``n_seeds // 3``
+    perturbations around it (σ = 0.3 rad) come first, and the remaining
+    slots use uniform random seeds within the joint limits.  Perturbed
+    seeds are clipped to the limits.  An unseeded RNG is used, so seeds
+    are non-deterministic.
+
+    Args:
+        q_reference: Optional reference configuration.
+        joint_lo: Lower joint limits.
+        joint_hi: Upper joint limits.
+        n_seeds: Target number of seeds.
+        q_current: Optional current arm configuration.
+
+    Returns:
+        List of seed configurations (at least one when *q_reference* or
+        *q_current* is given, even if *n_seeds* is smaller).
     """
     rng = np.random.default_rng()
     seeds: List[np.ndarray] = []
@@ -194,7 +226,33 @@ def enumerate_ik_solutions_scipy(
 ) -> List[np.ndarray]:
     """Enumerate IK solutions using Scipy L-BFGS-B optimiser.
 
-    Same interface as ``enumerate_ik_solutions_eaik``.
+    Same interface as ``enumerate_ik_solutions_eaik``.  Runs
+    :func:`solve_ik_scipy` from ``SCIPY_IK_NUM_SEEDS`` seeds (see
+    :func:`_generate_seeds`), de-duplicates, drops solutions below
+    ``IK_MIN_MANIPULABILITY`` and ranks by manipulability.  Simulation
+    qpos/qvel are restored afterwards.
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        target_pose: Desired EEF site pose (any frame known to
+            *tf_manager*).
+        tf_manager: For frame conversions.
+        arm: Which arm (``"right"`` or ``"left"``).
+        site_name: Override for the MuJoCo site name.
+        env_lock: Optional threading lock for environment access.
+        max_solutions: Maximum solutions to return.
+        unique_atol: Tolerance for uniqueness filtering.
+        q_reference: Optional reference configuration used as the first
+            seed and for re-sorting by L2 distance (closest first).
+
+    Returns:
+        List of joint configurations ``(7,)``, ranked by proximity to
+        *q_reference* if given, otherwise by manipulability.
+
+    Raises:
+        RuntimeError: If the arm does not have 7 joints or the site is
+            not found.
     """
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:

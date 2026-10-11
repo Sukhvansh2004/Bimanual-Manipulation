@@ -287,6 +287,15 @@ class TestLoadExperimentMinimalJSON:
         assert cfg.execution.visualize is True
         assert cfg.runtime.debug is False
         assert cfg.assignment.handover_stride == 1
+        assert cfg.planning.use_dpp is True
+
+    def test_use_dpp_read_from_json(self, minimal_json):
+        with open(minimal_json) as f:
+            data = json.load(f)
+        data["planning"] = {"use_dpp": False}
+        with open(minimal_json, "w") as f:
+            json.dump(data, f)
+        assert load_experiment(minimal_json).planning.use_dpp is False
 
     def test_start_pose_none_by_default(self, minimal_json):
         cfg = load_experiment(minimal_json)

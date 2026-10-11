@@ -33,13 +33,18 @@ logger = logging.getLogger(__name__)
 
 
 class RobotMeshVisualizer:
-    """
-    Visualizes robot configurations along trajectories in MeshCat.
-    
+    """Visualizes robot configurations along trajectories in MeshCat.
+
     Features:
-    - Renders robot meshes at each waypoint
-    - Colors meshes green (feasible) or red (infeasible)
-    - Organizes meshes under trajectory ID paths in MeshCat hierarchy
+    - Renders robot meshes at sampled waypoints
+    - Colors meshes green (feasible), red (collision) or orange (IK failed)
+    - Organizes meshes under ``{base_path}/{robot_id}/{trajectory_id}``
+      in the MeshCat hierarchy
+
+    Attributes:
+        COLOR_FEASIBLE: Colour for feasible configurations.
+        COLOR_INFEASIBLE: Colour for configurations in collision.
+        COLOR_IK_FAILED: Colour for other infeasible configurations.
     """
     
     # Color constants (from centralized config)
@@ -54,16 +59,19 @@ class RobotMeshVisualizer:
         base_path: str = "trajectory_configs",
         mesh_sample_ratio: float = 1.0
     ):
-        """
-        Initialize the RobotMeshVisualizer.
-        
+        """Initialize the RobotMeshVisualizer and cache robot geom IDs.
+
         Args:
-            vis: MeshCat visualizer instance
-            tf_manager: TransformManager for frame conversions
-            base_path: Base path in MeshCat hierarchy for all trajectory visualizations.
-                       If None, uses constants.VIS_PLANNING_ROOT/constants.VIS_ROBOT_CONFIG_PATH
-            mesh_sample_ratio: Fraction of mesh faces to keep (0-1). Lower values
-                               speed up MeshCat rendering at the cost of visual quality.
+            vis: MeshCat visualizer instance.
+            tf_manager: TransformManager; its ``env`` and ``env_lock`` are
+                used for forward kinematics.
+            base_path: Base path in MeshCat hierarchy for trajectory
+                visualizations. The default ``"trajectory_configs"`` is
+                replaced by
+                ``f"{constants.VIS_PLANNING_ROOT}/{constants.VIS_ROBOT_CONFIG_PATH}"``.
+            mesh_sample_ratio: Fraction of mesh faces to keep, clamped to
+                ``[0.01, 1.0]``. Lower values speed up MeshCat rendering
+                at the cost of visual quality.
         """
         self.vis = vis
         self.tf_manager = tf_manager
@@ -86,7 +94,12 @@ class RobotMeshVisualizer:
         self._initialize_mesh_cache()
     
     def _initialize_mesh_cache(self):
-        """Pre-cache robot mesh geometries from MuJoCo model."""
+        """Build the geom-to-body map and per-robot geom ID lists.
+
+        Robot geoms are identified by the ``robot{0,1}_`` / ``gripper{0,1}_``
+        name prefixes. Mesh geometries themselves are cached lazily in
+        :meth:`_get_meshcat_geometry`.
+        """
         ctx = self.env_lock if self.env_lock is not None else nullcontext()
         
         with ctx:
@@ -109,7 +122,15 @@ class RobotMeshVisualizer:
             logger.debug(f"Found {len(self._robot_geom_ids[1])} geoms for robot1")
     
     def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
-        """Convert MuJoCo geom to MeshCat geometry."""
+        """Convert a MuJoCo geom to MeshCat geometry (cached).
+
+        Args:
+            model: MuJoCo model.
+            geom_id: Geom ID.
+
+        Returns:
+            MeshCat geometry, or ``None`` if the geom type is unsupported.
+        """
         return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache, self.mesh_sample_ratio)
     
     def _compute_geom_transforms(
@@ -117,15 +138,17 @@ class RobotMeshVisualizer:
         robot_id: int, 
         joint_config: np.ndarray
     ) -> Dict[int, np.ndarray]:
-        """
-        Compute world transforms for all robot geoms given a joint configuration.
-        
+        """Compute world transforms for all robot geoms given a joint configuration.
+
+        Temporarily sets the arm's ``qpos`` and runs ``mj_fwdPosition``;
+        the simulator ``qpos``/``qvel`` are restored afterwards.
+
         Args:
-            robot_id: Robot ID (0 or 1)
-            joint_config: Joint angles for the robot arm
-            
+            robot_id: Robot ID (0 or 1).
+            joint_config: Joint angles for the robot arm.
+
         Returns:
-            Dictionary mapping geom_id to 4x4 transform matrix
+            Dictionary mapping geom_id to a ``(4, 4)`` world transform.
         """
         ctx = self.env_lock if self.env_lock is not None else nullcontext()
         
@@ -174,15 +197,17 @@ class RobotMeshVisualizer:
         color: int,
         opacity: float = 0.6
     ):
-        """
-        Visualize a single robot configuration in MeshCat.
-        
+        """Visualize a single robot configuration in MeshCat.
+
+        Each robot geom is drawn at ``f"{path}/{geom_name}"``. Note that
+        *path* is absolute (``base_path`` is not prepended).
+
         Args:
-            robot_id: Robot ID (0 or 1)
-            joint_config: Joint angles
-            path: MeshCat path for this visualization
-            color: RGB color as hex integer
-            opacity: Transparency (0-1)
+            robot_id: Robot ID (0 or 1).
+            joint_config: Joint angles.
+            path: MeshCat path for this visualization.
+            color: RGB color as hex integer.
+            opacity: Opacity in ``[0, 1]``.
         """
         ctx = self.env_lock if self.env_lock is not None else nullcontext()
         
@@ -233,20 +258,36 @@ class RobotMeshVisualizer:
         step_interval: int = 5,
         opacity: float = 0.5
     ) -> None:
-        """
-        Visualize robot configurations along a trajectory with feasibility coloring.
-        
+        """Visualize robot configurations along a trajectory with feasibility coloring.
+
+        Draws waypoints whose ``waypoint_index`` is a multiple of
+        *step_interval*, plus the last waypoint, under
+        ``{base_path}/{robot_id}/{trajectory_id}/waypoint_XXXX``. Waypoints
+        without a joint configuration are skipped. Colour is
+        :attr:`COLOR_FEASIBLE` if feasible, :attr:`COLOR_INFEASIBLE` if IK
+        succeeded but collided, else :attr:`COLOR_IK_FAILED`. Logs a
+        summary at INFO level.
+
         Args:
-            trajectory_id: Unique identifier for this trajectory (used in MeshCat path)
-            robot_id: Robot ID (0 or 1)
-            waypoint_results: Pre-computed waypoint results with joint configs and feasibility
-            step_interval: Visualize every Nth waypoint (default: 5)
-            opacity: Mesh opacity
+            trajectory_id: Unique identifier for this trajectory (used in MeshCat path).
+            robot_id: Robot ID (0 or 1).
+            waypoint_results: Pre-computed waypoint results with joint
+                configs and feasibility. Must be non-empty.
+            step_interval: Visualize every Nth waypoint (default: 5).
+            opacity: Mesh opacity.
+
+        Raises:
+            IndexError: If *waypoint_results* is empty.
         """
         # Create base path for this trajectory
         traj_path = f"{self.base_path}/{robot_id}/{trajectory_id}"
         
         def visualize_waypoint(result: WaypointFeasibilityResult):
+            """Draw one waypoint's robot configuration, if IK succeeded.
+
+            Args:
+                result: Waypoint feasibility result to draw.
+            """
             waypoint_path = f"{traj_path}/waypoint_{result.waypoint_index:04d}"
             
             if result.joint_config is None:
@@ -298,15 +339,16 @@ class RobotMeshVisualizer:
         step_interval: int = 5,
         opacity: float = 0.5
     ) -> None:
-        """
-        Visualize both robot arms along their trajectories.
-        
+        """Visualize both robot arms along their trajectories.
+
+        Calls :meth:`visualize_trajectory_configs` for robot 0 and robot 1.
+
         Args:
-            trajectory_id: Unique identifier for this trajectory
-            waypoint_results_robot0: Pre-computed results for robot 0
-            waypoint_results_robot1: Pre-computed results for robot 1
-            step_interval: Visualize every Nth waypoint
-            opacity: Mesh opacity
+            trajectory_id: Unique identifier for this trajectory.
+            waypoint_results_robot0: Pre-computed results for robot 0.
+            waypoint_results_robot1: Pre-computed results for robot 1.
+            step_interval: Visualize every Nth waypoint.
+            opacity: Mesh opacity.
         """
         self.visualize_trajectory_configs(
             trajectory_id=trajectory_id,
@@ -325,7 +367,15 @@ class RobotMeshVisualizer:
         )
     
     def clear_trajectory(self, trajectory_id: str):
-        """Clear visualization for a specific trajectory."""
+        """Delete the MeshCat node ``{base_path}/{trajectory_id}``.
+
+        Note that :meth:`visualize_trajectory_configs` draws under
+        ``{base_path}/{robot_id}/{trajectory_id}``, so this does not clear
+        those nodes. Failures are logged as warnings.
+
+        Args:
+            trajectory_id: Trajectory identifier.
+        """
         path = f"{self.base_path}/{trajectory_id}"
         try:
             self.vis[path].delete()
@@ -333,7 +383,7 @@ class RobotMeshVisualizer:
             logger.warning(f"Failed to clear trajectory '{trajectory_id}': {e}")
     
     def clear_all(self):
-        """Clear all trajectory visualizations."""
+        """Delete everything under ``base_path``; failures are logged as warnings."""
         try:
             self.vis[self.base_path].delete()
         except Exception as e:

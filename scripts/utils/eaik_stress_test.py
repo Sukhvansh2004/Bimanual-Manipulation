@@ -9,9 +9,15 @@ Separates two bottlenecks:
   1. UrdfRobot construction (URDF parsing / C++ build) — dominates on cache miss
   2. bot.IK() analytical solve — the actual IK computation
 
-The production code uses @lru_cache(maxsize=256) ≈ 4.6 warm-start configs
-(256 / 56 keys-per-config). With warm-starting, q_reference changes every
-call → cache thrashes → UrdfRobot rebuild dominates.
+UrdfRobot objects are cached in an unbounded dict keyed by
+``(locked_joint, round(locked_value, 6))``; sweep values are snapped to an
+``EAIK_GRID_STEP`` grid as in production ``eaik_solver.py`` (which instead
+uses ``@lru_cache(maxsize=1024)``). With warm-starting, q_reference changes
+every call, so new grid values still trigger UrdfRobot rebuilds. Note: the
+"LRU cache size: 256" line printed by ``main()`` is a stale constant.
+
+Usage:
+    python scripts/utils/eaik_stress_test.py
 """
 
 import time
@@ -53,6 +59,21 @@ _build_count = 0
 _cache_hits = 0
 
 def _build_robot(locked_joint: int, locked_value: float):
+    """Return a cached ``UrdfRobot`` with one joint locked, building it on a miss.
+
+    Updates the module-level ``_cache_hits``, ``_build_count`` and
+    ``_build_time_accum`` counters.
+
+    Args:
+        locked_joint: Index of the joint to lock.
+        locked_value: Joint value (rad) to lock it at.
+
+    Returns:
+        UrdfRobot: EAIK robot with ``locked_joint`` fixed at ``locked_value``.
+
+    Raises:
+        Exception: Propagates any error from ``UrdfRobot`` construction.
+    """
     global _build_time_accum, _build_count, _cache_hits
     key = (locked_joint, round(locked_value, 6))
     if key in _bot_cache:
@@ -65,6 +86,7 @@ def _build_robot(locked_joint: int, locked_value: float):
     return _bot_cache[key]
 
 def _reset_counters():
+    """Zero the module-level build/IK timing and cache-hit counters."""
     global _build_time_accum, _ik_time_accum, _build_count, _cache_hits
     _build_time_accum = 0.0
     _ik_time_accum = 0.0
@@ -73,6 +95,21 @@ def _reset_counters():
 
 
 def _sweep_values(joint_idx, q_ref=None, num_sweep=EAIK_NUM_SWEEP_VALUES):
+    """Compute grid-snapped sweep values for one joint.
+
+    With ``q_ref`` the sweep spans ``±EAIK_WARM_START_WINDOW`` around
+    ``q_ref[joint_idx]`` (clipped to limits) and includes that value;
+    otherwise it spans the full joint range. Values are then snapped to an
+    ``EAIK_GRID_STEP`` grid, clipped and de-duplicated.
+
+    Args:
+        joint_idx: Joint index in ``[0, 7)``.
+        q_ref: Optional reference configuration ``(7,)`` for warm-starting.
+        num_sweep: Number of linearly spaced values before snapping.
+
+    Returns:
+        np.ndarray: Sorted unique sweep values (rad).
+    """
     lo, hi = float(JOINT_LO[joint_idx]), float(JOINT_HI[joint_idx])
     if q_ref is not None:
         centre = float(np.clip(q_ref[joint_idx], lo, hi))
@@ -89,7 +126,20 @@ def _sweep_values(joint_idx, q_ref=None, num_sweep=EAIK_NUM_SWEEP_VALUES):
 
 
 def solve_ik_eaik(target_pos, target_quat, q_reference=None):
-    """Minimal replica of solve_ik_eaik — sweep all 7 joints."""
+    """Minimal replica of production ``solve_ik_eaik`` sweeping all 7 joints.
+
+    Exact solutions are collected first; least-squares solutions are
+    accepted only if no exact solution is found. Accumulates ``bot.IK()``
+    time in ``_ik_time_accum``.
+
+    Args:
+        target_pos: Target EEF position ``(3,)``.
+        target_quat: Target EEF quaternion ``(x, y, z, w)``.
+        q_reference: Optional warm-start configuration ``(7,)``.
+
+    Returns:
+        list[np.ndarray]: Joint configurations ``(7,)`` within limits.
+    """
     global _ik_time_accum
     rot_mat = R.from_quat(target_quat).as_matrix()
     T = np.eye(4)
@@ -125,7 +175,15 @@ def solve_ik_eaik(target_pos, target_quat, q_reference=None):
 
 
 def _random_reachable_pose(rng):
-    """Generate a random pose roughly in the Panda workspace."""
+    """Generate a random pose roughly in the Panda workspace.
+
+    Args:
+        rng: NumPy random generator.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Position ``(3,)`` sampled from a
+        fixed box and a uniformly random unit quaternion ``(4,)``.
+    """
     pos = rng.uniform([0.2, -0.4, 0.1], [0.6, 0.4, 0.7])
     q = rng.standard_normal(4)
     q /= np.linalg.norm(q)
@@ -133,7 +191,19 @@ def _random_reachable_pose(rng):
 
 
 def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
-    """Small perturbation — mimics consecutive waypoints along a handover."""
+    """Apply a small random perturbation, mimicking consecutive handover waypoints.
+
+    Args:
+        pos: Base position ``(3,)``.
+        quat: Base quaternion ``(x, y, z, w)``.
+        rng: NumPy random generator.
+        pos_noise: Max uniform position offset per axis (m).
+        rot_noise: Max uniform rotation-vector offset per axis (rad).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Perturbed position ``(3,)`` and
+        quaternion ``(4,)``.
+    """
     new_pos = pos + rng.uniform(-pos_noise, pos_noise, 3)
     rotvec = R.from_quat(quat).as_rotvec() + rng.uniform(-rot_noise, rot_noise, 3)
     new_quat = R.from_rotvec(rotvec).as_quat()
@@ -143,6 +213,7 @@ def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
 # ── Main stress test ──
 
 def main():
+    """Run the cached, uncached, and handover-level EAIK benchmarks and print results."""
     rng = np.random.default_rng(42)
     q_home = FRANKA_HOME_JOINT_POSITION
 

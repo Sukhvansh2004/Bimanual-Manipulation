@@ -25,6 +25,17 @@ class _NumpyEncoder(json.JSONEncoder):
     """Encode numpy types to JSON-safe Python types."""
 
     def default(self, obj):
+        """Convert numpy scalars/arrays; defer other types to the base class.
+
+        Args:
+            obj: Object that the standard encoder could not serialise.
+
+        Returns:
+            JSON-serialisable equivalent of ``obj``.
+
+        Raises:
+            TypeError: If ``obj`` is not a supported type.
+        """
         if isinstance(obj, (np.integer,)):
             return int(obj)
         if isinstance(obj, (np.floating,)):
@@ -39,7 +50,11 @@ class _NumpyEncoder(json.JSONEncoder):
 def save_result(result: ExperimentResult, results_dir: Optional[Path] = None) -> Path:
     """Save an ExperimentResult to JSON.
 
-    File path: ``<results_dir>/<experiment>/<config_id>.json``
+    File path: ``<results_dir>/<experiment>/<config_id>.json``.
+
+    Args:
+        result: Result to save.
+        results_dir: Root results directory; defaults to ``RESULTS_ROOT``.
 
     Returns:
         Path to the saved JSON file.
@@ -57,7 +72,20 @@ def save_result(result: ExperimentResult, results_dir: Optional[Path] = None) ->
 
 
 def load_result(path: Path) -> ExperimentResult:
-    """Load an ExperimentResult from JSON."""
+    """Load an ExperimentResult from JSON.
+
+    Unknown keys in the ``planning`` / ``execution`` sections are ignored.
+
+    Args:
+        path: Path to a result JSON written by ``save_result``.
+
+    Returns:
+        The reconstructed ``ExperimentResult``.
+
+    Raises:
+        KeyError: If ``experiment``, ``config_label`` or ``config_id`` is
+            missing.
+    """
     with open(path) as f:
         d = json.load(f)
 
@@ -85,7 +113,17 @@ def load_result(path: Path) -> ExperimentResult:
 
 
 def load_all_results(results_dir: Optional[Path] = None) -> List[ExperimentResult]:
-    """Load all results from the results directory recursively."""
+    """Load all results from the results directory recursively.
+
+    Skips ``summary.json``, ``aggregate_summary.json``, dotfiles and
+    ``*_exec.json`` files; files that fail to load are logged and skipped.
+
+    Args:
+        results_dir: Root results directory; defaults to ``RESULTS_ROOT``.
+
+    Returns:
+        List of results (empty if the directory does not exist).
+    """
     root = results_dir or RESULTS_ROOT
     results: List[ExperimentResult] = []
 
@@ -113,9 +151,14 @@ def load_all_results(results_dir: Optional[Path] = None) -> List[ExperimentResul
 
 
 def build_summary(results_dir: Optional[Path] = None) -> Dict:
-    """Build and save a summary.json combining all results.
+    """Build and save ``<results_dir>/summary.json`` combining all results.
 
-    Returns the summary dict.
+    Args:
+        results_dir: Root results directory; defaults to ``RESULTS_ROOT``.
+
+    Returns:
+        Summary dict with ``n_results``, ``experiments``, ``configs`` and
+        ``results``.
     """
     root = results_dir or RESULTS_ROOT
     results = load_all_results(root)

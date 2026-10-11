@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""
-Batch orchestrator for all planning experiments and ablation studies.
+"""Batch orchestrator for all planning experiments and ablation studies.
 
-Runs assignment planning for every (experiment, ablation_config) combination.
-Optionally also runs headless execution for each config to collect execution
-metrics (task success, handover rate, manipulability, collisions).
+Runs assignment planning for every (experiment, ablation_config) combination
+by invoking ``segment_assignment.py`` as a subprocess (each run creates its
+own simulation environment unless ``--no-env`` is given). Optionally also runs
+headless execution (``dual_arm_handover_traj.py``) for each config to collect
+execution metrics (task success, handover rate, manipulability, collisions).
 
-For each experiment the simulation environment is created once and reused
-across all configs, saving significant setup time.
+Per-run results are saved to ``<results_dir>/<experiment>/<config_id>.json``
+alongside the assignment NPZ and log files, and ``summary.json`` is rebuilt at
+the end.
 
 Usage::
 
@@ -28,6 +30,9 @@ Usage::
 
     # Planning + headless execution (collects execution metrics):
     python scripts/evaluation/run_all.py --execute
+
+    # Re-run execution only, on existing assignment NPZs:
+    python scripts/evaluation/run_all.py --execute-only
 
     # Generate analysis report after running:
     python scripts/evaluation/run_all.py --analyze
@@ -122,22 +127,28 @@ def run_assignment_subprocess(
     """Run assignment planning via subprocess (calls segment_assignment.py).
 
     Builds the command line from the ablation config and delegates to the
-    canonical pipeline script.  Metrics are written as JSON by the subprocess
-    and read back here.
+    canonical pipeline script. Metrics are written as JSON by the subprocess
+    and read back here. Subprocess output goes to
+    ``<results_dir>/<experiment>/<config_id>_assignment.log``.
 
     Args:
         exp_json_path: Path to the experiment JSON file.
         data_dir: Directory containing trajectory NPZ files.
         cfg: Ablation config dict.
-        output_dir: Working directory for this config (metrics JSON lives here).
+        output_dir: Working directory for this config (created; typically
+            the parent of ``metrics_file``).
         metrics_file: Path to write the planning metrics JSON.
-        no_env: Skip environment creation (--no-env).
+        no_env: Skip environment creation (--no-env); also implied by
+            ``cfg["use_ik"] = False``.
         timeout: Subprocess timeout in seconds (default: 4 hours).
         results_dir: Directory for log files (default: RESULTS_ROOT).
         output_assignment: Save assignment NPZ directly to this path.
+        seed: Optional random seed forwarded as ``--seed``.
 
     Returns:
-        ExperimentResult with planning metrics populated.
+        ExperimentResult with planning metrics populated. On subprocess
+        failure, timeout or error, the planning metrics are defaults
+        (``total_cost = inf``) with only ``planning_time_s`` set.
     """
     cid = config_id(cfg)
     label = cfg["label"]
@@ -293,13 +304,27 @@ def run_execution(
 ) -> Optional[ExecutionMetrics]:
     """Run the dual-arm execution script headlessly for a single config.
 
+    Writes ``<results_dir>/<experiment>/<config_id>_exec.json`` (metrics) and
+    ``<config_id>_exec.log`` (subprocess output).
+
     Args:
+        exp_json_path: Path to the experiment JSON file.
+        assignment_file: Assignment NPZ to execute.
+        experiment_name: Name of the experiment.
+        config_label: Label of the ablation config.
+        results_dir: Root results directory.
+        config_id_str: Config identifier used in output file names.
+        timeout: Subprocess timeout in seconds.
         data_dir: Optional override for the trajectory data directory.
             When ``None`` the execution script resolves the directory from
-            the experiment JSON.  Pass explicitly for configs that use
+            the experiment JSON. Pass explicitly for configs that use
             alternative trajectory data (e.g. No-Diversity / no-DPP).
+        seed: Optional random seed forwarded as ``--seed``.
 
-    Returns ExecutionMetrics loaded from the JSON output, or None on failure.
+    Returns:
+        ExecutionMetrics loaded from the metrics JSON (even if the subprocess
+        exited non-zero), metrics with only ``error_message`` set on timeout,
+        or ``None`` if no metrics file was written or another error occurred.
     """
     metrics_file = str(results_dir / experiment_name / f"{config_id_str}_exec.json")
     os.makedirs(os.path.dirname(metrics_file), exist_ok=True)
@@ -391,8 +416,22 @@ def run_experiment(
     """Run all ablation configs for a single experiment.
 
     Each config is run as a subprocess call to ``segment_assignment.py``,
-    which creates its own simulation environment internally.
-    If ``execute=True``, also runs headless execution for each config.
+    which creates its own simulation environment internally. Configs with
+    ``use_dpp=False`` use ``<data_dir>_no_dpp`` and are skipped if it has no
+    trajectories. If ``execute=True``, also runs headless execution for each
+    config with a finite planning cost. Each result is saved immediately.
+
+    Args:
+        exp_json_path: Path to the experiment JSON file.
+        configs: Ablation configs to run.
+        no_env: Skip environment creation in the assignment subprocess.
+        results_dir: Root results directory (default: ``RESULTS_ROOT``).
+        execute: Also run headless execution.
+        seed: Optional random seed forwarded to the subprocesses.
+
+    Returns:
+        Results for the configs that were run (empty if the data directory
+        or trajectories are missing).
     """
     exp_cfg = load_experiment(exp_json_path)
     exp_name = exp_cfg.name
@@ -495,7 +534,19 @@ def run_single_config(
 
     Per-job equivalent of :func:`run_experiment`; designed for fine-grained
     parallel distribution where each worker handles a single config rather
-    than an entire experiment.
+    than an entire experiment. The result is saved before returning.
+
+    Args:
+        exp_json_path: Path to the experiment JSON file.
+        cfg: Ablation config.
+        no_env: Skip environment creation in the assignment subprocess.
+        results_dir: Root results directory (default: ``RESULTS_ROOT``).
+        execute: Also run headless execution if planning succeeded.
+        seed: Optional random seed forwarded to the subprocesses.
+
+    Returns:
+        The experiment result, or ``None`` if the data directory (or the
+        no-DPP data directory for ``use_dpp=False``) is missing.
     """
     exp_cfg = load_experiment(exp_json_path)
     exp_name = exp_cfg.name
@@ -571,7 +622,20 @@ def single_config_worker(
 ) -> Optional[dict]:
     """Run a single (experiment, config) job in a worker process.
 
-    Returns a dict (safe for cross-process serialisation), or ``None``.
+    Reconfigures logging with a per-worker prefix, then calls
+    :func:`run_single_config`.
+
+    Args:
+        exp_json_path: Path to the experiment JSON file.
+        cfg: Ablation config.
+        no_env: Skip environment creation in the assignment subprocess.
+        results_dir_str: Root results directory as a string.
+        execute: Also run headless execution.
+        seed: Optional random seed forwarded to the subprocesses.
+
+    Returns:
+        ``ExperimentResult.to_dict()`` (safe for cross-process
+        serialisation), or ``None``.
     """
     exp_name = Path(exp_json_path).stem
     label = cfg["label"]
@@ -588,7 +652,18 @@ def single_config_worker(
 
 
 def is_completed(results_dir: Path, exp_name: str, cfg: AblationConfig) -> bool:
-    """Check whether an (experiment, config) already has a result JSON."""
+    """Check whether an (experiment, config) already has a result JSON.
+
+    Only file existence is checked; the stored cost is not inspected.
+
+    Args:
+        results_dir: Root results directory.
+        exp_name: Experiment name.
+        cfg: Ablation config.
+
+    Returns:
+        ``True`` if ``<results_dir>/<exp_name>/<config_id>.json`` exists.
+    """
     cid = config_id(cfg)
     return (results_dir / exp_name / f"{cid}.json").is_file()
 
@@ -601,7 +676,15 @@ def discover_experiments(
     only: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
 ) -> List[str]:
-    """Return sorted list of experiment JSON paths."""
+    """Return sorted list of experiment JSON paths in ``experiments/``.
+
+    Args:
+        only: If given (non-empty), keep only these experiment names.
+        exclude: If given, drop these experiment names.
+
+    Returns:
+        Sorted list of JSON file paths.
+    """
     all_jsons = sorted(glob.glob(str(EXPERIMENTS_DIR / "*.json")))
     if only:
         all_jsons = [
@@ -617,7 +700,21 @@ def discover_experiments(
 
 
 def resolve_configs(ablation_names: Optional[List[str]] = None) -> List[AblationConfig]:
-    """Resolve ablation names → unique list of configs."""
+    """Resolve ablation group names to a unique list of configs.
+
+    Unknown group names are logged and skipped; configs are de-duplicated by
+    label in first-seen order.
+
+    Args:
+        ablation_names: Keys of ``ALL_ABLATIONS``, or ``None`` for
+            ``ALL_CONFIGS``.
+
+    Returns:
+        List of ablation configs.
+
+    Raises:
+        SystemExit: If no valid configs were resolved.
+    """
     if ablation_names is None:
         # All configs
         return ALL_CONFIGS
@@ -645,7 +742,14 @@ def resolve_configs(ablation_names: Optional[List[str]] = None) -> List[Ablation
 # ═══════════════════════════════════════════════════════════════════════════
 
 def reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
-    """Rebuild ExperimentResult objects from worker-returned dicts."""
+    """Rebuild ExperimentResult objects from worker-returned dicts.
+
+    Args:
+        dicts: Dicts produced by ``ExperimentResult.to_dict()``.
+
+    Returns:
+        List of reconstructed results.
+    """
     results = []
     for d in dicts:
         planning = None
@@ -669,7 +773,15 @@ def reconstruct_results(dicts: List[dict]) -> List[ExperimentResult]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def print_batch_summary(all_results: List[ExperimentResult], elapsed: float):
-    """Print a final summary of the batch run."""
+    """Print a final summary of the batch run.
+
+    Shows, per experiment, the number of configs and the lowest finite cost
+    with its handover count, then the overall success/failure counts.
+
+    Args:
+        all_results: Results collected during the run.
+        elapsed: Total wall-clock time in seconds.
+    """
     print(f"\n{'═' * 80}")
     print(f"  BATCH RUN COMPLETE  ({elapsed:.1f}s total, {len(all_results)} results)")
     print(f"{'═' * 80}")
@@ -710,6 +822,16 @@ def print_batch_summary(all_results: List[ExperimentResult], elapsed: float):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main():
+    """Parse CLI arguments and run the batch of planning/execution jobs.
+
+    Supports ``--dry-run`` (list jobs), ``--execute-only`` (execution on
+    existing assignment NPZs) and the default planning mode (optionally with
+    ``--execute``), sequentially or with ``--workers`` processes.
+
+    Raises:
+        SystemExit: If no experiment configs are found or no ablation configs
+            resolve.
+    """
     parser = argparse.ArgumentParser(description="Batch experiment runner for planning ablations")
     parser.add_argument(
         "--only", nargs="*", default=None,

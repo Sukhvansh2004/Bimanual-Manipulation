@@ -20,15 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class ServiceClient:
-    """
-    Client for interacting with registered services through the service manager.
-    """
+    """Client for interacting with registered services through the service manager."""
 
     def __init__(
         self,
         manager_host: str = constants.DEFAULT_HOST,
         manager_port: int = constants.SERVICE_MANAGER_PORT
     ) -> None:
+        """Create a ZMQ context for talking to the service manager.
+
+        Args:
+            manager_host: Service manager host.
+            manager_port: Service manager port (default 6006).
+        """
         self.manager_host = manager_host
         self.manager_port = manager_port
         self.context = zmq.Context()
@@ -38,7 +42,7 @@ class ServiceClient:
         self.socket = None
 
     def close(self) -> None:
-        """Close underlying ZMQ resources immediately."""
+        """Terminate the ZMQ context, ignoring errors."""
         try:
             if self.context is not None:
                 self.context.term()
@@ -46,7 +50,16 @@ class ServiceClient:
             pass
 
     def _call_manager(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Make a call to the service manager."""
+        """Send a JSON request to the service manager on a fresh REQ socket.
+
+        Args:
+            request: JSON-serializable request dict.
+
+        Returns:
+            The decoded JSON response, or a ``ResponseStatus`` error dict on
+            timeout (``ZMQ_MANAGER_TIMEOUT``), non-UTF8/invalid JSON reply,
+            or any other exception.
+        """
         endpoint = f"tcp://{self.manager_host}:{self.manager_port}"
         socket: Optional[zmq.Socket] = None
         connected = False
@@ -103,7 +116,18 @@ class ServiceClient:
 
     def register(self, name: str, host: str, port: int,
                 service_type: str, description: str = "") -> Dict[str, Any]:
-        """Register a service with the manager."""
+        """Register a service with the manager.
+
+        Args:
+            name: Service name.
+            host: Host the service listens on.
+            port: Port the service listens on.
+            service_type: Service type label.
+            description: Optional description.
+
+        Returns:
+            Manager response dict (``ResponseStatus`` error dict on failure).
+        """
         try:
             req = RegisterServiceRequest(
                 name=name,
@@ -118,7 +142,16 @@ class ServiceClient:
             return ResponseStatus(status='error', message=f"Registration failed: {e}").model_dump()
 
     def lookup(self, service_name: str) -> Optional[Dict[str, Any]]:
-        """Look up a service by name."""
+        """Look up a service by name.
+
+        Args:
+            service_name: Registered service name.
+
+        Returns:
+            The ``ServiceInfo`` dict on success, ``None`` if the manager
+            reports an error, or a ``ResponseStatus`` error dict if building
+            the request raises.
+        """
         try:
             req = LookupServiceRequest(name=service_name)
             response = self._call_manager(req.model_dump())
@@ -129,7 +162,11 @@ class ServiceClient:
             return ResponseStatus(status='error', message=f"Lookup failed for {service_name}").model_dump()
 
     def list_services(self) -> Dict[str, Any]:
-        """List all registered services."""
+        """List all registered services.
+
+        Returns:
+            Manager response dict with a ``services`` mapping, or an error dict.
+        """
         try:
             req = ListServicesRequest()
             return self._call_manager(req.model_dump())
@@ -137,7 +174,15 @@ class ServiceClient:
             return ResponseStatus(status='error', message=f"List services failed: {e}").model_dump()
 
     def call(self, service_name: str, service_request: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a service through the manager."""
+        """Call a service through the manager.
+
+        Args:
+            service_name: Registered service name.
+            service_request: Request dict forwarded to the service.
+
+        Returns:
+            The service's response dict, or a ``ResponseStatus`` error dict.
+        """
         try:
             req = CallServiceRequest(
                 service_name=service_name,
@@ -149,15 +194,19 @@ class ServiceClient:
 
 
 class ServiceManager:
-    """
-    Simple Service Manager for service registration, lookup, and calling.
-    """
+    """Simple Service Manager for service registration, lookup, and calling."""
 
     def __init__(
         self,
         host: str = constants.DEFAULT_HOST,
         port: int = constants.SERVICE_MANAGER_PORT
     ) -> None:
+        """Create the registry and a ZMQ REP socket (bound in :meth:`start`).
+
+        Args:
+            host: Host to bind.
+            port: Port to bind (default 6006).
+        """
         self.host = host
         self.port = port
 
@@ -175,7 +224,7 @@ class ServiceManager:
         logger.info(f"Service Manager initialized on {host}:{port}")
 
     def start(self) -> None:
-        """Start the service manager."""
+        """Start the server loop in a daemon thread (no-op if running)."""
         if self.running:
             logger.warning("Service Manager already running")
             return
@@ -190,7 +239,7 @@ class ServiceManager:
         logger.info("Service Manager started successfully")
 
     def stop(self) -> None:
-        """Stop the service manager."""
+        """Stop the server loop, join the thread and terminate the ZMQ context."""
         if not self.running:
             return
 
@@ -211,7 +260,7 @@ class ServiceManager:
         logger.info("Service Manager stopped")
 
     def _server_loop(self) -> None:
-        """Main ZMQ server loop."""
+        """Bind the REP socket and serve requests until ``running`` is cleared."""
         logger.info(f"Starting ZMQ server on tcp://{self.host}:{self.port}")
 
         try:
@@ -241,7 +290,18 @@ class ServiceManager:
         logger.info("Server loop stopped")
 
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming requests."""
+        """Dispatch a request by its ``command`` field.
+
+        Supported commands: ``REGISTER``, ``LOOKUP``, ``LIST_SERVICES``,
+        ``CALL_SERVICE`` (case-insensitive).
+
+        Args:
+            request: Decoded JSON request.
+
+        Returns:
+            Response dict; a ``ResponseStatus`` error for unknown commands or
+            exceptions.
+        """
         try:
             command = request.get('command', '').upper()
 
@@ -270,7 +330,14 @@ class ServiceManager:
             ).model_dump()
 
     def _handle_register(self, request: RegisterServiceRequest) -> Dict[str, Any]:
-        """Handle service registration."""
+        """Register (or overwrite) a service in the registry.
+
+        Args:
+            request: Registration request.
+
+        Returns:
+            ``ResponseStatus`` dict.
+        """
         try:
             name = request.name
             
@@ -301,7 +368,15 @@ class ServiceManager:
             ).model_dump()
 
     def _handle_lookup(self, request: LookupServiceRequest) -> Dict[str, Any]:
-        """Handle service lookup."""
+        """Look up a registered service.
+
+        Args:
+            request: Lookup request.
+
+        Returns:
+            ``ServiceLookupResponse`` dict, or a ``ResponseStatus`` error if
+            not found.
+        """
         name = request.name
         if not name or name not in self.services:
             return ResponseStatus(
@@ -315,14 +390,27 @@ class ServiceManager:
         ).model_dump()
 
     def _handle_list_services(self) -> Dict[str, Any]:
-        """Handle list services request."""
+        """Return all registered services.
+
+        Returns:
+            ``ServiceListResponse`` dict.
+        """
         return ServiceListResponse(
             status='success',
             services=self.services
         ).model_dump()
 
     def _handle_call_service(self, request: CallServiceRequest) -> Dict[str, Any]:
-        """Handle direct service calls."""
+        """Forward a request to a registered service over a new REQ socket.
+
+        Args:
+            request: Call request with target ``service_name`` and payload.
+
+        Returns:
+            The service's response dict, or a ``ResponseStatus`` error if the
+            service is unknown, times out (``ZMQ_SERVICE_CALL_TIMEOUT``), or
+            the call raises.
+        """
         service_name = request.service_name
         service_request = request.request
 
@@ -361,5 +449,5 @@ class ServiceManager:
             ).model_dump()
 
     def __del__(self) -> None:
-        """Cleanup on deletion."""
+        """Stop the manager on garbage collection."""
         self.stop()

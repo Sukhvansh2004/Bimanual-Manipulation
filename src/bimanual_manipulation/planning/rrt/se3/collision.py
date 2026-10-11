@@ -29,7 +29,9 @@ def object_in_collision(
 ) -> bool:
     """Check if the object collides with any non-robot geometry.
 
-    Contacts between the object and robot arms/grippers are ignored.
+    Uses the contacts already present in *data* (no forward pass is run).
+    Contacts between the object and robot arms/grippers, and between two
+    geoms of the object itself, are ignored.
 
     Args:
         model: MuJoCo model (native or wrapped).
@@ -37,7 +39,8 @@ def object_in_collision(
         object_geom_ids: Array of geom IDs belonging to the object.
         robot_mask: Boolean mask ``(ngeom,)`` — True for robot/gripper geoms
             (obtain via ``mujoco_collision.get_robot_geom_mask``).
-        contact_threshold: Contact distance threshold.
+        contact_threshold: A contact counts when its ``dist`` is at most
+            this value. Defaults to :data:`constants.COLLISION_CONTACT_THRESHOLD`.
 
     Returns:
         True if the object collides with any environment geometry.
@@ -78,15 +81,23 @@ def check_object_pose_collision(
 ) -> bool:
     """Set the object to a given pose and check for environment collisions.
 
+    Writes the pose into ``env.sim.data.qpos`` (left in place afterwards),
+    temporarily inflates the object geom margins to at least
+    :data:`constants.RRT_SAFETY_CLEARANCE`, runs ``mj_fwdPosition`` and
+    calls :func:`object_in_collision` with threshold
+    ``max(COLLISION_CONTACT_THRESHOLD, RRT_SAFETY_CLEARANCE)``. The
+    original margins are restored before returning.
+
     Args:
         env: The simulation environment.
-        object_name: Name of the object.
-        position: 3D position.
+        object_name: Name of the object (currently unused).
+        position: 3D position, shape ``(3,)``.
         quaternion: Quaternion [x, y, z, w] (scipy convention).
         object_geom_ids: Pre-computed object geom IDs.
         robot_mask: Boolean mask ``(ngeom,)`` for robot/gripper geoms.
         obj_joint_addr: qpos address for the object's free joint.
-        env_lock: Optional threading lock.
+        env_lock: Optional threading lock (currently unused; the caller
+            must serialise access to *env*).
 
     Returns:
         True if the object is in collision at this pose.

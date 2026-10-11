@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 class ObjectDetector:
-    """
-    Class to detect objects in the scene using FastSAM segmentation.
-    Pipeline: FastSAM detection -> Point cloud from depth -> Local grasp prediction
+    """Class to detect objects in the scene using FastSAM segmentation.
+
+    Pipeline: FastSAM detection -> point cloud from depth -> world-frame
+    point cloud -> PCA pose estimate.
     """
     def __init__(
         self,
@@ -36,6 +37,17 @@ class ObjectDetector:
         debug: bool = True,
         visualize: bool = False
     ) -> None:
+        """Load the FastSAM model and store camera parameters.
+
+        Args:
+            camera_intrinsics: Camera intrinsics, as a ``(3, 3)`` matrix or
+                ``[fx, fy, cx, cy]``.
+            camera_width: Image width (px).
+            camera_height: Image height (px).
+            prompt: FastSAM text prompt.
+            debug: Set module logger to DEBUG (INFO otherwise).
+            visualize: Show OpenCV windows with detection results.
+        """
         self.camera_intrinsics = camera_intrinsics
         self.camera_width = camera_width
         self.camera_height = camera_height
@@ -62,7 +74,11 @@ class ObjectDetector:
         self.model = FastSAM(str(model_path))  # Load model
 
     def set_prompt(self, prompt: str) -> None:
-        """Set the detection prompt and close old visualization windows."""
+        """Set the detection prompt, closing visualization windows if it changed.
+
+        Args:
+            prompt: New FastSAM text prompt.
+        """
         if prompt != self.prompt:
             # Close old visualization windows before changing prompt
             self.close_visualization_windows()
@@ -78,29 +94,48 @@ class ObjectDetector:
         self._current_window_names = []
 
     def _get_intrinsic_params(self) -> tuple:
-        """Return (fx, fy, cx, cy) from stored intrinsics. Raises error if intrinsics invalid."""
+        """Return focal lengths and principal point from stored intrinsics.
+
+        Returns:
+            ``(fx, fy, cx, cy)``.
+
+        Raises:
+            ValueError: If the intrinsics are invalid (from
+                ``parse_camera_intrinsics``).
+        """
         fx, fy, cx, cy = parse_camera_intrinsics(self.camera_intrinsics)
         if self.debug:
             logger.debug(f"Using intrinsics fx={fx}, fy={fy}, cx={cx}, cy={cy}")
         return fx, fy, cx, cy
 
     def _ensure_depth_2d(self, depth_image: np.ndarray) -> np.ndarray:
-        """Convert depth array to 2D. Raises error if malformed."""
+        """Convert depth array to 2D ``(H, W)``.
+
+        Args:
+            depth_image: Depth array.
+
+        Returns:
+            Depth image ``(camera_height, camera_width)``.
+
+        Raises:
+            ValueError: If the depth array is malformed (from
+                ``ensure_depth_2d``).
+        """
         return ensure_depth_2d(depth_image, height=self.camera_height, width=self.camera_width)
 
     def detect_objects(self, rgb_image: np.ndarray, depth_image: np.ndarray,
                       camera_pos: np.ndarray, camera_rot: R) -> List[DetectionSchema]:
-        """
-        Detect objects in the scene using FastSAM on camera images.
+        """Detect objects in the scene using FastSAM on camera images.
 
         Args:
-            rgb_image: RGB image from camera
-            depth_image: Depth image from camera (required for point clouds)
-            camera_pos: Camera position in world frame
-            camera_rot: Camera rotation (scipy Rotation object)
+            rgb_image: RGB image ``(H, W, 3)`` from camera.
+            depth_image: Depth image from camera (required for point clouds).
+            camera_pos: Camera position ``(3,)`` in world frame.
+            camera_rot: Camera-to-world rotation (scipy Rotation object).
 
         Returns:
-            List of detected objects as DetectionSchema
+            One DetectionSchema per mask with a non-empty point cloud, with
+            world-frame point cloud and PCA pose; empty if nothing is detected.
         """
         objects: List[DetectionSchema] = []
 
@@ -181,7 +216,19 @@ class ObjectDetector:
         return objects
 
     def _mask_to_point_cloud(self, mask: np.ndarray, depth: np.ndarray) -> np.ndarray:
-        """Convert mask to point cloud using depth and camera intrinsics."""
+        """Convert mask to camera-frame point cloud using depth and intrinsics.
+
+        Args:
+            mask: Segmentation mask ``(H, W)``.
+            depth: Depth image ``(H, W)`` or flat ``(H * W,)`` buffer.
+
+        Returns:
+            Point cloud ``(N, 3)`` in camera frame (depths beyond
+            ``MAX_POINTCLOUD_RANGE`` dropped).
+
+        Raises:
+            ValueError: If a flat depth buffer has the wrong size.
+        """
         # Ensure depth is 2D; reshape flat buffers when dimensions are known
         depth = np.asarray(depth)
         if depth.ndim == 1:
@@ -211,18 +258,27 @@ class ObjectDetector:
         )
 
     def _estimate_pose_from_point_cloud(self, pcd: np.ndarray, frame_id: str = constants.WORLD_FRAME) -> StampedPose:
-        """Estimate object pose from point cloud using PCA for orientation."""
+        """Estimate object pose from point cloud using PCA for orientation.
+
+        Args:
+            pcd: Point cloud ``(N, 3)``.
+            frame_id: Frame of ``pcd`` and the returned pose.
+
+        Returns:
+            Estimated pose.
+        """
         pos, quat = estimate_pose_from_point_cloud(pcd)
         return StampedPose(position=pos, quaternion=quat, frame_id=frame_id)
 
     def _visualize_fastsam_results(self, result, rgb_image: np.ndarray) -> None:
-        """
-        Visualize FastSAM detection results using Ultralytics built-in plot function.
-        Shows both raw camera image and annotated segmentation results.
+        """Visualize FastSAM detection results using Ultralytics built-in plot function.
+
+        Shows both raw camera image and annotated segmentation results in
+        OpenCV windows.
 
         Args:
-            result: FastSAM result object from model inference
-            rgb_image: Original RGB image from camera
+            result: FastSAM result object from model inference.
+            rgb_image: Original RGB image from camera.
         """
         if not self.visualize or result is None:
             return

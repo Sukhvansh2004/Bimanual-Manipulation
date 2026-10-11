@@ -66,6 +66,17 @@ class RobosuiteArmController:
         env_lock: Optional[threading.RLock] = None,
         visualize: bool = False,
     ) -> None:
+        """Initialize the controller and detect the robot's controller config.
+
+        Args:
+            env: The dual-arm environment.
+            arm_id: Arm identifier (``"right"`` or ``"left"``).
+            robot_id: Index of the robot in ``env.robots``.
+            transform_manager: Optional shared ``TransformManager``; a new
+                one is created if ``None``.
+            env_lock: Optional lock guarding environment access.
+            visualize: If ``True``, draw planned trajectories in MeshCat.
+        """
         self.env = env
         self.env_lock = env_lock
         self.arm_id = arm_id
@@ -115,7 +126,14 @@ class RobosuiteArmController:
     # ------------------------------------------------------------------
 
     def _detect_controller_config(self) -> Tuple[str, str]:
-        """Detect controller name and input type from the robot."""
+        """Detect controller name and input type from the robot.
+
+        Reads the first entry of ``robot.part_controllers``; falls back to
+        the defaults in ``constants`` on failure.
+
+        Returns:
+            ``(controller_name, input_type)``.
+        """
         controller_name = constants.DEFAULT_CONTROLLER_NAME
         input_type = constants.DEFAULT_INPUT_TYPE
 
@@ -139,18 +157,22 @@ class RobosuiteArmController:
 
     @property
     def controller_name(self) -> str:
+        """str: Detected robosuite controller name (e.g. ``OSC_POSE``)."""
         return self._controller_name
 
     @property
     def input_type(self) -> str:
+        """str: Controller input type (``delta`` or ``absolute``)."""
         return self._input_type
 
     @property
     def is_absolute_mode(self) -> bool:
+        """bool: Whether the controller uses absolute input."""
         return self._input_type == constants.InputType.ABSOLUTE
 
     @property
     def is_joint_position_controller(self) -> bool:
+        """bool: Whether the controller is ``JOINT_POSITION``."""
         return self._controller_name == constants.ControllerName.JOINT_POSITION
 
     # ------------------------------------------------------------------
@@ -158,14 +180,28 @@ class RobosuiteArmController:
     # ------------------------------------------------------------------
 
     def _get_robot(self):
-        """Get fresh robot reference from environment."""
+        """Get a fresh robot reference from the environment.
+
+        Returns:
+            The robosuite robot at ``env.robots[robot_id]``.
+        """
         return self.env.robots[self.robot_id]
 
     def _eef_body_name(self) -> str:
+        """Return the end-effector body name for this arm.
+
+        Returns:
+            EEF name from ``robot_model.eef_name[arm_id]``.
+        """
         return self._get_robot().robot_model.eef_name[self.arm_id]
 
     def get_joint_positions(self) -> np.ndarray:
-        """Get current joint positions of the arm (7,)."""
+        """Get current joint positions of the arm.
+
+        Returns:
+            Joint positions ``(7,)``; ``constants.FRANKA_HOME_JOINT_POSITION``
+            if they cannot be read.
+        """
         robot = self._get_robot()
         try:
             if hasattr(robot, f"{self.arm_id}_arm_joint_indexes"):
@@ -183,7 +219,7 @@ class RobosuiteArmController:
         """Return current EEF pose in robot base frame.
 
         Returns:
-            ``(pos, quat)`` — position ``(3,)`` and quaternion ``(x, y, z, w)``.
+            ``(pos, quat)``: position ``(3,)`` and quaternion ``(x, y, z, w)``.
         """
         eef_frame = f"robot{self.robot_id}_{self.arm_id}_eef"
         transform = self.tf_manager.get_transform(self.base_frame, eef_frame)
@@ -200,6 +236,9 @@ class RobosuiteArmController:
         q_warm_start: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
         """Solve IK for a target EEF pose using EAIK analytical solver.
+
+        The IK orientation correction is applied before solving, and the
+        first (best) solution is returned.
 
         Args:
             target_pos: Target position ``[x, y, z]`` in robot base frame.
@@ -254,19 +293,23 @@ class RobosuiteArmController:
     ) -> Optional[np.ndarray]:
         """Construct a robot action for the current controller configuration.
 
-        For OSC_POSE: computes delta or absolute pose commands.
+        For OSC_POSE: computes delta or absolute pose commands (position
+        plus axis-angle rotation vector).
         For JOINT_POSITION: solves IK and constructs joint commands.
 
         Args:
             target_pos: Target position ``[x, y, z]`` in base frame.
             target_quat: Target quaternion ``[x, y, z, w]`` in base frame.
-            gripper_action: Gripper action value.
-            current_pos: Current position (reads from env if None).
-            current_quat: Current quaternion (reads from env if None).
-            q_warm_start: Optional warm-start for IK.
+            gripper_action: Gripper action value (last action element).
+            current_pos: Current position (reads from env if ``None``).
+                OSC only.
+            current_quat: Current quaternion (reads from env if ``None``).
+                OSC only.
+            q_warm_start: Optional warm-start for IK. JOINT_POSITION only.
 
         Returns:
-            Robot action array or ``None`` if IK fails.
+            Robot action array ``(action_dim_per_robot,)`` or ``None`` if
+            IK fails.
         """
         if self.is_joint_position_controller:
             target_joints = self.solve_ik_for_pose(
@@ -318,7 +361,10 @@ class RobosuiteArmController:
                 Only used in delta mode.
 
         Returns:
-            Robot action array.
+            Robot action array ``(action_dim_per_robot,)``.
+
+        Raises:
+            NotImplementedError: If not using JOINT_POSITION controller.
         """
         if not self.is_joint_position_controller:
             raise NotImplementedError(
@@ -341,7 +387,7 @@ class RobosuiteArmController:
     # ------------------------------------------------------------------
 
     def cancel_movement(self) -> None:
-        """Cancel the current movement."""
+        """Cancel the current movement by setting the stop event."""
         logger.info("Cancelling movement for robot%d_%s", self.robot_id, self.arm_id)
         self._stop_event.set()
 
@@ -362,14 +408,20 @@ class RobosuiteArmController:
     ) -> bool:
         """Move the EEF to a target pose via quintic trajectory.
 
+        Uses mink reactive IK for JOINT_POSITION controllers and OSC
+        commands otherwise.
+
         Args:
             target_pose: Desired pose (any frame).
-            threshold: Convergence threshold.
+            threshold: Convergence threshold applied to both position (m)
+                and orientation (rad) error.
             gripper_action: Gripper command during motion.
-            dt: Time step between waypoints.
-            num_steps: Number of trajectory waypoints.
-            q_warm_start: Optional warm-start for IK.
+            dt: Time step between waypoints (s).
+            num_steps: Number of trajectory waypoints (minimum 2).
+            q_warm_start: Optional posture target for the mink QP.
+                JOINT_POSITION only.
             collision_check: Enable collision avoidance in the mink QP.
+                JOINT_POSITION only.
             manipulated_object: Name of the manipulated object for
                 collision geom pairs.
 
@@ -444,15 +496,22 @@ class RobosuiteArmController:
     ) -> bool:
         """Follow a pre-defined EEF trajectory.
 
+        Uses mink reactive IK for JOINT_POSITION controllers and OSC
+        commands otherwise.
+
         Args:
-            trajectory: List of ``StampedPose`` waypoints.
+            trajectory: List of ``StampedPose`` waypoints (any frame).
             gripper_action: Gripper action during motion.
-            dt: Time step between waypoints.
-            threshold: Convergence threshold for final waypoint.
-            num_steps: Optional max steps.
+            dt: Time step between waypoints (s).
+            threshold: Convergence threshold for final waypoint, applied to
+                both position (m) and orientation (rad) error.
+            num_steps: Number of resampled waypoints when ``smoothen`` is
+                set (defaults to ``len(trajectory)``); ignored otherwise.
             smoothen: Apply quintic smoothing.
-            q_warm_start: Optional warm-start for IK.
+            q_warm_start: Optional posture target for the mink QP.
+                JOINT_POSITION only.
             collision_check: Enable collision avoidance in the mink QP.
+                JOINT_POSITION only.
             manipulated_object: Name of the manipulated object for
                 collision geom pairs.
 
@@ -529,15 +588,16 @@ class RobosuiteArmController:
         Args:
             target_joints: Target joint angles ``(7,)``.
             gripper_action: Gripper action value.
-            num_steps: Trajectory steps.
-            dt: Time step.
-            threshold: Joint-space convergence threshold (rad).
+            num_steps: Number of trajectory waypoints (minimum 2).
+            dt: Time step between waypoints (s).
+            threshold: Joint-space L-inf convergence threshold (rad).
 
         Returns:
             ``True`` if converged, ``False`` otherwise.
 
         Raises:
             RuntimeError: If not using JOINT_POSITION controller.
+            ValueError: If ``target_joints`` is not shape ``(7,)``.
         """
         if not self.is_joint_position_controller:
             raise RuntimeError(
@@ -590,10 +650,14 @@ class RobosuiteArmController:
         Args:
             joint_trajectory: List of joint configs, each ``(7,)``.
             gripper_action: Gripper action value.
-            dt: Time step between waypoints.
-            threshold: Convergence threshold (rad).
-            num_steps: Max environment steps.
-            smoothen: Apply quintic velocity profiling.
+            dt: Time step between waypoints (s).
+            threshold: Joint-space L-inf convergence threshold (rad).
+            num_steps: Number of resampled waypoints when ``smoothen`` is
+                set; the step budget is ``2 * num_steps`` (or twice the
+                waypoint count if ``None``).
+            smoothen: Apply quintic velocity profiling (or a quintic from
+                the current config to the last waypoint if there are at
+                most two waypoints).
 
         Returns:
             ``True`` if converged, ``False`` otherwise.

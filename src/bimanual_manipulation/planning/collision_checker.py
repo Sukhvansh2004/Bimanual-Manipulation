@@ -65,9 +65,10 @@ def resolve_ignore_names(
             generated so only the gripper-object contact is ignored.
 
     Returns:
-        (ignore_names, ignore_pairs): The first list is passed to
-            ``in_collision`` as ``ignore_names`` and the second as
-            ``ignore_pairs``.
+        ``(ignore_names, ignore_pairs)`` — a copy of *ignore_names* (or an
+        empty list) to pass to ``in_collision`` as ``ignore_names``, and
+        the generated pairs to pass as ``ignore_pairs`` (empty unless both
+        *object_name* and *robot_id* are given).
     """
     current_ignore_names = list(ignore_names) if ignore_names else []
     ignore_pairs: List[Tuple[str, str]] = []
@@ -92,7 +93,33 @@ def process_waypoint(
     arm: str = "right",
     ignore_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[WaypointFeasibilityResult, Optional[np.ndarray]]:
-    """Process a single waypoint: IK + Collision Check."""
+    """Process a single waypoint: IK + Collision Check.
+
+    Enumerates IK solutions (ranked by proximity to *last_config*) and
+    returns the first collision-free one.  Leaves the arm's qpos set to
+    the last checked solution; the caller is responsible for restoring
+    simulation state.
+
+    Args:
+        env: Simulation environment.
+        robot_id: Robot to solve for.
+        waypoint_index: Index stored in the result.
+        pose: Target EEF pose (body-frame convention; the IK orientation
+            correction is applied here).
+        qpos_idx: qpos indices of the arm joints.
+        check_collisions: If ``False``, the first IK solution is accepted.
+        ignore_names: Geom name prefixes to ignore in collision checking.
+        last_config: Previous config used to rank IK solutions.
+        tf_manager: Transform manager for frame conversions.
+        arm: Arm side used for the EEF site name.
+        ignore_pairs: Geom prefix pairs to ignore in collision checking.
+
+    Returns:
+        ``(result, config)`` — on success the collision-free config; when
+        all solutions collide, an infeasible result and the first
+        solution; on IK failure, an infeasible result (with
+        ``collision_free=True``) and ``None``.
+    """
     target_pose = apply_ik_orientation_correction(pose)
     site_name = f"gripper{robot_id}_{arm}_ft_frame"
 
@@ -166,7 +193,35 @@ def process_dual_waypoint(
     arm: str = "right",
     ignore_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[WaypointFeasibilityResult, WaypointFeasibilityResult, Optional[np.ndarray], Optional[np.ndarray]]:
-    """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check."""
+    """Process a single dual-arm waypoint: IK for both + simultaneous Collision Check.
+
+    When both arms have IK solutions, all solution pairs are tried and the
+    first collision-free pair is returned.  When only one arm has IK
+    solutions, each arm with solutions is checked individually with the
+    other arm at its *last_config* (when given); the arm without IK is
+    reported with ``ik_success=False`` and ``collision_free=False``.
+    Leaves arm qpos modified; the caller restores simulation state.
+
+    Args:
+        env: Simulation environment.
+        waypoint_index: Index stored in the results.
+        pose0: Target EEF pose for robot 0 (body-frame convention).
+        pose1: Target EEF pose for robot 1 (body-frame convention).
+        qpos_idx0: qpos indices of robot 0's arm joints.
+        qpos_idx1: qpos indices of robot 1's arm joints.
+        check_collisions: If ``False``, the first IK solutions are accepted.
+        ignore_names: Geom name prefixes to ignore in collision checking.
+        last_config0: Previous robot-0 config (IK ranking reference).
+        last_config1: Previous robot-1 config (IK ranking reference).
+        tf_manager: Transform manager for frame conversions.
+        arm: Arm side used for the EEF site names.
+        ignore_pairs: Geom prefix pairs to ignore in collision checking.
+
+    Returns:
+        ``(result0, result1, config0, config1)``.  Configs are the
+        selected (or first, if all collide) solutions, or ``None`` for an
+        arm without IK solutions.
+    """
     target0 = apply_ik_orientation_correction(pose0)
     target1 = apply_ik_orientation_correction(pose1)
 
@@ -292,21 +347,24 @@ def check_single_grasp_feasibility(
     ignore_names: Optional[List[str]] = None,
     env_lock = None,
 ) -> bool:
-    """
-    Check if a single grasp is feasible (reachable via IK and collision-free).
-    
+    """Check if a single grasp is feasible (reachable via IK and collision-free).
+
+    Simulation qpos/qvel are restored afterwards.
+
     Args:
-        env: DualArmEnvironment
-        grasp: GraspSchema or StampedPose (must be in WORLD frame or convertible).
-        robot_id: ID of robot (0 or 1)
-        tf_manager: TransformManager
-        arm: Arm side
-        object_name: Name of object to ignore in collisions.
-        ignore_names: List of geom name prefixes to ignore.
-        env_lock: Optional threading.RLock
-        
+        env: Simulation environment.
+        grasp: Grasp pose (:class:`GraspSchema` or :class:`StampedPose`)
+            in any frame known to *tf_manager*.
+        robot_id: ID of robot (0 or 1).
+        tf_manager: Transform manager for frame conversions.
+        arm: Arm side.
+        object_name: Geom name prefix of the object; all of its contacts
+            are ignored.
+        ignore_names: Geom name prefixes to ignore.
+        env_lock: Optional ``threading.RLock`` guarding the simulation.
+
     Returns:
-        True if feasible
+        ``True`` if at least one IK solution is collision-free.
     """
     # Prepare ignore names for collision checking
     current_ignore_names = list(ignore_names) if ignore_names else []
@@ -370,20 +428,25 @@ def find_feasible_grasp_pairs(
     ignore_names: Optional[List[str]] = None,
     env_lock = None,
 ) -> List[Tuple[GraspSchema, GraspSchema]]:
-    """
-    Find feasible pairs of grasps (one for each robot).
-    
+    """Find feasible pairs of grasps (one for each robot).
+
+    Each grasp is first filtered individually with
+    :func:`check_single_grasp_feasibility`; surviving pairs are then
+    checked with :func:`check_dual_arm_pose_feasibility` (up to
+    :data:`constants.DUAL_GRASP_FEASIBILITY_MAX_PAIRS` IK pairs each).
+
     Args:
-        env: DualArmEnvironment
-        grasps_robot0: List of grasps for robot 0
-        grasps_robot1: List of grasps for robot 1
-        tf_manager: TransformManager
-        object_name: Name of object to ignore in collisions.
-        ignore_names: List of geom name prefixes to ignore.
-        env_lock: Optional threading.RLock
-        
+        env: Simulation environment.
+        grasps_robot0: Grasps for robot 0.
+        grasps_robot1: Grasps for robot 1.
+        tf_manager: Transform manager for frame conversions.
+        object_name: Geom name prefix of the object; all of its contacts
+            are ignored.
+        ignore_names: Geom name prefixes to ignore.
+        env_lock: Optional ``threading.RLock`` guarding the simulation.
+
     Returns:
-        List of (grasp0, grasp1) tuples that are simultaneously feasible.
+        List of ``(grasp0, grasp1)`` tuples that are simultaneously feasible.
     """
     feasible_pairs = []
     
@@ -452,30 +515,42 @@ def check_dual_arm_pose_feasibility(
     contact_dist_threshold: float = constants.COLLISION_CONTACT_THRESHOLD,
     max_pairs: int = constants.DUAL_ARM_MAX_PAIRS,
 ) -> List[List[Union[np.ndarray, bool]]]:
-    f"""Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
+    """Check feasibility for *all* (discretized) dual-arm joint solutions at given EEF poses.
 
     This function:
-    1) Runs IK for each arm from multiple seed configurations to obtain a set of
-       joint solutions for robot0 and robot1.
+
+    1) Enumerates IK solutions for each arm via
+       :func:`enumerate_ik_solutions_for_arm` (up to
+       *max_solutions_per_arm* each).
     2) Forms joint-solution pairs (cartesian product) up to ``max_pairs``.
-    3) For each pair, sets the MuJoCo qpos, runs forward kinematics, and checks
-       for contacts involving either robot.
+    3) For each pair, sets the MuJoCo qpos, runs forward kinematics, and
+       checks for contacts (via ``in_collision``) not covered by the
+       ignore list.
+
+    Simulation qpos/qvel are restored afterwards.
 
     Args:
         env: Robosuite environment (or wrapper) exposing ``env.sim.model`` and ``env.sim.data``.
-        eef_pose_robot0: Desired EEF pose for robot0, in ``input_frame``.
-        eef_pose_robot1: Desired EEF pose for robot1, in ``input_frame``.
+        eef_pose_robot0: Desired EEF pose for robot0 (frame given by its
+            ``frame_id``).
+        eef_pose_robot1: Desired EEF pose for robot1 (frame given by its
+            ``frame_id``).
         tf_manager: TransformManager for frame conversions.
-        input_frame: Frame the input poses are expressed in (default: "world").
+        object_name: Geom name prefix of the object; all of its contacts
+            are ignored.
+        ignore_names: Geom name prefixes to ignore.
+        input_frame: Unused; poses are converted using their own
+            ``frame_id``.
         env_lock: Optional threading.RLock used to guard sim state.
+        arm: Arm side used for the EEF site names.
+        max_solutions_per_arm: Maximum IK solutions per arm.
+        contact_dist_threshold: Contact distance threshold passed to
+            ``in_collision``.
+        max_pairs: Maximum number of solution pairs to check.
 
     Returns:
-        A list of entries: ``[q_arm0 ({constants.FRANKA_ARM_DOF},), q_arm1 ({constants.FRANKA_ARM_DOF},), feasible_bool]``.
-
-    Notes
-    - If either arm has no IK solutions, returns an empty list.
-    - Feasible means: IK converged for both arms AND no MuJoCo contact involving
-      either robot is present at that configuration.
+        A list of entries ``[q_arm0 (7,), q_arm1 (7,), feasible_bool]``,
+        one per checked pair.  Empty if either arm has no IK solutions.
     """
     
     # Prepare ignore names for collision checking
@@ -581,19 +656,29 @@ def check_trajectory_feasibility(
     collision_ignore_waypoint_names: Optional[List[str]] = None,
     collision_ignore_waypoint_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], bool]:
-    """
-    Check trajectory feasibility and return detailed per-waypoint results.
-    
+    """Check trajectory feasibility and return detailed per-waypoint results.
+
+    Poses are converted to the world frame if the first pose is not
+    already in it.  At each waypoint the object (if given) is moved via
+    its ``{object_name}_joint0`` free joint, then IK + collision checking
+    is done with :func:`process_waypoint`, warm-started from the previous
+    feasible config.  Object-vs-``gripper{robot_id}`` contacts are always
+    ignored when *object_name* is set.  Simulation qpos/qvel are restored
+    afterwards.
+
     Args:
-        env: Environment instance
-        robot_id: Robot ID (0 or 1)
+        env: Environment instance.
+        robot_id: Robot ID (0 or 1).
         eef_trajectory: List of StampedPose objects representing EEF poses.
         tf_manager: TransformManager to handle frame conversions.
-        object_trajectory: Optional list of StampedPose objects for object poses.
-        object_name: Name of the object (required if object_trajectory is provided).
+        object_trajectory: Optional list of StampedPose objects for object
+            poses; must match *eef_trajectory* in length.
+        object_name: Name of the object.  Without it (or if its free joint
+            is not found) *object_trajectory* is ignored.
         check_collisions: Whether to check collisions.
-        env_lock: Optional threading.RLock
-        ignore_names: List of geom names to ignore in collision checking.
+        env_lock: Optional threading.RLock.
+        ignore_names: Geom name prefixes to blanket-ignore in collision
+            checking.
         arm: Arm side ("right" or "left").
         collision_ignore_waypoints: Waypoint indices to skip collision checking for.
             Useful for waypoints near tight clearances where collisions are expected.
@@ -606,7 +691,8 @@ def check_trajectory_feasibility(
             collision_ignore_waypoints.
         
     Returns:
-        Tuple of (list of WaypointFeasibilityResult, overall_feasible bool)
+        Tuple of (list of WaypointFeasibilityResult, overall_feasible bool).
+        ``([], False)`` if the object trajectory length does not match.
     """
     if object_trajectory and len(object_trajectory) != len(eef_trajectory):
         logger.error("Object trajectory length mismatch")
@@ -727,11 +813,39 @@ def check_dual_trajectory_feasibility(
     collision_ignore_waypoint_names: Optional[List[str]] = None,
     collision_ignore_waypoint_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> Tuple[List[WaypointFeasibilityResult], List[WaypointFeasibilityResult], bool]:
-    """
-    Check simultaneous feasibility of two robot trajectories.
-    
+    """Check simultaneous feasibility of two robot trajectories.
+
+    At each waypoint the object (if given) is moved via its
+    ``{object_name}_joint0`` free joint and both arms are checked jointly
+    with :func:`process_dual_waypoint`.  Object contacts with both
+    ``gripper0`` and ``gripper1`` are ignored.  Unlike
+    :func:`check_trajectory_feasibility`, poses are not converted to the
+    world frame here.  Simulation qpos/qvel are restored afterwards.
+
+    Args:
+        env: Environment instance.
+        eef_trajectory0: EEF poses for robot 0.
+        eef_trajectory1: EEF poses for robot 1 (same length).
+        tf_manager: TransformManager to handle frame conversions.
+        object_trajectory: Optional object poses (same length).
+        object_name: Name of the object.  Without it (or if its free joint
+            is not found) *object_trajectory* is ignored.
+        check_collisions: Whether to check collisions.
+        env_lock: Optional threading.RLock.
+        ignore_names: Geom name prefixes to blanket-ignore.
+        arm: Arm side ("right" or "left").
+        collision_ignore_waypoints: Waypoint indices with relaxed
+            collision checking.
+        collision_ignore_waypoint_names: Extra geom prefixes to ignore at
+            those waypoints.  When both this and
+            *collision_ignore_waypoint_pairs* are ``None``, collision
+            checking is skipped entirely at those waypoints.
+        collision_ignore_waypoint_pairs: Extra geom prefix pairs to ignore
+            at those waypoints.
+
     Returns:
-        Tuple of (results0, results1, overall_feasible bool)
+        Tuple of (results0, results1, overall_feasible bool).
+        ``([], [], False)`` on a trajectory length mismatch.
     """
     if len(eef_trajectory0) != len(eef_trajectory1):
         logger.error("EEF trajectories length mismatch")

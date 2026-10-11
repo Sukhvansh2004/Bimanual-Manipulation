@@ -38,11 +38,13 @@ def check_arm_config_collision(
 ) -> bool:
     """Check whether arm B at *q_b* collides with anything.
 
-    Sets both arms' configurations in MuJoCo, runs forward kinematics,
-    and scans the contact buffer for contacts involving arm B.
+    Sets both arms' configurations (and optionally the object pose) in
+    MuJoCo, runs ``mj_forward``, and scans the contact buffer for
+    contacts involving arm B.
 
     Contacts between arm A and the environment / object are **not**
-    flagged — only contacts where at least one geom belongs to arm B.
+    flagged — only contacts where at least one geom belongs to arm B
+    (including arm B self-contacts).
 
     The caller is responsible for state backup/restore.
 
@@ -61,7 +63,8 @@ def check_arm_config_collision(
             arm A at this instant.  Teleporting arm A does not drag a
             friction-grasped object along, so the pose has to be
             imposed explicitly for arm B to see it as an obstacle.
-        contact_threshold: Contact distance threshold.
+        contact_threshold: A contact counts when its ``dist`` is at most
+            this value. Defaults to :data:`constants.COLLISION_CONTACT_THRESHOLD`.
 
     Returns:
         ``True`` if arm B has any collision contact.
@@ -120,8 +123,11 @@ def collision_free_joint_segment(
 ) -> bool:
     """Check if a straight-line joint-space segment is collision-free.
 
-    Linearly interpolates between *q_start* and *q_end* at *resolution*
-    angular increments and checks each for collisions.
+    Linearly interpolates between *q_start* and *q_end* in
+    ``n = max(2, ceil(||q_end - q_start|| / resolution))`` intervals and
+    checks the configurations at ``t = i / n`` for ``i = 0..n``
+    (``i = 1..n-1`` when *skip_endpoints* is set). The caller is
+    responsible for state backup/restore.
 
     Args:
         env: Simulation environment.
@@ -133,7 +139,9 @@ def collision_free_joint_segment(
         native_model: ``mujoco.MjModel``.
         native_data: ``mujoco.MjData``.
         arm_b_geom_ids: Geom IDs belonging to arm B.
-        resolution: Angular resolution (radians) between checks.
+        resolution: Maximum joint-space L2 distance (radians) between
+            checks. Defaults to :data:`constants.ARM_RRT_COLLISION_RESOLUTION`
+            when ``None``.
         skip_endpoints: If ``True``, skip checks at exact start/end.
         obj_qpos_idx: Optional qpos indices of the manipulated object's
             free joint ``(7,)``.

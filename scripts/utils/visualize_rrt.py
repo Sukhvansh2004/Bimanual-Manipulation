@@ -14,18 +14,23 @@ with real-time Meshcat visualization of:
 
 Usage:
     # Start meshcat-server in another terminal first
-    python scripts/utils/visualize_rrt.py \
+    python scripts/utils/visualize_rrt.py \\
         --experiment experiments/flatPlate_table_to_shelf.json
 
     # Slow down drawing for real-time watching
-    python scripts/utils/visualize_rrt.py \
-        --experiment experiments/flatPlate_table_to_shelf.json \
+    python scripts/utils/visualize_rrt.py \\
+        --experiment experiments/flatPlate_table_to_shelf.json \\
         --delay 0.01
 
     # Override RRT parameters
-    python scripts/utils/visualize_rrt.py \
-        --experiment experiments/flatPlate_table_to_shelf.json \
-        --max-iter 2000 --step-size 0.03
+    python scripts/utils/visualize_rrt.py \\
+        --experiment experiments/flatPlate_table_to_shelf.json \\
+        --max-iter 2000 --step-size 0.03 --goal-bias 0.2
+
+    # Skip scene streaming and show object meshes along the path
+    python scripts/utils/visualize_rrt.py \\
+        --experiment experiments/flatPlate_table_to_shelf.json \\
+        --no-scene --show-mesh --mesh-step 5
 """
 
 import argparse
@@ -63,6 +68,16 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    """Parse CLI args, run RRT-Connect with live Meshcat drawing, and block until Ctrl-C.
+
+    Exits with status 1 if the start pose is not in the experiment and
+    cannot be detected from simulation.
+
+    Raises:
+        RuntimeError: Propagated from ``plan_object_trajectory`` when no
+            collision-free path is found (the script's "fallback" branch is
+            never reached).
+    """
     parser = argparse.ArgumentParser(
         description="Visualize RRT-Connect planning in Meshcat"
     )

@@ -15,12 +15,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class RobosuiteGripperController:
-    """
-    A robosuite-equivalent GripperController.
+    """A robosuite-equivalent GripperController.
+
     This class abstracts the control of a robot gripper in a robosuite environment.
     Supports both Parallel Jaw and Suction grippers.
     """
     def __init__(self, env: DualArmEnvironment, arm_id: str = "right", robot_id: int = 0, env_lock: Optional[threading.RLock] = None) -> None:
+        """Initialize the controller and detect the gripper type.
+
+        Args:
+            env: The dual-arm environment.
+            arm_id: Arm identifier (``"right"`` or ``"left"``).
+            robot_id: Index of the robot in ``env.robots``.
+            env_lock: Optional lock guarding environment access.
+        """
         self.env = env
         self.env_lock = env_lock
         self.arm_id = arm_id
@@ -35,7 +43,12 @@ class RobosuiteGripperController:
             logger.info(f"GripperController detected Suction/Vacuum gripper for robot {robot_id}")
 
     def _check_if_suction(self) -> bool:
-        """Checks if the robot is equipped with a suction gripper based on model name."""
+        """Check whether the arm has a suction gripper based on its class name.
+
+        Returns:
+            ``True`` if the gripper class name contains ``vacuum`` or
+            ``suction``; ``False`` otherwise or if detection fails.
+        """
         try:
             # Robosuite robots list is accessible via env.robots
             robot = self.env.robots[self.robot_id]
@@ -47,10 +60,13 @@ class RobosuiteGripperController:
         return False
 
     def release(self, width: float = 1.0) -> None:
-        """
-        Releases (opens) the gripper.
+        """Release (open) the gripper.
+
+        Suction grippers send ``-1`` (suction off) and ignore ``width``.
+        Parallel-jaw grippers send ``1 - 2 * width``.
+
         Args:
-            width (float): Target gripper width (normalized). 1.0 is fully open/release.
+            width: Target gripper width (normalized). 1.0 is fully open/release.
         """
         if self.is_suction:
             # For suction, "Open" means Release (Suction Off)
@@ -65,10 +81,13 @@ class RobosuiteGripperController:
             self._send_gripper_action(action_val)
 
     def grasp(self, width: float = 0.0) -> None:
-        """
-        Closes (grasps) the gripper.
+        """Close (grasp) the gripper.
+
+        Suction grippers send ``1`` (suction on) and ignore ``width``.
+        Parallel-jaw grippers send ``1 - 2 * width``.
+
         Args:
-            width (float): Target gripper width (normalized). 0.0 is fully closed/grasp.
+            width: Target gripper width (normalized). 0.0 is fully closed/grasp.
         """
         if self.is_suction:
             # For suction, "Close" means Grasp (Suction On)
@@ -83,8 +102,11 @@ class RobosuiteGripperController:
             self._send_gripper_action(action_val)
 
     def _send_gripper_action(self, gripper_val: float) -> None:
-        """
-        Sends a gripper action while keeping arm still.
+        """Send a gripper action with a zero arm command for one env step.
+
+        Args:
+            gripper_val: Gripper action in ``[-1, 1]``, written to the last
+                element of the robot action.
         """
         # Create single robot action
         robot_action = np.zeros(self.robot_action_dim)

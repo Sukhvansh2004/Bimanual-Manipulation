@@ -30,7 +30,15 @@ logger = logging.getLogger(__name__)
 
 
 def _build_target_se3(target_pos: np.ndarray, target_quat: np.ndarray):
-    """Convert position + quaternion (xyzw) into a ``mink.lie.SE3``."""
+    """Convert position + quaternion (xyzw) into a ``mink.lie.SE3``.
+
+    Args:
+        target_pos: ``(3,)`` position.
+        target_quat: ``(4,)`` quaternion ``(x, y, z, w)``.
+
+    Returns:
+        The corresponding ``mink.SE3`` transform.
+    """
     rot = R.from_quat(target_quat).as_matrix()
     T = np.eye(4)
     T[:3, :3] = rot
@@ -55,6 +63,12 @@ def solve_ik_mink(
 ) -> Optional[np.ndarray]:
     """Solve IK iteratively using mink QP differential IK.
 
+    Tracks the target with ``FrameTask``, ``PostureTask`` (toward the
+    initial config), ``DampingTask`` and a ``DofFreezingTask`` (as a
+    task) for all non-arm DOFs, subject to ``ConfigurationLimit``.
+    Stops early when ``pos_err + rot_err`` fails to improve by
+    ``MINK_IK_STALL_TOL`` for ``MINK_IK_STALL_WINDOW`` iterations.
+
     Args:
         model_native: Native MuJoCo model.
         full_qpos: Full simulation qpos vector.
@@ -70,7 +84,8 @@ def solve_ik_mink(
         dt: Integration timestep per iteration.
 
     Returns:
-        Converged joint configuration ``(7,)`` or ``None``.
+        Converged joint configuration ``(7,)``, or ``None`` if not
+        converged within *max_iters* or stalled.
     """
     q_full = full_qpos.copy()
     q_full[arm_qpos_idx] = q_init
@@ -156,10 +171,25 @@ def _generate_seeds(
 ) -> List[np.ndarray]:
     """Generate IK seed configurations.
 
-    If *q_reference* is given it is always the first seed, followed by
-    perturbations around it.  The current arm configuration *q_current*
-    is always included when provided.  Remaining slots use uniform
-    random seeds for coverage.
+    If *q_reference* is given it is the first seed, followed by
+    *q_current* (when provided and different) and Gaussian perturbations
+    (σ = 0.25 rad) around *q_reference* for the remaining slots.
+    Otherwise *q_current* (when provided) and ``n_seeds // 3``
+    perturbations around it (σ = 0.3 rad) come first, and the remaining
+    slots use uniform random seeds within the joint limits.  Perturbed
+    seeds are clipped to the limits.  An unseeded RNG is used, so seeds
+    are non-deterministic.
+
+    Args:
+        q_reference: Optional reference configuration.
+        joint_lo: Lower joint limits.
+        joint_hi: Upper joint limits.
+        n_seeds: Target number of seeds.
+        q_current: Optional current arm configuration.
+
+    Returns:
+        List of seed configurations (at least one when *q_reference* or
+        *q_current* is given, even if *n_seeds* is smaller).
     """
     rng = np.random.default_rng()
     seeds: List[np.ndarray] = []
@@ -197,7 +227,33 @@ def enumerate_ik_solutions_mink(
 ) -> List[np.ndarray]:
     """Enumerate IK solutions using mink QP-based iterative IK.
 
-    Same interface as ``enumerate_ik_solutions_eaik``.
+    Same interface as ``enumerate_ik_solutions_eaik``.  Runs
+    :func:`solve_ik_mink` from ``MINK_IK_NUM_SEEDS`` seeds (see
+    :func:`_generate_seeds`), de-duplicates, drops solutions below
+    ``IK_MIN_MANIPULABILITY`` and ranks by manipulability.  Simulation
+    qpos/qvel are restored afterwards.
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        target_pose: Desired EEF site pose (any frame known to
+            *tf_manager*).
+        tf_manager: For frame conversions.
+        arm: Which arm (``"right"`` or ``"left"``).
+        site_name: Override for the MuJoCo site name.
+        env_lock: Optional threading lock for environment access.
+        max_solutions: Maximum solutions to return.
+        unique_atol: Tolerance for uniqueness filtering.
+        q_reference: Optional reference configuration used as the first
+            seed and for re-sorting by L2 distance (closest first).
+
+    Returns:
+        List of joint configurations ``(7,)``, ranked by proximity to
+        *q_reference* if given, otherwise by manipulability.
+
+    Raises:
+        RuntimeError: If the arm does not have 7 joints or the site is
+            not found.
     """
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:

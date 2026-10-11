@@ -7,10 +7,19 @@ ik
 rrt
     RRT-Connect planners (generic core, SE(3), joint-space), path
     smoothing, and Meshcat visualization.
+trajectory
+    High-level object / arm trajectory planning and trajectory I/O.
+assignment
+    Optimal robot-to-segment assignment and trajectory bundles.
+dual_arm
+    Dual-arm parallel execution planner.
 visualization
     Robot/object mesh visualization and trajectory plotting.
-utils
-    Low-level shared utilities (collision, MuJoCo helpers, etc.).
+
+Modules
+-------
+collision_checker
+    Grasp-pair and trajectory feasibility checking.
 """
 
 from bimanual_manipulation.services.grasp_generator import GraspGenerator

@@ -2,7 +2,7 @@
 High-level collision-aware arm trajectory planner.
 
 Orchestrates the joint-space RRT-Connect planner
-(:func:`rrt.joint_planner.rrt_connect_joint_space`), two-phase
+(:func:`rrt.joint.planner.rrt_connect_joint_space`), two-phase
 smoothing (shortcutting + per-segment Bézier), and densification to
 produce a collision-free arm trajectory.
 
@@ -62,7 +62,7 @@ def plan_arm_trajectory(
 
     Runs joint-space RRT-Connect, followed by a two-phase smoothing
     pipeline (shortcutting + per-segment Bézier), and finally
-    densification.  Falls back to linear interpolation if RRT fails.
+    densification. There is no fallback: RRT failure raises.
 
     When *q_other_arm_trajectory* is provided, all stages (RRT,
     shortcutting, Bézier) use temporal collision checking against
@@ -82,6 +82,9 @@ def plan_arm_trajectory(
         goal_bias: RRT goal bias.
         smoothing_iterations: Shortcut smoothing attempts.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
+            When given, the shortcut and smoothed paths are also drawn
+            via FK, which writes arm B's ``qpos`` in ``env.sim.data``
+            without restoring it.
         q_other_arm_trajectory: Optional ``(N, 7)`` trajectory of the
             other arm for temporal collision checking.
         manipulated_object: Name of the object arm A is carrying.
@@ -92,8 +95,12 @@ def plan_arm_trajectory(
 
     Returns:
         Tuple of ``(trajectory, planning_success)`` where trajectory is
-        ``(num_steps, 7)`` and planning_success is ``True`` if RRT found
-        a collision-free path.
+        ``(num_steps, 7)`` and planning_success is always ``True``
+        (failure raises).
+
+    Raises:
+        RuntimeError: If joint-space RRT fails to find a collision-free path.
+        ValueError: If *num_steps* ≤ 0 (from :func:`densify_joint_path`).
     """
     start_q = np.asarray(start_q, dtype=np.float64)
     goal_q = np.asarray(goal_q, dtype=np.float64)

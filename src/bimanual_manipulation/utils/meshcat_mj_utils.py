@@ -1,3 +1,5 @@
+"""MuJoCo-to-MeshCat geometry conversion and scene publishing utilities."""
+
 import numpy as np
 import trimesh
 import meshcat
@@ -22,15 +24,19 @@ def mujoco_geom_to_meshcat(
 ) -> Optional[g.Geometry]:
     """Convert a MuJoCo geom to a MeshCat geometry, with caching.
 
-    Handles sphere, capsule, cylinder, box, and mesh geom types.
-    Results are cached in *mesh_cache* (keyed by ``geom_<id>_type_<t>``).
+    Handles sphere, capsule (approximated as a cylinder without caps),
+    cylinder, box, and mesh geom types. Cylinders/capsules are built along
+    MeshCat's Y axis; callers must rotate them to MuJoCo's Z axis.
+    Results are cached in *mesh_cache* (keyed by ``geom_<id>_type_<t>``;
+    ``mesh_sample_ratio`` is not part of the key).
 
     Args:
         model: MuJoCo model (native or robosuite wrapper).
         geom_id: Index of the geom in the model.
         mesh_cache: Mutable dict used as a geometry cache.
         mesh_sample_ratio: Fraction of mesh faces to keep (0–1).
-            Values < 1 subsample faces to reduce MeshCat rendering load.
+            Values < 1 subsample faces (evenly spaced, at least 4) for
+            meshes with more than 10 faces to reduce MeshCat rendering load.
 
     Returns:
         A ``meshcat.geometry.Geometry`` instance, or *None* for unsupported types.
@@ -85,22 +91,45 @@ def mujoco_geom_to_meshcat(
 
 
 class MeshcatMjVisualizer:
-    """
-    Utility to publish MuJoCo environment geometries to MeshCat.
+    """Utility to publish MuJoCo environment geometries to MeshCat.
+
+    Attributes:
+        vis: Target MeshCat visualizer.
     """
     def __init__(self, vis: meshcat.Visualizer):
+        """Initialize the visualizer.
+
+        Args:
+            vis: MeshCat visualizer to publish into.
+        """
         self.vis = vis
-        # Cache for trimesh objects to avoid re-loading/re-processing
+        # Cache for MeshCat geometries to avoid re-converting MuJoCo geoms
         self._mesh_cache: Dict[str, g.Geometry] = {}
         # Track published geoms to avoid redundant set_object calls
         self._published_geoms: Set[str] = set()
 
     def _get_meshcat_geometry(self, model: MjModel, geom_id: int) -> Optional[g.Geometry]:
-        """Convert MuJoCo geom to MeshCat geometry."""
+        """Convert a MuJoCo geom to MeshCat geometry using the instance cache.
+
+        Args:
+            model: MuJoCo model.
+            geom_id: Geom index.
+
+        Returns:
+            MeshCat geometry, or ``None`` for unsupported geom types.
+        """
         return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache)
 
     def _get_group_for_geom(self, geom_name: str) -> str:
-        """Determine the visualization group for a geometry based on its name prefix."""
+        """Determine the visualization group for a geometry based on its name prefix.
+
+        Args:
+            geom_name: Geom name.
+
+        Returns:
+            Text before the first underscore, or ``"other"`` if the name has
+            no underscore.
+        """
         # Generalize grouping: use the first part of the name (before the first underscore)
         # e.g., 'robot0_link1' -> 'robot0', 'wall_left' -> 'wall'
         if "_" in geom_name:
@@ -108,7 +137,16 @@ class MeshcatMjVisualizer:
         return "other"
 
     def publish_environment(self, sim: MjSim):
-        """Publish all geoms in the simulation to MeshCat."""
+        """Publish geoms in group 0 or 1 to MeshCat and update their poses.
+
+        Geoms whose name contains ``"floor"`` or ``"ground"`` are skipped.
+        Objects are created once under ``scene/<group>/<geom_name>``; world
+        transforms are set on every call. Per-geom errors are logged and
+        skipped.
+
+        Args:
+            sim: Simulation whose current ``data`` geom poses are published.
+        """
         model = sim.model
         data = sim.data
         
@@ -184,7 +222,14 @@ class MeshcatMjVisualizer:
                 continue
 
     def _rgb2hex(self, rgb):
-        """Convert RGB [0, 1] to hex string."""
+        """Convert RGB in ``[0, 1]`` to a hex string.
+
+        Args:
+            rgb: Array-like of 3 floats in ``[0, 1]``.
+
+        Returns:
+            String of the form ``"0xRRGGBB"``.
+        """
         # Convert to python int for serialization safety
         vals = (np.array(rgb) * 255).astype(int).tolist()
         return "0x%02x%02x%02x" % tuple(vals)

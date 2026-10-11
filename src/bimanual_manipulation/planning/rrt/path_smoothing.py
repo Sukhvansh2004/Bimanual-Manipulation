@@ -56,7 +56,8 @@ def shortcut_generic(
         max_iterations: Number of random shortcut attempts.
 
     Returns:
-        A (possibly shorter) list of states.
+        A (possibly shorter) new list of states. Stops early once the
+        path has two or fewer waypoints.
     """
     smoothed = list(path)
     for _ in range(max_iterations):
@@ -92,7 +93,8 @@ def densify_generic(
             two states at parameter *t* ∈ [0, 1].
 
     Returns:
-        List of *num_steps* states.
+        List of *num_steps* states. If *path* has a single state or
+        zero total length, that first state is repeated *num_steps* times.
 
     Raises:
         ValueError: If *num_steps* ≤ 0 or *path* is empty.
@@ -149,18 +151,23 @@ def compute_bezier_control_points(
     For each segment ``[P_i, P_{i+1}]`` the four control points are::
 
         C0 = P_i
-        C1 = P_i + tension * tangent_i
-        C2 = P_{i+1} - tension * tangent_{i+1}
+        C1 = P_i + tension * |P_{i+1} - P_i| * unit(tangent_i)
+        C2 = P_{i+1} - tension * |P_{i+1} - P_i| * unit(tangent_{i+1})
         C3 = P_{i+1}
 
-    where ``tangent_i`` is the Catmull-Rom tangent at waypoint *i*.
+    where ``tangent_i`` is the Catmull-Rom tangent ``P_{i+1} - P_{i-1}``
+    at interior waypoints and the one-sided difference at the endpoints.
+    Handle lengths are therefore ``tension`` times the segment chord.
+    A handle collapses onto its endpoint when the tangent is ~zero.
 
     Args:
         waypoints: List of R^n vectors (positions or any vector space).
-        tension: Controls how far out the handles extend.
+        tension: Handle length as a fraction of the segment chord length.
+            Defaults to :data:`constants.BEZIER_TENSION`.
 
     Returns:
-        List of ``(C0, C1, C2, C3)`` tuples, one per segment.
+        List of ``(C0, C1, C2, C3)`` tuples, one per segment (empty if
+        fewer than two waypoints).
     """
     n = len(waypoints)
     if n < 2:
@@ -192,7 +199,20 @@ def compute_bezier_control_points(
 
 
 def eval_cubic_bezier(C0, C1, C2, C3, t: float):
-    """De Casteljau evaluation of a cubic Bézier at parameter *t* in [0, 1]."""
+    """Evaluate a cubic Bézier at parameter *t* in [0, 1].
+
+    Uses the closed-form Bernstein polynomial expansion.
+
+    Args:
+        C0: First control point (start).
+        C1: Second control point.
+        C2: Third control point.
+        C3: Fourth control point (end).
+        t: Curve parameter in ``[0, 1]``.
+
+    Returns:
+        The point on the curve, same type/shape as the control points.
+    """
     s = 1.0 - t
     return s**3 * C0 + 3 * s**2 * t * C1 + 3 * s * t**2 * C2 + t**3 * C3
 
@@ -207,7 +227,9 @@ def bezier_smooth_generic(
 ) -> list:
     """Domain-agnostic per-segment Bézier smoothing with collision fallback.
 
-    For each segment of the (already shortcut-smoothed) path:
+    A two-waypoint path is returned directly from *linear_fallback_fn*
+    without any collision check. Otherwise, for each segment of the
+    (already shortcut-smoothed) path:
 
     1. Evaluate a dense Bézier curve via *eval_segment_fn*.
     2. Collision-check every sample via *collision_fn*.
@@ -228,10 +250,11 @@ def bezier_smooth_generic(
             between two waypoints.
         samples_per_segment: Number of dense samples per segment.
             Defaults to :data:`constants.BEZIER_SAMPLES_PER_SEGMENT`.
-        tension: Bézier tension (unused here — forwarded by callers).
 
     Returns:
-        Densely sampled smoothed path.
+        Densely sampled smoothed path. Shared endpoints between
+        consecutive segments are not duplicated. A path with zero or one
+        waypoint is returned as a copy.
     """
 
     if len(path) <= 1:

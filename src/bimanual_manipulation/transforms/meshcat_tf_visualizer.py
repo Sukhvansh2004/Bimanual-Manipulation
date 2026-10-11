@@ -32,6 +32,18 @@ logger = getLogger(__name__)
 
 @dataclass(frozen=True)
 class MeshcatTFVisualizerConfig:
+    """Configuration for :func:`stream_transforms_to_meshcat`.
+
+    Attributes:
+        fps: Publish rate in Hz.
+        zmq_url: MeshCat server ZMQ URL.
+        clear: Whether to delete existing MeshCat content on start.
+        axis_length: Length of drawn frame axes in meters.
+        axis_radius: Radius of drawn frame axes in meters.
+        labels: Whether to draw a text label for each frame.
+        label_offset: World-Z offset (meters) of the label below the frame origin.
+        visualize_scene: Whether to also publish MuJoCo scene geoms.
+    """
     fps: float = constants.MESHCAT_TF_VISUALIZER_FPS
     zmq_url: str = constants.MESHCAT_ZMQ_URL
     clear: bool = True
@@ -57,9 +69,15 @@ def stream_transforms_to_meshcat(
 ) -> None:
     """Continuously publish TF frames to MeshCat.
 
+    Blocks, looping at ``config.fps``: each iteration calls
+    ``env.sim.forward()`` under ``env_lock``, adds/removes MeshCat nodes for
+    new/removed frames, and sets every known frame's world pose. Camera
+    frames are hidden by default. Exits on ``stop_event`` or
+    ``KeyboardInterrupt``.
+
     Args:
         env: Robosuite environment instance.
-        env_lock: A lock guarding access to MuJoCo state (e.g., `env.sim`).
+        env_lock: A lock guarding access to MuJoCo state (e.g., ``env.sim``).
         tf_manager: Existing TransformManager.
         config: Visualizer configuration.
         stop_event: Optional threading.Event-like object; if provided, loop exits when set.
@@ -83,6 +101,15 @@ def stream_transforms_to_meshcat(
     mj_vis = MeshcatMjVisualizer(vis) if config.visualize_scene else None
 
     def _group_for_frame(frame_id: str) -> str:
+        """Classify a frame into a MeshCat tree group by its name.
+
+        Args:
+            frame_id: Frame name.
+
+        Returns:
+            Group path, e.g. ``"cameras"``, ``"cameras/raw"``,
+            ``"robots/robot0"``, ``"objects"``, ``"grasps"`` or ``"other"``.
+        """
         if frame_id == "world":
             return "world"
             
@@ -114,16 +141,49 @@ def stream_transforms_to_meshcat(
         return "other"
 
     def _frame_path(frame_id: str) -> str:
+        """Return the MeshCat node path for a frame.
+
+        Args:
+            frame_id: Frame name.
+
+        Returns:
+            Path ``"frames/<group>/<frame_id>"``.
+        """
         # Frame root node. Children under this path will toggle together.
         return f"frames/{_group_for_frame(frame_id)}/{frame_id}"
 
     def _axes_path(frame_id: str) -> str:
+        """Return the MeshCat path of a frame's axes.
+
+        Args:
+            frame_id: Frame name.
+
+        Returns:
+            Path ``"<frame_path>/axes"``.
+        """
         return f"{_frame_path(frame_id)}/axes"
 
     def _label_path(frame_id: str) -> str:
+        """Return the MeshCat path of a frame's label.
+
+        Args:
+            frame_id: Frame name.
+
+        Returns:
+            Path ``"<frame_path>/label"``.
+        """
         return f"{_frame_path(frame_id)}/label"
 
     def _make_label_material(text: str):
+        """Render text to a PNG texture material.
+
+        Args:
+            text: Label text.
+
+        Returns:
+            ``(material, img_w, img_h)`` with image size in pixels, or
+            ``None`` if labels are disabled.
+        """
         if not config.labels:
             return None
 
@@ -151,6 +211,12 @@ def stream_transforms_to_meshcat(
         return material, img_w, img_h
 
     def _ensure_frame_drawn(frame_id: str, drawn: set[str]) -> None:
+        """Draw a frame's axes once.
+
+        Args:
+            frame_id: Frame name.
+            drawn: Set of already-drawn axes paths; updated in place.
+        """
         name = _axes_path(frame_id)
         if name in drawn:
             return
@@ -169,6 +235,12 @@ def stream_transforms_to_meshcat(
         drawn.add(name)
 
     def _ensure_label_drawn(frame_id: str, drawn_labels: set[str]) -> None:
+        """Draw a frame's text label box once (if labels are enabled).
+
+        Args:
+            frame_id: Frame name (used as the label text).
+            drawn_labels: Set of already-drawn label paths; updated in place.
+        """
         if not config.labels:
             return
 
@@ -196,6 +268,12 @@ def stream_transforms_to_meshcat(
     drawn_frame_ids: set[str] = set()
 
     def _ensure_visibility(frame_id: str, configured: set[str]) -> None:
+        """Set a frame's initial visibility once (cameras hidden by default).
+
+        Args:
+            frame_id: Frame name.
+            configured: Set of already-configured frame ids; updated in place.
+        """
         if frame_id in configured:
             return
         

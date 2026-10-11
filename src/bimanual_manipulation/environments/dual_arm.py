@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class YCBObject(MujocoXMLObject):
-    """
-    Custom MuJoCo object class for loading YCB dataset objects.
+    """Custom MuJoCo object class for loading YCB dataset objects.
     
     This class wraps YCB dataset XML files to be compatible with robosuite's
     object placement system.
@@ -33,15 +32,19 @@ class YCBObject(MujocoXMLObject):
         obj_type: str = "all",
         duplicate_collision_geoms: bool = True,
     ):
-        """
-        Initialize a YCB object.
-        
+        """Initialize a YCB object from ``YCB_DATASET_PATH/<ycb_object_name>.xml``.
+
         Args:
-            name: Unique instance name for this object (used in simulation)
-            ycb_object_name: Name of the YCB object file (e.g., 'apple', 'mug')
-            joints: List of joint specifications (default: free joint)
-            obj_type: Type of object ('collision', 'visual', or 'all')
-            duplicate_collision_geoms: Whether to duplicate collision geometries
+            name: Unique instance name for this object (used in simulation).
+            ycb_object_name: Name of the YCB object file (e.g., ``'apple'``,
+                ``'mug'``).
+            joints: List of joint specifications; ``None`` uses robosuite's
+                default free joint, ``[]`` makes the object static.
+            obj_type: Type of object (``'collision'``, ``'visual'``, or ``'all'``).
+            duplicate_collision_geoms: Whether to duplicate collision geometries.
+
+        Raises:
+            FileNotFoundError: If the YCB XML file does not exist.
         """
         self.ycb_object_name = ycb_object_name
         
@@ -62,7 +65,7 @@ class YCBObject(MujocoXMLObject):
     
     @property
     def bottom_offset(self):
-        """Return the bottom offset of the object for placement."""
+        """np.ndarray: Bottom offset ``(3,)`` from ``bottom_site`` z, else ``[0, 0, -0.02]``."""
         bottom_site = self.worldbody.find(f"./body/site[@name='{self.naming_prefix}bottom_site']")
         if bottom_site is not None:
             return np.array([0, 0, float(bottom_site.get("pos", "0 0 0").split()[2])])
@@ -70,20 +73,20 @@ class YCBObject(MujocoXMLObject):
     
     @property
     def top_offset(self):
-        """Return the top offset of the object."""
+        """np.ndarray: Fixed top offset ``[0, 0, 0.05]``."""
         return np.array([0, 0, 0.05])
     
     @property
     def horizontal_radius(self):
-        """Return the horizontal radius for placement."""
+        """float: Fixed horizontal radius (0.05 m) for placement."""
         return 0.05
 
 
 class DualArmEnvironment(TwoArmEnv):
-    """
-    Custom dual-arm environment that extends TwoArmEnv to support 
-    custom primitive and YCB objects using standard robosuite APIs.
-    Refactored to match TwoArmHandover structure.
+    """Custom dual-arm environment supporting primitive and YCB objects.
+
+    Extends TwoArmEnv using standard robosuite APIs; structured like
+    TwoArmHandover.
     """
     
     def __init__(
@@ -99,8 +102,23 @@ class DualArmEnvironment(TwoArmEnv):
         use_object_obs=constants.DEFAULT_USE_OBJECT_OBS,
         **kwargs
     ):
-        """
-        Initialize the custom environment.
+        """Initialize the custom environment.
+
+        Args:
+            custom_objects: Primitive object specs (dicts with ``type``,
+                ``name``, ``size``, ``pos``, ``quat`` (xyzw), ``rgba``,
+                ``density``, ``friction``, ``is_static``).
+            ycb_objects: YCB object specs (dicts with ``ycb_name``,
+                ``instance_name``/``name``, ``pos``, ``quat``, ``is_static``).
+            robot_base_configs: Per-robot ``{'position', 'quaternion'}``
+                base offsets; defaults to
+                ``constants.ROBOT_CONFIGURATIONS[env_configuration]``.
+            env_configuration: Robot arrangement (e.g. ``'opposed'``).
+            table_full_size: Table ``(x, y, z)`` size (m).
+            table_offset: Table top offset ``(x, y, z)`` (m).
+            table_friction: Table friction ``(sliding, torsional, rolling)``.
+            use_object_obs: Add per-object position/orientation observables.
+            **kwargs: Forwarded to ``TwoArmEnv``.
         """
         self._custom_object_specs = custom_objects or []
         self._ycb_object_specs = ycb_objects or []
@@ -123,8 +141,14 @@ class DualArmEnvironment(TwoArmEnv):
         )
     
     def _load_model(self):
-        """
-        Overridden to load custom objects into the model using ManipulationTask.
+        """Build the arena, robots and objects into a ManipulationTask.
+
+        Also sets every robot's ``init_qpos`` to
+        ``constants.FRANKA_HOME_JOINT_POSITION`` and applies the base configs.
+
+        Raises:
+            ValueError: If no robot base configs are available for the
+                ``env_configuration``.
         """
         # 1. Initialize robots via super class
         super()._load_model()
@@ -182,6 +206,15 @@ class DualArmEnvironment(TwoArmEnv):
 
         # Helper to process object specs
         def _process_objects(specs, is_ycb=False):
+            """Instantiate objects from specs and append them to the scene lists.
+
+            Non-dict specs, unknown primitive types, and YCB objects that fail
+            to load are skipped. YCB instance names are made unique.
+
+            Args:
+                specs: List of object spec dicts.
+                is_ycb: Treat specs as YCB objects instead of primitives.
+            """
             for spec in specs:
                 if not isinstance(spec, dict): 
                     continue
@@ -261,10 +294,10 @@ class DualArmEnvironment(TwoArmEnv):
         )
 
     def _setup_references(self):
-        """
-        Sets up references to important components. A reference is typically an
-        index or a list of indices that point to the corresponding elements
-        in a flatten array, which is how MuJoCo stores physical simulation data.
+        """Set up object body-id references and hide debug/twin visuals.
+
+        Populates ``object_body_ids`` (name -> body id) and
+        ``static_object_body_ids``.
         """
         super()._setup_references()
         
@@ -358,8 +391,10 @@ class DualArmEnvironment(TwoArmEnv):
             logger.debug(f"Hidden {hidden} gripper/TCP visualization sites.")
 
     def _setup_observables(self):
-        """
-        Sets up observables to be used for this environment.
+        """Set up observables, adding ``<name>_pos`` / ``<name>_quat`` (xyzw) per object.
+
+        Returns:
+            OrderedDict of observables.
         """
         observables = super()._setup_observables()
 
@@ -379,9 +414,11 @@ class DualArmEnvironment(TwoArmEnv):
                 # Using a factory function is cleaner
                 
                 def get_pos_sensor(n):
+                    """Return a sensor reading object ``n``'s world position ``(3,)``."""
                     return lambda obs_cache: np.array(self.sim.data.body_xpos[self.object_body_ids[n]])
 
                 def get_quat_sensor(n):
+                    """Return a sensor reading object ``n``'s world quaternion (xyzw)."""
                     return lambda obs_cache: T.convert_quat(self.sim.data.body_xquat[self.object_body_ids[n]], to="xyzw")
 
                 # Position sensor
@@ -412,8 +449,10 @@ class DualArmEnvironment(TwoArmEnv):
         return observables
 
     def _reset_internal(self):
-        """
-        Overridden to set initial positions of custom objects.
+        """Reset the sim, set camera intrinsics, and place all objects at their spec poses.
+
+        Static objects are placed via ``body_pos``/``body_quat``; free objects
+        via their ``<name>_joint0`` qpos.
         """
         super()._reset_internal()
         
@@ -454,7 +493,7 @@ class DualArmEnvironment(TwoArmEnv):
                     logger.error(f"Error placing object {name}: {e}")
 
     def _set_intrinsics(self) -> None:
-        """Set realistic camera intrinsics for all cameras."""
+        """Write ``DEFAULT_CAMERA_INTRINSICS`` to ``cam_intrinsic[i]`` for each camera index."""
         for i in range(len(self.camera_names)):
             fx = constants.DEFAULT_CAMERA_INTRINSICS[0, 0]
             fy = constants.DEFAULT_CAMERA_INTRINSICS[1, 1]
@@ -463,12 +502,24 @@ class DualArmEnvironment(TwoArmEnv):
             self.sim.model.cam_intrinsic[i] = np.array([fx, fy, cx, cy], dtype=np.float32)
 
     def get_object_names(self) -> List[str]:
-        """Get the names of all custom objects in the environment."""
+        """Get the names of all custom and YCB objects in the environment.
+
+        Returns:
+            Object instance names.
+        """
         return [name for name, _, _, _, _ in self._added_objects]
 
     def get_object_pose(self, object_name: str) -> Optional[np.ndarray]:
-        """
-        Get the pose of a custom object.
+        """Get the world pose of an object.
+
+        Looks up body ``<object_name>_main`` then ``<object_name>``.
+
+        Args:
+            object_name: Object instance name.
+
+        Returns:
+            Homogeneous transform ``(4, 4)`` in world frame, or ``None`` if
+            no matching body exists.
         """
         body_name_candidates = [f"{object_name}_main", object_name]
         
@@ -490,14 +541,21 @@ class DualArmEnvironment(TwoArmEnv):
         return None
     
     def reward(self, action=None):
-        """
-        Dummy reward function required by base class.
+        """Dummy reward function required by base class.
+
+        Args:
+            action: Unused.
+
+        Returns:
+            Always ``0.0``.
         """
         return 0.0
 
     def _check_success(self):
-        """
-        Dummy success check required by base class.
+        """Dummy success check required by base class.
+
+        Returns:
+            Always ``False``.
         """
         return False
 
@@ -517,12 +575,14 @@ def make_dual_arm_env(
     table_offset: Optional[Tuple[float, float, float]] = None,
     robot_base_configs: Optional[List[Dict[str, np.ndarray]]] = None,
 ) -> DualArmEnvironment:
-    """
-    Creates a DualArmEnvironment configured for a dual-arm Franka task.
-    
+    """Create a DualArmEnvironment configured for a dual-arm Franka task.
+
     Args:
         custom_objects: List of custom object specifications.
         ycb_objects: List of YCB object specifications (name string or dict).
+            Strings get instance name ``<name>_<i>`` and position
+            ``[-0.1 + 0.1 * i, 0.0, 1.30]``; specs whose XML is missing are
+            skipped with a warning.
         has_renderer: Whether to enable on-screen rendering.
         has_offscreen_renderer: Whether to enable off-screen rendering.
         use_camera_obs: Whether to include camera observations.
@@ -535,10 +595,17 @@ def make_dual_arm_env(
         input_type: Input mode for the controller. Options:
             - 'delta': Incremental/relative control
             - 'absolute': Target/absolute control
-            
+        table_full_size: Table size (defaults to ``DEFAULT_TABLE_SIZE``).
+        table_offset: Table offset (defaults to ``DEFAULT_TABLE_OFFSET``).
+        robot_base_configs: Per-robot base offsets (defaults to the
+            ``DEFAULT_ENV_CONFIG`` entry of ``ROBOT_CONFIGURATIONS``).
+
     Returns:
         DualArmEnvironment: The configured environment.
-        
+
+    Raises:
+        ValueError: If ``controller_name`` or ``input_type`` is unsupported.
+
     Example:
         # Absolute JOINT_POSITION (default)
         env = make_dual_arm_env()

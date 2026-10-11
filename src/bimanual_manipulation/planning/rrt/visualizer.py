@@ -1,7 +1,7 @@
 """
 Meshcat visualization helper for RRT tree growth and path debugging.
 
-All drawing is done under ``vis["rrt_debug/"]`` so it can be cleared
+All drawing is done under ``vis["rrt_debug"]`` so it can be cleared
 easily between runs.
 
 Colours
@@ -9,7 +9,10 @@ Colours
 * **cyan** / **orange** — tree_a / tree_b edges
 * **red** — collision-rejected samples
 * **green** — final (raw) path
+* **orange** (thin, with waypoint spheres) — shortcut path
 * **yellow** — smoothed path
+* **grey** lines with **blue** / **red** handles — Bézier control polygons
+* **aqua** / **red** — Bézier curve (collision-free / colliding)
 * **white sphere** — start,  **magenta sphere** — goal
 """
 
@@ -32,11 +35,12 @@ class RRTVisualizer:
     """Draws RRT debug information into a Meshcat scene."""
 
     def __init__(self, vis, delay: float = 0.0):
-        """
+        """Initialise the visualizer and clear any previous ``rrt_debug`` drawing.
+
         Args:
             vis: A ``meshcat.Visualizer`` instance.
-            delay: Seconds to sleep after each draw call (useful for
-                   watching the search in real-time).  0 = no delay.
+            delay: Seconds to sleep after most draw calls (useful for
+                watching the search in real-time). ``0`` disables sleeping.
         """
         self._vis = vis
         self._delay = delay
@@ -48,14 +52,33 @@ class RRTVisualizer:
     # -- helpers ----------------------------------------------------------
 
     def _sleep(self):
+        """Sleep for the configured delay, if positive."""
         if self._delay > 0:
             time.sleep(self._delay)
 
     @staticmethod
     def _color_int(r: int, g: int, b: int) -> int:
+        """Pack 8-bit RGB components into a ``0xRRGGBB`` integer.
+
+        Args:
+            r: Red component in ``[0, 255]``.
+            g: Green component in ``[0, 255]``.
+            b: Blue component in ``[0, 255]``.
+
+        Returns:
+            The packed colour integer.
+        """
         return (r << 16) | (g << 8) | b
 
     def _draw_sphere(self, name: str, pos: np.ndarray, radius: float, color: int):
+        """Draw a sphere at a position under the debug root.
+
+        Args:
+            name: Meshcat path relative to the ``rrt_debug`` root.
+            pos: Sphere centre, shape ``(3,)``.
+            radius: Sphere radius in metres.
+            color: Colour as a ``0xRRGGBB`` integer.
+        """
         self._root[name].set_object(
             mg.Sphere(radius),
             mg.MeshPhongMaterial(color=color, opacity=0.9),
@@ -65,6 +88,14 @@ class RRTVisualizer:
         self._root[name].set_transform(tf)
 
     def _draw_line(self, name: str, p1: np.ndarray, p2: np.ndarray, color: int):
+        """Draw a single line segment under the debug root.
+
+        Args:
+            name: Meshcat path relative to the ``rrt_debug`` root.
+            p1: Segment start point, shape ``(3,)``.
+            p2: Segment end point, shape ``(3,)``.
+            color: Colour as a ``0xRRGGBB`` integer.
+        """
         pts = np.column_stack([p1, p2]).astype(np.float32)
         self._root[name].set_object(
             mg.LineSegments(
@@ -76,7 +107,12 @@ class RRTVisualizer:
     # -- public API -------------------------------------------------------
 
     def draw_start_goal(self, start_pos: np.ndarray, goal_pos: np.ndarray):
-        """Draw start (white) and goal (magenta) spheres."""
+        """Draw start (white) and goal (magenta) spheres.
+
+        Args:
+            start_pos: Start position, shape ``(3,)``.
+            goal_pos: Goal position, shape ``(3,)``.
+        """
         self._draw_sphere("start", start_pos, 0.015, 0xffffff)
         self._draw_sphere("goal", goal_pos, 0.015, 0xff00ff)
         self._sleep()
@@ -84,7 +120,13 @@ class RRTVisualizer:
     def draw_tree_edge(
         self, parent_pos: np.ndarray, child_pos: np.ndarray, is_tree_a: bool,
     ):
-        """Draw a tree edge (cyan for tree_a, orange for tree_b)."""
+        """Draw a tree edge (cyan for tree_a, orange for tree_b).
+
+        Args:
+            parent_pos: Parent node position, shape ``(3,)``.
+            child_pos: Child node position, shape ``(3,)``.
+            is_tree_a: ``True`` to colour the edge as tree_a, else tree_b.
+        """
         color = self._color_int(0, 200, 255) if is_tree_a else self._color_int(255, 165, 0)
         name = f"edges/e{self._edge_counter}"
         self._edge_counter += 1
@@ -92,7 +134,13 @@ class RRTVisualizer:
         self._sleep()
 
     def draw_collision_sample(self, pos: np.ndarray):
-        """Draw a small red dot for a rejected (collision) sample."""
+        """Draw a small red dot for a rejected (collision) sample.
+
+        Unlike the other draw calls, this does not sleep.
+
+        Args:
+            pos: Sample position, shape ``(3,)``.
+        """
         name = f"collisions/c{self._collision_counter}"
         self._collision_counter += 1
         self._draw_sphere(name, pos, 0.005, 0xff0000)
@@ -103,6 +151,8 @@ class RRTVisualizer:
         pos_fn: Optional[Callable[[Any], np.ndarray]] = None,
     ):
         """Draw the final raw path as thick green line segments.
+
+        Does nothing if *path* has fewer than two elements.
 
         Args:
             path: List of states (any type supported by *pos_fn*).
@@ -133,6 +183,8 @@ class RRTVisualizer:
     ):
         """Draw the smoothed path as thick yellow line segments.
 
+        Does nothing if *path* has fewer than two elements.
+
         Args:
             path: List of states.
             pos_fn: Position extractor (see :meth:`draw_path`).
@@ -159,6 +211,9 @@ class RRTVisualizer:
         pos_fn: Optional[Callable[[Any], np.ndarray]] = None,
     ):
         """Draw the shortcut (Phase 1) path as thin orange line segments.
+
+        Each waypoint is also marked with a small orange sphere. Does
+        nothing if *path* has fewer than two elements.
 
         Args:
             path: List of states.
@@ -189,7 +244,14 @@ class RRTVisualizer:
         self,
         segments: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
     ):
-        """Draw Bézier control polygons: grey lines with blue/red handles."""
+        """Draw Bézier control polygons: grey lines with blue/red handles.
+
+        Args:
+            segments: List of ``(C0, C1, C2, C3)`` control-point tuples,
+                each point of shape ``(3,)`` (e.g. the output of
+                :func:`~bimanual_manipulation.planning.rrt.path_smoothing.compute_bezier_control_points`).
+                ``C1`` is drawn blue and ``C2`` red.
+        """
         for seg_idx, (C0, C1, C2, C3) in enumerate(segments):
             prefix = f"bezier_ctrl/seg{seg_idx}"
             for j, (pa, pb) in enumerate([(C0, C1), (C1, C2), (C2, C3)]):
@@ -209,7 +271,15 @@ class RRTVisualizer:
         path: List[Tuple[np.ndarray, np.ndarray]],
         collision_free: bool = True,
     ):
-        """Draw the Bézier-smoothed curve (cyan if clean, red if collisions)."""
+        """Draw the Bézier-smoothed curve (aqua if clean, red if collisions).
+
+        Does nothing if *path* has fewer than two elements.
+
+        Args:
+            path: List of SE(3) ``(pos, quat)`` tuples; only ``pos`` is used.
+            collision_free: Whether the curve is collision-free; selects
+                the colour.
+        """
         if len(path) < 2:
             return
         color = self._color_int(0, 255, 220) if collision_free else 0xff0000
@@ -224,7 +294,12 @@ class RRTVisualizer:
         self._sleep()
 
     def draw_bounds(self, pos_bounds: np.ndarray):
-        """Draw the workspace bounding box as wireframe."""
+        """Draw the workspace bounding box as a grey wireframe.
+
+        Args:
+            pos_bounds: Axis-aligned bounds, shape ``(2, 3)`` as
+                ``[lower, upper]``.
+        """
         lo, hi = pos_bounds[0], pos_bounds[1]
         corners = np.array([
             [lo[0], lo[1], lo[2]],
@@ -251,7 +326,13 @@ class RRTVisualizer:
             )
 
     def log_iteration(self, iteration: int, tree_a_size: int, tree_b_size: int):
-        """Periodically log progress (every 100 iterations)."""
+        """Log tree sizes at INFO level every 100 iterations (skipping 0).
+
+        Args:
+            iteration: Current RRT iteration index.
+            tree_a_size: Number of nodes in tree_a.
+            tree_b_size: Number of nodes in tree_b.
+        """
         if iteration % 100 == 0 and iteration > 0:
             logger.info(
                 "  RRT iteration %d: tree_a=%d, tree_b=%d",

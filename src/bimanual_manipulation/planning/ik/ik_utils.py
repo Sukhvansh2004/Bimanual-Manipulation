@@ -29,7 +29,16 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_enumerate_fn() -> Callable:
-    """Return the enumerate function for the configured IK backend."""
+    """Return the enumerate function for the configured IK backend.
+
+    Returns:
+        The ``enumerate_ik_solutions_*`` function for
+        :data:`constants.IK_SOLVER_BACKEND`.
+
+    Raises:
+        ValueError: If the backend is not ``"eaik"``, ``"scipy"`` or
+            ``"mink"``.
+    """
     backend = constants.IK_SOLVER_BACKEND
     if backend == "eaik":
         from bimanual_manipulation.planning.ik.eaik_solver import (
@@ -54,6 +63,19 @@ def _get_enumerate_fn() -> Callable:
 
 
 def unique_solutions(solutions: Iterable[np.ndarray], atol: float = constants.IK_UNIQUE_TOLERANCE) -> List[np.ndarray]:
+    """Remove near-duplicate joint solutions.
+
+    Solutions are sorted lexicographically and a solution is dropped when
+    every joint is within *atol* of its sorted predecessor.
+
+    Args:
+        solutions: Joint configurations of equal length.
+        atol: Per-joint absolute tolerance for duplicates.
+
+    Returns:
+        Unique solutions in lexicographic order (input order is kept when
+        there are fewer than two solutions).
+    """
     sol_list = list(solutions)
     if len(sol_list) <= 1:
         return sol_list
@@ -81,7 +103,7 @@ def enumerate_ik_solutions_for_arm(
     unique_atol: float = constants.IK_UNIQUE_TOLERANCE,
     q_reference: Optional[np.ndarray] = None,
 ) -> List[np.ndarray]:
-    f"""Enumerate IK solutions for a single arm.
+    """Enumerate IK solutions for a single arm.
 
     Dispatches to the backend selected by
     :data:`constants.IK_SOLVER_BACKEND` (``"eaik"``, ``"scipy"``, or
@@ -90,10 +112,26 @@ def enumerate_ik_solutions_for_arm(
     When *q_reference* is provided, solutions are sorted by joint-space
     proximity to the reference configuration (closest first).  This
     ensures trajectory continuity when solving IK for consecutive
-    waypoints.
+    waypoints.  Otherwise they are ranked by manipulability.
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        target_pose: Desired EEF site pose (any frame known to
+            *tf_manager*).
+        tf_manager: Transform manager for frame conversions.
+        arm: Which arm (``"right"`` or ``"left"``).
+        site_name: Override for the MuJoCo EEF site name.
+        env_lock: Optional lock guarding the environment.
+        max_solutions: Maximum number of solutions to return.
+        unique_atol: Tolerance for duplicate removal.
+        q_reference: Optional reference configuration for ranking.
 
     Returns:
-        List of joint angle arrays of shape ({constants.FRANKA_ARM_DOF},).
+        List of joint angle arrays of shape ``(7,)`` (may be empty).
+
+    Raises:
+        ValueError: If :data:`constants.IK_SOLVER_BACKEND` is unknown.
     """
     enumerate_fn = _get_enumerate_fn()
     return enumerate_fn(
@@ -124,6 +162,15 @@ def compute_arm_jacobian(
     Delegates to the canonical implementation in
     :func:`bimanual_manipulation.utils.mujoco_utils.compute_arm_jacobian`.
 
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index (0 or 1).
+        arm: Which arm (``"right"`` or ``"left"``).
+        q_config: Optional arm configuration; the current one is used
+            when ``None``.
+        site_name: Override for the MuJoCo EEF site name.
+        env_lock: Optional lock guarding the environment.
+
     Returns:
         ``np.ndarray`` of shape ``(6, 7)``.
     """
@@ -148,8 +195,15 @@ _R_CORR_POS90Z = R.from_euler('z', 90, degrees=True)
 def apply_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     """Apply -90 degree Z rotation correction to align grasp with MuJoCo site frame.
 
-    Converts a pose from body-frame convention to site-frame convention.
-    Used before IK solving.
+    Converts a pose from body-frame convention to site-frame convention
+    by right-multiplying its orientation by ``Rz(-90°)``.  Used before IK
+    solving.
+
+    Args:
+        pose: Pose in body-frame convention.
+
+    Returns:
+        A corrected copy of *pose* (position and frame unchanged).
     """
     corrected = pose.copy()
     r_pose = R.from_quat(corrected.quaternion)
@@ -163,6 +217,12 @@ def reverse_ik_orientation_correction(pose: StampedPose) -> StampedPose:
     This is the inverse of apply_ik_orientation_correction.
     Used when converting stored site-frame EEF poses back to body-frame
     for use with move_to_pose / follow_trajectory.
+
+    Args:
+        pose: Pose in site-frame convention.
+
+    Returns:
+        A corrected copy of *pose* (position and frame unchanged).
     """
     corrected = pose.copy()
     r_pose = R.from_quat(corrected.quaternion)

@@ -40,13 +40,14 @@ def load_all_trajectories(
         max_robot0: If set, load only the first *max_robot0* robot-0
             trajectories (sorted numerically by filename suffix).
         max_robot1: If set, load only the first *max_robot1* robot-1
-            trajectories.
+            trajectories (sorted numerically by filename suffix).
 
     Returns:
         :class:`TrajectoryBundle` with object and per-robot trajectories.
 
     Raises:
         FileNotFoundError: If ``object_trajectory.npz`` is missing.
+        KeyError: If an NPZ file lacks one of the expected arrays.
     """
     data_path = Path(data_dir)
 
@@ -69,8 +70,24 @@ def load_all_trajectories(
     def _load_robot_trajectories(
         prefix: str, max_count: int | None = None,
     ) -> List[RobotTrajectory]:
+        """Load ``{prefix}_trajectory_*.npz`` files in numeric order.
+
+        Args:
+            prefix: File prefix, ``"robot0"`` or ``"robot1"``.
+            max_count: If set, load only the first *max_count* files.
+
+        Returns:
+            List of :class:`RobotTrajectory` (empty if no files match).
+        """
         def _numeric_key(p: Path) -> int:
-            """Extract the numeric suffix for natural sort order."""
+            """Extract the numeric suffix for natural sort order.
+
+            Args:
+                p: Trajectory file path.
+
+            Returns:
+                Integer suffix of ``*_<n>.npz``, or ``0`` if absent.
+            """
             m = re.search(r"_(\d+)\.npz$", p.name)
             return int(m.group(1)) if m else 0
 

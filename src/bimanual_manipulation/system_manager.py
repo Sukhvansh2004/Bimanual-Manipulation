@@ -42,8 +42,12 @@ from bimanual_manipulation.utils.real_robot_bridge import (
 logger = logging.getLogger(__name__)
 
 class DualArmManipulationSystem:
-    """
-    Complete system for dual-arm manipulation with services.
+    """Complete system for dual-arm manipulation with services.
+
+    Owns the execution and headless planning environments, the shared
+    TransformManager, per-robot arm/gripper controllers (``left_*`` is robot
+    0, ``right_*`` is robot 1; both use robosuite arm id ``"right"``), the
+    services, and keyboard teleoperation.
     """
     
     def __init__(
@@ -64,6 +68,27 @@ class DualArmManipulationSystem:
             server_host: Optional[str] = None,
             server_port: int = constants.SERVICE_MANAGER_PORT,
             ):
+        """Store configuration; nothing is created until :meth:`start`.
+
+        Args:
+            visualize: Enable controller/service visualization.
+            debug: Enable debug logging.
+            detection_prompt: Initial FastSAM prompt.
+            meshcat_tf: Stream TF frames to MeshCat in a background thread.
+            custom_objects: Primitive object specs for the environment.
+            ycb_objects: YCB object specs for the environment.
+            use_fastsam: Start the FastSAM service (local mode only).
+            use_grasp_service: Start the Grasp service (local mode only).
+            has_renderer: Enable on-screen rendering (wraps the env in a
+                ``VisualizationWrapper``).
+            table_full_size: Table size override.
+            table_offset: Table offset override.
+            robot_base_configs: Per-robot base offset overrides.
+            start_services: Start services in :meth:`start`.
+            server_host: Remote ServiceManager host; if set, runs in
+                client-only mode (no local manager/GPU services).
+            server_port: ServiceManager port (default 6006).
+        """
         
         self.custom_objects = custom_objects
         self.ycb_objects = ycb_objects
@@ -113,7 +138,14 @@ class DualArmManipulationSystem:
         self._shutdown_requested = threading.Event()
 
     def _is_quit_key(self, key: Any) -> bool:
-        """Best-effort check for 'q' across different key callback signatures."""
+        """Best-effort check for 'q' across different key callback signatures.
+
+        Args:
+            key: Key as a string, key code ``int``, or object with ``char``.
+
+        Returns:
+            ``True`` if the key is ``q``/``Q``.
+        """
         try:
             if isinstance(key, str):
                 return key.lower() == 'q'
@@ -129,7 +161,15 @@ class DualArmManipulationSystem:
         return False
 
     def request_shutdown(self, reason: str = "", force_after_s: float = 1.5) -> None:
-        """Request shutdown from callbacks/signals without blocking the caller."""
+        """Request shutdown from callbacks/signals without blocking the caller.
+
+        Runs :meth:`stop` in a daemon thread, then terminates the process
+        with ``os._exit(0)``. Subsequent calls are no-ops.
+
+        Args:
+            reason: Optional reason to log.
+            force_after_s: Delay (s) after ``stop()`` before exiting.
+        """
         if self._shutdown_requested.is_set():
             return
         self._shutdown_requested.set()
@@ -137,6 +177,7 @@ class DualArmManipulationSystem:
             logger.info("Shutdown requested: %s", reason)
 
         def _shutdown_worker() -> None:
+            """Stop the system, wait ``force_after_s``, then hard-exit."""
             try:
                 self.stop()
             finally:
@@ -147,7 +188,15 @@ class DualArmManipulationSystem:
         threading.Thread(target=_shutdown_worker, daemon=True).start()
         
     def start(self, start_teleop_thread: bool = False):
-        """Start the complete system. Optionally start teleop in a separate thread."""
+        """Start the complete system. Optionally start teleop in a separate thread.
+
+        Creates the execution and planning environments, the TF manager,
+        controllers, services (if enabled) and teleop, settles the env for
+        10 steps and registers object TF frames. No-op if already running.
+
+        Args:
+            start_teleop_thread: Start teleoperation in a background thread.
+        """
         if self.running:
             logger.warning("System already running")
             return
@@ -198,6 +247,7 @@ class DualArmManipulationSystem:
             logger.info("   Starting MeshCat TF visualizer (meshcat-server must be running)...")
 
             def _run_meshcat_tf() -> None:
+                """Stream TF frames to MeshCat until shutdown is requested."""
                 assert self.env is not None
                 assert self.tf_manager is not None
                 cfg = MeshcatTFVisualizerConfig(fps=20.0, clear=True, labels=True, visualize_scene=True)
@@ -290,7 +340,7 @@ class DualArmManipulationSystem:
         logger.debug("Planning environment synchronized with real environment (including welds).")
 
     def _register_object_frames(self):
-        """Register dynamic TF frames for every object in the scene."""
+        """Register a dynamic world-parented TF frame for every object in the scene."""
         if self.tf_manager is None or self.env is None:
             return
 
@@ -298,7 +348,17 @@ class DualArmManipulationSystem:
             frame_id = name
 
             def _make_provider(obj_name, fid):
+                """Build a transform provider bound to one object.
+
+                Args:
+                    obj_name: Object name in the environment.
+                    fid: TF child frame id.
+
+                Returns:
+                    Zero-argument callable returning the object's transform.
+                """
                 def provider() -> Transform:
+                    """Return the object's current world transform (identity if unavailable)."""
                     with self.env_lock:
                         pose_4x4 = self.env.get_object_pose(obj_name)
                     if pose_4x4 is None:
@@ -322,11 +382,16 @@ class DualArmManipulationSystem:
         
     def _start_services(self):
         """Start services.
-        
+
         In client-only mode (server_host is set), connects to a remote
         ServiceManager instead of starting one locally. GPU-bound services
-        (FastSAM, Grasp) are assumed to run on the remote server.
-        Only the local MoveToPose service is started.
+        (FastSAM, Grasp) are assumed to run on the remote server and only
+        the local MoveToPose service is started. Otherwise a local
+        ServiceManager, FastSAM and Grasp services (per flags) and MoveToPose
+        are started.
+
+        Raises:
+            Exception: Re-raises any error raised while starting services.
         """
         try:
             if self.server_host:
@@ -402,7 +467,7 @@ class DualArmManipulationSystem:
             raise
     
     def _run_teleop(self):
-        """Run teleoperation loop."""
+        """Run the teleop loop, hooking viewer key presses (``q`` requests shutdown)."""
         try:
             assert self.env is not None, "Environment not initialized"
             assert self.teleop is not None, "Teleop not initialized"
@@ -411,6 +476,7 @@ class DualArmManipulationSystem:
                 self.env.viewer.add_keypress_callback(self.teleop.device.on_press)  # type: ignore[union-attr]
                 
                 def _on_viewer_keypress(key: Any) -> None:
+                    """Request shutdown when ``q`` is pressed in the viewer."""
                     if self._is_quit_key(key):
                         self.request_shutdown(reason="q pressed")
 
@@ -424,7 +490,12 @@ class DualArmManipulationSystem:
             self._stop_teleop()
 
     def run_teleop(self, blocking: bool = True):
-        """Public method to run teleoperation."""
+        """Run teleoperation.
+
+        Args:
+            blocking: Run in the calling thread; otherwise start a daemon
+                thread.
+        """
         if blocking:
             self._run_teleop()
         else:
@@ -432,7 +503,7 @@ class DualArmManipulationSystem:
             self.teleop_thread.start()
     
     def _stop_teleop(self):
-        """Stop teleoperation."""
+        """Signal the teleop loop to stop."""
         if self.teleop is None:
             return
         try:
@@ -442,7 +513,10 @@ class DualArmManipulationSystem:
             logger.debug(f"Error during teleop cleanup: {e}")
 
     def stop(self):
-        """Stop the system."""
+        """Stop teleop and services and close the environments.
+
+        No-op if not running and no shutdown was requested.
+        """
         with self._stop_lock:
             if not self.running and not self._shutdown_requested.is_set():
                 return

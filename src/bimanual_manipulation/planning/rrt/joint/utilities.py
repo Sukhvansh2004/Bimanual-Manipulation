@@ -42,10 +42,17 @@ def build_temporal_samples(
     current pose while arm A teleports along its trajectory, so arm B
     could happily plan straight through the carried object.
 
+    If the arm A trajectory is ``None`` or has at most one row, the single
+    static *q_other_arm* is used and, if an object trajectory is given,
+    the object is placed at its **last** pose. When the object trajectory
+    length differs from the arm A trajectory, object samples are mapped
+    by normalised time (nearest index).
+
     Args:
         q_other_arm: Static fallback configuration of arm A ``(7,)``.
         q_other_arm_trajectory: Optional ``(N, 7)`` arm A trajectory.
-        max_temporal_samples: Upper bound on the number of snapshots.
+        max_temporal_samples: Upper bound on the number of snapshots
+            (uniformly spaced indices including first and last).
         object_qpos_trajectory: Optional ``(N, 7)`` object free-joint
             qpos trajectory, index-aligned with
             *q_other_arm_trajectory*.
@@ -86,7 +93,15 @@ def build_temporal_samples(
 
 
 def joint_distance(q1: np.ndarray, q2: np.ndarray) -> float:
-    """L2 distance in joint space."""
+    """L2 distance in joint space.
+
+    Args:
+        q1: First joint configuration.
+        q2: Second joint configuration.
+
+    Returns:
+        ``||q1 - q2||_2`` as a float.
+    """
     return float(np.linalg.norm(q1 - q2))
 
 
@@ -97,7 +112,14 @@ def steer(
 ) -> np.ndarray:
     """Steer from *from_q* toward *to_q*, limited by *step_size*.
 
-    Returns *to_q* directly if the distance is within *step_size*.
+    Args:
+        from_q: Current joint configuration.
+        to_q: Target joint configuration.
+        step_size: Maximum L2 step in joint space.
+
+    Returns:
+        A copy of *to_q* if it is within *step_size* (L2), otherwise
+        the point at distance *step_size* along the straight line.
     """
     diff = to_q - from_q
     dist = np.linalg.norm(diff)
@@ -110,7 +132,15 @@ def sample_random_config(
     joint_lo: np.ndarray,
     joint_hi: np.ndarray,
 ) -> np.ndarray:
-    """Uniformly sample a random joint configuration within limits."""
+    """Uniformly sample a random joint configuration within limits.
+
+    Args:
+        joint_lo: Lower joint limits.
+        joint_hi: Upper joint limits.
+
+    Returns:
+        Joint configuration with the same shape as the limits.
+    """
     return np.random.uniform(joint_lo, joint_hi)
 
 
@@ -122,7 +152,16 @@ def make_ee_pos_fn(data, qpos_idx_b, native_model, native_data, robot_id_b):
     and reads back the site position.  **Must** be called within a sim
     state backup / restore context.
 
-    Returns ``None`` if the site cannot be resolved.
+    Args:
+        data: Wrapped simulation data (passed to ``set_qpos``).
+        qpos_idx_b: qpos indices of the arm's joints.
+        native_model: Low-level ``mujoco.MjModel``.
+        native_data: Low-level ``mujoco.MjData``.
+        robot_id_b: Robot index used to look up the EE site name.
+
+    Returns:
+        A callable mapping a joint configuration to the EE site position
+        ``(3,)``, or ``None`` if the site cannot be resolved.
     """
     site_name = get_eef_site_name(robot_id_b)
     try:
@@ -137,6 +176,14 @@ def make_ee_pos_fn(data, qpos_idx_b, native_model, native_data, robot_id_b):
         return None
 
     def _ee_pos(q: np.ndarray) -> np.ndarray:
+        """Return the EE site position for a joint configuration.
+
+        Args:
+            q: Joint configuration of the arm.
+
+        Returns:
+            EE site position, shape ``(3,)``.
+        """
         set_qpos(data, qpos_idx_b, q)
         mujoco.mj_fwdPosition(native_model, native_data)
         return np.array(native_data.site(site_name).xpos, copy=True)

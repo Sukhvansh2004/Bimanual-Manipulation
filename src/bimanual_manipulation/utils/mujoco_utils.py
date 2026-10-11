@@ -18,7 +18,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 def get_native_mj_object(obj):
-    """Helper to unwrap Robosuite MjModel/MjData wrappers to native MuJoCo objects."""
+    """Unwrap a robosuite ``MjModel``/``MjData`` wrapper to the native MuJoCo object.
+
+    Args:
+        obj: Wrapper (with ``_data`` or ``_model``) or native object.
+
+    Returns:
+        ``obj._data``, else ``obj._model``, else ``obj`` unchanged.
+    """
     if hasattr(obj, '_data'):
         return obj._data
     if hasattr(obj, '_model'):
@@ -28,7 +35,18 @@ def get_native_mj_object(obj):
 
 
 def get_arm_joint_ids(model, robot_id: int) -> List[int]:
-    """Get the joint IDs for a specific robot arm."""
+    """Get the arm joint IDs of a robot, ordered by joint number.
+
+    Selects joints whose names start with ``robot{robot_id}_joint`` and sorts
+    them by the numeric suffix (``joint1`` .. ``joint7``).
+
+    Args:
+        model: MuJoCo model (native or robosuite wrapper).
+        robot_id: Robot index.
+
+    Returns:
+        Sorted list of joint IDs.
+    """
     prefix = f"robot{robot_id}_joint"
     joint_ids = [j for j in range(model.njnt) if (model.joint(j).name or "").startswith(prefix)]
     # Ensure ordering joint1..joint7
@@ -37,7 +55,15 @@ def get_arm_joint_ids(model, robot_id: int) -> List[int]:
 
 
 def get_joint_qpos_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
-    """Get the qpos indices for the given joint IDs."""
+    """Get the qpos address of each given joint.
+
+    Args:
+        model: MuJoCo model (native or robosuite wrapper).
+        joint_ids: Joint IDs.
+
+    Returns:
+        Integer array of qpos indices, one per joint (first qpos entry only).
+    """
     idx: List[int] = []
     for j in joint_ids:
         qposadr = model.joint(j).qposadr
@@ -50,7 +76,15 @@ def get_joint_qpos_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
 
 
 def get_joint_dof_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
-    """Get the DOF indices for the given joint IDs."""
+    """Get the DOF address of each given joint.
+
+    Args:
+        model: MuJoCo model (native or robosuite wrapper).
+        joint_ids: Joint IDs.
+
+    Returns:
+        Integer array of DOF indices, one per joint (first DOF entry only).
+    """
     idx: List[int] = []
     for j in joint_ids:
         dofadr = model.joint(j).dofadr
@@ -62,7 +96,15 @@ def get_joint_dof_indices(model, joint_ids: Sequence[int]) -> np.ndarray:
 
 
 def get_joint_limits(model, joint_ids: Sequence[int]) -> Tuple[np.ndarray, np.ndarray]:
-    """Get the lower and upper joint limits."""
+    """Get the lower and upper joint limits from ``model.jnt_range``.
+
+    Args:
+        model: MuJoCo model.
+        joint_ids: Joint IDs.
+
+    Returns:
+        ``(lo, hi)`` float arrays of shape ``(len(joint_ids),)``.
+    """
     # model.jnt_range is (njnt, 2)
     jnt_range = np.asarray(model.jnt_range, dtype=float)
     lo = np.asarray([jnt_range[j, 0] for j in joint_ids], dtype=float)
@@ -71,13 +113,31 @@ def get_joint_limits(model, joint_ids: Sequence[int]) -> Tuple[np.ndarray, np.nd
 
 
 def get_eef_site_name(robot_id: int, arm: str = "right") -> str:
-    """Get the end-effector flange site name (where the gripper mounts to the arm)."""
+    """Get the end-effector flange site name (where the gripper mounts to the arm).
+
+    Args:
+        robot_id: Robot index.
+        arm: Arm name.
+
+    Returns:
+        Site name ``"gripper{robot_id}_{arm}_ft_frame"``.
+    """
     # ft_frame is the force-torque frame at the robot-gripper flange interface.
     return f"gripper{robot_id}_{arm}_ft_frame"
 
 
 def get_qpos(data, qpos_idx: np.ndarray) -> np.ndarray:
-    """Get the joint positions for the given indices."""
+    """Get the joint positions for the given qpos indices.
+
+    Handles both ``(nq,)`` and ``(nq, 1)`` qpos layouts.
+
+    Args:
+        data: MuJoCo data (native or robosuite wrapper).
+        qpos_idx: qpos indices.
+
+    Returns:
+        Float array of shape ``(len(qpos_idx),)``.
+    """
     qpos = np.asarray(data.qpos)
     if qpos.ndim == 2 and qpos.shape[1] == 1:
         return np.asarray(qpos[qpos_idx, 0], dtype=float)
@@ -85,7 +145,16 @@ def get_qpos(data, qpos_idx: np.ndarray) -> np.ndarray:
 
 
 def set_qpos(data, qpos_idx: np.ndarray, q: np.ndarray) -> None:
-    """Set the joint positions for the given indices."""
+    """Set the joint positions for the given qpos indices in place.
+
+    Handles both ``(nq,)`` and ``(nq, 1)`` qpos layouts. Does not call
+    ``mj_forward``.
+
+    Args:
+        data: MuJoCo data (native or robosuite wrapper).
+        qpos_idx: qpos indices.
+        q: Values to write; flattened to 1-D.
+    """
     q = np.asarray(q, dtype=float).reshape(-1)
     qpos = data.qpos
     if np.asarray(qpos).ndim == 2:
@@ -95,7 +164,21 @@ def set_qpos(data, qpos_idx: np.ndarray, q: np.ndarray) -> None:
 
 
 def compute_site_error(model, data, site_id: int, target_pos: np.ndarray, target_quat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute position and orientation error for a site."""
+    """Compute position and orientation error of a site w.r.t. a target pose.
+
+    Uses the site's current ``site_xpos``/``site_xmat`` (no forward call).
+
+    Args:
+        model: MuJoCo model (unused).
+        data: MuJoCo data.
+        site_id: Site ID.
+        target_pos: Target world position ``(3,)``.
+        target_quat: Target world orientation ``[x, y, z, w]`` (scipy).
+
+    Returns:
+        ``(pos_err, rot_err)``: ``target_pos - cur_pos`` and the world-frame
+        rotation vector of ``R_target * R_cur^-1`` (radians), each ``(3,)``.
+    """
     cur_pos = np.asarray(data.site_xpos[site_id], dtype=float)
     cur_mat = np.asarray(data.site_xmat[site_id], dtype=float).reshape(3, 3)
     target_rot = R.from_quat(np.asarray(target_quat, dtype=float))
@@ -113,6 +196,15 @@ def compute_site_error_fast(
 
     Same as ``compute_site_error`` but avoids repeated ``R.from_quat``
     when called in a loop with the same target orientation.
+
+    Args:
+        data: MuJoCo data.
+        site_id: Site ID.
+        target_pos: Target world position ``(3,)``.
+        R_target: Target world orientation as a scipy ``Rotation``.
+
+    Returns:
+        ``(pos_err, rot_err)`` as in :func:`compute_site_error`.
     """
     cur_pos = np.asarray(data.site_xpos[site_id], dtype=float)
     cur_mat = np.asarray(data.site_xmat[site_id], dtype=float).reshape(3, 3)
@@ -124,8 +216,14 @@ def compute_site_error_fast(
 
 def geom_belongs_to_robot(geom_name: str) -> Optional[int]:
     """Return robot_id if geom is part of a robot/gripper, else None.
-    
+
     Observed prefixes: "robot0_...", "robot1_...", "gripper0_...", "gripper1_..."
+
+    Args:
+        geom_name: Geom name.
+
+    Returns:
+        ``0`` or ``1``, or ``None`` if the name has neither robot's prefix.
     """
     if geom_name.startswith("robot0_") or geom_name.startswith("gripper0_"):
         return 0
@@ -349,6 +447,11 @@ def compute_site_jacobian(
     Returns:
         ``(6, DOF)`` Jacobian — rows 0-2 are linear, rows 3-5 are angular,
         expressed in the world frame.
+
+    Note:
+        ``data_native.qpos`` is overwritten with the modified copy of
+        ``full_qpos`` and position-dependent quantities are recomputed;
+        the caller must restore state if needed.
     """
     q_full = full_qpos.copy()
     q_full[arm_qpos_idx] = q_arm
@@ -374,7 +477,9 @@ def compute_arm_jacobian(
 
     High-level convenience wrapper around :func:`compute_site_jacobian`
     that resolves joint IDs, site IDs, and qpos from a
-    :class:`DualArmEnvironment`.
+    :class:`DualArmEnvironment`. The simulation's ``qpos`` is left set to
+    the evaluated configuration (``q_config`` if given) and position
+    quantities are recomputed; it is not restored.
 
     Args:
         env: The dual-arm simulation environment.
@@ -386,7 +491,10 @@ def compute_arm_jacobian(
         env_lock: Optional threading lock for simulation access.
 
     Returns:
-        ``(6, 7)`` world-frame geometric Jacobian.
+        ``(6, 7)`` world-frame geometric Jacobian (linear rows first).
+
+    Raises:
+        RuntimeError: If ``site_name`` is not found in the model.
     """
     ctx = env_lock if env_lock is not None else nullcontext()
     with ctx:

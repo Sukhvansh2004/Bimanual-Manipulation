@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""
-Dual-arm planning script driven by experiment JSON configs.
+"""Dual-arm planning script driven by experiment JSON configs.
 
 This script:
 1. Loads an experiment configuration from a JSON file.
-2. Initializes the DualArmEnvironment with the specified objects.
-3. Generates grasps for both robots and pairs them (N x M).
+2. Initializes the dual-arm environment with the specified objects.
+3. Generates an object trajectory, then finger (robot0) and suction (robot1)
+   grasps, and pairs them (N x M).
 4. Evaluates simultaneous feasibility for each grasp pair using multiprocessing.
    Optimization: Environments are created once per worker process.
 5. Visualizes the planning context and generated trajectories in Meshcat.
-6. Saves ALL evaluated trajectories to disk.
+6. Optionally saves the object trajectory and every successfully evaluated
+   pair as ``dual_robot{0,1}_pair_<i>_<j>.npz`` in the output directory.
 
 Usage:
     python dual_trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
@@ -66,7 +67,11 @@ from bimanual_manipulation.experiment_config import (
 )
 
 def setup_logging(level: int = logging.INFO):
-    """Configure logging."""
+    """Configure root logging with a timestamped format.
+
+    Args:
+        level: Logging level for the root logger.
+    """
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -82,8 +87,11 @@ worker_env = None
 worker_tf_manager = None
 
 def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patterns=None, table_full_size=None, table_offset=None, robot_base_configs=None):
-    """Initialize worker process by creating a persistent environment.
-    
+    """Initialize a worker process by creating a persistent environment.
+
+    Sets the module globals ``worker_env`` and ``worker_tf_manager``. Errors
+    during setup are logged rather than raised, leaving the globals ``None``.
+
     Args:
         ycb_objects: YCB object specs for the environment.
         custom_objects: Custom object specs for the environment.
@@ -131,8 +139,25 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
         logging.error(f"Worker initialization failed: {e}")
 
 def evaluate_pair(pair_info, object_trajectory, object_name, collision_ignore_waypoints=None, collision_ignore_waypoint_names=None, collision_ignore_waypoint_pairs=None):
-    """
-    Worker function to evaluate a single pair of grasps using the persistent environment.
+    """Evaluate a single grasp pair using the worker's persistent environment.
+
+    Args:
+        pair_info: Tuple ``(i, j, g0, g1)`` of grasp indices and grasps for
+            robot0 and robot1.
+        object_trajectory: Object waypoint trajectory.
+        object_name: Name of the manipulated object.
+        collision_ignore_waypoints: Waypoint indices at which the
+            ``collision_ignore_waypoint_*`` filters apply.
+        collision_ignore_waypoint_names: Geom name prefixes whose collisions
+            are ignored at those waypoints.
+        collision_ignore_waypoint_pairs: Geom prefix pairs whose mutual
+            collisions are ignored at those waypoints.
+
+    Returns:
+        Dict with keys ``id0``, ``id1``, ``traj0_eef``, ``traj1_eef``,
+        ``results0``, ``results1``, ``all_feasible``, ``grasp0`` and
+        ``grasp1``, or ``None`` if the worker is uninitialized or evaluation
+        raised an exception.
     """
     global worker_env, worker_tf_manager
     
@@ -182,6 +207,12 @@ def evaluate_pair(pair_info, object_trajectory, object_name, collision_ignore_wa
         return None
 
 def main() -> None:
+    """Run the dual-arm grasp-pair planning pipeline from the CLI.
+
+    Raises:
+        SystemExit: Always on completion (code 0), or with code 1 if no start
+            pose is configured and auto-detection fails.
+    """
     parser = argparse.ArgumentParser(description="Generate and visualize dual-arm manipulation trajectory")
     
     # Experiment configuration (required)

@@ -31,21 +31,20 @@ from bimanual_manipulation import constants
 
 
 def skew(v: np.ndarray) -> np.ndarray:
-    """
-    Create skew-symmetric matrix from 3D vector.
-    
+    """Create a skew-symmetric matrix from a 3D vector.
+
     The skew-symmetric matrix [v]× satisfies: [v]× @ u = v × u (cross product)
-    
+
     For vector v = [v1, v2, v3], returns:
         [[ 0, -v3,  v2],
          [ v3,  0, -v1],
          [-v2,  v1,  0]]
-    
+
     Args:
-        v: 3D vector
-        
+        v: Vector of shape ``(3,)``.
+
     Returns:
-        3x3 skew-symmetric matrix
+        Skew-symmetric matrix of shape ``(3, 3)``.
     """
     return np.array([
         [0, -v[2], v[1]],
@@ -55,36 +54,35 @@ def skew(v: np.ndarray) -> np.ndarray:
 
 
 def unskew(S: np.ndarray) -> np.ndarray:
-    """
-    Extract 3D vector from skew-symmetric matrix.
-    
-    Inverse of skew(): unskew(skew(v)) = v
-    
+    """Extract the 3D vector from a skew-symmetric matrix.
+
+    Inverse of skew(): unskew(skew(v)) = v. Reads only the lower/upper
+    off-diagonal entries ``S[2, 1], S[0, 2], S[1, 0]``; symmetry is not checked.
+
     Args:
-        S: 3x3 skew-symmetric matrix
-        
+        S: Skew-symmetric matrix of shape ``(3, 3)``.
+
     Returns:
-        3D vector
+        Vector of shape ``(3,)``.
     """
     return np.array([S[2, 1], S[0, 2], S[1, 0]])
 
 
 def se3_to_matrix(twist: np.ndarray) -> np.ndarray:
-    """
-    Convert 6D twist vector to 4x4 se(3) matrix representation.
-    
+    """Convert a 6D twist vector to its 4x4 se(3) matrix representation.
+
     Twist format: [omega (3), v (3)] where omega is angular velocity
     and v is linear velocity.
-    
+
     The se(3) matrix has the form:
         [[skew(omega), v],
          [0, 0, 0,     0]]
-    
+
     Args:
-        twist: 6D twist vector [omega, v]
-        
+        twist: Twist ``[omega, v]`` of shape ``(6,)``.
+
     Returns:
-        4x4 se(3) matrix
+        se(3) matrix of shape ``(4, 4)``.
     """
     omega = twist[:3]
     v = twist[3:]
@@ -95,16 +93,15 @@ def se3_to_matrix(twist: np.ndarray) -> np.ndarray:
 
 
 def matrix_to_se3(mat: np.ndarray) -> np.ndarray:
-    """
-    Convert 4x4 se(3) matrix to 6D twist vector.
-    
+    """Convert a 4x4 se(3) matrix to a 6D twist vector.
+
     Inverse of se3_to_matrix(): matrix_to_se3(se3_to_matrix(twist)) = twist
-    
+
     Args:
-        mat: 4x4 se(3) matrix
-        
+        mat: se(3) matrix of shape ``(4, 4)``.
+
     Returns:
-        6D twist vector [omega, v]
+        Twist ``[omega, v]`` of shape ``(6,)``.
     """
     omega = unskew(mat[:3, :3])
     v = mat[:3, 3]
@@ -112,28 +109,27 @@ def matrix_to_se3(mat: np.ndarray) -> np.ndarray:
 
 
 def SE3_log(T: np.ndarray) -> np.ndarray:
-    """
-    Compute the matrix logarithm of an SE(3) transformation matrix.
-    
-    Maps SE(3) -> se(3) (Lie group to Lie algebra).
-    Uses closed-form solution for numerical stability.
-    
+    """Compute the matrix logarithm of an SE(3) transformation matrix.
+
+    Maps SE(3) -> se(3) (Lie group to Lie algebra) in closed form.
+
     This is the inverse of SE3_exp(): SE3_exp(SE3_log(T)) ≈ T
-    
+
     The logarithm gives the "twist" that, when integrated for unit time,
     produces the transformation T.
-    
+
     Args:
-        T: 4x4 homogeneous transformation matrix in SE(3)
-        
+        T: Homogeneous transformation matrix of shape ``(4, 4)``.
+
     Returns:
-        6D twist vector [omega, v] in se(3)
-        
+        Twist ``[omega, v]`` of shape ``(6,)``, with ``|omega|`` the rotation
+        angle in radians.
+
     Note:
         Handles three cases:
-        - Near identity (theta ≈ 0): First-order approximation
-        - Near 180° rotation (theta ≈ π): Special axis extraction
-        - General case: Closed-form Rodriguez logarithm
+        - Near identity (theta < 1e-8): ``omega = 0``, ``v = p``
+        - Near 180° rotation (|theta - π| < 1e-8): axis from the diagonal
+        - General case: Closed-form Rodrigues logarithm
     """
     R_mat = T[:3, :3]
     p = T[:3, 3]
@@ -192,28 +188,28 @@ def SE3_log(T: np.ndarray) -> np.ndarray:
 
 
 def SE3_exp(twist: np.ndarray) -> np.ndarray:
-    """
-    Compute the matrix exponential of an se(3) twist vector.
-    
-    Maps se(3) -> SE(3) (Lie algebra to Lie group).
-    Uses closed-form Rodriguez formula for efficiency and numerical stability.
-    
+    """Compute the matrix exponential of an se(3) twist vector.
+
+    Maps se(3) -> SE(3) (Lie algebra to Lie group) using the closed-form
+    Rodrigues formula.
+
     This is the inverse of SE3_log(): SE3_log(SE3_exp(twist)) ≈ twist
-    
+
     The exponential "integrates" the twist for unit time to produce
     a rigid body transformation.
-    
+
     Args:
-        twist: 6D vector [omega, v] in se(3)
-               omega: angular velocity (rotation axis * angle)
-               v: linear velocity
-        
+        twist: Twist ``[omega, v]`` of shape ``(6,)``, where ``omega`` is the
+            rotation axis times angle (radians) and ``v`` the linear part.
+
     Returns:
-        4x4 homogeneous transformation matrix in SE(3)
-        
+        Homogeneous transformation matrix of shape ``(4, 4)``.
+
     Note:
-        Uses Rodriguez formula for rotation and the V matrix for
-        the coupled rotation-translation relationship.
+        Uses the Rodrigues formula for rotation and the V matrix for
+        the coupled rotation-translation relationship. For
+        ``|omega| < 1e-8`` the rotation is the first-order
+        ``I + skew(omega)`` and the translation is ``v``.
     """
     omega = twist[:3]
     v = twist[3:]
@@ -242,15 +238,14 @@ def SE3_exp(twist: np.ndarray) -> np.ndarray:
 
 
 def pose_to_SE3(pos: np.ndarray, quat: np.ndarray) -> np.ndarray:
-    """
-    Convert position and quaternion to SE(3) transformation matrix.
-    
+    """Convert a position and quaternion to an SE(3) transformation matrix.
+
     Args:
-        pos: 3D position [x, y, z]
-        quat: Quaternion [x, y, z, w] (scipy convention)
-        
+        pos: Position ``[x, y, z]``.
+        quat: Quaternion ``[x, y, z, w]`` (scipy convention).
+
     Returns:
-        4x4 homogeneous transformation matrix
+        Homogeneous transformation matrix of shape ``(4, 4)``.
     """
     T = np.eye(4)
     T[:3, :3] = R.from_quat(quat).as_matrix()
@@ -259,16 +254,14 @@ def pose_to_SE3(pos: np.ndarray, quat: np.ndarray) -> np.ndarray:
 
 
 def SE3_to_pose(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Convert SE(3) transformation matrix to position and quaternion.
-    
+    """Convert an SE(3) transformation matrix to position and quaternion.
+
     Args:
-        T: 4x4 homogeneous transformation matrix
-        
+        T: Homogeneous transformation matrix of shape ``(4, 4)``.
+
     Returns:
-        Tuple of (position, quaternion) where:
-        - position: [x, y, z]
-        - quaternion: [x, y, z, w] (scipy convention)
+        ``(position, quaternion)`` with position ``(3,)`` and quaternion
+        ``[x, y, z, w]`` (scipy convention) ``(4,)``.
     """
     pos = T[:3, 3].copy()
     quat = R.from_matrix(T[:3, :3]).as_quat()
@@ -277,26 +270,24 @@ def SE3_to_pose(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
 def compute_se3_distance(twist: np.ndarray, translation_weight: float = 1.0, 
                          rotation_weight: float = 1.0) -> float:
-    """
-    Compute a weighted distance metric from an se(3) twist.
-    
-    This provides a measure of "how far" a transformation is,
-    combining rotation and translation appropriately. Useful for:
-    - Determining trajectory length
-    - Comparing transformations
-    - Convergence checking
-    
+    """Compute a weighted distance metric from an se(3) twist.
+
+    Returns ``translation_weight * |v| + rotation_weight * |omega|``.
+    Useful for trajectory length, comparing transformations, and
+    convergence checking.
+
     Args:
-        twist: 6D twist [omega, v]
-        translation_weight: Weight for translation component (default 1.0)
-        rotation_weight: Weight for rotation component (default 1.0)
-        
+        twist: Twist ``[omega, v]`` of shape ``(6,)``.
+        translation_weight: Weight for the linear component.
+        rotation_weight: Weight for the angular component.
+
     Returns:
-        Weighted distance metric (float)
-        
+        Weighted distance (float).
+
     Note:
-        The rotation distance is the angle in radians.
-        The translation distance is the Euclidean norm.
+        ``|omega|`` is the rotation angle in radians. ``|v|`` is the norm of
+        the twist's linear part, which equals the translation distance only
+        when the rotation is zero.
     """
     omega = twist[:3]
     v = twist[3:]
@@ -308,22 +299,18 @@ def compute_se3_distance(twist: np.ndarray, translation_weight: float = 1.0,
 
 
 def interpolate_SE3(T_start: np.ndarray, T_end: np.ndarray, s: float) -> np.ndarray:
-    """
-    Interpolate between two SE(3) transformations using geodesic interpolation.
-    
+    """Interpolate between two SE(3) transformations along the geodesic.
+
     Computes T(s) = T_start @ exp(s * log(T_start^-1 @ T_end))
-    
-    This produces smooth, natural motion along the geodesic (shortest path)
-    on the SE(3) manifold.
-    
+
     Args:
-        T_start: Starting 4x4 transformation matrix
-        T_end: Ending 4x4 transformation matrix
-        s: Interpolation parameter in [0, 1]
-           s=0 gives T_start, s=1 gives T_end
-           
+        T_start: Starting transformation matrix ``(4, 4)``.
+        T_end: Ending transformation matrix ``(4, 4)``.
+        s: Interpolation parameter in ``[0, 1]``; ``s=0`` gives ``T_start``,
+            ``s=1`` gives ``T_end``.
+
     Returns:
-        Interpolated 4x4 transformation matrix
+        Interpolated transformation matrix of shape ``(4, 4)``.
     """
     # Compute relative transformation
     T_start_inv = np.eye(4)
@@ -343,28 +330,29 @@ def interpolate_pose(start_pos: np.ndarray, start_quat: np.ndarray,
                      end_pos: np.ndarray, end_quat: np.ndarray, 
                      t: float,
                      interpolation_type: str = None) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Interpolate between two poses.
-    
+    """Interpolate between two poses.
+
     Supports two modes controlled by ``interpolation_type``
     (defaults to ``constants.INTERPOLATION_TYPE``):
-    
+
     - ``'linear'``: Decoupled interpolation — linear (lerp) for translation,
       spherical linear (slerp) for rotation. Faster, but rotation and
       translation are not coupled.
-    - ``'SE3'``: Geodesic interpolation on the SE(3) manifold.  Produces
-      coupled rotation-translation motion along the shortest path.
-    
+    - ``'SE3'`` (any value other than ``'linear'``): Geodesic interpolation
+      on the SE(3) manifold. Produces coupled rotation-translation motion.
+
     Args:
-        start_pos: Start position [x, y, z]
-        start_quat: Start quaternion [x, y, z, w]
-        end_pos: End position [x, y, z]
-        end_quat: End quaternion [x, y, z, w]
-        t: Interpolation parameter in [0, 1]
-        interpolation_type: 'linear' or 'SE3' (default: constants.INTERPOLATION_TYPE)
-        
+        start_pos: Start position ``[x, y, z]``.
+        start_quat: Start quaternion ``[x, y, z, w]``.
+        end_pos: End position ``[x, y, z]``.
+        end_quat: End quaternion ``[x, y, z, w]``.
+        t: Interpolation parameter in ``[0, 1]``.
+        interpolation_type: ``'linear'`` or ``'SE3'`` (default:
+            ``constants.INTERPOLATION_TYPE``).
+
     Returns:
-        Tuple of (position, quaternion)
+        ``(position, quaternion)`` of shapes ``(3,)`` and ``(4,)``,
+        quaternion ``[x, y, z, w]``.
     """
     if interpolation_type is None:
         interpolation_type = constants.INTERPOLATION_TYPE

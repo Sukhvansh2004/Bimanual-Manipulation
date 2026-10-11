@@ -32,8 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class FastSAMService:
-    """
-    FastSAM Service for continuous object detection with camera visualization.
+    """FastSAM Service for continuous object detection with camera visualization.
 
     This service continuously processes camera feeds from robosuite environment,
     runs FastSAM segmentation, and provides visualization with detection overlays.
@@ -52,18 +51,23 @@ class FastSAMService:
                  camera_name: str = constants.DEFAULT_CAMERA_NAME,
                  visualize: bool = True,
                  debug: bool = False):
-        """
-        Initialize FastSAM Service.
+        """Initialize FastSAM Service.
+
+        The environment and env lock are taken from ``tf_manager``; camera
+        intrinsics are computed from the MuJoCo camera.
 
         Args:
-            tf_manager: Shared TransformManager for frame updates
-            host: Service host address
-            port: Service port
-            manager_host: Service manager host
-            manager_port: Service manager port
-            camera_name: Name of camera to use for detection
-            visualize: Whether to show OpenCV visualization windows
-            debug: Enable debug logging
+            tf_manager: Shared TransformManager for frame updates.
+            host: Service host address.
+            port: Service port (default 5551).
+            manager_host: Service manager host.
+            manager_port: Service manager port (default 6006).
+            camera_name: Name of camera to use for detection.
+            visualize: Whether to show OpenCV visualization windows.
+            debug: Enable debug logging.
+
+        Raises:
+            ValueError: If ``camera_name`` is not in the environment.
         """
         self.tf_manager = tf_manager
         self.env = tf_manager.env
@@ -135,15 +139,31 @@ class FastSAMService:
         logger.info(f"FastSAM Service initialized on {host}:{port}")
 
     def _normalize_depth(self, depth_image: np.ndarray) -> np.ndarray:
-        """Convert depth to 2D array. Raises error if shape is invalid."""
+        """Convert depth to a 2D ``(H, W)`` array.
+
+        Args:
+            depth_image: Depth array.
+
+        Returns:
+            Depth image ``(camera_height, camera_width)``.
+
+        Raises:
+            ValueError: If the depth is ``None`` or has an invalid shape.
+        """
         return ensure_depth_2d(depth_image, height=self.camera_height, width=self.camera_width)
 
     def _get_camera_data(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Extract RGB and depth images from robosuite environment.
+        """Extract RGB and depth images from robosuite environment.
+
+        Images are flipped vertically to top-left origin; RGB is converted to
+        ``uint8`` and depth to metres (best effort).
 
         Returns:
-            Tuple of (rgb_image, depth_image) or (None, None) if unavailable
+            ``(rgb_image, depth_image)``; ``rgb_image`` is ``None`` if the
+            camera image is missing.
+
+        Raises:
+            ValueError: If the depth observation is missing or malformed.
         """
         # Acquire lock if available to synchronize env access
         if self.env_lock:
@@ -170,7 +190,7 @@ class FastSAMService:
                 logger.debug("Depth conversion via get_real_depth_map failed: %s", e)
 
             if rgb_image is not None:
-                # Convert from (H, W, C) to (H, W, C) if needed
+                # Convert from (C, H, W) to (H, W, C) if needed
                 if rgb_image.shape[-1] == 3:
                     rgb_image = (rgb_image * 255).astype(np.uint8)
                 else:
@@ -192,15 +212,18 @@ class FastSAMService:
                 self.env_lock.release()
 
     def _process_detections(self, rgb_image: np.ndarray, depth_image: Optional[np.ndarray]) -> List[DetectionSchema]:
-        """
-        Process RGB image through FastSAM and extract detections with point clouds.
+        """Process RGB image through FastSAM and extract detections with point clouds.
 
         Args:
-            rgb_image: RGB image from camera
-            depth_image: Depth image from camera (required)
+            rgb_image: RGB image ``(H, W, 3)`` from camera.
+            depth_image: Depth image from camera (required).
 
         Returns:
-            List of detection schemas with masks, point clouds, etc.
+            List of detection schemas with masks, world-frame point clouds
+            and poses.
+
+        Raises:
+            ValueError: If ``depth_image`` is ``None``.
         """
         if depth_image is None:
             raise ValueError("Depth image is required for object detection")
@@ -222,7 +245,11 @@ class FastSAMService:
         return self.object_detector.detect_objects(rgb_image, depth_image, cam_pos, cam_rot)
 
     def _continuous_detection_loop(self) -> None:
-        """Main detection loop that continuously processes camera feed."""
+        """Continuously detect objects (~10 Hz) and update TF object frames.
+
+        Runs until ``running`` is cleared; results are stored in
+        ``latest_detections``.
+        """
         logger.info("Starting continuous detection loop")
 
         while self.running:
@@ -255,7 +282,7 @@ class FastSAMService:
         logger.info("Detection loop stopped")
 
     def _server_loop(self) -> None:
-        """ZMQ server loop for handling client requests."""
+        """Bind the REP socket and serve requests until ``running`` is cleared."""
         logger.info(f"Starting ZMQ server on tcp://{self.host}:{self.port}")
 
         self.socket.bind(f"tcp://{self.host}:{self.port}")
@@ -271,14 +298,17 @@ class FastSAMService:
         logger.info("Server loop stopped")
 
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle incoming ZMQ requests.
+        """Handle incoming ZMQ requests.
+
+        Supported commands: ``SET_PROMPT`` (empty prompt becomes
+        ``'object'``), ``GET_PROMPT``, ``GET_LATEST_DETECTION``.
 
         Args:
-            request: Request dictionary
+            request: Request dictionary.
 
         Returns:
-            Response dictionary
+            Response dictionary; a ``ResponseStatus`` error on validation
+            failure or unknown command.
         """
         try:
             req = FastSAMRequest(**request)
@@ -321,7 +351,11 @@ class FastSAMService:
             ).model_dump()
 
     def start(self) -> None:
-        """Start the FastSAM service."""
+        """Register with the service manager and start detection and server threads.
+
+        No-op if already running; aborts (``running`` reset) if registration
+        fails.
+        """
         if self.running:
             logger.warning("Service already running")
             return
@@ -355,7 +389,7 @@ class FastSAMService:
         logger.info("FastSAM Service started successfully")
 
     def stop(self) -> None:
-        """Stop the FastSAM service."""
+        """Stop threads, close ZMQ resources and OpenCV windows."""
         if not self.running:
             return
 
@@ -390,5 +424,5 @@ class FastSAMService:
         logger.info("FastSAM Service stopped")
 
     def __del__(self) -> None:
-        """Cleanup on deletion."""
+        """Stop the service on garbage collection."""
         self.stop()

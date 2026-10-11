@@ -16,6 +16,15 @@ def parse_camera_intrinsics(intrinsics: np.ndarray) -> Tuple[float, float, float
     Supports:
     - 1D array: [fx, fy, cx, cy] (robosuite default)
     - 2D matrix: standard pinhole K (3x3, 4x4, etc)
+
+    Args:
+        intrinsics: Intrinsics array as described above.
+
+    Returns:
+        ``(fx, fy, cx, cy)`` as floats.
+
+    Raises:
+        ValueError: If ``intrinsics`` is ``None`` or has an unsupported shape.
     """
     if intrinsics is None:
         raise ValueError("Camera intrinsics not available")
@@ -43,6 +52,18 @@ def ensure_depth_2d(depth_image: np.ndarray, *, height: Optional[int] = None, wi
 
     - Accepts flat buffers if height/width are provided.
     - Squeezes trailing singleton channel (H, W, 1) -> (H, W).
+
+    Args:
+        depth_image: Depth array of shape ``(H*W,)``, ``(H, W)`` or ``(H, W, 1)``.
+        height: Image height, required for flat buffers.
+        width: Image width, required for flat buffers.
+
+    Returns:
+        Depth array of shape ``(H, W)``.
+
+    Raises:
+        ValueError: If ``depth_image`` is ``None``, a flat buffer lacks or
+            mismatches ``height``/``width``, or the result is not 2D.
     """
     if depth_image is None:
         raise ValueError("Depth image is None")
@@ -70,16 +91,20 @@ def ensure_depth_2d(depth_image: np.ndarray, *, height: Optional[int] = None, wi
 
 def downsample_point_cloud(pcd: np.ndarray, target_points: int = 2048, 
                            method: str = 'random') -> np.ndarray:
-    """
-    Downsample point cloud to target number of points.
-    
+    """Downsample a point cloud to a target number of points.
+
     Args:
-        pcd: Input point cloud (N, 3)
-        target_points: Target number of points
-        method: Downsampling method ('random' or 'uniform')
-        
+        pcd: Input point cloud ``(N, 3)``.
+        target_points: Target number of points.
+        method: ``'random'`` (without replacement) or ``'uniform'``
+            (fixed index stride).
+
     Returns:
-        Downsampled point cloud (target_points, 3)
+        Point cloud of shape ``(target_points, 3)``, or ``pcd`` unchanged if
+        ``N <= target_points``.
+
+    Raises:
+        ValueError: If ``method`` is unknown.
     """
     if len(pcd) <= target_points:
         return pcd
@@ -97,19 +122,19 @@ def downsample_point_cloud(pcd: np.ndarray, target_points: int = 2048,
 
 
 def estimate_pose_from_point_cloud(pcd: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Estimate object pose from point cloud using PCA for orientation.
-    
-    Uses Principal Component Analysis to determine the principal axes
-    of the point cloud, which gives an estimate of the object's orientation.
-    
+    """Estimate object pose from a point cloud using PCA for orientation.
+
+    The rotation's columns are the principal axes sorted by decreasing
+    variance (X = largest, Z = smallest), with Z flipped if needed to make
+    the frame right-handed. Axis signs are otherwise arbitrary.
+
     Args:
-        pcd: Point cloud (N, 3) in world frame
-        
+        pcd: Point cloud ``(N, 3)`` in world frame.
+
     Returns:
-        Tuple of (position, quaternion) where:
-        - position: centroid [x, y, z]
-        - quaternion: [x, y, z, w] (scipy convention)
+        ``(position, quaternion)``: centroid ``[x, y, z]`` and quaternion
+        ``[x, y, z, w]`` (scipy convention). Identity at the origin if
+        ``pcd`` is empty.
     """
     if len(pcd) == 0:
         return np.array([0, 0, 0]), np.array([0, 0, 0, 1])
@@ -147,15 +172,14 @@ def estimate_pose_from_point_cloud(pcd: np.ndarray) -> Tuple[np.ndarray, np.ndar
 
 
 def transform_point_cloud(pcd: np.ndarray, transform_matrix: np.ndarray) -> np.ndarray:
-    """
-    Transform point cloud using a 4x4 transformation matrix.
-    
+    """Transform a point cloud using a 4x4 transformation matrix.
+
     Args:
-        pcd: Point cloud (N, 3)
-        transform_matrix: 4x4 homogeneous transformation matrix
-        
+        pcd: Point cloud ``(N, 3)``.
+        transform_matrix: Homogeneous transformation matrix ``(4, 4)``.
+
     Returns:
-        Transformed point cloud (N, 3)
+        Transformed point cloud ``(N, 3)`` (``pcd`` itself if empty).
     """
     if len(pcd) == 0:
         return pcd
@@ -171,14 +195,13 @@ def transform_point_cloud(pcd: np.ndarray, transform_matrix: np.ndarray) -> np.n
 
 
 def compute_point_cloud_bounds(pcd: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Compute axis-aligned bounding box of point cloud.
-    
+    """Compute the axis-aligned bounding box of a point cloud.
+
     Args:
-        pcd: Point cloud (N, 3)
-        
+        pcd: Point cloud ``(N, 3)``.
+
     Returns:
-        Tuple of (min_bounds, max_bounds) each as [x, y, z]
+        ``(min_bounds, max_bounds)``, each ``(3,)``; zeros if ``pcd`` is empty.
     """
     if len(pcd) == 0:
         return np.zeros(3), np.zeros(3)
@@ -192,16 +215,15 @@ def compute_point_cloud_bounds(pcd: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 def filter_point_cloud_by_range(pcd: np.ndarray, 
                                  min_range: float = 0.0,
                                  max_range: float = 10.0) -> np.ndarray:
-    """
-    Filter point cloud by distance from origin.
-    
+    """Filter a point cloud by Euclidean distance from the origin.
+
     Args:
-        pcd: Point cloud (N, 3)
-        min_range: Minimum distance to keep
-        max_range: Maximum distance to keep
-        
+        pcd: Point cloud ``(N, 3)``.
+        min_range: Minimum distance to keep (inclusive).
+        max_range: Maximum distance to keep (inclusive).
+
     Returns:
-        Filtered point cloud
+        Filtered point cloud ``(M, 3)``.
     """
     if len(pcd) == 0:
         return pcd
@@ -215,16 +237,16 @@ def filter_point_cloud_by_range(pcd: np.ndarray,
 def validate_point_cloud(pcd: np.ndarray, 
                          max_range: float = 10.0,
                          min_points: int = 1) -> bool:
-    """
-    Validate point cloud data.
-    
+    """Validate point cloud data.
+
     Args:
-        pcd: Point cloud to validate
-        max_range: Maximum valid coordinate range
-        min_points: Minimum number of points required
-        
+        pcd: Point cloud to validate.
+        max_range: Maximum allowed absolute value of any coordinate.
+        min_points: Minimum number of points required.
+
     Returns:
-        True if valid, False otherwise
+        True if ``pcd`` is an ``(N, 3)`` ndarray with ``N >= min_points``,
+        all coordinates finite and within ``max_range``; False otherwise.
     """
     if not isinstance(pcd, np.ndarray):
         return False
@@ -254,23 +276,29 @@ def deproject_depth_to_point_cloud(depth: np.ndarray,
                                     *,
                                     mujoco_convention: bool = True,
                                     image_flipped: bool = False) -> np.ndarray:
-    """
-    Deproject depth image to 3D point cloud using camera intrinsics.
-    
+    """Deproject a depth image to a 3D point cloud using camera intrinsics.
+
+    Pixels with depth ``<= 0``, ``>= max_depth`` or non-finite are dropped.
+
     Args:
-        depth: 2D depth image (H, W)
-        mask: Optional binary mask (H, W) to select pixels
-        fx, fy: Focal lengths
-        cx, cy: Principal point
-        max_depth: Maximum valid depth value
-        mujoco_convention: If True, negate Y and Z for MuJoCo camera convention
+        depth: 2D metric depth image ``(H, W)``.
+        mask: Optional mask ``(H, W)``; pixels with ``mask > 0`` are used.
+        fx: Focal length in x (pixels).
+        fy: Focal length in y (pixels).
+        cx: Principal point x (pixels).
+        cy: Principal point y (pixels).
+        max_depth: Exclusive upper bound on valid depth.
+        mujoco_convention: If True, negate Y and Z for MuJoCo camera
+            convention (+Y up, looking along -Z); otherwise the standard
+            optical convention (+Z forward).
         image_flipped: If True, the depth image has been vertically flipped
             from OpenGL origin (bottom-left) to standard image origin (top-left).
             The pinhole formula will use corrected v coordinates to match
             robosuite's camera extrinsic matrix.
-        
+
     Returns:
-        Point cloud (N, 3) in camera frame
+        ``float32`` point cloud ``(N, 3)`` in the camera frame (``(0, 3)`` if
+        no valid pixels).
     """
     H, W = depth.shape
     

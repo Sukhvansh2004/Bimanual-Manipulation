@@ -26,15 +26,21 @@ from bimanual_manipulation.schema import (
 logger = logging.getLogger(__name__)
 
 class MoveToPoseService:
-    """
-    ZMQ socket service for moving robot arms.
-    """
+    """ZMQ socket service for moving robot arms."""
 
     def __init__(self, 
                  host: str = constants.DEFAULT_HOST,
                  port: int = constants.MOVE_TO_POSE_SERVICE_PORT,
                  manager_host: str = constants.DEFAULT_HOST,
                  manager_port: int = constants.SERVICE_MANAGER_PORT):
+        """Create the REP socket, manager client and controller registry.
+
+        Args:
+            host: Host to bind (default ``localhost``).
+            port: Port to bind (default 5553).
+            manager_host: Service manager host.
+            manager_port: Service manager port (default 6006).
+        """
         self.host = host
         self.port = port
         self.context = zmq.Context()
@@ -53,12 +59,22 @@ class MoveToPoseService:
         self.state_lock = threading.RLock()
 
     def register_controller(self, robot_id: int, arm_id: str, controller: RobosuiteArmController) -> None:
-        """Register a controller for a specific robot arm."""
+        """Register a controller for a specific robot arm.
+
+        Args:
+            robot_id: Robot index.
+            arm_id: Arm identifier (``"right"`` or ``"left"``).
+            controller: Arm controller that executes motions for this key.
+        """
         self.controllers[(robot_id, arm_id)] = controller
         logger.info(f"Registered controller for robot {robot_id}, arm {arm_id}")
 
     def start(self) -> None:
-        """Start the Move To Pose service."""
+        """Register with the service manager and start the server thread.
+
+        No-op if already running; aborts (``running`` reset) if registration
+        fails.
+        """
         if self.running:
             logger.warning("Move To Pose service already running")
             return
@@ -83,7 +99,7 @@ class MoveToPoseService:
         logger.info(f"Move To Pose service started on tcp://{self.host}:{self.port}")
 
     def stop(self) -> None:
-        """Stop the service."""
+        """Cancel all moves, join threads, and close the socket and context."""
         with self.state_lock:
             self.running = False
             
@@ -122,7 +138,7 @@ class MoveToPoseService:
         logger.info("Move To Pose service stopped")
 
     def _run_server(self) -> None:
-        """Run the ZMQ server loop."""
+        """Bind the REP socket and serve requests until ``running`` is cleared."""
         self.socket.bind(f"tcp://{self.host}:{self.port}")
         while self.running:
             try:
@@ -144,7 +160,19 @@ class MoveToPoseService:
                     pass
 
     def _handle_request(self, request: Dict) -> Dict:
-        """Handle a client request."""
+        """Dispatch a request by its ``command`` field.
+
+        Supported commands: ``MOVE_TO_POSE``, ``FOLLOW_TRAJECTORY``,
+        ``MOVE_TO_JOINT_CONFIG``, ``FOLLOW_JOINT_TRAJECTORY``,
+        ``CANCEL_MOVE``, ``GET_ARM_STATUS``.
+
+        Args:
+            request: Decoded JSON request.
+
+        Returns:
+            Response dict; a ``ResponseStatus`` error for unknown commands or
+            exceptions (including validation errors).
+        """
         try:
             command = request.get("command")
             
@@ -173,7 +201,16 @@ class MoveToPoseService:
             return ResponseStatus(status="error", message=str(e)).model_dump()
 
     def _handle_get_status(self, request: GetArmStatusRequest) -> Dict:
-        """Handle GET_ARM_STATUS command."""
+        """Handle GET_ARM_STATUS command.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``ArmStatusResponse`` dict with ``status_code`` -1 if moving,
+            otherwise the controller's ``last_status`` (1 success, 0
+            failure), or an error dict if no controller is registered.
+        """
         robot_id = request.robot_id
         arm_id = request.arm
         key = (robot_id, arm_id)
@@ -187,7 +224,21 @@ class MoveToPoseService:
         return ArmStatusResponse(status_code=status_code).model_dump()
 
     def _handle_follow_trajectory(self, request: FollowTrajectoryRequest) -> Dict:
-        """Handle FOLLOW_TRAJECTORY command."""
+        """Handle FOLLOW_TRAJECTORY command.
+
+        ``num_steps`` defaults to the trajectory length.
+
+        Validates the controller, cancels and joins (up to 5 s) any active
+        move on the same arm, then starts the motion in a daemon thread.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``MoveToPoseResponse`` dict once the motion thread has started,
+            or a ``ResponseStatus`` error dict (no controller, service
+            stopping, previous move not cancelled, or exception).
+        """
         try:
             robot_id = request.robot_id
             arm_id = request.arm
@@ -202,6 +253,7 @@ class MoveToPoseService:
             
             # Run in separate thread
             def traj_task():
+                """Run ``follow_trajectory`` and log the outcome."""
                 try:
                     logger.info(f"Starting trajectory following for robot {robot_id}, arm {arm_id}")
                     controller = self.controllers[key]
@@ -253,7 +305,21 @@ class MoveToPoseService:
             return ResponseStatus(status="error", message=f"Failed to process trajectory request: {e}").model_dump()
 
     def _handle_move(self, request: MoveToPoseRequest) -> Dict:
-        """Handle MOVE_TO_POSE command."""
+        """Handle MOVE_TO_POSE command.
+
+        ``num_steps`` defaults to ``constants.TRAJECTORY_NUM_POINTS``.
+
+        Validates the controller, cancels and joins (up to 5 s) any active
+        move on the same arm, then starts the motion in a daemon thread.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``MoveToPoseResponse`` dict once the motion thread has started,
+            or a ``ResponseStatus`` error dict (no controller, service
+            stopping, previous move not cancelled, or exception).
+        """
         try:
             robot_id = request.robot_id
             arm_id = request.arm
@@ -267,6 +333,7 @@ class MoveToPoseService:
             
             # Run in separate thread to not block service
             def move_task():
+                """Run ``move_to_pose`` and log the outcome."""
                 try:
                     logger.info(f"Starting move for robot {robot_id}, arm {arm_id}")
                     controller = self.controllers[key]
@@ -321,7 +388,19 @@ class MoveToPoseService:
             return ResponseStatus(status="error", message=f"Failed to process move request: {e}").model_dump()
 
     def _handle_move_to_joint_config(self, request: MoveToJointConfigRequest) -> Dict:
-        """Handle MOVE_TO_JOINT_CONFIG command."""
+        """Handle MOVE_TO_JOINT_CONFIG command.
+
+        Validates the controller, cancels and joins (up to 5 s) any active
+        move on the same arm, then starts the motion in a daemon thread.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``MoveToPoseResponse`` dict once the motion thread has started,
+            or a ``ResponseStatus`` error dict (no controller, service
+            stopping, previous move not cancelled, or exception).
+        """
         try:
             robot_id = request.robot_id
             arm_id = request.arm
@@ -339,6 +418,7 @@ class MoveToPoseService:
             controller = self.controllers[key]
 
             def joint_move_task():
+                """Run ``move_to_joint_config`` and log the outcome."""
                 try:
                     logger.info(f"Starting joint config move for robot {robot_id}, arm {arm_id}")
                     controller.move_to_joint_config(
@@ -384,7 +464,19 @@ class MoveToPoseService:
             return ResponseStatus(status="error", message=f"Failed to process joint config request: {e}").model_dump()
 
     def _handle_follow_joint_trajectory(self, request: FollowJointTrajectoryRequest) -> Dict:
-        """Handle FOLLOW_JOINT_TRAJECTORY command."""
+        """Handle FOLLOW_JOINT_TRAJECTORY command.
+
+        Validates the controller, cancels and joins (up to 5 s) any active
+        move on the same arm, then starts the motion in a daemon thread.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``MoveToPoseResponse`` dict once the motion thread has started,
+            or a ``ResponseStatus`` error dict (no controller, service
+            stopping, previous move not cancelled, or exception).
+        """
         try:
             robot_id = request.robot_id
             arm_id = request.arm
@@ -403,6 +495,7 @@ class MoveToPoseService:
             controller = self.controllers[key]
 
             def joint_traj_task():
+                """Run ``follow_joint_trajectory`` and log the outcome."""
                 try:
                     logger.info(f"Starting joint trajectory for robot {robot_id}, arm {arm_id}")
                     controller.follow_joint_trajectory(
@@ -449,7 +542,18 @@ class MoveToPoseService:
             return ResponseStatus(status="error", message=f"Failed to process joint trajectory request: {e}").model_dump()
 
     def _handle_cancel(self, request: CancelMoveRequest) -> Dict:
-        """Handle CANCEL_MOVE command."""
+        """Handle CANCEL_MOVE command.
+
+        Signals cancellation and joins the active move thread for at most
+        0.1 s.
+
+        Args:
+            request: Parsed request.
+
+        Returns:
+            ``MoveToPoseResponse`` dict, or an error dict if no controller is
+            registered or an exception occurs.
+        """
         try:
             robot_id = request.robot_id
             arm_id = request.arm

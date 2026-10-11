@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class GraspService:
-    """
-    Grasp Service for predicting grasps from 3D point clouds.
+    """Grasp Service for predicting grasps from 3D point clouds or object meshes.
 
     This service takes segmented point clouds (typically from FastSAM service)
     and predicts 6-DOF grasps using the GraspGen model. It provides grasp
@@ -45,8 +44,21 @@ class GraspService:
                  debug: bool = False,
                  visualize: bool = False,
                  use_dpp: bool = True):
-        """
-        Initialize Grasp Service.
+        """Initialize Grasp Service and load one GraspPredictor per gripper model.
+
+        Predictors that fail to load are skipped with a warning.
+
+        Args:
+            tf_manager: Shared transform manager for frame lookups and
+                grasp visualization.
+            host: Host to bind (default ``localhost``).
+            port: Port to bind (default 5552).
+            manager_host: Service manager host.
+            manager_port: Service manager port (default 6006).
+            debug: Enable debug logging and predictor debug output.
+            visualize: Publish grasp frames / gripper meshes for visualization.
+            use_dpp: Passed to each ``GraspPredictor`` (DPP-based grasp
+                diversity selection).
         """
         self.host = host
         self.port = port
@@ -89,11 +101,22 @@ class GraspService:
             logger.setLevel(logging.DEBUG)
 
     def _validate_point_cloud(self, pcd: np.ndarray) -> bool:
-        """Validate point cloud data using utility function."""
+        """Validate point cloud data using utility function.
+
+        Args:
+            pcd: Point cloud ``(N, 3)``.
+
+        Returns:
+            ``True`` if valid within ``constants.MAX_POINTCLOUD_RANGE``.
+        """
         return validate_point_cloud(pcd, max_range=constants.MAX_POINTCLOUD_RANGE)
 
     def _query_fastsam_service(self) -> Optional[Dict[str, Any]]:
-        """Query the FastSAM service for the latest detections."""
+        """Query the FastSAM service for the latest detections.
+
+        Returns:
+            The FastSAM response dict on success, else ``None``.
+        """
         try:
             response = self.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
             if response.get('status') == 'success':
@@ -106,7 +129,7 @@ class GraspService:
             return None
 
     def _server_loop(self) -> None:
-        """ZMQ server loop for handling client requests."""
+        """Bind the REP socket and serve requests until ``running`` is cleared."""
         logger.info(f"Starting ZMQ server on tcp://{self.host}:{self.port}")
         try:
             self.socket.bind(f"tcp://{self.host}:{self.port}")
@@ -129,9 +152,18 @@ class GraspService:
         logger.info("Server loop stopped")
 
     def _resolve_input_data(self, req: GraspRequest) -> Tuple[Optional[np.ndarray], Optional[StampedPose], Optional[str], Optional[str]]:
-        """
-        Resolve input data from request or FastSAM service.
-        Returns: (pcd_np, object_pose_stamped, object_id, mesh_path)
+        """Resolve input data from the request or the FastSAM service.
+
+        If ``object_name`` is set its mesh path is resolved; otherwise, if
+        the request lacks a point cloud or pose, the first FastSAM detection
+        is used. An invalid point cloud is only logged, not discarded.
+
+        Args:
+            req: Grasp request.
+
+        Returns:
+            ``(pcd_np, object_pose_stamped, object_id, mesh_path)``; the
+            point cloud is ``(N, 3)`` float32 and any entry may be ``None``.
         """
         pcd_data = req.pcd
         object_pose_stamped = req.object_pose
@@ -173,7 +205,15 @@ class GraspService:
         return pcd_np, object_pose_stamped, object_id, mesh_path
 
     def _transform_pose_to_world(self, pose: StampedPose) -> Optional[StampedPose]:
-        """Transform pose to world frame if needed."""
+        """Transform pose to world frame if needed.
+
+        Args:
+            pose: Pose in any frame.
+
+        Returns:
+            Pose in ``constants.WORLD_FRAME``, or ``None`` if the transform
+            fails or no TF manager is set.
+        """
         if pose.frame_id == constants.WORLD_FRAME:
             return pose
         
@@ -186,7 +226,12 @@ class GraspService:
         return None
 
     def _update_tf_manager(self, object_id: Optional[str], pose: StampedPose):
-        """Update object frame in TF manager."""
+        """Update the object frame and an ``object_local`` frame in the TF manager.
+
+        Args:
+            object_id: Object frame id (object frame update skipped if falsy).
+            pose: Object pose.
+        """
         if self.tf_manager:
             try:
                 if object_id:
@@ -205,7 +250,7 @@ class GraspService:
                 logger.debug("Failed to update TF: %s", e)
 
     def _clear_visualization(self):
-        """Clear previous grasp frames and gripper meshes."""
+        """Remove ``grasp_*`` TF frames and clear predictor gripper meshes."""
         if self.tf_manager:
             try:
                 known_frames = self.tf_manager.get_known_frames()
@@ -223,7 +268,11 @@ class GraspService:
                 logger.debug("Failed to clear gripper visualization: %s", e)
 
     def _visualize_grasps(self, grasps: List[GraspSchema]):
-        """Publish grasp poses to TF manager for visualization."""
+        """Publish grasp poses as ``grasp_<type>_<idx>`` world-frame TF frames.
+
+        Args:
+            grasps: Grasps to publish.
+        """
         if not self.tf_manager:
             return
 
@@ -252,7 +301,15 @@ class GraspService:
             logger.debug("Failed to publish grasp frames: %s", e)
 
     def _sample_grasp_points(self, grasp: GraspSchema) -> Optional[np.ndarray]:
-        """Generate collision points for a grasp (gripper mesh sampled points)."""
+        """Sample gripper collision-mesh surface points at a grasp pose.
+
+        Args:
+            grasp: Grasp whose ``gripper_type`` selects the predictor mesh.
+
+        Returns:
+            Points ``(GRIPPER_COLLISION_MESH_SAMPLES, 3)`` in the grasp's
+            parent frame, or ``None`` if no predictor or sampling fails.
+        """
         g_type = grasp.gripper_type
         if not g_type or g_type not in self.grasp_predictors:
             return None
@@ -278,9 +335,19 @@ class GraspService:
     def _filter_batch_against_obstacles(self, 
                                         candidates: List[Tuple[GraspSchema, np.ndarray]], 
                                         obstacle_points: np.ndarray) -> List[Tuple[GraspSchema, np.ndarray]]:
-        """
-        Filter a batch of grasps against a set of obstacle points.
+        """Filter a batch of grasps against a set of obstacle points.
+
         Handles mixed gripper types by grouping them before checking.
+        Candidates whose gripper type has no loaded predictor, or whose batch
+        check raises, are dropped.
+
+        Args:
+            candidates: ``(grasp, sampled_points)`` pairs.
+            obstacle_points: Obstacle point cloud ``(M, 3)``.
+
+        Returns:
+            Collision-free candidates sorted by score (descending); the input
+            unchanged if it is empty or ``obstacle_points`` is empty.
         """
         if not candidates or obstacle_points.size == 0:
             return candidates
@@ -340,9 +407,16 @@ class GraspService:
         return survivors
 
     def _recursive_filter(self, candidates: List[Tuple[GraspSchema, np.ndarray]]) -> List[Tuple[GraspSchema, np.ndarray]]:
-        """
-        Recursively filter grasps using a divide-and-conquer strategy.
-        Splits list, filters halves, then filters the second half against the first half's occupied space.
+        """Recursively filter grasps using a divide-and-conquer strategy.
+
+        Splits list, filters halves, then filters the second half against the
+        first half's occupied space, so earlier (higher-scoring) grasps win.
+
+        Args:
+            candidates: ``(grasp, sampled_points)`` pairs, sorted by score.
+
+        Returns:
+            Mutually non-colliding candidates.
         """
         # Base case
         if len(candidates) <= 1:
@@ -384,10 +458,27 @@ class GraspService:
                                    num_grasps: int,
                                    collision_check: Literal[None, "Inter", "Intra"] = None,
                                    visualize_gripper_mesh: bool = constants.DEFAULT_VISUALIZE_GRIPPER_MESH) -> List[GraspSchema]:
-        """
-        Predict grasps sequentially for each requested gripper type.
-        Prioritizes the order in `gripper_types` list.
-        Filters against previously accepted grasps (inter-type) and self (intra-type).
+        """Predict grasps sequentially for each requested gripper type.
+
+        Prioritizes the order in ``gripper_types`` list. With any
+        ``collision_check``, grasps are filtered against previously accepted
+        grasps (inter-type); with ``"Intra"`` they are also filtered against
+        each other (intra-type). Grasps whose collision points cannot be
+        sampled are dropped. Accepted grasps get the gripper offset applied
+        and ids ``"<type_index>_<grasp_index>"``.
+
+        Args:
+            gripper_types: Gripper type keys (or model names) in priority order.
+            object_pose: Object pose in world frame.
+            pcd_np: Object point cloud ``(N, 3)`` or ``None``.
+            mesh_path: Object mesh path or ``None``.
+            num_grasps: Grasps to predict per gripper type.
+            collision_check: ``None``, ``"Inter"`` or ``"Intra"``.
+            visualize_gripper_mesh: Visualize accepted grasps' gripper meshes
+                (only if the service was created with ``visualize``).
+
+        Returns:
+            Accepted grasps across all gripper types.
         """
         final_grasps: List[GraspSchema] = []
         occupied_pcd_points: List[np.ndarray] = []
@@ -469,7 +560,16 @@ class GraspService:
         return final_grasps
 
     def _get_grasps(self, req: GraspRequest) -> GraspResponse:
-        """Unified handler for grasp prediction requests."""
+        """Unified handler for grasp prediction requests.
+
+        Args:
+            req: Validated grasp request.
+
+        Returns:
+            ``GraspResponse`` dict (via ``model_dump``) on success, or a
+            ``ResponseStatus`` error dict if no point cloud/mesh, no pose, or
+            the world-frame transform fails.
+        """
         if self.visualize:
             self._clear_visualization()
 
@@ -515,7 +615,15 @@ class GraspService:
         ).model_dump()
 
     def _handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle incoming ZMQ requests."""
+        """Validate a request and dispatch ``GET_GRASPS``.
+
+        Args:
+            request: Decoded JSON request.
+
+        Returns:
+            Response dict; a ``ResponseStatus`` error on validation failure
+            or unknown command.
+        """
         try:
             req = GraspRequest(**request)
         except Exception as e:
@@ -532,7 +640,11 @@ class GraspService:
             ).model_dump()
 
     def start(self) -> None:
-        """Start the Grasp service."""
+        """Register with the service manager and start the server thread.
+
+        No-op if already running; aborts (``running`` reset) if registration
+        fails.
+        """
         if self.running:
             logger.warning("Service already running")
             return
@@ -558,7 +670,7 @@ class GraspService:
         logger.info("Grasp Service started successfully")
 
     def stop(self) -> None:
-        """Stop the Grasp service."""
+        """Stop the server thread and close the socket and context."""
         if not self.running:
             return
 
@@ -581,5 +693,5 @@ class GraspService:
         logger.info("Grasp Service stopped")
 
     def __del__(self) -> None:
-        """Cleanup on deletion."""
+        """Stop the service on garbage collection."""
         self.stop()

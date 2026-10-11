@@ -2,7 +2,8 @@
 Object Mesh Visualizer for Trajectory Planning.
 
 This module provides utilities to visualize object meshes along trajectories
-in MeshCat with color-coded feasibility (matching robot feasibility).
+in MeshCat. Feasibility colours are exposed as class constants, but the
+drawing methods use a single caller-supplied colour.
 """
 
 import numpy as np
@@ -23,13 +24,19 @@ logger = logging.getLogger(__name__)
 
 
 class ObjectMeshVisualizer:
-    """
-    Visualizes object meshes along trajectories in MeshCat.
-    
+    """Visualizes object meshes along trajectories in MeshCat.
+
     Features:
-    - Renders object meshes at each waypoint
-    - Colors meshes based on feasibility status of the waypoint
-    - Organizes meshes under trajectory ID paths in MeshCat hierarchy
+    - Renders object meshes at sampled waypoints
+    - Colors meshes with a single caller-supplied colour
+    - Organizes meshes under ``{base_path}/{object_name}`` in the MeshCat
+      hierarchy
+
+    Attributes:
+        COLOR_FEASIBLE: Colour constant for feasible waypoints.
+        COLOR_INFEASIBLE: Colour constant for waypoints in collision.
+        COLOR_IK_FAILED: Colour constant for IK-failed waypoints.
+        COLOR_DEFAULT: Default colour constant.
     """
     
     # Color constants (from centralized config)
@@ -45,15 +52,18 @@ class ObjectMeshVisualizer:
         base_path: str = "trajectory_configs",
         mesh_sample_ratio: float = 1.0
     ):
-        """
-        Initialize the ObjectMeshVisualizer.
-        
+        """Initialize the ObjectMeshVisualizer.
+
         Args:
-            vis: MeshCat visualizer instance
-            tf_manager: TransformManager for frame conversions
-            base_path: Base path in MeshCat hierarchy
-            mesh_sample_ratio: Fraction of mesh faces to keep (0-1). Lower values
-                               speed up MeshCat rendering at the cost of visual quality.
+            vis: MeshCat visualizer instance.
+            tf_manager: TransformManager for frame conversions; its ``env``
+                and ``env_lock`` are also used.
+            base_path: Base path in MeshCat hierarchy. The default
+                ``"trajectory_configs"`` is replaced by
+                ``f"{constants.VIS_PLANNING_ROOT}/{constants.VIS_ROBOT_CONFIG_PATH}"``.
+            mesh_sample_ratio: Fraction of mesh faces to keep, clamped to
+                ``[0.01, 1.0]``. Lower values speed up MeshCat rendering
+                at the cost of visual quality.
         """
         self.vis = vis
         self.tf_manager = tf_manager
@@ -69,15 +79,31 @@ class ObjectMeshVisualizer:
         self._mesh_cache: Dict[str, g.Geometry] = {}
         
     def _get_meshcat_geometry(self, model, geom_id: int) -> Optional[g.Geometry]:
-        """Convert MuJoCo geom to MeshCat geometry."""
+        """Convert a MuJoCo geom to MeshCat geometry (cached).
+
+        Args:
+            model: MuJoCo model.
+            geom_id: Geom ID.
+
+        Returns:
+            MeshCat geometry, or ``None`` if the geom type is unsupported.
+        """
         return mujoco_geom_to_meshcat(model, geom_id, self._mesh_cache, self.mesh_sample_ratio)
 
     def _get_object_geoms(self, object_name: str) -> List[Tuple[int, np.ndarray]]:
-        """
-        Find all geoms associated with an object and their relative transforms to the root body.
-        
+        """Find the geoms attached to an object's body and their body-relative transforms.
+
+        The body is looked up by exact name (*object_name*, then
+        ``f"{object_name}_main"``), falling back to the first body whose
+        name contains *object_name*. Only geoms whose ``geom_bodyid`` is
+        that body are returned (geoms on child bodies are not included).
+
+        Args:
+            object_name: Object name.
+
         Returns:
-            List of (geom_id, relative_transform)
+            List of ``(geom_id, T_rel)`` with ``T_rel`` the ``(4, 4)``
+            geom-in-body transform; empty if no body is found.
         """
         ctx = self.env_lock if self.env_lock is not None else nullcontext()
         
@@ -137,7 +163,19 @@ class ObjectMeshVisualizer:
         color: int,
         opacity: float = 0.6
     ):
-        """Visualize object at a specific pose."""
+        """Visualize object at a specific pose.
+
+        Each geom is drawn at ``f"{path}/{geom_name}"``; the pose is first
+        converted to the world frame if needed. Does nothing if the object
+        has no geoms.
+
+        Args:
+            object_name: Object name.
+            pose: Object body pose.
+            path: Absolute MeshCat path for this visualization.
+            color: RGB color as hex integer.
+            opacity: Opacity in ``[0, 1]``.
+        """
         geoms = self._get_object_geoms(object_name)
         if not geoms:
             return
@@ -190,7 +228,18 @@ class ObjectMeshVisualizer:
         opacity: float = 0.5,
         color: int = 0x0000ff
     ) -> None:
-        """Visualize object along a trajectory."""
+        """Visualize object along a trajectory.
+
+        Draws every *step_interval*-th pose plus the last one under
+        ``{base_path}/{object_name}/waypoint_XXXX``.
+
+        Args:
+            object_name: Object name.
+            object_trajectory: List of object poses.
+            step_interval: Visualize every Nth pose.
+            opacity: Mesh opacity.
+            color: RGB color as hex integer (default blue).
+        """
         base_traj_path = f"{self.base_path}/{object_name}"
         
         for i, pose in enumerate(object_trajectory):

@@ -42,7 +42,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MinkContext:
-    """All mink objects needed for reactive trajectory execution."""
+    """All mink objects needed for reactive trajectory execution.
+
+    Attributes:
+        config: mink configuration initialised from the current ``qpos``.
+        tasks: mink tasks; ``tasks[0]`` is always the EEF frame task.
+        limits: mink limits (velocity, configuration, optional collision).
+        arm_qpos_idx: ``qpos`` indices of this arm's joints.
+        model_native: Native ``mujoco.MjModel``.
+        world_positions: Waypoint positions ``(N, 3)`` in world frame.
+        world_quaternions: Waypoint site-frame quaternions ``(N, 4)`` xyzw
+            in world frame.
+    """
     config: mink.Configuration
     tasks: list
     limits: list
@@ -61,7 +72,8 @@ class TrajectoryExecutor:
     """
 
     def __init__(self, controller: RobosuiteArmController) -> None:
-        """
+        """Bind the executor to an arm controller.
+
         Args:
             controller: The parent ``RobosuiteArmController``.
         """
@@ -81,10 +93,23 @@ class TrajectoryExecutor:
     ) -> MinkContext:
         """Build all mink objects needed for reactive trajectory tracking.
 
-        This transforms waypoints to world frame, constructs tasks
-        (frame, posture, damping, freeze) and limits (velocity,
-        configuration, optional collision avoidance), and returns them
-        bundled in a :class:`MinkContext`.
+        This transforms waypoints to world frame (applying a -90 deg Z
+        body-to-site orientation correction), constructs tasks (frame,
+        posture, damping, freeze) and limits (velocity, configuration,
+        optional collision avoidance), and returns them bundled in a
+        :class:`MinkContext`.
+
+        Args:
+            positions: Waypoint positions ``(N, 3)`` in base frame.
+            quaternions: Waypoint quaternions ``(N, 4)`` xyzw in base frame.
+            q_warm_start: Optional arm joint config ``(7,)`` used as the
+                posture-task target; the current ``qpos`` is used if ``None``.
+            collision_check: If ``True``, add a collision avoidance limit.
+            manipulated_object: Name of the grasped object for collision
+                geom pairs.
+
+        Returns:
+            The assembled :class:`MinkContext`.
         """
         ctrl = self._ctrl
         num_waypoints = len(positions)
@@ -211,7 +236,18 @@ class TrajectoryExecutor:
         model_native,
         manipulated_object: Optional[str],
     ) -> Optional[mink.CollisionAvoidanceLimit]:
-        """Build a ``mink.CollisionAvoidanceLimit`` for the current robot."""
+        """Build a ``mink.CollisionAvoidanceLimit`` for the current robot.
+
+        Pairs this robot's collision geoms against the other robots, the
+        manipulated object, and the environment geoms.
+
+        Args:
+            model_native: Native ``mujoco.MjModel``.
+            manipulated_object: Name of the grasped object, or ``None``.
+
+        Returns:
+            The collision limit, or ``None`` if no geom pairs were found.
+        """
         ctrl = self._ctrl
         self_geoms = get_robot_collision_geoms(model_native, ctrl.robot_id)
 
@@ -276,17 +312,21 @@ class TrajectoryExecutor:
     ) -> bool:
         """Run the reactive mink tracking loop.
 
+        Advances one waypoint per step for at most ``2 * N`` steps and sets
+        ``controller.last_status`` (1 on convergence, 0 otherwise).
+
         Args:
             ctx: Pre-built mink context from :meth:`_build_mink_context`.
             positions: Original waypoint positions in **base** frame
                 (used for convergence checking).
             quaternions: Original waypoint quaternions in **base** frame.
             gripper_action: Gripper command during execution.
-            dt: Wall-clock time between steps.
-            threshold: Convergence threshold on final-waypoint error.
+            dt: Wall-clock time between steps (s).
+            threshold: Convergence threshold applied to both the
+                final-waypoint position error (m) and orientation error (rad).
 
         Returns:
-            ``True`` if converged, ``False`` otherwise.
+            ``True`` if converged, ``False`` otherwise (including cancellation).
         """
         ctrl = self._ctrl
         data = ctrl.env.sim.data
@@ -423,13 +463,15 @@ class TrajectoryExecutor:
 
         Delegates to :meth:`_build_mink_context` for task/limit
         construction and :meth:`_run_mink_loop` for the reactive loop.
+        Returns ``True`` immediately if there is at most one waypoint.
 
         Args:
             positions: Waypoint positions ``(N, 3)`` in **base** frame.
             quaternions: Waypoint quaternions ``(N, 4)`` xyzw in **base** frame.
             gripper_action: Gripper command during execution.
-            dt: Wall-clock time between steps.
-            threshold: Convergence threshold on final-waypoint error.
+            dt: Wall-clock time between steps (s).
+            threshold: Convergence threshold applied to both the
+                final-waypoint position error (m) and orientation error (rad).
             q_warm_start: Optional warm-start joint config ``(7,)`` for the
                 posture task.
             collision_check: If ``True``, add collision avoidance limits.
@@ -468,15 +510,19 @@ class TrajectoryExecutor:
     ) -> bool:
         """Execute a trajectory using OSC (delta/absolute) commands.
 
+        Advances one waypoint per step for at most ``2 * N`` steps and sets
+        ``controller.last_status`` (1 on convergence, 0 otherwise).
+
         Args:
             positions: Waypoint positions ``(N, 3)`` in base frame.
             quaternions: Waypoint quaternions ``(N, 4)`` xyzw in base frame.
             gripper_action: Gripper command during execution.
-            dt: Wall-clock time between steps.
-            threshold: Convergence threshold.
+            dt: Wall-clock time between steps (s).
+            threshold: Convergence threshold applied to both the
+                final-waypoint position error (m) and orientation error (rad).
 
         Returns:
-            ``True`` if converged, ``False`` otherwise.
+            ``True`` if converged, ``False`` otherwise (including cancellation).
         """
         ctrl = self._ctrl
         num_waypoints = len(positions)
@@ -594,12 +640,13 @@ class TrajectoryExecutor:
             joint_configs: Waypoints ``(N, 7)``.
             target_joints: Final target joint configuration ``(7,)``.
             gripper_action: Gripper command during execution.
-            dt: Wall-clock time between steps.
-            threshold: Max joint-space L-inf error for convergence.
+            dt: Wall-clock time between steps (s).
+            threshold: Max joint-space L-inf error for convergence (rad).
             max_steps: Maximum environment steps (default: ``2 * N``).
 
         Returns:
-            ``True`` if converged, ``False`` otherwise.
+            ``True`` if converged, ``False`` otherwise (including
+            cancellation). Also sets ``controller.last_status``.
         """
         ctrl = self._ctrl
         total_waypoints = len(joint_configs)

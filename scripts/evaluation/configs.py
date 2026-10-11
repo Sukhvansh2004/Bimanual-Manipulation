@@ -3,9 +3,9 @@
 Each configuration is a dict with:
   - label:              Human-readable name for tables/plots
   - alpha:              Smoothness weight  (None → use experiment default)
-  - beta:               Manipulability weight
+  - beta:               Manipulability weight  (None → use experiment default)
   - beam_width:         DP beam width (None → unlimited)
-  - handover_stride:    Evaluate handovers every K segments
+  - handover_stride:    Evaluate handovers every K segments (default 1)
   - clearance_radius:   Min object–obstacle distance for handover (None → off)
   - use_ik:             Whether to create env for IK/Jacobian/collision
   - disable_feasibility_filter: Skip grasp-pair feasibility filtering
@@ -37,6 +37,25 @@ def _cfg(
     switch_cost_override: Optional[float] = None,
     use_dpp: bool = True,
 ) -> AblationConfig:
+    """Build an ablation config dict.
+
+    Args:
+        label: Human-readable name; also the source of ``config_id``.
+        alpha: Smoothness weight, or ``None`` for the experiment default.
+        beta: Manipulability weight, or ``None`` for the experiment default.
+        beam_width: DP beam width, or ``None`` for unlimited.
+        handover_stride: Evaluate handovers every K segments.
+        clearance_radius: Min object–obstacle handover clearance in metres,
+            or ``None`` to disable.
+        use_ik: Whether to create an env for IK/Jacobian/collision checks.
+        disable_feasibility_filter: Skip grasp-pair feasibility filtering.
+        switch_cost_override: Switching cost override (0 → free switches,
+            ``np.inf`` → no switches), or ``None`` to keep the default.
+        use_dpp: Use DPP entropy maximization for grasp selection.
+
+    Returns:
+        Config dict with one key per argument.
+    """
     return {
         "label": label,
         "alpha": alpha,
@@ -194,7 +213,7 @@ ALL_CONFIGS: List[AblationConfig] = [
     BEAM_UNLIMITED,
     BEAM_1,
     BEAM_5,
-    BEAM_10,  # Same as BASELINE for beam
+    BEAM_10,
     BEAM_20,
     GREEDY,
     SINGLE_ROBOT,
@@ -213,5 +232,16 @@ ALL_CONFIGS = _unique
 
 
 def config_id(cfg: AblationConfig) -> str:
-    """Return a filesystem-safe identifier for a config."""
+    """Return a filesystem-friendly identifier for a config.
+
+    Derived from ``cfg["label"]``: spaces become ``_``, ``(``, ``)``, ``,``
+    and ``=`` are removed, and ``.`` becomes ``p``. Other characters (e.g.
+    ``α``) are kept.
+
+    Args:
+        cfg: Ablation config dict.
+
+    Returns:
+        Identifier string, e.g. ``Beam10_Stride3`` for ``"Beam=10, Stride=3"``.
+    """
     return cfg["label"].replace(" ", "_").replace("(", "").replace(")", "").replace(",", "").replace("=", "").replace(".", "p")

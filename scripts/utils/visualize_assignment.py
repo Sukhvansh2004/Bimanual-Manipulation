@@ -5,17 +5,23 @@ Usage:
     python scripts/utils/visualize_assignment.py \\
         data/flatPlate_box_to_box/assignment_results.npz \\
         --experiment experiments/flatPlate_box_to_box.json
+    python scripts/utils/visualize_assignment.py <npz> --experiment <json> \\
+        --output-dir plots --no-meshcat
 
 Features:
     1. MeshCat 3D visualisation of the assigned EEF path, object trajectory,
        and handover waypoints — colour-coded by robot.
     2. Terminal log: per-waypoint joint configs, angular deltas, handover
        transfer configs, feasibility, and cost breakdown.
-    3. Matplotlib plots saved to ``--output-dir``:
-       - Per-joint angles across waypoints (with handover markers).
-       - Per-joint angular step (|Δq|) with the max-step threshold.
-       - Task cost and switching cost per segment.
-       - Cost-matrix heatmap (per-robot).
+    3. Matplotlib plots saved to ``--output-dir`` (default: the NPZ's
+       directory):
+       - ``joint_angles.png``: per-joint angles across waypoints (with
+         handover markers).
+       - ``joint_deltas.png``: per-joint angular step (|Δq|) with the
+         max-step threshold.
+       - ``costs.png``: task cost and switching cost per segment.
+       - ``cost_matrix.png``: cost-matrix heatmap (per-robot).
+       - ``eef_3d.png``: 3D scatter of EEF positions.
 """
 
 from __future__ import annotations
@@ -68,6 +74,11 @@ JOINT_NAMES = [f"j{i}" for i in range(7)]
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
     p = argparse.ArgumentParser(
         description="Visualize an assignment NPZ in MeshCat with diagnostic plots.",
     )
@@ -93,7 +104,11 @@ def parse_args() -> argparse.Namespace:
 # ── Terminal log ───────────────────────────────────────────────────────────
 
 def print_assignment_summary(a: AssignmentResult) -> None:
-    """Print a compact human-readable summary to the terminal."""
+    """Print overall stats and a per-segment robot/cost/feasibility table.
+
+    Args:
+        a: Loaded assignment result.
+    """
     n_seg = len(a.sequence)
     n_wp = n_seg + 1
     dof = a.normalized_configs.shape[1]
@@ -126,7 +141,14 @@ def print_assignment_summary(a: AssignmentResult) -> None:
 
 
 def print_joint_configs(a: AssignmentResult) -> None:
-    """Print per-waypoint joint configs and per-step deltas."""
+    """Print per-waypoint joint configs and per-step ``|Δq|``.
+
+    Steps whose max ``|Δq|`` exceeds ``ASSIGNMENT_MAX_JOINT_STEP`` are
+    flagged with ``!``; handover waypoints are marked ``*HO*``.
+
+    Args:
+        a: Loaded assignment result.
+    """
     n_wp, dof = a.normalized_configs.shape
     configs = a.normalized_configs
 
@@ -171,7 +193,11 @@ def print_joint_configs(a: AssignmentResult) -> None:
 
 
 def print_handover_details(a: AssignmentResult) -> None:
-    """Print handover transfer configs and deltas."""
+    """Print each handover's transferor/receiver configs and approach ``Δq``.
+
+    Args:
+        a: Loaded assignment result.
+    """
     if not a.handover_points:
         print("  No handovers.\n")
         return
@@ -202,7 +228,11 @@ def print_handover_details(a: AssignmentResult) -> None:
 
 
 def print_cost_breakdown(a: AssignmentResult) -> None:
-    """Print cost matrix summary."""
+    """Print per-segment costs for both robots, the chosen robot, and the margin.
+
+    Args:
+        a: Loaded assignment result.
+    """
     n_seg = len(a.sequence)
     print("=" * 80)
     print("  COST MATRIX  (best-per-robot)")
@@ -223,7 +253,16 @@ def print_cost_breakdown(a: AssignmentResult) -> None:
 # ── Matplotlib plots ──────────────────────────────────────────────────────
 
 def _segment_colors(a: AssignmentResult) -> List[str]:
-    """Return a per-waypoint colour list for matplotlib."""
+    """Return a per-waypoint colour list for matplotlib.
+
+    Waypoint ``i`` takes the colour of segment ``min(i, n_seg - 1)``'s robot.
+
+    Args:
+        a: Loaded assignment result.
+
+    Returns:
+        List[str]: Hex colours, one per waypoint.
+    """
     n_wp = a.normalized_configs.shape[0]
     colors = []
     for i in range(n_wp):
@@ -233,7 +272,15 @@ def _segment_colors(a: AssignmentResult) -> List[str]:
 
 
 def plot_joint_angles(a: AssignmentResult, out_dir: str) -> None:
-    """Per-joint angles vs waypoint, colour-coded by robot."""
+    """Plot per-joint angles vs waypoint, colour-coded by robot.
+
+    Writes ``joint_angles.png``. Handovers and Franka joint limits are
+    drawn as reference lines.
+
+    Args:
+        a: Loaded assignment result.
+        out_dir: Directory the PNG is written to.
+    """
     configs = a.normalized_configs
     n_wp, dof = configs.shape
     wp_idx = np.arange(n_wp)
@@ -287,7 +334,15 @@ def plot_joint_angles(a: AssignmentResult, out_dir: str) -> None:
 
 
 def plot_joint_deltas(a: AssignmentResult, out_dir: str) -> None:
-    """Per-joint |Δq| between consecutive waypoints."""
+    """Plot per-joint ``|Δq|`` between consecutive waypoints.
+
+    Writes ``joint_deltas.png`` with the ``ASSIGNMENT_MAX_JOINT_STEP``
+    threshold drawn on each subplot.
+
+    Args:
+        a: Loaded assignment result.
+        out_dir: Directory the PNG is written to.
+    """
     configs = a.normalized_configs
     n_wp, dof = configs.shape
     dq = np.abs(np.diff(configs, axis=0))  # (n_wp-1, dof)
@@ -327,7 +382,14 @@ def plot_joint_deltas(a: AssignmentResult, out_dir: str) -> None:
 
 
 def plot_costs(a: AssignmentResult, out_dir: str) -> None:
-    """Stacked bar: task cost + switching cost per segment."""
+    """Plot task cost stacked with switching cost per segment.
+
+    Writes ``costs.png``.
+
+    Args:
+        a: Loaded assignment result.
+        out_dir: Directory the PNG is written to.
+    """
     n_seg = len(a.sequence)
     seg_idx = np.arange(n_seg)
     colors = ["#1f77b4" if r == 0 else "#ff7f0e" for r in a.sequence]
@@ -354,7 +416,15 @@ def plot_costs(a: AssignmentResult, out_dir: str) -> None:
 
 
 def plot_cost_matrix(a: AssignmentResult, out_dir: str) -> None:
-    """Heatmap of the cost matrix (best cost per robot per segment)."""
+    """Plot a heatmap of the cost matrix (best cost per robot per segment).
+
+    Writes ``cost_matrix.png``. Non-finite costs are shown as 1.5x the
+    largest finite cost; the chosen robot per segment is marked.
+
+    Args:
+        a: Loaded assignment result.
+        out_dir: Directory the PNG is written to.
+    """
     cm = a.cost_matrix.copy()
     # Clamp inf for display
     finite_max = np.nanmax(cm[np.isfinite(cm)]) if np.any(np.isfinite(cm)) else 1.0
@@ -381,7 +451,14 @@ def plot_cost_matrix(a: AssignmentResult, out_dir: str) -> None:
 
 
 def plot_eef_3d(a: AssignmentResult, out_dir: str) -> None:
-    """3D scatter of EEF positions, colour-coded by robot."""
+    """Plot a 3D scatter of EEF positions, colour-coded by robot.
+
+    Writes ``eef_3d.png``; handover waypoints are marked with red crosses.
+
+    Args:
+        a: Loaded assignment result.
+        out_dir: Directory the PNG is written to.
+    """
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection="3d")
 
@@ -414,6 +491,14 @@ def plot_eef_3d(a: AssignmentResult, out_dir: str) -> None:
 # ── MeshCat visualisation ─────────────────────────────────────────────────
 
 def _hex_to_rgb_float(h: int):
+    """Convert a ``0xRRGGBB`` integer to an RGB tuple in ``[0, 1]``.
+
+    Args:
+        h: Colour as a ``0xRRGGBB`` integer.
+
+    Returns:
+        tuple[float, float, float]: Normalised ``(r, g, b)``.
+    """
     return ((h >> 16) & 0xFF) / 255, ((h >> 8) & 0xFF) / 255, (h & 0xFF) / 255
 
 
@@ -424,7 +509,21 @@ def visualize_in_meshcat(
     step: int = 1,
     opacity: float = 0.4,
 ) -> None:
-    """Draw the assignment in MeshCat."""
+    """Draw the assignment in MeshCat under ``VIS_PLANNING_ROOT/assignment``.
+
+    Deletes any previous drawing at that path, then draws the EEF path per
+    contiguous robot run (with feasibility-coloured waypoint spheres), the
+    object trajectory, handover markers, and robot meshes at waypoint
+    configs (coloured by feasibility).
+
+    Args:
+        a: Loaded assignment result.
+        vis: MeshCat visualizer to draw into.
+        tf_manager: Transform manager used by ``RobotMeshVisualizer``.
+        step: Draw a robot mesh every ``step``-th waypoint (the last
+            waypoint is always drawn).
+        opacity: Robot mesh opacity.
+    """
     root = f"{constants.VIS_PLANNING_ROOT}/assignment"
     vis[root].delete()
 
@@ -532,6 +631,13 @@ def visualize_in_meshcat(
 # ── Main ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    """Load the assignment, print logs, save plots, and optionally draw in MeshCat.
+
+    Exits with status 1 if the NPZ does not exist. Unless ``--no-meshcat``
+    is given, builds a headless env from the experiment, streams its TF
+    tree and scene in a daemon thread, draws the assignment, and blocks
+    until Ctrl-C.
+    """
     args = parse_args()
 
     # ── Load assignment ────────────────────────────────────────────────
@@ -599,7 +705,7 @@ def main() -> None:
     register_mesh_extraction_env(env)
     tf_manager = TransformManager(env=env)
 
-    # Stream scene + TFs once
+    # Stream scene + TFs continuously in a daemon thread
     env_lock = threading.Lock()
     stream_cfg = MeshcatTFVisualizerConfig(clear=False, visualize_scene=True)
     threading.Thread(

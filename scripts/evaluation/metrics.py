@@ -58,6 +58,7 @@ class PlanningMetrics:
     sequence: List[int] = field(default_factory=list)  # robot assignment per segment
 
     def to_dict(self) -> dict:
+        """Return the metrics as a plain dict (via ``dataclasses.asdict``)."""
         return asdict(self)
 
 
@@ -72,7 +73,7 @@ class ExecutionMetrics:
     handover_success_rate: float = 0.0  # successful handovers / attempted
     n_handovers_attempted: int = 0
     n_handovers_succeeded: int = 0
-    n_handovers_lost_object: int = 0  # handovers where object was lost before attempt
+    n_handovers_lost_object: int = 0  # handovers where object was lost before attempt (not currently populated by the executor)
     n_collision_incidents: int = 0
     execution_time_s: float = 0.0
 
@@ -92,8 +93,8 @@ class ExecutionMetrics:
     # Per-handover results: list of dicts with keys:
     #   waypoint (int), giver (int), receiver (int), giver_gripper (str),
     #   receiver_gripper (str), direction (str e.g. "finger→suction"),
-    #   success (bool), object_held_pre (bool), receiver_holds_post (bool),
-    #   object_fallen (bool)
+    #   success (bool), and when object checks run: receiver_holds_post (bool),
+    #   object_fallen (bool), reason (str, on failure)
     handover_results: List[Dict] = field(default_factory=list)
 
     # Per-grasp result: dict with keys:
@@ -103,6 +104,7 @@ class ExecutionMetrics:
     error_message: str = ""
 
     def to_dict(self) -> dict:
+        """Return the metrics as a plain dict (via ``dataclasses.asdict``)."""
         return asdict(self)
 
 
@@ -117,6 +119,7 @@ class ExperimentResult:
     execution: Optional[ExecutionMetrics] = None
 
     def to_dict(self) -> dict:
+        """Return a dict with identifiers plus ``planning`` / ``execution`` if set."""
         d = {
             "experiment": self.experiment,
             "config_label": self.config_label,
@@ -143,6 +146,11 @@ def extract_planning_metrics(
 ) -> PlanningMetrics:
     """Extract planning metrics from pre-computed data files.
 
+    Reads cost, sequence and handover data from the assignment NPZ, computes
+    manipulability and feasibility at each assigned waypoint from the
+    referenced trajectory NPZs, and per-robot fully-feasible rates from
+    ``robot{0,1}_trajectory_*.npz`` in ``data_dir``.
+
     Args:
         data_dir: Path to the experiment data directory (with trajectory NPZs).
         assignment_file: Path to the assignment_results.npz file.
@@ -153,7 +161,8 @@ def extract_planning_metrics(
             manipulability.  When *None*, falls back to the simple proxy.
 
     Returns:
-        Populated PlanningMetrics.
+        Populated PlanningMetrics. If the assignment file is missing (or has
+        no ``trajectory_paths``), the metrics are returned partially filled.
     """
     metrics = PlanningMetrics(
         experiment=experiment_name,
@@ -249,7 +258,16 @@ def extract_planning_metrics(
 def extract_trajectory_generation_metrics(data_dir: str, experiment_name: str) -> dict:
     """Extract trajectory generation statistics (independent of assignment).
 
-    Returns dict with trajectory-level stats useful for the report.
+    Args:
+        data_dir: Experiment data directory with ``object_trajectory.npz`` and
+            ``robot{0,1}_trajectory_*.npz``.
+        experiment_name: Name of the experiment.
+
+    Returns:
+        Dict with ``experiment``, ``n_object_waypoints`` and, for
+        ``robot0`` / ``robot1``, ``n_<robot>_trajs``, ``<robot>_fully_feasible``
+        and ``<robot>_feasibility_rates`` (per-trajectory fraction of feasible
+        waypoints).
     """
     data_path = Path(data_dir)
 

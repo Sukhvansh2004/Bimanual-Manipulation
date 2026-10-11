@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""
-Start Services and Interactive Teleoperation.
+"""Start services, an interactive Python shell, and keyboard teleoperation.
+
+Builds a ``DualArmManipulationSystem`` from an experiment config, opens a
+``code.interact`` shell (in a daemon thread) pre-loaded with service
+helpers, and runs teleoperation on the main thread.
 
 Usage:
-    python dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json
-    python dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --visualize
+    python scripts/utils/dual_arm_manipulation.py --experiment experiments/flatPlate_table_to_shelf.json
+    python scripts/utils/dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --visualize
+    python scripts/utils/dual_arm_manipulation.py --experiment experiments/ycb_mug_table_to_rack.json --no-fastsam --no-graspgen
 """
 
 import argparse
@@ -37,7 +41,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main() -> int:
-    """Main entry point."""
+    """Parse CLI args, start the system, and run the shell plus teleop.
+
+    Sets the module-level global ``system``, registers ``system.stop`` via
+    ``atexit``, and installs SIGINT/SIGTERM handlers that request a
+    shutdown. Blocks in ``system.run_teleop`` until teleop exits.
+
+    Returns:
+        int: Process exit code (always ``0``).
+    """
     parser = argparse.ArgumentParser(
         description="Start dual-arm manipulation system with services and interactive shell"
     )
@@ -117,6 +129,12 @@ def main() -> int:
     atexit.register(lambda: system.stop())
 
     def _handle_signal(signum: int, _frame: Any) -> None:
+        """Request a system shutdown when a signal is received.
+
+        Args:
+            signum: Signal number.
+            _frame: Current stack frame (unused).
+        """
         system.request_shutdown(reason=f"signal {signal.Signals(signum).name}")
 
     try:
@@ -148,6 +166,13 @@ Helper functions:
         client = system.service_client
 
         def shell_thread():
+            """Run an interactive ``code.interact`` shell with helper bindings.
+
+            The namespace exposes ``client``, ``system``, ``StampedPose``,
+            ``load_trajectory_file`` and lambdas that bind ``system`` into
+            the service helpers (``detect``, ``get_grasps``, ``go_to_pose``,
+            ``env_step``, etc.).
+            """
             namespace = {
                 'client': client,
                 'system': system,

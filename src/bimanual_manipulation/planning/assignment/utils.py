@@ -59,9 +59,19 @@ def normalize_joint_angle(
 ) -> float:
     """Shift *q* by multiples of 2π to minimise ``|q - q_ref|`` within ``[lo, hi]``.
 
-    Only integer multiples of 2π are tried so that the resulting
+    Only shifts of ±2π and ±4π are tried so that the resulting
     configuration is physically equivalent.  If no shift improves the
-    distance while respecting limits, *q* is returned unchanged.
+    distance while respecting limits, *q* is returned unchanged (even if
+    *q* itself is outside ``[lo, hi]``).
+
+    Args:
+        q: Joint angle to shift (rad).
+        q_ref: Reference angle to move toward (rad).
+        lo: Lower joint limit (rad).
+        hi: Upper joint limit (rad).
+
+    Returns:
+        The shifted (or original) angle.
     """
     best_q = q
     best_diff = abs(q - q_ref)
@@ -85,10 +95,12 @@ def normalize_trajectory_configs(
     """Normalize consecutive joint configurations and check step feasibility.
 
     For each consecutive pair of feasible waypoints, each joint angle is
-    shifted by an integer multiple of 2π to minimise the displacement
-    while staying within joint position limits.  Any remaining per-joint
-    displacement that exceeds *max_joint_step* after normalisation causes
-    that transition to be flagged as infeasible.
+    shifted by an integer multiple of 2π (see :func:`normalize_joint_angle`)
+    to minimise the displacement while staying within joint position
+    limits.  Any remaining per-joint displacement that exceeds
+    *max_joint_step* after normalisation causes that transition to be
+    flagged as infeasible.  Transitions touching an infeasible waypoint
+    are neither normalised nor checked.
 
     Args:
         joint_configs: ``(N, DOF)`` joint angles in radians.
@@ -105,7 +117,8 @@ def normalize_trajectory_configs(
         * ``normalized_configs`` — ``(N, DOF)`` with adjusted angles.
         * ``step_feasible`` — ``(N,)`` boolean.  ``True`` at index *i*
           means the transition from waypoint *i − 1* to *i* is within the
-          step threshold.  Index 0 is always ``True``.
+          step threshold.  Index 0, and any transition involving an
+          infeasible waypoint, is ``True``.
     """
     N, DOF = joint_configs.shape
     normalized = joint_configs.copy()
@@ -138,7 +151,14 @@ def normalize_trajectory_configs(
 # ---------------------------------------------------------------------------
 
 def compute_smoothness(configs: List[np.ndarray]) -> float:
-    """Squared joint displacement along a config sequence."""
+    """Sum of squared joint displacements along a config sequence.
+
+    Args:
+        configs: Sequence of ``(DOF,)`` joint configurations.
+
+    Returns:
+        ``sum_k ||q_{k+1} - q_k||^2``, or ``0.0`` for fewer than two configs.
+    """
     if len(configs) < 2:
         return 0.0
     arr = np.array(configs)
@@ -152,7 +172,21 @@ def compute_manipulability_cost(
     epsilon: float,
     jacobian_fns: Optional[Dict[int, Callable]],
 ) -> float:
-    """Reciprocal manipulability cost for one arm's config sequence."""
+    """Reciprocal manipulability cost for one arm's config sequence.
+
+    Uses the Yoshikawa measure when ``jacobian_fns[robot_id]`` exists,
+    otherwise the fast proxy measure.
+
+    Args:
+        configs: Sequence of ``(DOF,)`` joint configurations.
+        robot_id: Robot whose Jacobian function to use.
+        epsilon: Numerical floor added to each manipulability value.
+        jacobian_fns: Optional ``{robot_id: (q) -> J}`` mapping.
+
+    Returns:
+        ``sum(1 / (w + epsilon))`` over all configs, or ``0.0`` when
+        *configs* is empty.
+    """
     if not configs:
         return 0.0
     arr = np.array(configs)
@@ -172,7 +206,17 @@ def compute_manipulability_cost(
 # ---------------------------------------------------------------------------
 
 def frame_id_at(obj_traj: ObjectTrajectory, idx: int) -> str:
-    """Extract frame_id from object trajectory at *idx*."""
+    """Extract frame_id from object trajectory at *idx*.
+
+    Args:
+        obj_traj: Object trajectory.
+        idx: Waypoint index.
+
+    Returns:
+        Frame ID string; :data:`constants.WORLD_FRAME` when frame IDs are
+        missing or *idx* is out of range, and ``str(frame_ids)`` when
+        frame IDs are not an array.
+    """
     fids = obj_traj.frame_ids
     if fids is None:
         return constants.WORLD_FRAME
@@ -182,7 +226,15 @@ def frame_id_at(obj_traj: ObjectTrajectory, idx: int) -> str:
 
 
 def eef_matrix(traj: RobotTrajectory, idx: int) -> np.ndarray:
-    """Build a 4×4 homogeneous matrix from the EEF pose at *idx*."""
+    """Build a 4×4 homogeneous matrix from the EEF pose at *idx*.
+
+    Args:
+        traj: Robot trajectory (quaternions in ``[x, y, z, w]`` order).
+        idx: Waypoint index.
+
+    Returns:
+        ``(4, 4)`` EEF pose matrix in the trajectory's EEF frame.
+    """
     mat = np.eye(4)
     mat[:3, 3] = traj.eef_positions[idx]
     mat[:3, :3] = R.from_quat(traj.eef_quaternions[idx]).as_matrix()
@@ -196,7 +248,16 @@ def eef_matrix(traj: RobotTrajectory, idx: int) -> np.ndarray:
 def apply_beam_pruning(
     J_star: np.ndarray, seg_idx: int, beam_width: int,
 ) -> None:
-    """Keep only the top *beam_width* states at *seg_idx*; set rest to inf."""
+    """Keep only the top *beam_width* states at *seg_idx*; set rest to inf.
+
+    Modifies *J_star* in place.  No-op when at most *beam_width* states
+    are finite.
+
+    Args:
+        J_star: ``(n_segments, n_states)`` DP cost-to-come table.
+        seg_idx: Row to prune.
+        beam_width: Number of lowest-cost finite states to keep.
+    """
     row = J_star[seg_idx]
     finite_indices = np.where(~np.isinf(row))[0]
     if len(finite_indices) <= beam_width:
@@ -210,7 +271,12 @@ def apply_beam_pruning(
 # ---------------------------------------------------------------------------
 
 def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
-    """Persist an :class:`AssignmentResult` to an ``.npz`` file."""
+    """Persist an :class:`AssignmentResult` to an ``.npz`` file.
+
+    Args:
+        result: Assignment result to save.
+        filepath: Output path (``np.savez`` appends ``.npz`` if missing).
+    """
     np.savez(
         filepath,
         sequence=np.array(result.sequence),
@@ -239,7 +305,17 @@ def save_assignment_result(result: AssignmentResult, filepath: str) -> None:
 
 
 def load_assignment_result(filepath: str) -> AssignmentResult:
-    """Load an :class:`AssignmentResult` from an ``.npz`` file."""
+    """Load an :class:`AssignmentResult` from an ``.npz`` file.
+
+    Args:
+        filepath: Path written by :func:`save_assignment_result`.
+
+    Returns:
+        The reconstructed :class:`AssignmentResult`.
+
+    Raises:
+        KeyError: If the file lacks one of the expected arrays.
+    """
     from bimanual_manipulation.planning.assignment.result import AssignmentResult
 
     data = np.load(filepath, allow_pickle=True)

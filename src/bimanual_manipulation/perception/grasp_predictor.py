@@ -26,7 +26,21 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=4)
 def _load_gripper_collision_mesh(gripper_type: str) -> trimesh.Trimesh:
-    """Load and cache gripper collision mesh by type (disk I/O happens once)."""
+    """Load and cache gripper collision mesh by type (disk I/O happens once).
+
+    For suction grippers the custom Cobot Pump mesh is used (translated by
+    ``-SUCTION_TCP_OFFSET``) when present; otherwise GraspGen's gripper info
+    mesh is returned.
+
+    Args:
+        gripper_type: ``'suction'`` or a GraspGen gripper model name.
+
+    Returns:
+        The gripper collision mesh.
+
+    Raises:
+        Exception: Re-raises any error from loading the mesh.
+    """
     try:
         if gripper_type in ('suction', constants.GRIPPER_TYPE_MAPPING['suction']):
             mesh_path = constants.COBOT_PUMP_MESH_PATH
@@ -48,9 +62,7 @@ def _load_gripper_collision_mesh(gripper_type: str) -> trimesh.Trimesh:
 
 
 class GraspPredictor:
-    """
-    Class to predict grasps for objects using GraspGen.
-    """
+    """Class to predict grasps for objects using GraspGen."""
     def __init__(
         self,
         gripper_type: str,
@@ -59,6 +71,18 @@ class GraspPredictor:
         visualize: bool = False,
         use_dpp: bool = True,
     ) -> None:
+        """Load the GraspGen sampler for a gripper type.
+
+        Args:
+            gripper_type: GraspGen gripper model name (e.g. ``franka_panda``).
+            model_path: GraspGen config path; defaults to
+                ``get_graspgen_config_path(gripper_type)`` if empty.
+            debug: Enable debug logging.
+            visualize: Enable MeshCat visualization of point clouds and
+                gripper meshes.
+            use_dpp: Select grasps with greedy DPP diversity
+                (:func:`maximize_entropy_grasps`) instead of top-N by score.
+        """
         self.debug = debug
         self.visualize = visualize
         self.gripper_type = gripper_type
@@ -77,8 +101,10 @@ class GraspPredictor:
             logger.setLevel(logging.DEBUG)
 
     def get_gripper_collision_mesh(self) -> trimesh.Trimesh:
-        """
-        Get the collision mesh for the loaded gripper type.
+        """Get the (cached) collision mesh for the loaded gripper type.
+
+        Returns:
+            The gripper collision mesh.
         """
         return _load_gripper_collision_mesh(self.gripper_type)
 
@@ -88,18 +114,27 @@ class GraspPredictor:
                        object_pcd: Optional[np.ndarray] = None, 
                        mesh_file: Optional[str] = None,
                        mesh_scale: float = constants.MESH_SCALE) -> List[GraspSchema]:
-        """
-        Predict grasp poses for an object using either a point cloud or a mesh file.
-        
+        """Predict grasp poses for an object using either a point cloud or a mesh file.
+
+        If ``mesh_file`` is given it takes precedence: the mesh is sampled
+        and mean-centred. Otherwise ``object_pcd`` (world frame) is
+        transformed into the object frame, outlier-filtered and downsampled.
+
         Args:
-            object_pose: Pose of the object in world frame
-            num_grasps: Number of grasps to predict
-            object_pcd: Point cloud of the object (optional)
-            mesh_file: Path to the mesh file (optional)
-            mesh_scale: Scale factor for the mesh
-            
+            object_pose: Pose of the object in world frame.
+            num_grasps: Number of grasps to predict.
+            object_pcd: Point cloud ``(N, 3)`` of the object in world frame
+                (optional).
+            mesh_file: Path to the mesh file (optional).
+            mesh_scale: Scale factor for the mesh.
+
         Returns:
-            List of grasp poses as GraspSchema
+            List of world-frame grasps as GraspSchema; empty if the mesh
+            fails to load.
+
+        Raises:
+            ValueError: If neither input is given or ``object_pcd`` is empty.
+            RuntimeError: If the GraspGen sampler is not initialized.
         """
         if object_pcd is None and mesh_file is None:
              raise ValueError("Either object_pcd or mesh_file must be provided")
@@ -145,15 +180,19 @@ class GraspPredictor:
                              pcd_processed: np.ndarray, 
                              object_pose: StampedPose, 
                              num_grasps: int) -> List[GraspSchema]:
-        """
-        Core prediction logic.
-        
+        """Run GraspGen inference and select the final grasps.
+
+        ``num_grasps`` is raised to ``constants.MIN_GRASPS`` if it is at or
+        below it. Grasps are selected by DPP diversity if ``use_dpp`` else by
+        top score.
+
         Args:
-            pcd_processed: Preprocessed point cloud (tensor-ready)
-            object_pose: Object world pose
-            num_grasps: Number of grasps
-            is_centered_input: True if pcd_processed is already centered (mean subtracted)
-            original_pcd: Original/Local point cloud for visualization size
+            pcd_processed: Preprocessed object-frame point cloud ``(N, 3)``.
+            object_pose: Object world pose.
+            num_grasps: Number of grasps to return.
+
+        Returns:
+            Up to ``num_grasps`` world-frame grasps as GraspSchema.
         """
         # Convert to torch tensor
         pcd_tensor = torch.from_numpy(pcd_processed).float()
@@ -230,15 +269,14 @@ class GraspPredictor:
         return grasp_list
 
     def _transform_grasp_to_world(self, grasp_local: StampedPose, object_pose: StampedPose) -> StampedPose:
-        """
-        Transform grasp from object-local frame to world frame using Transform class.
+        """Transform grasp from object-local frame to world frame.
 
         Args:
-            grasp_local: Grasp pose in object's local frame
-            object_pose: Object's pose in world frame
+            grasp_local: Grasp pose in object's local frame.
+            object_pose: Object's pose in world frame.
 
         Returns:
-            Grasp pose in world frame
+            Grasp pose in world frame.
         """
         # Create transform from object-local frame to world frame
         # This transform represents where the object is in the world
@@ -253,17 +291,18 @@ class GraspPredictor:
         return object_to_world.apply_to_pose(grasp_local)
     
     def apply_gripper_offset(self, grasp_pose: StampedPose) -> StampedPose:
-        """
-        Apply gripper-specific offset transform to a grasp pose.
-        
-        Different grippers require different orientations relative to the predicted grasp.
-        For example, finger grippers need a 90 deg Z rotation to align the fingers properly.
-        
+        """Apply gripper-specific offset transform to a grasp pose.
+
+        Composes ``constants.GRIPPER_GRASP_OFFSETS[gripper_type]`` (position
+        and rotation, in the grasp frame) onto the pose. For example, finger
+        grippers get a 90 deg Z rotation to align the fingers.
+
         Args:
-            grasp_pose: Grasp pose in world frame
-            
+            grasp_pose: Grasp pose (any frame).
+
         Returns:
-            Grasp pose with gripper offset applied
+            New StampedPose with the offset applied, in the same frame; the
+            input itself if no offset is defined or the offset is identity.
         """
         # Get offset for current gripper type
         if self.gripper_type not in constants.GRIPPER_GRASP_OFFSETS:
@@ -304,12 +343,13 @@ class GraspPredictor:
         )
 
     def visualize_gripper(self, grasp_pose: StampedPose, name_suffix: str = "") -> None:
-        """
-        Visualize the gripper collision mesh at the given pose.
-        
+        """Visualize the gripper collision mesh at the given pose in MeshCat.
+
+        No-op unless ``visualize`` is enabled.
+
         Args:
-            grasp_pose: Pose to place the gripper mesh
-            name_suffix: Unique suffix for the meshcat path
+            grasp_pose: Pose to place the gripper mesh.
+            name_suffix: Unique suffix for the meshcat path.
         """
         if not self.visualize:
             return
@@ -358,11 +398,13 @@ class GraspPredictor:
             pass
 
     def _visualize_pcd(self, pcd: np.ndarray) -> None:
-        """
-        Visualize the object point cloud and predicted grasps.
+        """Visualize the object point cloud in MeshCat.
 
-        MeshCat-only visualization: publishes into the MeshCat scene tree so it can be
-        toggled alongside TF frames.
+        Publishes under ``perception/grasp_predictor/object_pcd`` (randomly
+        downsampled to 8000 points). No-op unless ``visualize`` is enabled.
+
+        Args:
+            pcd: Point cloud ``(N, 3+)``; only the first 3 columns are used.
         """
         if not self.visualize:
             return
@@ -411,16 +453,17 @@ class GraspPredictor:
         )
 
     def _preprocess_point_cloud(self, pcd: np.ndarray, object_pose: StampedPose) -> np.ndarray:
-        """
-        Preprocess point cloud for GraspGen.
-        Transform from world frame to object-local frame.
-        
+        """Preprocess point cloud for GraspGen.
+
+        Transforms from world frame to object-local frame, removes outliers,
+        and randomly downsamples to ``constants.GRASPGEN_POINTCLOUD_SIZE``.
+
         Args:
-            pcd: Point cloud in world frame
-            object_pose: Object pose in world frame
-            
+            pcd: Point cloud ``(N, 3)`` in world frame.
+            object_pose: Object pose in world frame.
+
         Returns:
-            Point cloud in object-local frame
+            Point cloud in object-local frame.
         """
         # Create transform from world to object-local frame (inverse of object pose)
         world_to_object = Transform(
@@ -442,7 +485,16 @@ class GraspPredictor:
         return pcd_downsampled
     
     def _remove_outliers(self, pcd: np.ndarray) -> np.ndarray:
-        """Remove outlier points using GraspGen's KNN-based method."""
+        """Remove outlier points using GraspGen's KNN-based method.
+
+        Retries with a looser threshold if fewer than 10 points survive.
+
+        Args:
+            pcd: Point cloud ``(N, 3)``.
+
+        Returns:
+            Filtered point cloud (input unchanged if it has < 10 points).
+        """
         if len(pcd) < 10:
             return pcd
         
@@ -457,19 +509,22 @@ class GraspPredictor:
     
 
 def maximize_entropy_grasps(grasps: List[GraspSchema], num_grasps: int, break_at_neg: bool = False) -> List[GraspSchema]:
-    """
-    Select a subset of grasps that maximizes entropy (diversity and quality).
+    """Select a subset of grasps that maximizes entropy (diversity and quality).
+
     Uses a greedy Determinantal Point Process (DPP) approach.
-    
+
     The entropy of a subset S in a DPP defined by L-ensemble matrix L is log det(L_S).
-    We greedily select grasps to maximize this determinant.
-    
+    We greedily select grasps to maximize this determinant, starting from the
+    highest-scoring grasp.
+
     Args:
         grasps: List of GraspSchema objects.
         num_grasps: Number of grasps to select.
-        
+        break_at_neg: Stop early when the best marginal gain is negative.
+
     Returns:
-        A list of selected GraspSchema objects.
+        Selected grasps in selection order; all grasps sorted by score if
+        ``len(grasps) <= num_grasps``; ``[]`` if empty or ``num_grasps <= 0``.
     """
     if not grasps or num_grasps <= 0:
         return []

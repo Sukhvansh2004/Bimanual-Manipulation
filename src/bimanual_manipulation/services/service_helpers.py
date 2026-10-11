@@ -27,7 +27,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def detect(system: DualArmManipulationSystem):
-    """Quick helper for FastSAM-based detection."""
+    """Fetch the latest FastSAM detections and log a summary.
+
+    Args:
+        system: Running manipulation system with a service client.
+
+    Returns:
+        List of detection dicts, or ``[]`` on failure.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('fastsam_service', {'command': 'GET_LATEST_DETECTION'})
     if response.get('status') == 'success':
@@ -44,7 +54,16 @@ def detect(system: DualArmManipulationSystem):
 
 
 def set_prompt(system: DualArmManipulationSystem, prompt: str):
-    """Quick helper to change detection prompt."""
+    """Set the FastSAM detection prompt (no-op if FastSAM is disabled).
+
+    Args:
+        system: Running manipulation system with a service client.
+        prompt: New text prompt.
+
+    Raises:
+        AssertionError: If FastSAM is enabled and ``system.service_client``
+            is ``None``.
+    """
     if not system.use_fastsam:
         logger.info("FastSAM service is disabled.")
         return
@@ -61,7 +80,22 @@ def set_prompt(system: DualArmManipulationSystem, prompt: str):
 # ---------------------------------------------------------------------------
 
 def get_grasps(system: DualArmManipulationSystem, detection, gripper_type, num_grasps=constants.DEFAULT_NUM_GRASPS, collision_check: Optional[str] = None):
-    """Quick helper to generate grasps for a detection."""
+    """Request grasps for a detection's point cloud from the Grasp service.
+
+    Args:
+        system: Running manipulation system with a service client.
+        detection: Detection dict with ``pcd`` and ``pose`` entries.
+        gripper_type: Gripper type key(s) passed through as
+            ``GraspRequest.gripper_type`` (expects a list).
+        num_grasps: Number of grasps to request.
+        collision_check: ``'Inter'``, ``'Intra'`` or ``None``.
+
+    Returns:
+        List of grasp dicts, or ``[]`` on invalid detection or failure.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     pcd = detection.get('pcd', [])
     pose = detection.get('pose', {})
 
@@ -91,7 +125,23 @@ def get_grasps(system: DualArmManipulationSystem, detection, gripper_type, num_g
 
 
 def get_grasps_mesh(system: DualArmManipulationSystem, pose: StampedPose, object_name: str, num_grasps=constants.DEFAULT_NUM_GRASPS, gripper_type='suction', collision_check: Optional[str] = None, visualize_gripper_mesh=True):
-    """Quick helper to generate grasps given an object pose."""
+    """Request mesh-based grasps for a known object from the Grasp service.
+
+    Args:
+        system: Running manipulation system with a service client.
+        pose: Object pose.
+        object_name: Object name used to look up its mesh.
+        num_grasps: Number of grasps to request.
+        gripper_type: Single gripper type key (wrapped in a list).
+        collision_check: ``'Inter'``, ``'Intra'`` or ``None``.
+        visualize_gripper_mesh: Whether the service visualizes gripper meshes.
+
+    Returns:
+        List of grasp dicts, or ``[]`` on failure.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('grasp_service', {
         'command': 'GET_GRASPS',
@@ -119,7 +169,15 @@ def get_grasps_mesh(system: DualArmManipulationSystem, pose: StampedPose, object
 # ---------------------------------------------------------------------------
 
 def get_eef(system: DualArmManipulationSystem):
-    """Quick helper to get end-effector coordinates."""
+    """Get and log the world-frame pose of every robot EEF frame.
+
+    Args:
+        system: Manipulation system with ``tf_manager`` and ``env``.
+
+    Returns:
+        Dict mapping ``robot{i}_{arm}_eef`` to ``position``/``quaternion``
+        dicts and ``frame_id``, or ``None`` if unavailable or on error.
+    """
     if system.tf_manager is None:
         logger.info("TransformManager not initialized")
         return None
@@ -158,7 +216,19 @@ def get_eef(system: DualArmManipulationSystem):
 # ---------------------------------------------------------------------------
 
 def go_to_pose(system: DualArmManipulationSystem, pose: StampedPose, robot_id: int, arm_id: str, gripper_action: float = 0.0, num_steps: Optional[int] = None):
-    """Quick helper to move an arm to a pose."""
+    """Send a non-blocking MOVE_TO_POSE command and log the result.
+
+    Args:
+        system: Running manipulation system with a service client.
+        pose: Target EEF pose.
+        robot_id: Robot index.
+        arm_id: Arm identifier.
+        gripper_action: Gripper command during motion.
+        num_steps: Number of trajectory waypoints (service default if ``None``).
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     pose_dict = pose.model_dump()
     response = system.service_client.call('move_to_pose_service', {
@@ -176,7 +246,20 @@ def go_to_pose(system: DualArmManipulationSystem, pose: StampedPose, robot_id: i
 
 
 def follow_eef_trajectory(system: DualArmManipulationSystem, robot_id: int, arm_id: str, trajectory: List[StampedPose], gripper_action: float = 0.0, num_steps: Optional[int] = None, smoothen: bool = False):
-    """Quick helper to send a follow trajectory command."""
+    """Send a non-blocking FOLLOW_TRAJECTORY command and log the result.
+
+    Args:
+        system: Running manipulation system with a service client.
+        robot_id: Robot index.
+        arm_id: Arm identifier.
+        trajectory: EEF waypoints.
+        gripper_action: Gripper command during motion.
+        num_steps: Number of smoothed waypoints (defaults to trajectory length).
+        smoothen: Whether to apply quintic smoothing.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     traj_dicts = [p.model_dump() for p in trajectory]
     response = system.service_client.call('move_to_pose_service', {
@@ -195,7 +278,16 @@ def follow_eef_trajectory(system: DualArmManipulationSystem, robot_id: int, arm_
 
 
 def cancel_move(system: DualArmManipulationSystem, robot_id: int, arm_id: str):
-    """Quick helper to cancel a move."""
+    """Send a CANCEL_MOVE command and log the result.
+
+    Args:
+        system: Running manipulation system with a service client.
+        robot_id: Robot index.
+        arm_id: Arm identifier.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('move_to_pose_service', {
         'command': 'CANCEL_MOVE',
@@ -209,7 +301,20 @@ def cancel_move(system: DualArmManipulationSystem, robot_id: int, arm_id: str):
 
 
 def get_arm_status(system: DualArmManipulationSystem, robot_id: int, arm_id: str):
-    """Quick helper to get arm status."""
+    """Query an arm's motion status.
+
+    Args:
+        system: Running manipulation system with a service client.
+        robot_id: Robot index.
+        arm_id: Arm identifier.
+
+    Returns:
+        ``status_code`` (-1 moving, 1 success, 0 failure), or ``None`` on
+        failure.
+
+    Raises:
+        AssertionError: If ``system.service_client`` is ``None``.
+    """
     assert system.service_client is not None, "Service client not initialized"
     response = system.service_client.call('move_to_pose_service', {
         'command': 'GET_ARM_STATUS',
@@ -228,7 +333,16 @@ def get_arm_status(system: DualArmManipulationSystem, robot_id: int, arm_id: str
 # ---------------------------------------------------------------------------
 
 def load_trajectory_file(filepath: str):
-    """Load trajectory from file."""
+    """Load a saved trajectory file.
+
+    Args:
+        filepath: Path to the trajectory file.
+
+    Returns:
+        Dict with ``eef_traj``, ``obj_traj``, ``joint_configs``,
+        ``waypoint_results`` and ``feasibility`` (bool array or ``None``),
+        or ``None`` on failure.
+    """
     try:
         eef_traj, obj_traj, joint_configs, waypoint_results = load_trajectory(filepath)
         logger.info(f"Loaded trajectory from {filepath}: {len(eef_traj)} waypoints")
@@ -246,7 +360,14 @@ def load_trajectory_file(filepath: str):
 
 
 def visualize_trajectory_data(system: DualArmManipulationSystem, eef_trajectory: List[StampedPose], waypoint_results: Optional[List[WaypointFeasibilityResult]] = None, name: str = "trajectory"):
-    """Visualize trajectory data in MeshCat."""
+    """Visualize an EEF trajectory in MeshCat.
+
+    Args:
+        system: Manipulation system with a ``tf_manager``.
+        eef_trajectory: EEF waypoints.
+        waypoint_results: Optional per-waypoint feasibility results for coloring.
+        name: MeshCat path name.
+    """
     if system.tf_manager is None:
         logger.info("TransformManager not initialized")
         return

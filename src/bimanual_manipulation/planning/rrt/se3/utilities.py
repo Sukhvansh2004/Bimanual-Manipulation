@@ -36,16 +36,20 @@ def se3_pose_distance(
     """Compute weighted distance between two SE(3) poses.
 
     Thin wrapper around :func:`utils.se3.compute_se3_distance` that accepts
-    two poses instead of a pre-computed twist.
+    two poses instead of a pre-computed twist. The relative transform
+    ``T1^-1 @ T2`` is mapped to a twist ``[omega, v]`` via ``SE3_log`` and
+    the distance is ``||v|| + rotation_weight * ||omega||``.
 
     Args:
-        pos1, quat1: First pose (quaternion in [x,y,z,w]).
-        pos2, quat2: Second pose.
-        rotation_weight: Weight for rotation distance in radians
-                         (default from constants).
+        pos1: First position, shape ``(3,)``.
+        quat1: First orientation ``[x, y, z, w]``.
+        pos2: Second position, shape ``(3,)``.
+        quat2: Second orientation ``[x, y, z, w]``.
+        rotation_weight: Weight applied to the rotation angle (radians).
+            Defaults to :data:`constants.RRT_ROTATION_WEIGHT` when ``None``.
 
     Returns:
-        Scalar distance.
+        Scalar weighted distance.
     """
     if rotation_weight is None:
         rotation_weight = constants.RRT_ROTATION_WEIGHT
@@ -66,7 +70,8 @@ def sample_random_pose(
 
     Position is sampled uniformly in the bounding box. Orientation is
     sampled by interpolating between start/goal orientation at a random
-    fraction, then perturbing with a small random rotation.
+    fraction, then perturbing (body-frame) by a rotation about a random
+    axis with angle uniform in ``[0, constants.RRT_ORIENTATION_NOISE]``.
 
     Args:
         pos_bounds: ``(2, 3)`` array of ``[[x_min, y_min, z_min], [x_max, y_max, z_max]]``.
@@ -74,7 +79,8 @@ def sample_random_pose(
         goal_quat: Goal orientation ``[x,y,z,w]``.
 
     Returns:
-        ``(position, quaternion)`` tuple.
+        ``(position, quaternion)`` tuple; position has shape ``(3,)`` and
+        the quaternion is ``[x, y, z, w]``.
     """
     pos = np.random.uniform(pos_bounds[0], pos_bounds[1])
 
@@ -98,12 +104,17 @@ def steer(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Steer from one pose toward another, limited by *step_size*.
 
-    If the distance is less than *step_size*, returns the target pose.
+    If the :func:`se3_pose_distance` to the target is at most
+    *step_size*, returns a copy of the target pose. Otherwise
+    interpolates (via ``interpolate_pose``) a fraction
+    ``step_size / dist`` of the way toward the target.
 
     Args:
-        from_pos, from_quat: Current pose.
-        to_pos, to_quat: Target pose.
-        step_size: Maximum step distance.
+        from_pos: Current position, shape ``(3,)``.
+        from_quat: Current orientation ``[x, y, z, w]``.
+        to_pos: Target position, shape ``(3,)``.
+        to_quat: Target orientation ``[x, y, z, w]``.
+        step_size: Maximum step, in :func:`se3_pose_distance` units.
 
     Returns:
         ``(position, quaternion)`` of the steered pose.
@@ -131,18 +142,27 @@ def collision_free_segment(
 ) -> bool:
     """Check if a straight-line SE(3) segment is collision free.
 
-    Discretises the segment and checks each intermediate pose.
+    Discretises the segment into ``n = max(2, ceil(dist / resolution))``
+    intervals and checks the poses at ``t = i / n`` for ``i = 0..n``
+    (``i = 1..n-1`` when *skip_endpoints* is set). Each check writes the
+    object pose into ``env.sim.data.qpos`` (see
+    :func:`check_object_pose_collision`).
 
     Args:
         env: Environment.
         object_name: Object name.
-        pos1, quat1: Start of segment.
-        pos2, quat2: End of segment.
+        pos1: Segment start position, shape ``(3,)``.
+        quat1: Segment start orientation ``[x, y, z, w]``.
+        pos2: Segment end position, shape ``(3,)``.
+        quat2: Segment end orientation ``[x, y, z, w]``.
         object_geom_ids: Pre-computed geom IDs.
         robot_mask: Boolean mask ``(ngeom,)`` for robot/gripper geoms.
         obj_joint_addr: qpos address for the object's free joint.
-        resolution: Check resolution (distance between checks).
-        env_lock: Optional threading lock.
+        resolution: Maximum spacing between checks, in
+            :func:`se3_pose_distance` units. Defaults to
+            :data:`constants.RRT_COLLISION_RESOLUTION` when ``None``.
+        env_lock: Optional threading lock, forwarded to
+            :func:`check_object_pose_collision` (which currently ignores it).
         skip_endpoints: If True, skip collision checks at the exact
             start and end of the segment.
 

@@ -33,7 +33,8 @@ def quintic_scalar(n: int) -> np.ndarray:
         n: Number of steps.
 
     Returns:
-        1-D array of shape ``(n,)`` with values in ``[0, 1]``.
+        1-D array of shape ``(n,)`` with values in ``[0, 1]``; ``[1.0]``
+        if ``n <= 1``.
     """
     if n <= 1:
         return np.array([1.0])
@@ -80,7 +81,9 @@ def velocity_profile_joint_trajectory(
             number of waypoints as the input.
 
     Returns:
-        Array of shape ``(M, D)`` where ``M = num_steps or N``.
+        Array of shape ``(M, D)`` where ``M = num_steps or N``. If
+        ``N <= 2`` the input is returned unchanged (``num_steps`` ignored);
+        a zero-length path yields ``M`` copies of the first waypoint.
     """
     N = len(waypoints)
     if N <= 2:
@@ -128,14 +131,16 @@ def resample_joint_trajectory(
 ) -> np.ndarray:
     """Resample a ``(N, D)`` joint trajectory to *target_length* waypoints.
 
-    Uses cubic interpolation via :func:`scipy.interpolate.interp1d`.
+    Uses cubic interpolation via :func:`scipy.interpolate.interp1d` over
+    uniform parameter values.
 
     Args:
         waypoints: Joint trajectory array of shape ``(N, D)``.
         target_length: Desired number of output waypoints.
 
     Returns:
-        Resampled array of shape ``(target_length, D)``.
+        Resampled array of shape ``(target_length, D)``. The input is
+        returned as-is if ``N == target_length``; tiled if ``N < 2``.
     """
     n, d = waypoints.shape
     if n == target_length:
@@ -171,10 +176,14 @@ def plan_quintic_trajectory(
         start_quat: Starting quaternion ``[x, y, z, w]``.
         target_pos: Target position ``[x, y, z]``.
         target_quat: Target quaternion ``[x, y, z, w]``.
-        num_points: Number of waypoints (default from constants).
+        num_points: Number of waypoints (default:
+            ``constants.TRAJECTORY_NUM_POINTS``).
 
     Returns:
-        ``(positions, quaternions)`` arrays of shape ``(N, 3)`` and ``(N, 4)``.
+        ``(positions, quaternions)`` arrays of shape ``(N, 3)`` and ``(N, 4)``
+        (quaternions ``[x, y, z, w]``). If the weighted se(3) distance is
+        below ``constants.TRAJECTORY_MIN_DISTANCE``, ``N = 1`` and only the
+        target pose is returned.
     """
     if num_points is None:
         num_points = constants.TRAJECTORY_NUM_POINTS
@@ -220,8 +229,10 @@ def smooth_trajectory(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Smoothen a trajectory with quintic polynomial timing.
 
-    The resulting trajectory has ``num_steps`` waypoints, starting and
-    ending at rest with zero acceleration (jerk-limited).
+    Waypoints are converted to ``base_frame`` and re-sampled along their
+    cumulative positional arc length with a quintic profile, interpolating
+    each segment with :func:`interpolate_pose`. The result starts and ends
+    at rest with zero acceleration (jerk-limited).
 
     Args:
         trajectory: List of waypoints to smoothen.
@@ -230,7 +241,9 @@ def smooth_trajectory(
         base_frame: Target frame for all waypoints.
 
     Returns:
-        ``(positions, quaternions)`` arrays.
+        ``(positions, quaternions)`` arrays of shape ``(num_steps, 3)`` and
+        ``(num_steps, 4)`` (quaternions ``[x, y, z, w]``) in ``base_frame``.
+        Two empty arrays if ``trajectory`` is empty.
     """
     if not trajectory:
         return np.array([]), np.array([])

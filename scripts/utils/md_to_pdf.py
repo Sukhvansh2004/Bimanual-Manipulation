@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Convert a Markdown file to PDF with embedded images and math (matplotlib)."""
+"""Convert a Markdown file to PDF with embedded images and block math.
+
+Block math (``$$...$$``) is rendered to SVG with matplotlib mathtext;
+inline ``$...$`` math is not rendered. Local images are embedded as base64
+data URIs and the PDF is written with WeasyPrint (A4 landscape).
+
+Usage:
+    python scripts/utils/md_to_pdf.py notes.md
+    python scripts/utils/md_to_pdf.py notes.md -o out/notes.pdf
+"""
 
 import argparse
 import base64
@@ -42,7 +51,20 @@ _math_cache: dict[str, str] = {}
 
 
 def _render_math_svg(tex: str, display: bool = True) -> str:
-    """Render a LaTeX expression to an SVG data URI using matplotlib."""
+    """Render a LaTeX expression to an SVG data URI using matplotlib mathtext.
+
+    Results are memoised in ``_math_cache`` keyed by ``(tex, display)``.
+
+    Args:
+        tex: Math expression without surrounding ``$`` delimiters.
+        display: If ``True`` use display sizing, otherwise inline sizing.
+
+    Returns:
+        str: ``data:image/svg+xml;base64,...`` URI.
+
+    Raises:
+        Exception: Propagates matplotlib errors for unparsable expressions.
+    """
     key = (tex, display)
     if key in _math_cache:
         return _math_cache[key]
@@ -64,11 +86,32 @@ def _render_math_svg(tex: str, display: bool = True) -> str:
 
 
 def _render_math_blocks(text: str) -> str:
-    """Replace $$...$$ block math with <img> placeholder tags before markdown."""
+    """Replace ``$$...$$`` block math with text placeholders before markdown.
+
+    Handles both multi-line blocks (``$$`` on their own lines) and
+    single-line ``$$...$$``. Each match becomes a paragraph containing a
+    ``MATHBLOCK<n>END`` tag.
+
+    Args:
+        text: Raw Markdown source.
+
+    Returns:
+        tuple[str, dict]: The rewritten text and a mapping from placeholder
+        tag to the stripped TeX source. (The ``-> str`` annotation is
+        inaccurate.)
+    """
     counter = {"n": 0}
     placeholders = {}
 
     def _block_repl(m: re.Match) -> str:
+        """Record the matched TeX and return its placeholder paragraph.
+
+        Args:
+            m: Regex match whose group 1 is the TeX source.
+
+        Returns:
+            str: Placeholder tag surrounded by blank lines.
+        """
         tex = m.group(1).strip()
         tag = f"MATHBLOCK{counter['n']}END"
         counter["n"] += 1
@@ -89,7 +132,18 @@ def _render_math_blocks(text: str) -> str:
 
 
 def _resolve_math_placeholders(html: str, placeholders: dict) -> str:
-    """Replace MATHBLOCK placeholders in HTML with rendered SVG images."""
+    """Replace MATHBLOCK placeholders in HTML with rendered SVG images.
+
+    A placeholder wrapped in ``<p>`` is replaced as a whole; render failures
+    are replaced with a red ``<pre>`` error block instead of raising.
+
+    Args:
+        html: HTML produced by ``markdown.markdown``.
+        placeholders: Mapping from placeholder tag to TeX source.
+
+    Returns:
+        str: HTML with placeholders substituted.
+    """
     for tag, tex in placeholders.items():
         try:
             uri = _render_math_svg(tex, display=True)
@@ -102,8 +156,27 @@ def _resolve_math_placeholders(html: str, placeholders: dict) -> str:
 
 
 def _embed_images(html: str, base_dir: Path) -> str:
-    """Replace relative image src with base64 data URIs so WeasyPrint can render them."""
+    """Inline local ``<img>`` sources as base64 data URIs.
+
+    ``http(s)://`` and ``data:`` sources, and paths that do not resolve to an
+    existing file, are left unchanged.
+
+    Args:
+        html: HTML document body.
+        base_dir: Directory that relative ``src`` paths are resolved against.
+
+    Returns:
+        str: HTML with local image sources embedded.
+    """
     def _replace(m: re.Match) -> str:
+        """Return the ``src`` attribute rewritten to a data URI when possible.
+
+        Args:
+            m: Regex match with groups (prefix, src, closing quote).
+
+        Returns:
+            str: Rewritten attribute text, or the original match.
+        """
         prefix, src, suffix = m.group(1), m.group(2), m.group(3)
         if src.startswith(("http://", "https://", "data:")):
             return m.group(0)
@@ -118,6 +191,16 @@ def _embed_images(html: str, base_dir: Path) -> str:
 
 
 def convert(md_path: Path, pdf_path: Path | None = None) -> Path:
+    """Convert a Markdown file to PDF.
+
+    Args:
+        md_path: Input Markdown file.
+        pdf_path: Output PDF path; defaults to ``md_path`` with a ``.pdf``
+            suffix.
+
+    Returns:
+        Path: Resolved path of the written PDF.
+    """
     md_path = md_path.resolve()
     if pdf_path is None:
         pdf_path = md_path.with_suffix(".pdf")
@@ -141,6 +224,10 @@ def convert(md_path: Path, pdf_path: Path | None = None) -> Path:
 
 
 def main():
+    """Parse CLI args and convert the input Markdown file to PDF.
+
+    Exits with status 1 if the input file does not exist.
+    """
     parser = argparse.ArgumentParser(description="Convert Markdown to PDF")
     parser.add_argument("input", type=Path, help="Path to the Markdown (.md) file")
     parser.add_argument("-o", "--output", type=Path, default=None, help="Output PDF path (default: same name as input with .pdf)")

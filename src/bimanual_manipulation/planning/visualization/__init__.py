@@ -9,6 +9,8 @@ robot_mesh
     Robot mesh visualization along trajectories with feasibility colouring.
 object_mesh
     Object mesh visualization along trajectories.
+handover
+    Handover attempt visualization for the assignment solver.
 """
 
 from bimanual_manipulation.planning.visualization.trajectory import (

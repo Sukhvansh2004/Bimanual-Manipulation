@@ -42,6 +42,7 @@ class ObjectTrajectory:
         return len(self.positions)
 
     def __post_init__(self) -> None:
+        """Coerce all fields to NumPy arrays."""
         self.positions = np.asarray(self.positions)
         self.quaternions = np.asarray(self.quaternions)
         self.frame_ids = np.asarray(self.frame_ids)
@@ -56,15 +57,17 @@ class RobotTrajectory:
 
     Attributes:
         eef_positions: ``(N, 3)`` end-effector positions.
-        eef_quaternions: ``(N, 4)`` end-effector quaternions.
+        eef_quaternions: ``(N, 4)`` end-effector quaternions ``[x, y, z, w]``.
         eef_frame_ids: ``(N,)`` EEF frame IDs.
         object_positions: ``(N, 3)`` object positions at each waypoint.
-        object_quaternions: ``(N, 4)`` object quaternions.
+        object_quaternions: ``(N, 4)`` object quaternions ``[x, y, z, w]``.
         object_frame_ids: ``(N,)`` object frame IDs.
         is_feasible: ``(N,)`` boolean — overall feasibility per waypoint.
         ik_success: ``(N,)`` boolean — IK solve succeeded.
         collision_free: ``(N,)`` boolean — configuration is collision-free.
         joint_configs: ``(N, DOF)`` joint configurations.
+        source_path: Basename of the NPZ file this trajectory was loaded
+            from, or ``None``.
     """
 
     eef_positions: np.ndarray
@@ -87,12 +90,13 @@ class RobotTrajectory:
 
     @property
     def feasibility_ratio(self) -> float:
-        """Fraction of waypoints that are feasible."""
+        """Fraction of waypoints that are feasible (``0.0`` when empty)."""
         if self.n_waypoints == 0:
             return 0.0
         return float(np.mean(self.is_feasible.astype(float)))
 
     def __post_init__(self) -> None:
+        """Coerce all array fields to NumPy arrays."""
         self.eef_positions = np.asarray(self.eef_positions)
         self.eef_quaternions = np.asarray(self.eef_quaternions)
         self.eef_frame_ids = np.asarray(self.eef_frame_ids)
@@ -133,6 +137,9 @@ class TrajectoryBundle:
         Args:
             robot_id: 0 or 1.
 
+        Returns:
+            ``robot0_trajectories`` or ``robot1_trajectories``.
+
         Raises:
             ValueError: If *robot_id* is not 0 or 1.
         """
@@ -148,5 +155,12 @@ class TrajectoryBundle:
         Args:
             robot_id: 0 or 1.
             traj_idx: Index into the robot's trajectory list.
+
+        Returns:
+            The selected :class:`RobotTrajectory`.
+
+        Raises:
+            ValueError: If *robot_id* is not 0 or 1.
+            IndexError: If *traj_idx* is out of range.
         """
         return self.get_robot_trajectories(robot_id)[traj_idx]

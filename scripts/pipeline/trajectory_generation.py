@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""
-Planning script for manipulation tasks driven by experiment JSON configs.
+"""Single-arm trajectory generation driven by experiment JSON configs.
 
 This script:
-1. Loads an experiment configuration from a JSON file (or falls back to CLI defaults).
-2. Initializes the DualArmEnvironment with the specified objects.
-3. Plans an object trajectory from start to target pose.
-4. Generates grasps and evaluates/filters feasible EEF trajectories.
-5. Visualizes everything in Meshcat and optionally saves trajectories to disk.
+1. Loads an experiment configuration from a JSON file.
+2. Initializes the dual-arm environment with the specified objects.
+3. Plans an object trajectory from start to target pose (or reuses an existing
+   ``object_trajectory.npz`` with ``--reuse-object-traj``).
+4. Generates finger (robot0) and suction (robot1) grasps and evaluates the
+   per-waypoint feasibility of each grasp's EEF trajectory independently.
+5. Visualizes everything in Meshcat and optionally saves
+   ``object_trajectory.npz`` and ``robot{0,1}_trajectory_<i>.npz`` to the
+   output directory.
 
 Usage:
     python trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
@@ -55,7 +58,11 @@ from bimanual_manipulation.experiment_config import (
 )
 
 def setup_logging(level: int = logging.INFO):
-    """Configure logging."""
+    """Configure root logging with a timestamped format.
+
+    Args:
+        level: Logging level for the root logger.
+    """
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -72,8 +79,12 @@ worker_tf_manager = None
 worker_vis = None
 
 def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patterns=None, table_full_size=None, table_offset=None, robot_base_configs=None, enable_meshcat=True):
-    """Initialize worker process by creating a persistent environment and visualizer.
-    
+    """Initialize a worker process with a persistent environment and visualizer.
+
+    Sets the module globals ``worker_env``, ``worker_tf_manager`` and
+    ``worker_vis``. The visualizer connects to ``constants.MESHCAT_ZMQ_URL``.
+    Errors during setup are logged rather than raised.
+
     Args:
         ycb_objects: YCB object specs for the environment.
         custom_objects: Custom object specs for the environment.
@@ -127,7 +138,32 @@ def init_worker(ycb_objects, custom_objects, log_level, collision_relevant_patte
         logging.error(f"Worker initialization failed: {e}")
 
 def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_name, ignore_names, collision_ignore_waypoints=None, collision_ignore_waypoint_names=None, collision_ignore_waypoint_pairs=None, vis_args=None):
-    """Worker function to evaluate a single robot trajectory."""
+    """Evaluate the EEF trajectory induced by one grasp for a single robot.
+
+    Generates the EEF trajectory from ``object_trajectory`` and the grasp,
+    checks per-waypoint feasibility and, if the worker has a visualizer, draws
+    the trajectory (and optionally robot meshes) in Meshcat.
+
+    Args:
+        grasp_info: Tuple ``(i, grasp)`` of grasp index and grasp.
+        robot_id: Robot index (0 or 1).
+        object_trajectory: Object waypoint trajectory.
+        object_name: Name of the manipulated object.
+        ignore_names: Geom names ignored during collision checking.
+        collision_ignore_waypoints: Waypoint indices at which the
+            ``collision_ignore_waypoint_*`` filters apply.
+        collision_ignore_waypoint_names: Geom name prefixes whose collisions
+            are ignored at those waypoints.
+        collision_ignore_waypoint_pairs: Geom prefix pairs whose mutual
+            collisions are ignored at those waypoints.
+        vis_args: Optional dict with ``visualize_mesh``, ``mesh_sample_ratio``,
+            ``mesh_step_interval`` and ``mesh_opacity``.
+
+    Returns:
+        Dict with keys ``id``, ``traj_eef``, ``results``, ``all_feasible`` and
+        ``grasp``, or ``None`` if the worker is uninitialized or evaluation
+        raised an exception.
+    """
     global worker_env, worker_tf_manager, worker_vis
     
     if worker_env is None or worker_tf_manager is None:
@@ -198,6 +234,12 @@ def evaluate_robot_trajectory(grasp_info, robot_id, object_trajectory, object_na
         return None
 
 def main() -> None:
+    """Run single-arm trajectory generation from the CLI.
+
+    Raises:
+        SystemExit: Always on completion (code 0), or with code 1 if no start
+            pose is configured and auto-detection fails.
+    """
     parser = argparse.ArgumentParser(description="Generate and visualize manipulation trajectory")
     
     # Experiment configuration (required)
@@ -243,13 +285,16 @@ def main() -> None:
     out_cfg = exp_cfg.output
     plan_cfg = exp_cfg.planning
     
+    # DPP is on by default; --no-dpp or planning.use_dpp = false in the JSON turns it off
     if args.no_dpp:
         plan_cfg.use_dpp = False
+    if not plan_cfg.use_dpp:
         if out_cfg.output_dir is None:
             # Auto-suffix if using default directory
             exp_name = exp_cfg.name
             out_cfg.output_dir = str(Path("data") / f"{exp_name}_no_dpp")
-        logger.info(f"DPP DISABLED via CLI. Output directory: {out_cfg.output_dir}")
+        source = "CLI" if args.no_dpp else "experiment JSON"
+        logger.info(f"DPP DISABLED via {source}. Output directory: {out_cfg.output_dir}")
     
     debug = args.debug or rt_cfg.debug
     enable_meshcat = vis_cfg.enable_meshcat and not args.no_meshcat

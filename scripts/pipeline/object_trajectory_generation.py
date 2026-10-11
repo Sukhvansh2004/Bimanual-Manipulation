@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""
-Standalone object trajectory generation with mesh visualization.
+"""Standalone object trajectory generation with mesh visualization.
 
 This script generates only the object trajectory (RRT-based path from start to
-target pose) without any grasp generation or EEF trajectory evaluation.
+target pose) without any grasp generation or EEF trajectory evaluation. The
+result is optionally saved to ``object_trajectory.npz`` in the experiment's
+output directory (``output.output_dir`` or ``DATA_DIR/<experiment name>``).
 
 Usage:
     python object_trajectory_generation.py --experiment experiments/flatPlate_table_to_shelf.json
@@ -44,6 +45,11 @@ from bimanual_manipulation.experiment_config import (
 
 
 def setup_logging(level: int = logging.INFO):
+    """Configure root logging with a timestamped format.
+
+    Args:
+        level: Logging level for the root logger.
+    """
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -55,6 +61,12 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args():
+    """Parse command-line arguments.
+
+    Returns:
+        ``argparse.Namespace`` with ``experiment``, ``save``, ``no_meshcat``
+        and ``debug``.
+    """
     parser = argparse.ArgumentParser(
         description="Generate an object trajectory from an experiment config and visualize it."
     )
@@ -86,6 +98,16 @@ def parse_args():
 
 
 def main():
+    """Generate, visualize and optionally save the object trajectory.
+
+    Builds the dual-arm environment from the experiment config, resolves the
+    start pose (from the config or by auto-detection), plans the object path
+    with ``generate_object_trajectory`` and renders it in Meshcat if enabled.
+    Without ``--save``, the user is prompted interactively before saving.
+
+    Raises:
+        SystemExit: If no start pose is configured and auto-detection fails.
+    """
     args = parse_args()
 
     # ── Load experiment config ──────────────────────────────────────────

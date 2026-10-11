@@ -26,21 +26,31 @@ def visualize_trajectory(
     tf_manager: Optional[TransformManager] = None
 ) -> None:
     """Visualize trajectory as a line and markers in Meshcat.
-    
+
+    Drawn under ``{VIS_PLANNING_ROOT}/{VIS_TRAJECTORY_PATH}/{name}`` (any
+    existing node there is deleted first). A coordinate frame is drawn at
+    every 10th waypoint and at the last one.
+
     Colors for markers:
     - Green: Feasible (IK success + No collision)
     - Red: Infeasible (In collision)
     - Orange: Unreachable (IK failed)
-    - Blue: Default (no feasibility data)
-    
+    - Blue: Default (no feasibility data, or not marked feasible otherwise)
+
     Args:
-        vis: Meshcat visualizer instance
-        trajectory: List of StampedPose objects
-        waypoint_results: Optional list of feasibility results
-        name: Name for the visualization group
-        color: Default color of the trajectory line
-        marker_size: Size of the waypoint spheres
-        tf_manager: Optional TransformManager to ensure world frame
+        vis: Meshcat visualizer instance.
+        trajectory: List of StampedPose objects. Does nothing if empty.
+        waypoint_results: Optional list of feasibility results, index-aligned
+            with *trajectory*.
+        name: Name for the visualization group.
+        color: Color of the trajectory line (markers are coloured as above).
+        marker_size: Radius of the waypoint spheres.
+        tf_manager: Optional TransformManager used to convert non-world
+            poses to the world frame.
+
+    Raises:
+        ValueError: If a pose is not in the world frame and no
+            *tf_manager* is provided.
     """
     if not trajectory:
         return
@@ -117,12 +127,11 @@ def visualize_handover_plan(
 ) -> None:
     """Visualize the handover plan produced by DualArmHandoverPlanner.
 
-    Draws:
-      - receiver_pre pose (cyan frame + sphere)
-      - transfer_hold pose (magenta frame + sphere)
-      - receiver_approach trajectory (line + frames)
-      - transfer_retreat trajectory (line + frames)
-      - object handover pose (yellow sphere, if inferable)
+    Draws under ``{VIS_PLANNING_ROOT}/handover/{name}`` (deleted first):
+      - receiver_pre pose (first pose only; cyan frame + sphere)
+      - transfer_hold pose (first pose only; magenta frame + sphere)
+      - receiver_approach trajectory (light-blue line + frames)
+      - transfer_retreat trajectory (orange line + frames)
 
     Call *after* ``DualArmHandoverPlanner.generate_trajectory()`` and pass
     the returned :class:`HandoverTrajectory`.
@@ -132,19 +141,39 @@ def visualize_handover_plan(
         handover_data: :class:`HandoverTrajectory` from
             ``DualArmHandoverPlanner.generate_trajectory()``.
         name: Group name in MeshCat.
-        tf_manager: Optional TransformManager for frame conversion to world.
+        tf_manager: Optional TransformManager for frame conversion to
+            world. If ``None``, poses are drawn as-is.
     """
     root = f"{constants.VIS_PLANNING_ROOT}/handover/{name}"
     vis[root].delete()
 
     def _to_world(pose: StampedPose) -> StampedPose:
+        """Convert *pose* to the world frame when possible.
+
+        Args:
+            pose: Pose to convert.
+
+        Returns:
+            The pose in the world frame, or *pose* unchanged if it is
+            already in the world frame or no *tf_manager* is available.
+        """
         if pose.frame_id == constants.WORLD_FRAME or tf_manager is None:
             return pose
         return tf_manager.transform_pose(pose, constants.WORLD_FRAME)
 
     def _draw_pose(path: str, pose: StampedPose, color: int, sphere_r: float = 0.015,
                    frame_h: float = 0.08, frame_r: float = 0.003, label: str = ""):
-        """Draw a coordinate frame + coloured sphere at *pose*."""
+        """Draw a coordinate frame + coloured sphere at *pose*.
+
+        Args:
+            path: MeshCat path for the pose group.
+            pose: Pose to draw (converted to world frame if possible).
+            color: Sphere colour as hex integer.
+            sphere_r: Sphere radius.
+            frame_h: Frame axis length.
+            frame_r: Frame axis radius.
+            label: If non-empty, log the world pose at INFO level with this label.
+        """
         wp = _to_world(pose)
         T = wp.to_matrix()
         vis[path].set_transform(T)
@@ -158,7 +187,20 @@ def visualize_handover_plan(
 
     def _draw_traj(path: str, traj: List[StampedPose], color: int, line_color: int,
                    sphere_r: float = 0.008, frame_step: int = 10, label: str = ""):
-        """Draw a trajectory as a line with periodic frames."""
+        """Draw a trajectory as a line with periodic frames.
+
+        A sphere and frame are drawn at the first, last and every
+        *frame_step*-th waypoint.
+
+        Args:
+            path: MeshCat path for the trajectory group.
+            traj: List of poses (converted to world frame if possible).
+            color: Waypoint sphere colour as hex integer.
+            line_color: Line colour as hex integer.
+            sphere_r: Waypoint sphere radius.
+            frame_step: Interval between drawn waypoints.
+            label: If non-empty, log a summary at INFO level with this label.
+        """
         world_traj = [_to_world(p) for p in traj]
         points = np.array([p.position for p in world_traj])  # (N, 3)
 
@@ -215,12 +257,14 @@ def visualize_trajectory_feasibility(
 ) -> Any:
     """Render a heatmap of per-waypoint feasibility across all trajectories.
 
-    Creates a single image with green (feasible), red (infeasible), and grey
-    (missing) cells.
+    Creates a single image (``RdYlGn`` colormap) with green (feasible),
+    red (infeasible), and blank/NaN (missing) cells. Rows are robot 0
+    trajectories followed by robot 1 trajectories; columns are object
+    waypoints. A scalar ``is_feasible`` is broadcast across all waypoints.
 
     Args:
         trajectories: Typed trajectory bundle for both arms.
-        save_path: If provided, save the figure to this path.
+        save_path: If provided, save the figure to this path (150 dpi).
 
     Returns:
         ``(fig, ax)`` matplotlib objects (or *None* if matplotlib unavailable).
@@ -240,6 +284,12 @@ def visualize_trajectory_feasibility(
     matrix = np.full((total, n_waypoints), np.nan)
 
     def _fill(trajs, offset):
+        """Write each trajectory's feasibility into ``matrix`` rows.
+
+        Args:
+            trajs: Robot trajectories to write.
+            offset: Row offset of the first trajectory.
+        """
         for t_idx, traj in enumerate(trajs):
             feasible = np.asarray(traj.is_feasible)
             if feasible.ndim == 0:
@@ -291,12 +341,16 @@ def visualize_assignment_result(
 ) -> Any:
     """Render the optimal assignment sequence as a bar chart.
 
+    Each segment's task cost is a bar coloured by assigned robot (blue for
+    robot 0, orange otherwise), with the switching cost stacked on top in
+    red; handover points are marked with dashed vertical lines.
+
     Args:
         result: An :class:`AssignmentResult`.
-        save_path: If provided, save the figure to this path.
+        save_path: If provided, save the figure to this path (150 dpi).
 
     Returns:
-        ``(fig, ax)`` or *None*.
+        ``(fig, ax)`` matplotlib objects (or *None* if matplotlib unavailable).
     """
     try:
         import matplotlib.pyplot as plt

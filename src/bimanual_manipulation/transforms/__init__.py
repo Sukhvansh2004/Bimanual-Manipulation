@@ -26,7 +26,7 @@ Usage:
     world_pose = tf_manager.transform_pose(pose, "world")
 
     # Get current EEF pose
-    eef_pose = tf_manager.get_frame_pose("left_eef")
+    eef_pose = tf_manager.get_frame_pose("robot0_left_eef")
 """
 
 from bimanual_manipulation.transforms.stamped_pose import StampedPose, Transform

@@ -11,9 +11,11 @@ Renders each evaluated handover in Meshcat under a structured hierarchy::
 
 Colours encode the outcome:
 
-* **Green** — feasible handover (collision-free IK).
-* **Red**   — IK succeeded but inter-arm collision detected.
-* **Orange** — IK failed for one or both arms.
+* **Green** — collision-free step.
+* **Red**   — step flagged in the arm's collision mask.
+* **Orange** — every step of an infeasible attempt whose rejection
+  reason contains ``"ik_fail"``.
+* **Blue** — the object mesh.
 
 The full MuJoCo scene (tables, shelves, etc.) is also streamed once so
 the handover context is visible.
@@ -56,6 +58,14 @@ class HandoverVisualizer:
         tf_manager,
         object_name: Optional[str] = None,
     ) -> None:
+        """Create the robot/object mesh visualizers.
+
+        Args:
+            vis: MeshCat visualizer instance.
+            tf_manager: TransformManager (its ``env`` provides the scene).
+            object_name: Name of the object whose mesh is drawn at the
+                handover pose; if ``None``, no object is drawn.
+        """
         self._mesh_vis = RobotMeshVisualizer(
             vis=vis,
             tf_manager=tf_manager,
@@ -74,7 +84,10 @@ class HandoverVisualizer:
         self._tf_manager = tf_manager
 
     def _publish_scene_once(self) -> None:
-        """Stream the full MuJoCo scene to Meshcat (tables, shelves, etc.)."""
+        """Stream the full MuJoCo scene to Meshcat (tables, shelves, etc.).
+
+        Only runs on the first call; subsequent calls are no-ops.
+        """
         if self._scene_published:
             return
         mj_vis = MeshcatMjVisualizer(self._vis)
@@ -87,7 +100,15 @@ class HandoverVisualizer:
     # ------------------------------------------------------------------
 
     def __call__(self, result: HandoverResult) -> None:
-        """Visualize a single handover attempt."""
+        """Visualize a single handover attempt.
+
+        Draws transfer and receiver arm configurations and (if an object
+        name was given and ``result.object_pose`` is set) the object mesh
+        under ``handover_robot{X}_to_robot{Y}/seg_{N}/traj_{A}_to_{B}``.
+
+        Args:
+            result: Handover evaluation result from the assignment solver.
+        """
         self._publish_scene_once()
 
         t_rid = result.transfer_robot_id
@@ -166,7 +187,17 @@ class HandoverVisualizer:
 
     @staticmethod
     def _outcome_color(result: HandoverResult):
-        """Return ``(hex_color, label)`` based on outcome."""
+        """Return ``(hex_color, label)`` based on outcome.
+
+        Currently unused by this class.
+
+        Args:
+            result: Handover evaluation result.
+
+        Returns:
+            ``(color, label)`` where label is one of ``"ik_failed"``,
+            ``"infeasible"``, ``"collision"`` or ``"feasible"``.
+        """
         if not result.feasible:
             if "ik_fail" in result.rejection_reason:
                 return constants.VIS_COLOR_IK_FAILED, "ik_failed"

@@ -25,6 +25,14 @@ class DetectionSchema(BaseSchema):
     @field_validator('pcd', 'mask', mode='before')
     @classmethod
     def validate_array_list(cls, v: Any) -> Any:
+        """Convert a numpy array to a nested list; pass other values through.
+
+        Args:
+            v: Raw field value.
+
+        Returns:
+            ``v.tolist()`` if ``v`` is an ``np.ndarray``, else ``v``.
+        """
         if isinstance(v, np.ndarray):
             return v.tolist()
         return v
@@ -39,6 +47,17 @@ class GraspSchema(StampedPose):
     @field_validator('gripper_type')
     @classmethod
     def validate_gripper_type(cls, v: str) -> str:
+        """Validate that the gripper type is a known gripper model name.
+
+        Args:
+            v: Gripper model name (a value of ``constants.GRIPPER_TYPE_MAPPING``).
+
+        Returns:
+            The validated gripper model name.
+
+        Raises:
+            ValueError: If ``v`` is not a value of ``GRIPPER_TYPE_MAPPING``.
+        """
         if v not in constants.GRIPPER_TYPE_MAPPING.values():
             raise ValueError(f"Invalid gripper_type: '{v}'. Must be one of {constants.GRIPPER_TYPES}")
         return v
@@ -53,15 +72,22 @@ class ResponseStatus(BaseSchema):
 
 # FastSAM Service
 class FastSAMRequest(BaseSchema):
+    """Request to the FastSAM service (``command`` plus optional text prompt)."""
     command: str
     prompt: Optional[str] = None
 
 class FastSAMResponse(ResponseStatus):
+    """FastSAM service response with the prompt used and detections."""
     prompt: Optional[str] = None
     detections: Optional[List[DetectionSchema]] = None
 
 # Grasp Service
 class GraspRequest(BaseSchema):
+    """Request to the Grasp service.
+
+    ``collision_check`` is required (may be ``None``); ``gripper_type`` is a
+    non-empty list of keys from ``constants.GRIPPER_TYPES``.
+    """
     command: str
     pcd: Optional[List[List[float]]] = None
     object_pose: Optional[StampedPose] = None
@@ -74,6 +100,17 @@ class GraspRequest(BaseSchema):
     @field_validator('gripper_type')
     @classmethod
     def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        """Validate that every gripper type is supported.
+
+        Args:
+            v: Gripper type keys (``constants.GRIPPER_TYPES``).
+
+        Returns:
+            The validated list.
+
+        Raises:
+            ValueError: If any entry is not in ``constants.GRIPPER_TYPES``.
+        """
         for g_type in v:
             if g_type not in constants.GRIPPER_TYPES:
                 raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
@@ -82,11 +119,20 @@ class GraspRequest(BaseSchema):
     @field_validator('pcd', mode='before')
     @classmethod
     def validate_pcd(cls, v: Any) -> Any:
+        """Convert a numpy array to a nested list; pass other values through.
+
+        Args:
+            v: Raw field value.
+
+        Returns:
+            ``v.tolist()`` if ``v`` is an ``np.ndarray``, else ``v``.
+        """
         if isinstance(v, np.ndarray):
             return v.tolist()
         return v
 
 class GraspResponse(ResponseStatus):
+    """Grasp service response with predicted grasps and metadata."""
     grasps: Optional[List[GraspSchema]]
     num_grasps_predicted: int = 0
     pcd_size: int = 0
@@ -95,6 +141,17 @@ class GraspResponse(ResponseStatus):
     @field_validator('gripper_type')
     @classmethod
     def validate_gripper_type(cls, v: List[str]) -> List[str]:
+        """Validate that every gripper type is supported.
+
+        Args:
+            v: Gripper type keys (``constants.GRIPPER_TYPES``).
+
+        Returns:
+            The validated list.
+
+        Raises:
+            ValueError: If any entry is not in ``constants.GRIPPER_TYPES``.
+        """
         for g_type in v:
             if g_type not in constants.GRIPPER_TYPES:
                 raise ValueError(f"Invalid gripper_type: '{g_type}'. Must be one of {constants.GRIPPER_TYPES}")
@@ -102,6 +159,7 @@ class GraspResponse(ResponseStatus):
 
 # Move To Pose Service
 class MoveToPoseRequest(BaseSchema):
+    """Request to move an arm's EEF to a target pose."""
     command: str
     robot_id: int = 0
     arm: str = "right"
@@ -110,6 +168,7 @@ class MoveToPoseRequest(BaseSchema):
     num_steps: Optional[int] = None
 
 class FollowTrajectoryRequest(BaseSchema):
+    """Request to follow an EEF pose trajectory."""
     command: str
     robot_id: int = 0
     arm: str = "right"
@@ -119,11 +178,13 @@ class FollowTrajectoryRequest(BaseSchema):
     smoothen: bool = False
 
 class GetArmStatusRequest(BaseSchema):
+    """Request for the motion status of an arm."""
     command: str
     robot_id: int = 0
     arm: str = "right"
 
 class CancelMoveRequest(BaseSchema):
+    """Request to cancel an arm's current motion."""
     command: str
     robot_id: int = 0
     arm: str = "right"
@@ -150,9 +211,11 @@ class FollowJointTrajectoryRequest(BaseSchema):
     smoothen: bool = False
 
 class MoveToPoseResponse(ResponseStatus):
+    """Response for motion commands (status only)."""
     pass
 
 class ArmStatusResponse(ResponseStatus):
+    """Arm status response; ``status_code`` is -1 moving, 1 success, 0 failure."""
     status_code: int = 1 # -1: moving, 1: success, 0: failure
 
 # --- Service Manager Schemas ---
@@ -167,6 +230,7 @@ class ServiceInfo(BaseSchema):
     registered_at: float = Field(default_factory=time.time)
 
 class RegisterServiceRequest(BaseSchema):
+    """Request to register a service with the ServiceManager."""
     command: str = "REGISTER"
     name: str
     host: str
@@ -175,19 +239,24 @@ class RegisterServiceRequest(BaseSchema):
     description: Optional[str] = ""
 
 class LookupServiceRequest(BaseSchema):
+    """Request to look up a registered service by name."""
     command: str = "LOOKUP"
     name: str
 
 class CallServiceRequest(BaseSchema):
+    """Request for the ServiceManager to forward ``request`` to a service."""
     command: str = "CALL_SERVICE"
     service_name: str
     request: Dict[str, Any]
 
 class ListServicesRequest(BaseSchema):
+    """Request to list all registered services."""
     command: str = "LIST_SERVICES"
 
 class ServiceListResponse(ResponseStatus):
+    """Response mapping service names to their ``ServiceInfo``."""
     services: Dict[str, ServiceInfo] = {}
 
 class ServiceLookupResponse(ResponseStatus):
+    """Response with the looked-up ``ServiceInfo`` (``None`` if not found)."""
     service: Optional[ServiceInfo] = None

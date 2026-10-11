@@ -43,6 +43,7 @@ class CollisionMonitor:
     """
 
     def __init__(self):
+        """Initialize a disabled monitor with a zero count."""
         self._enabled = False
         self._collision_count = 0
         self._manipulated_object: Optional[str] = None
@@ -60,9 +61,10 @@ class CollisionMonitor:
         """Enable monitoring and reset the counter.
 
         Args:
-            manipulated_object: Geom-name prefix to ignore entirely.
-            ignore_pairs: List of ``(prefix_a, prefix_b)`` geom-prefix
-                pairs whose mutual contacts are ignored.
+            manipulated_object: Geom-name pattern (substring match) to
+                ignore entirely.
+            ignore_pairs: List of ``(prefix_a, prefix_b)`` geom-name
+                pattern pairs whose mutual contacts are ignored.
             min_penetration_depth: Minimum MuJoCo penetration depth
                 (negative ``contact.dist``) to count.  ``None`` keeps
                 the default from ``constants``.
@@ -77,23 +79,44 @@ class CollisionMonitor:
             self._min_penetration_depth = constants.COLLISION_MONITOR_MIN_DEPTH
 
     def stop(self) -> int:
-        """Disable monitoring and return the accumulated count."""
+        """Disable monitoring and return the accumulated count.
+
+        Returns:
+            Number of monitored steps that had at least one collision.
+        """
         self._enabled = False
         count = self._collision_count
         return count
 
     @property
     def enabled(self) -> bool:
+        """Whether the monitor is currently active.
+
+        Returns:
+            ``True`` while enabled.
+        """
         return self._enabled
 
     @property
     def collision_count(self) -> int:
+        """Number of steps with a collision since the last :meth:`start`.
+
+        Returns:
+            Collision step count.
+        """
         return self._collision_count
 
     # ── internal ────────────────────────────────────────────────────────
 
     def check(self, env: DualArmEnvironment):
-        """Called by ``env_step`` after each simulation step."""
+        """Increment the count if the current state is in collision.
+
+        Called by ``env_step`` after each simulation step; no-op when
+        disabled.
+
+        Args:
+            env: The simulation environment.
+        """
         if not self._enabled:
             return
         ignore_names = [self._manipulated_object] if self._manipulated_object else None
@@ -118,10 +141,11 @@ def start_collision_monitor(
     """Enable collision monitoring in ``env_step``.
 
     Args:
-        manipulated_object: Geom-name prefix of the grasped object to ignore.
+        manipulated_object: Geom-name pattern of the grasped object to ignore.
         ignore_pairs: List of ``(prefix_a, prefix_b)`` pairs whose mutual
             contacts are ignored.
-        min_penetration_depth: Minimum penetration depth (m) to count.
+        min_penetration_depth: Minimum penetration depth (m) to count
+            (default: ``constants.COLLISION_MONITOR_MIN_DEPTH``).
     """
     _collision_monitor.start(
         manipulated_object,
@@ -131,12 +155,20 @@ def start_collision_monitor(
 
 
 def stop_collision_monitor() -> int:
-    """Disable monitoring and return the number of steps that had collisions."""
+    """Disable monitoring and return the number of steps that had collisions.
+
+    Returns:
+        Collision step count.
+    """
     return _collision_monitor.stop()
 
 
 def get_collision_count() -> int:
-    """Return the current collision count without stopping the monitor."""
+    """Return the current collision count without stopping the monitor.
+
+    Returns:
+        Collision step count.
+    """
     return _collision_monitor.collision_count
 
 
@@ -159,6 +191,7 @@ class ObjectTrajectoryMonitor:
     """
 
     def __init__(self):
+        """Initialize a disabled monitor with no recorded positions."""
         self._enabled = False
         self._object_name: Optional[str] = None
         self._step_count = 0
@@ -186,12 +219,16 @@ class ObjectTrajectoryMonitor:
     def stop(self) -> dict:
         """Disable monitoring and return a summary dict.
 
-        Returns a dict with:
-            actual_trajectory: (M, 3) recorded positions.
-            planned_trajectory: (N, 3) planned positions (or None).
-            mean_tracking_error: mean nearest-waypoint error (m).
-            max_tracking_error: max nearest-waypoint error (m).
-            total_steps: number of env steps recorded.
+        Returns:
+            Dict with keys:
+            - ``actual_trajectory``: ``(M, 3)`` recorded positions.
+            - ``planned_trajectory``: ``(N, 3)`` planned positions (or ``None``).
+            - ``mean_tracking_error``: mean nearest-waypoint error (m); ``0.0``
+              if no comparison was possible.
+            - ``max_tracking_error``: max nearest-waypoint error (m); ``0.0``
+              if no comparison was possible.
+            - ``total_steps``: number of monitored env steps (including steps
+              where the object pose was unavailable).
         """
         self._enabled = False
 
@@ -231,10 +268,22 @@ class ObjectTrajectoryMonitor:
 
     @property
     def enabled(self) -> bool:
+        """Whether the monitor is currently active.
+
+        Returns:
+            ``True`` while enabled.
+        """
         return self._enabled
 
     def check(self, env: DualArmEnvironment):
-        """Called by ``env_step`` after each simulation step."""
+        """Record the object's world position and periodically log it.
+
+        Called by ``env_step`` after each simulation step; no-op when
+        disabled.
+
+        Args:
+            env: Environment providing ``get_object_pose`` (4x4 world pose).
+        """
         if not self._enabled or self._object_name is None:
             return
         self._step_count += 1
@@ -278,5 +327,9 @@ def start_object_monitor(
 
 
 def stop_object_monitor() -> dict:
-    """Disable monitoring and return a summary dict."""
+    """Disable monitoring and return a summary dict.
+
+    Returns:
+        Summary dict from :meth:`ObjectTrajectoryMonitor.stop`.
+    """
     return _object_monitor.stop()

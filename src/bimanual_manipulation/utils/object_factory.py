@@ -26,13 +26,27 @@ logger = logging.getLogger(__name__)
 
 
 class MeshExtractionManager:
-    """Manages lazy extraction of meshes from environment and automatic cleanup."""
+    """Manages lazy extraction of meshes from environment and automatic cleanup.
+
+    Attributes:
+        env: Registered environment used for extraction, or ``None``.
+        temp_dir: Temporary directory holding extracted ``.obj`` files, or
+            ``None`` until an environment is registered.
+    """
 
     def __init__(self):
+        """Initialize with no environment and no temp directory."""
         self.env = None
         self.temp_dir = None
 
     def register_env(self, env: DualArmEnvironment):
+        """Register an environment, creating the temp directory on first call.
+
+        The temp directory is removed at interpreter exit via ``atexit``.
+
+        Args:
+            env: Environment to extract meshes from.
+        """
         self.env = env
         if self.temp_dir is None:
             self.temp_dir = tempfile.mkdtemp(prefix="meshes_")
@@ -40,12 +54,24 @@ class MeshExtractionManager:
             logger.debug(f"Registered mesh extraction temp directory: {self.temp_dir}")
 
     def cleanup(self):
+        """Delete the temp directory (if it exists) and reset ``temp_dir``."""
         if self.temp_dir and os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
             logger.debug(f"Cleaned up mesh extraction temp directory: {self.temp_dir}")
             self.temp_dir = None
 
     def get_mesh_path(self, object_name: str) -> Optional[str]:
+        """Return a cached or freshly extracted ``.obj`` path for an object.
+
+        Tries geom ``<object_name>_visual`` first, then ``<object_name>``.
+
+        Args:
+            object_name: Object instance name.
+
+        Returns:
+            Path to ``<temp_dir>/<object_name>.obj``, or ``None`` if no temp
+            directory/environment is registered or extraction fails.
+        """
         if self.temp_dir is None:
             return None
 
@@ -69,7 +95,11 @@ _mesh_manager = MeshExtractionManager()
 
 
 def register_mesh_extraction_env(env: DualArmEnvironment):
-    """Register an environment for lazy mesh extraction."""
+    """Register an environment for lazy mesh extraction.
+
+    Args:
+        env: Environment used by :func:`resolve_mesh_path` as a fallback.
+    """
     _mesh_manager.register_env(env)
 
 
@@ -81,13 +111,18 @@ def register_mesh_extraction_env(env: DualArmEnvironment):
 def extract_mesh_from_geom(env: DualArmEnvironment, geom_name: str, output_path: str) -> bool:
     """Extract mesh data from a MuJoCo geom and save it to a file.
 
+    Supports mesh, box, cylinder, and sphere geoms, in the geom's local
+    frame. If no geom has the exact name, the first geom whose name contains
+    ``geom_name`` is used.
+
     Args:
         env: Environment instance.
         geom_name: Name of the geom to extract.
-        output_path: Path to save the mesh file.
+        output_path: Path to save the mesh file (format from extension).
 
     Returns:
-        True if successful, False otherwise.
+        True if successful, False otherwise (not found, unsupported type, or
+        error).
     """
     try:
         model = env.sim.model
@@ -148,7 +183,12 @@ def extract_mesh_from_geom(env: DualArmEnvironment, geom_name: str, output_path:
 
 
 def get_available_ycb_objects() -> List[str]:
-    """Get a sorted list of all available YCB objects."""
+    """Get a sorted list of all available YCB objects.
+
+    Returns:
+        Stems of ``*.xml`` files in ``constants.YCB_DATASET_PATH``; empty if
+        the directory does not exist.
+    """
     if not constants.YCB_DATASET_PATH.exists():
         logger.warning(f"YCB dataset not found at {constants.YCB_DATASET_PATH}")
         return []
@@ -171,6 +211,10 @@ def list_ycb_objects() -> None:
 
 def resolve_mesh_path(object_name: str) -> Optional[str]:
     """Resolve the mesh path for a given object name.
+
+    Looks for ``<YCB_DATASET_PATH>/<name>/textured.obj`` with ``name`` being
+    ``object_name`` or ``object_name`` minus its last ``_suffix``, then falls
+    back to mesh extraction from the registered environment.
 
     Args:
         object_name: Name of the object (e.g., ``'apple'``, ``'apple_0'``).
@@ -208,13 +252,17 @@ def create_ycb_object(
 
     Args:
         ycb_name: Name of the YCB object (e.g., ``'apple'``, ``'mug'``).
-        instance_name: Optional unique instance name (defaults to ``ycb_name``).
-        position: Optional ``[x, y, z]`` position.
-        quaternion: Optional ``[x, y, z, w]`` quaternion.
+        instance_name: Optional unique instance name (defaults to
+            ``f"{ycb_name}_0"``).
+        position: Optional ``[x, y, z]`` position (default:
+            ``constants.DEFAULT_OBJECT_POSITION``).
+        quaternion: Optional ``[x, y, z, w]`` quaternion (default:
+            ``constants.DEFAULT_OBJECT_QUATERNION``).
         is_static: Whether the object is static.
 
     Returns:
-        Dictionary with object specification.
+        Dict with keys ``type`` (``"ycb"``), ``ycb_name``, ``instance_name``,
+        ``name``, ``pos``, ``quat``, ``is_static``.
     """
     if instance_name is None:
         instance_name = f"{ycb_name}_0"
@@ -246,14 +294,16 @@ def create_primitive_object(
         obj_type: Type of primitive (``'box'``, ``'cylinder'``, ``'ball'``, ``'capsule'``).
         name: Unique name for the object.
         size: Size parameters (varies by type).
-        position: Optional ``[x, y, z]`` position.
-        quat: Optional ``[x, y, z, w]`` quaternion.
-        rgba: Optional ``[r, g, b, a]`` color values.
+        position: Optional ``[x, y, z]`` position (default:
+            ``constants.DEFAULT_OBJECT_POSITION``).
+        quat: Optional ``[x, y, z, w]`` quaternion (default identity).
+        rgba: Optional ``[r, g, b, a]`` color values (default mid-grey).
         density: Object density in kg/m³.
         friction: Optional ``[slide, spin, roll]`` MuJoCo friction coefficients.
 
     Returns:
-        Dictionary with object specification.
+        Dict with keys ``type``, ``name``, ``size``, ``pos``, ``quat``,
+        ``rgba``, ``friction``, ``density``.
     """
     return {
         "type": obj_type,

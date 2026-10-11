@@ -13,6 +13,7 @@ Usage:
     python scripts/utils/launch_server.py --no-fastsam          # grasp only
     python scripts/utils/launch_server.py --no-grasp             # fastsam only
     python scripts/utils/launch_server.py --move-to-pose         # include MoveToPose
+    python scripts/utils/launch_server.py --detection-prompt mug --debug
 """
 
 import argparse
@@ -37,6 +38,12 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    """Start the ServiceManager and requested services, then block until signalled.
+
+    Creates a headless environment (offscreen camera rendering only), starts
+    FastSAM (and sets its prompt), Grasp and optionally MoveToPose services,
+    waits for SIGINT/SIGTERM, then stops all services and closes the env.
+    """
     parser = argparse.ArgumentParser(description="Launch GPU service server")
     parser.add_argument("--host", default="0.0.0.0",
                         help="Bind address for the ServiceManager (default: 0.0.0.0)")
@@ -137,6 +144,12 @@ def main() -> None:
     stop = threading.Event()
 
     def _shutdown(signum, frame):
+        """Signal handler that sets the stop event.
+
+        Args:
+            signum: Signal number.
+            frame: Current stack frame (unused).
+        """
         logger.info("Received signal %s, shutting down...", signum)
         stop.set()
 

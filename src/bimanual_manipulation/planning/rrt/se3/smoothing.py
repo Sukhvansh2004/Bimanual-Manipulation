@@ -68,9 +68,30 @@ def _shortcut_path(
     """Iteratively remove redundant waypoints via random shortcutting.
 
     Delegates to :func:`path_smoothing.shortcut_generic` with an SE(3)
-    collision callback.
+    collision callback (segment endpoints are not re-checked).
+
+    Args:
+        env: Environment.
+        object_name: Object name.
+        path: List of ``(pos, quat)`` waypoints.
+        object_geom_ids: Pre-computed object geom IDs.
+        robot_mask: Boolean mask ``(ngeom,)`` for robot/gripper geoms.
+        obj_joint_addr: qpos address for the object's free joint.
+        max_iterations: Number of random shortcut attempts.
+
+    Returns:
+        The (possibly shorter) list of ``(pos, quat)`` waypoints.
     """
     def _seg_free(p1, p2):
+        """Check a segment's interior for collisions.
+
+        Args:
+            p1: Segment start ``(pos, quat)``.
+            p2: Segment end ``(pos, quat)``.
+
+        Returns:
+            ``True`` if the segment is collision-free.
+        """
         return collision_free_segment(
             env, object_name,
             p1[0], p1[1], p2[0], p2[1],
@@ -90,7 +111,16 @@ def _shortcut_path(
 # ============================================================================
 
 def _slerp_quaternion(q0: np.ndarray, q1: np.ndarray, t: float) -> np.ndarray:
-    """Spherical linear interpolation between two quaternions [x,y,z,w]."""
+    """Spherical linear interpolation between two quaternions [x,y,z,w].
+
+    Args:
+        q0: Start quaternion ``[x, y, z, w]``.
+        q1: End quaternion ``[x, y, z, w]``.
+        t: Interpolation parameter in ``[0, 1]``.
+
+    Returns:
+        Interpolated quaternion ``[x, y, z, w]``, shape ``(4,)``.
+    """
     r0 = R.from_quat(q0)
     r1 = R.from_quat(q1)
     slerp = Slerp([0.0, 1.0], R.concatenate([r0, r1]))
@@ -100,8 +130,16 @@ def _slerp_quaternion(q0: np.ndarray, q1: np.ndarray, t: float) -> np.ndarray:
 def _decasteljau_slerp(quats: List[np.ndarray], t: float) -> np.ndarray:
     """De Casteljau algorithm on the quaternion sphere.
 
-    Generalises the cubic Bézier to SO(3) using successive SLERP
-    operations instead of linear combinations.
+    Generalises the Bézier curve to SO(3) using successive SLERP
+    operations instead of linear combinations (recursive; works for any
+    number of control quaternions).
+
+    Args:
+        quats: Control quaternions ``[x, y, z, w]`` (at least one).
+        t: Curve parameter in ``[0, 1]``.
+
+    Returns:
+        Quaternion ``[x, y, z, w]`` on the curve at *t*.
     """
     if len(quats) == 1:
         return quats[0]
@@ -120,9 +158,22 @@ def _bezier_smooth_one_segment(
     """Evaluate the Bézier curve for a **single** segment of the path.
 
     The full path is needed so that Catmull-Rom tangents at the segment
-    endpoints use the neighbouring waypoints for continuity.
+    endpoints use the neighbouring waypoints for continuity. Positions use
+    a cubic Bézier with handles of length ``tension * chord`` (as in
+    :func:`path_smoothing.compute_bezier_control_points`); rotations use
+    analogous control quaternions in the tangent space evaluated with a
+    De Casteljau SLERP cascade.
 
-    Returns ``samples_per_segment + 1`` (pos, quat) samples.
+    Args:
+        path: Full list of ``(pos, quat)`` waypoints (at least two).
+        seg_idx: Index of the segment ``[path[seg_idx], path[seg_idx + 1]]``.
+        samples_per_segment: Number of intervals to sample.
+        tension: Handle length as a fraction of the chord. Defaults to
+            :data:`constants.BEZIER_TENSION` when ``None``.
+
+    Returns:
+        ``samples_per_segment + 1`` ``(pos, quat)`` samples, inclusive of
+        both segment endpoints.
     """
     if tension is None:
         tension = constants.BEZIER_TENSION
@@ -132,6 +183,14 @@ def _bezier_smooth_one_segment(
 
     # --- Position control points ---
     def _tangent(idx):
+        """Return the Catmull-Rom position tangent at waypoint *idx*.
+
+        Args:
+            idx: Waypoint index.
+
+        Returns:
+            Tangent vector, shape ``(3,)``.
+        """
         if idx == 0:
             return positions[1] - positions[0]
         elif idx == n - 1:
@@ -149,12 +208,41 @@ def _bezier_smooth_one_segment(
 
     # --- Rotation control quaternions ---
     def _log_rel(qa, qb):
+        """Return the body-frame rotation vector from *qa* to *qb*.
+
+        Args:
+            qa: Start quaternion ``[x, y, z, w]``.
+            qb: End quaternion ``[x, y, z, w]``.
+
+        Returns:
+            Rotation vector ``log(qa^-1 * qb)``, shape ``(3,)``.
+        """
         return (R.from_quat(qa).inv() * R.from_quat(qb)).as_rotvec()
 
     def _apply_rv(q, rv):
+        """Right-multiply a quaternion by the rotation of a rotation vector.
+
+        Args:
+            q: Quaternion ``[x, y, z, w]``.
+            rv: Rotation vector, shape ``(3,)``.
+
+        Returns:
+            Quaternion ``q * exp(rv)`` as ``[x, y, z, w]``.
+        """
         return (R.from_quat(q) * R.from_rotvec(rv)).as_quat()
 
     def _rot_tangent(idx):
+        """Return the rotational tangent (rotation vector) at waypoint *idx*.
+
+        One-sided at the endpoints, the mean of the forward and backward
+        relative rotation vectors at interior waypoints.
+
+        Args:
+            idx: Waypoint index.
+
+        Returns:
+            Rotation vector, shape ``(3,)``.
+        """
         if idx == 0:
             return _log_rel(quaternions[0], quaternions[1])
         elif idx == n - 1:
@@ -190,9 +278,19 @@ def _linear_interpolate_segment(
     p_end: Tuple[np.ndarray, np.ndarray],
     num_samples: int,
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
-    """Linearly interpolate (position lerp + quaternion slerp) between two poses.
+    """Interpolate between two poses with ``interpolate_pose``.
 
-    Returns ``num_samples + 1`` points (inclusive of both endpoints).
+    With the default :data:`constants.INTERPOLATION_TYPE` (``'linear'``)
+    this is position lerp + quaternion slerp.
+
+    Args:
+        p_start: Start ``(pos, quat)``.
+        p_end: End ``(pos, quat)``.
+        num_samples: Number of intervals.
+
+    Returns:
+        ``num_samples + 1`` ``(pos, quat)`` points (inclusive of both
+        endpoints).
     """
     pts: List[Tuple[np.ndarray, np.ndarray]] = []
     for k in range(num_samples + 1):
@@ -225,18 +323,27 @@ def smooth_path(
     **Phase 2 – Hybrid Bézier smoothing**: For each segment, fit a cubic
     Bézier curve and collision-check it.  Segments where the Bézier is
     collision-free get the smooth curve; those that collide fall back to
-    linear interpolation.
+    linear interpolation. Samples per segment are
+    ``max(constants.BEZIER_SAMPLES_PER_SEGMENT, 40 // (n_segments))``.
+
+    The simulator ``qpos``/``qvel`` are restored (followed by
+    ``mj_forward``) before returning.
 
     Args:
         env: Environment.
-        object_name: Object name.
+        object_name: Object name. Its free joint must be named
+            ``f"{object_name}_joint0"``.
         path: List of (position, quaternion) waypoints.
-        env_lock: Optional threading lock.
+        env_lock: Optional threading lock held for the whole call.
         max_smoothing_iterations: Number of shortcut attempts (Phase 1).
+            Defaults to :data:`constants.RRT_SMOOTHING_ITERATIONS` when
+            ``None``.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
 
     Returns:
-        Smoothed path.
+        Densely sampled smoothed path of ``(pos, quat)`` tuples. The input
+        *path* is returned unchanged if it has two or fewer waypoints or
+        the object's joint cannot be found.
     """
     if max_smoothing_iterations is None:
         max_smoothing_iterations = constants.RRT_SMOOTHING_ITERATIONS
@@ -290,6 +397,14 @@ def smooth_path(
                 rrt_vis.draw_bezier_control_polygon(ctrl_segments)
 
             def _se3_collision(pose_pair):
+                """Check whether the object collides at a pose.
+
+                Args:
+                    pose_pair: ``(pos, quat)`` pose.
+
+                Returns:
+                    ``True`` if in collision.
+                """
                 pos, quat = pose_pair
                 return check_object_pose_collision(
                     env, object_name, pos, quat,
@@ -297,6 +412,16 @@ def smooth_path(
                 )
 
             def _se3_eval_segment(path_local, seg_idx, sps):
+                """Evaluate the SE(3) Bézier samples for one segment.
+
+                Args:
+                    path_local: Full ``(pos, quat)`` path.
+                    seg_idx: Segment index.
+                    sps: Samples per segment.
+
+                Returns:
+                    ``sps + 1`` ``(pos, quat)`` samples.
+                """
                 return _bezier_smooth_one_segment(
                     path_local, seg_idx,
                     samples_per_segment=sps,
@@ -304,6 +429,16 @@ def smooth_path(
                 )
 
             def _se3_linear_fallback(start, end, num_samples):
+                """Linearly interpolate a segment as a Bézier fallback.
+
+                Args:
+                    start: Segment start ``(pos, quat)``.
+                    end: Segment end ``(pos, quat)``.
+                    num_samples: Number of intervals.
+
+                Returns:
+                    ``num_samples + 1`` ``(pos, quat)`` samples.
+                """
                 return _linear_interpolate_segment(start, end, num_samples)
 
             result = bezier_smooth_generic(
@@ -332,24 +467,45 @@ def densify_path(
 ) -> List[Tuple[np.ndarray, np.ndarray]]:
     """Resample a sparse SE(3) path to *num_points* evenly-spaced waypoints.
 
-    Uses SE(3) interpolation to produce smooth intermediate poses.
-    Delegates to :func:`path_smoothing.densify_generic` with SE(3)
-    distance and interpolation callbacks.
+    Delegates to :func:`path_smoothing.densify_generic` using
+    :func:`se3_pose_distance` as the arc-length metric and
+    ``interpolate_pose`` (mode :data:`constants.INTERPOLATION_TYPE`) for
+    intermediate poses.
 
     Args:
-        path: Sparse path from the planner.
+        path: Sparse list of ``(pos, quat)`` waypoints from the planner.
         num_points: Desired number of output waypoints.
 
     Returns:
-        Dense path with *num_points* waypoints.
+        Dense path with *num_points* waypoints. If *path* has at most one
+        waypoint or *num_points* ``<= 1``, *path* is returned unchanged.
     """
     if len(path) <= 1 or num_points <= 1:
         return path
 
     def _dist(s1, s2):
+        """Return the SE(3) distance between two ``(pos, quat)`` states.
+
+        Args:
+            s1: First state.
+            s2: Second state.
+
+        Returns:
+            Scalar distance.
+        """
         return se3_pose_distance(s1[0], s1[1], s2[0], s2[1])
 
     def _interp(s1, s2, t):
+        """Interpolate between two ``(pos, quat)`` states.
+
+        Args:
+            s1: Start state.
+            s2: End state.
+            t: Interpolation parameter in ``[0, 1]``.
+
+        Returns:
+            Interpolated ``(pos, quat)`` tuple.
+        """
         pos, quat = interpolate_pose(s1[0], s1[1], s2[0], s2[1], t)
         return (pos, quat)
 

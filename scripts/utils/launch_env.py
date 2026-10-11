@@ -12,17 +12,19 @@ Supports loading environment configurations from experiment JSON files
 
 Usage:
     # Launch with an experiment config
-    python launch_env.py --experiment experiments/ycb_mug_table_to_rack.json
+    python scripts/utils/launch_env.py --experiment experiments/ycb_mug_table_to_rack.json
 
-    # List available experiments
-    python launch_env.py --list-experiments
+    # List available experiments / YCB objects
+    python scripts/utils/launch_env.py --list-experiments
+    python scripts/utils/launch_env.py --list-ycb
 
     # Launch with ad-hoc objects
-    python launch_env.py --with-objects
-    python launch_env.py --ycb mug bowl plate
+    python scripts/utils/launch_env.py --with-objects
+    python scripts/utils/launch_env.py --ycb mug bowl plate
+    python scripts/utils/launch_env.py --ycb-all 5
 
     # Combine experiment with random actions
-    python launch_env.py --experiment experiments/flatPlate_shelf_to_box.json --random-actions
+    python scripts/utils/launch_env.py --experiment experiments/flatPlate_shelf_to_box.json --random-actions --steps 500
 """
 
 import argparse
@@ -56,7 +58,14 @@ logger = logging.getLogger(__name__)
 
 
 def print_env_info(env):
-    """Print information about the environment."""
+    """Log robot, EEF-pose and custom-object information for the environment.
+
+    Builds a temporary ``TransformManager`` to query each robot's EEF pose
+    in its base frame; lookup failures are logged as warnings.
+
+    Args:
+        env: Dual-arm environment to describe.
+    """
     logger.info("\n" + "=" * 60)
     logger.info("DUAL-ARM FRANKA ENVIRONMENT INFO")
     logger.info("=" * 60)
@@ -105,7 +114,11 @@ def print_env_info(env):
 
 
 def print_experiment_info(exp_cfg: ExperimentConfig):
-    """Print experiment configuration summary."""
+    """Log a summary of an experiment configuration.
+
+    Args:
+        exp_cfg: Loaded experiment configuration.
+    """
     logger.info("\n" + "=" * 60)
     logger.info("EXPERIMENT CONFIGURATION")
     logger.info("=" * 60)
@@ -127,8 +140,10 @@ def print_experiment_info(exp_cfg: ExperimentConfig):
 
 
 def get_sample_custom_objects():
-    """
-    Return a list of sample custom primitive objects (dicts) to add to the environment.
+    """Return sample primitive object specs (box, cylinder, ball).
+
+    Returns:
+        list[dict]: Object specs from ``create_primitive_object``.
     """
     return [
         create_primitive_object(
@@ -159,14 +174,20 @@ def get_sample_custom_objects():
 
 
 def get_sample_ycb_objects(ycb_names=None):
-    """
-    Get sample YCB object specifications as a list of dictionaries.
-    
+    """Build YCB object specs placed in a row on the table.
+
+    Names not in the available YCB set are skipped with a warning. A
+    ``'shelf'`` entry is placed on the floor at ``[-0.8, 0, 0]`` rotated
+    90 deg about z.
+
     Args:
-        ycb_names: List of YCB object names to use, or None for defaults
-        
+        ycb_names: YCB object names to use, or ``None`` for the available
+            subset of ``['apple', 'mug', 'banana', 'mustard_bottle']``
+            (falling back to the first three available objects).
+
     Returns:
-        List of dicts, where each dict contains the spec for a YCB object.
+        list[dict]: Object specs from ``create_ycb_object``; empty if no
+        YCB objects are available.
     """
     available = get_available_ycb_objects()
     logger.debug(f"Received YCB names: {ycb_names}")
@@ -210,7 +231,16 @@ def get_sample_ycb_objects(ycb_names=None):
 
 
 def run_random_actions(env, num_steps=200, render=True):
-    """Run the environment with random actions."""
+    """Step the environment with uniform random actions in ``[-0.3, 0.3]``.
+
+    The last action dimension of each robot (gripper) is zeroed. Stops
+    early on ``KeyboardInterrupt``.
+
+    Args:
+        env: Environment to step.
+        num_steps: Number of steps to run.
+        render: Whether to call ``env.render()`` after each step.
+    """
     logger.info("Running random actions...")
     
     action_dim = env.action_dim
@@ -238,6 +268,12 @@ def run_random_actions(env, num_steps=200, render=True):
 
 
 def main():
+    """Parse CLI args, build the environment, and run it until interrupted.
+
+    Experiment objects are loaded first; ``--with-objects``, ``--ycb`` and
+    ``--ycb-all`` objects are appended to them. Exceptions during the run
+    are logged and the environment is always closed.
+    """
     parser = argparse.ArgumentParser(description="Launch dual-arm Franka environment")
     
     # Experiment-based setup (mirrors manipulation/planning scripts)

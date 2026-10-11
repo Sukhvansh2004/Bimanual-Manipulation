@@ -13,14 +13,15 @@ Architecture — powered by `mink <https://github.com/kevinzakka/mink>`_:
         arm B's end-effector toward its target while satisfying:
 
         * **CollisionAvoidanceLimit** — inequality constraints that push
-          arm B away from arm A's current geometry and the grasped object.
-        * **DofFreezingTask** — equality constraint that pins arm A's DOFs
-          so the QP only moves arm B.
+          arm B away from arm A's current geometry, the grasped object,
+          and environment geoms.
+        * **DofFreezingTask** — equality constraint that pins every DOF
+          except arm B's so the QP only moves arm B.
         * **ConfigurationLimit / VelocityLimit** — physical joint limits.
         * **DampingTask** — minimum-norm regularisation for smooth motion.
 
-    3.  Extracts arm B's joint velocity from the QP solution, integrates
-        it, and sends both arms' commands via ``env_step``.
+    3.  Integrates the QP velocity, extracts arm B's joints, and sends
+        both arms' commands in a single ``env_step``.
 
 Usage example (see also ``dual_arm_handover_traj.py``)::
 
@@ -101,30 +102,6 @@ class DualArmParallelPlanner:
     to a handover point).  Arm B is driven to a target pose via mink's
     QP-based differential IK with inter-arm collision avoidance at every
     simulation tick.
-
-    Parameters
-    ----------
-    env : DualArmEnvironment
-        Shared robosuite simulation.
-    arm_a, arm_b : RobosuiteArmController
-        Controllers for the two arms.  Arm A has priority (pre-planned
-        trajectory); arm B is reactively planned.
-    env_lock : threading.RLock, optional
-        Lock protecting ``env`` access concurrently.
-    tf_manager : TransformManager, optional
-        Shared TF manager.
-    dt : float
-        Time-step between waypoints (s).
-    convergence_threshold : float
-        Joint-error threshold for declaring convergence.
-    collision_check : bool
-        If ``True`` (default), add a ``CollisionAvoidanceLimit`` to the
-        QP so that arm B actively avoids arm A and the grasped object.
-    manipulated_object : str, optional
-        Name of the grasped object (e.g. ``"mug_0"``).  When set, the
-        collision avoidance limit includes object-vs-arm-B geom pairs
-        (arm-A-vs-object contacts are automatically excluded because
-        ``DofFreezingTask`` pins arm A and only arm B moves).
     """
 
     def __init__(
@@ -141,6 +118,31 @@ class DualArmParallelPlanner:
         rrt_vis: Optional[RRTVisualizer] = None,
         planning_env: Optional[DualArmEnvironment] = None,
     ):
+        """Store configuration; mink components are built lazily on first use.
+
+        Args:
+            env: Shared robosuite simulation (execution environment).
+            arm_a: Controller for arm A, which has priority (pre-planned
+                trajectory).
+            arm_b: Controller for arm B, which is reactively planned.
+            env_lock: Optional ``threading.RLock`` protecting ``env`` access.
+            tf_manager: Shared TF manager; defaults to ``arm_a.tf_manager``.
+            dt: Time-step between waypoints (s), used for real-time pacing.
+            convergence_threshold: Max absolute joint error (rad) for
+                declaring convergence.
+            collision_check: If ``True`` (default), add a
+                ``CollisionAvoidanceLimit`` to the QP so that arm B actively
+                avoids arm A, the grasped object, and the environment.
+            manipulated_object: Name of the grasped object (e.g.
+                ``"mug_0"``).  When set, the collision avoidance limit
+                includes object-vs-arm-B geom pairs (arm-A-vs-object contacts
+                are not constrained because only arm B moves), and RRT
+                planning tracks the object as carried by arm A.
+            rrt_vis: Optional RRT visualiser passed to the joint-space planner.
+            planning_env: Optional separate environment used for RRT
+                collision checks (synced from *env* before planning);
+                defaults to *env*.
+        """
         self.env = env
         self.planning_env = planning_env or env
         self.env_lock = env_lock
@@ -198,20 +200,28 @@ class DualArmParallelPlanner:
                 list of (7,) arrays.
             target_b: Target for arm B.  Can be:
 
-                * A ``StampedPose`` — IK + quintic planning will be done
-                  as a *reference trajectory*; the mink QP then tracks
-                  this reference while avoiding collisions.
-                * A joint-space trajectory (list or array) — used as the
-                  reference directly.
+                * A ``StampedPose`` — several IK goal candidates are
+                  solved and a collision-free joint RRT (against arm A's
+                  trajectory) is planned as the *reference trajectory*
+                  (a plain quintic is used only if *traj_a* is empty);
+                  the mink QP then tracks this reference while avoiding
+                  collisions.
+                * A single joint config — an RRT reference trajectory is
+                  planned to it (quintic fallback if RRT fails).
+                * A joint-space trajectory with 2+ waypoints — used as
+                  the reference directly.
 
             gripper_a: Gripper action for arm A (1.0 = closed / grasping).
             gripper_b: Gripper action for arm B (-1.0 = open).
             q_warm_start_b: Optional IK warm-start for arm B.
             num_steps_override: Fixed step-count; both trajectories are
-                resampled to this length.
+                resampled to this length (otherwise to the longer of the
+                two, minimum 2).
 
         Returns:
-            :class:`ParallelExecutionResult`.
+            :class:`ParallelExecutionResult`.  If no reference trajectory
+            for arm B can be planned, arm A's trajectory is executed alone
+            and ``success_b`` / ``collision_free`` are ``False``.
         """
         t0 = time.time()
         self._ensure_mink_init()
@@ -296,7 +306,23 @@ class DualArmParallelPlanner:
     ) -> ParallelExecutionResult:
         """Like :meth:`execute_parallel` but arm A receives an EEF trajectory.
 
-        Each ``StampedPose`` is converted to joint space via IK.
+        Each ``StampedPose`` is converted to joint space via sequential IK
+        (:func:`eef_to_joint_trajectory`); waypoints where IK fails repeat
+        the previous config.
+
+        Args:
+            traj_a: EEF trajectory for arm A.
+            target_b: Target for arm B (see :meth:`execute_parallel`).
+            gripper_a: Gripper action for arm A.
+            gripper_b: Gripper action for arm B.
+            q_warm_start_a: Optional IK warm start for arm A's first
+                waypoint (defaults to its current joints).
+            q_warm_start_b: Optional IK warm start for arm B.
+            num_steps_override: Fixed step-count (see
+                :meth:`execute_parallel`).
+
+        Returns:
+            :class:`ParallelExecutionResult`.
         """
         joint_traj_a = eef_to_joint_trajectory(
             self.arm_a, traj_a, q_warm_start=q_warm_start_a,
@@ -329,15 +355,33 @@ class DualArmParallelPlanner:
         """Synchronised execution with reactive collision avoidance.
 
         At each tick:
-            1. Set arm A's next waypoint from *traj_a*.
+            1. Advance to the next waypoint of *traj_a* (starting from
+               index 1, holding at the last one).
             2. Update ``mink.Configuration`` with the full model state
-               (arm A's planned joints + arm B's current joints).
-            3. Set the ``FrameTask`` target from *ref_traj_b* (the
-               reference B trajectory provides waypoint-by-waypoint
-               targets — the QP then tracks them while satisfying
-               collision constraints).
-            4. ``solve_ik`` -> extract arm B's velocity -> integrate.
-            5. Sends each arm's command via ``move_to_joint_config``.
+               (arm A's planned joints + arm B's current joints), clipped
+               to joint limits.
+            3. Set the ``FrameTask`` target (FK of *ref_traj_b*'s
+               waypoint) and the ``PostureTask`` target (reference
+               joints) — the QP then tracks them while satisfying
+               collision constraints.
+            4. ``solve_ik`` -> integrate -> extract arm B's joints (hold
+               arm B's current joints if the QP fails).
+            5. Build both arms' joint actions and apply them in a single
+               ``env_step``, pacing to real time with ``self.dt``.
+
+        Runs until both arms are within the convergence threshold of their
+        final waypoints or ``2 * num_steps`` ticks have elapsed.
+
+        Args:
+            traj_a: ``(num_steps, DOF)`` joint trajectory for arm A.
+            ref_traj_b: ``(num_steps, DOF)`` reference trajectory for arm B.
+            gripper_a: Gripper action for arm A.
+            gripper_b: Gripper action for arm B.
+            num_steps: Number of waypoints in both trajectories.
+
+        Returns:
+            :class:`ParallelExecutionResult` (``duration_s`` is filled in
+            by the caller).
         """
         ctx = self.env_lock if self.env_lock else nullcontext()
         max_steps = num_steps * 2
@@ -481,7 +525,14 @@ class DualArmParallelPlanner:
     def _set_arm_b_target_from_joints(
         self, ref_q_b: np.ndarray,
     ) -> None:
-        """Set the FrameTask target by FK-ing the reference joints."""
+        """Set the FrameTask target by FK-ing the reference joints.
+
+        The mink configuration is restored to its previous ``q``
+        afterwards.
+
+        Args:
+            ref_q_b: ``(DOF,)`` reference joints for arm B.
+        """
         m = self._mink
         assert m is not None
 
@@ -501,9 +552,12 @@ class DualArmParallelPlanner:
     def _solve_mink_step(self) -> Optional[np.ndarray]:
         """Run one mink solve_ik step and return arm B's target joints.
 
+        The solved velocity is integrated in place into the mink
+        configuration over :data:`constants.MINK_DT`.
+
         Returns:
-            (7,) joint configuration for arm B, or ``None`` if the
-            QP solve fails.
+            ``(DOF,)`` joint configuration for arm B, or ``None`` if the
+            QP solve raises.
         """
         m = self._mink
         assert m is not None
@@ -549,7 +603,19 @@ class DualArmParallelPlanner:
         q_warm_start: Optional[np.ndarray],
         traj_a: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
-        """Convert *target_b* into a (N, 7) reference joint trajectory."""
+        """Convert *target_b* into a ``(N, DOF)`` reference joint trajectory.
+
+        Args:
+            target_b: ``StampedPose`` goal, single joint config, or joint
+                trajectory (see :meth:`execute_parallel`).
+            desired_length: Number of waypoints for planned trajectories.
+            q_warm_start: Optional IK warm start (pose targets only).
+            traj_a: Arm A's joint trajectory, used for collision checks.
+
+        Returns:
+            Reference trajectory, or ``None`` if planning to a pose
+            target fails.
+        """
         if isinstance(target_b, StampedPose):
             return self._plan_collision_free_trajectory_b(
                 target_b, desired_length, q_warm_start, traj_a,
@@ -563,7 +629,10 @@ class DualArmParallelPlanner:
         return traj
 
     def _sync_planning_env(self) -> None:
-        """Synchronize planning environment with execution environment."""
+        """Copy qpos/qvel from the execution env into the planning env.
+
+        No-op when both are the same environment.
+        """
         if self.env is self.planning_env:
             return
         with self.env_lock if self.env_lock else nullcontext():
@@ -590,10 +659,15 @@ class DualArmParallelPlanner:
 
         Must be called *after* :meth:`_sync_planning_env`.
 
+        Args:
+            traj_a: ``(N, DOF)`` joint trajectory for arm A.
+
         Returns:
             ``(N, 7)`` array of ``[x, y, z, qw, qx, qy, qz]``, or
-            ``None`` when there is no movable object to track or arm A
-            is not holding it.
+            ``None`` when there is no movable object to track, arm A's
+            EEF body is not found, or the object is farther than
+            :data:`constants.CARRIED_OBJECT_ATTACH_RADIUS` from arm A's
+            EEF (treated as not held).
         """
         if not self.manipulated_object or traj_a is None or len(traj_a) == 0:
             return None
@@ -683,11 +757,20 @@ class DualArmParallelPlanner:
     ) -> Optional[np.ndarray]:
         """Plan arm B's reference trajectory using RRT when possible.
 
-        Tries multiple IK solutions for the goal configuration to
-        increase the chance of finding one that is collision-free
-        against arm A's trajectory.
+        Tries multiple IK solutions for the goal configuration (sorted by
+        distance to *q_warm_start* when given) to increase the chance of
+        finding one that is collision-free against arm A's trajectory.
 
-        Returns ``None`` if RRT fails or IK cannot be solved.
+        Args:
+            target_pose: Goal EEF pose for arm B.
+            desired_length: Number of waypoints in the trajectory.
+            q_warm_start: Optional IK warm start / ranking reference.
+            traj_a: Arm A's joint trajectory for temporal collision checks.
+
+        Returns:
+            ``(desired_length, DOF)`` reference trajectory; a quintic
+            trajectory when *traj_a* is empty; ``None`` if IK cannot be
+            solved or RRT fails for every goal candidate.
         """
         self._sync_planning_env()
 
@@ -800,6 +883,14 @@ class DualArmParallelPlanner:
         Like :meth:`_plan_collision_free_trajectory_b` but takes a direct
         joint configuration (no IK needed).  Falls back to a quintic
         interpolation if RRT fails or arm A's trajectory is unavailable.
+
+        Args:
+            goal_q: ``(DOF,)`` goal joints for arm B.
+            desired_length: Number of waypoints in the trajectory.
+            traj_a: Arm A's joint trajectory for temporal collision checks.
+
+        Returns:
+            ``(desired_length, DOF)`` reference trajectory (never ``None``).
         """
         self._sync_planning_env()
 
@@ -855,5 +946,13 @@ class DualArmParallelPlanner:
     def _joint_error(
         arm: RobosuiteArmController, target_q: np.ndarray,
     ) -> float:
-        """Max absolute joint error."""
+        """Max absolute joint error.
+
+        Args:
+            arm: Arm controller.
+            target_q: ``(DOF,)`` target joints.
+
+        Returns:
+            ``max(|q_current - target_q|)`` (rad).
+        """
         return float(np.max(np.abs(arm.get_joint_positions() - target_q)))

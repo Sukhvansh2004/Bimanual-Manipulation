@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Constants file for bimanual_manipulation package.
+Constants for the bimanual_manipulation package.
+
+Network/service ports, model paths, gripper, perception, planning, control,
+environment and visualization defaults, plus asset path helpers.
 """
 
 import logging
@@ -24,9 +27,9 @@ MOVE_TO_POSE_SERVICE_PORT = 5553
 
 # ZMQ timeouts (in milliseconds)
 ZMQ_POLL_TIMEOUT = 1000  # 1 second for service polling
-ZMQ_MANAGER_TIMEOUT = 5.5 * 60 * 1000  # 5.5 mins... for manager calls (must be >= service call timeout)
+ZMQ_MANAGER_TIMEOUT = 5.5 * 60 * 1000  # 5.5 minutes for manager calls (must be >= service call timeout)
 ZMQ_SERVER_RECV_TIMEOUT = 1000  # 1 second for server receive polling
-ZMQ_SERVICE_CALL_TIMEOUT = 5 * 60 * 1000  # 5 mins... seconds for service calls
+ZMQ_SERVICE_CALL_TIMEOUT = 5 * 60 * 1000  # 5 minutes for manager-to-service calls
 
 # =============================================================================
 # Model and Path Configuration
@@ -45,7 +48,7 @@ GRASPGEN_CONFIG_TEMPLATE = 'graspgen_{gripper_type}.yml'
 # Gripper Configuration
 # =============================================================================
 
-# Gripper action mappings
+# Gripper type key -> GraspGen gripper model name
 GRIPPER_TYPE_MAPPING = {
     'finger': 'franka_panda',
     'suction': 'single_suction_cup_30mm'
@@ -57,8 +60,8 @@ GRIPPER_TYPES = list(GRIPPER_TYPE_MAPPING.keys())
 # Gripper grasp offset transforms
 # These offsets are applied to predicted grasps to align them with the gripper frame
 # Format: (position_offset, quaternion_offset) where quaternion is (x, y, z, w)
-# For finger gripper: 90 degree rotation around Z-axis
-# For suction gripper: identity transform (no offset)
+# For finger gripper: +0.02 m along Z and 90 degree rotation around Z-axis
+# For suction gripper: -0.107 m along Z, identity rotation
 GRIPPER_GRASP_OFFSETS = {
     'franka_panda': {
         'position': np.array([0.0, 0.0, 0.02]),
@@ -109,8 +112,8 @@ GRASPGEN_POINTCLOUD_SIZE = 4096  # Number of points for GraspGen input
 GRIPPER_COLLISION_MESH_SAMPLES = 2000  # Number of points to sample on gripper collision mesh for occupancy checking
 MESH_SCALE = 1.0  # Default scale for object meshes
 GRIPPER_COLLISION_THRESHOLD = 0.005  # Collision threshold (meters) for gripper occupancy checking
-GRASPGEN_PREDICTION_THRESHOLD = 0.8  # Detection confidence threshold for using GraspGen
-MIN_GRASPS = 50
+GRASPGEN_PREDICTION_THRESHOLD = 0.8  # GraspGen grasp confidence threshold for keeping predicted grasps
+MIN_GRASPS = 50  # Requests for <= this many grasps are raised to this value
 DEFAULT_VISUALIZE_GRIPPER_MESH = True  # Whether to visualize gripper mesh during grasp prediction
 
 ENTROPY_POSITION_SCALE = 5
@@ -208,7 +211,7 @@ MINK_IK_DT = 0.02              # seconds per QP iteration (offline IK solver)
 
 # ── CollisionAvoidanceLimit ──
 MINK_COLLISION_MIN_DIST = 0.002     # minimum distance between geoms (metres)
-MINK_COLLISION_DETECT_DIST = 0.05   # distance at which constraints activate
+MINK_COLLISION_DETECT_DIST = 0.05   # distance (metres) at which constraints activate
 MINK_COLLISION_GAIN = 0.85          # how fast geoms may approach each other
 
 # =============================================================================
@@ -312,7 +315,7 @@ TRAJECTORY_NUM_POINTS = 200  # Number of waypoints for quintic polynomial trajec
 TRAJECTORY_TIME_STEP = 0.05  # Time step between waypoints (seconds)
 
 # Trajectory planning thresholds
-TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01
+TRAJECTORY_CONVERGENCE_THRESHOLD = 0.01  # Applied to both position (m) and orientation (rad) error
 TRAJECTORY_ORIENTATION_SCALING = 0.05  # Scaling for orientation in SE(3) distance calculation
 TRAJECTORY_MIN_DISTANCE = 1e-6  # Minimum distance threshold to consider movement needed
 
@@ -488,11 +491,22 @@ MESHCAT_VISUALIZE_GEOMETRY = True
 # =============================================================================
 
 def get_project_root() -> Path:
-    """Get the project root directory."""
+    """Get the project root directory.
+
+    Returns:
+        Repository root (three levels above this file).
+    """
     return Path(__file__).parent.parent.parent
 
 def get_graspgen_config_path(gripper_type: str) -> Path:
-    """Get full path to GraspGen config for a gripper type."""
+    """Get full path to GraspGen config for a gripper type.
+
+    Args:
+        gripper_type: GraspGen gripper model name (e.g. ``franka_panda``).
+
+    Returns:
+        ``<root>/GRASPGEN_MODELS_DIR/graspgen_<gripper_type>.yml``.
+    """
     config_name = GRASPGEN_CONFIG_TEMPLATE.format(gripper_type=gripper_type)
     return get_project_root() / GRASPGEN_MODELS_DIR / config_name
 
@@ -511,6 +525,11 @@ DEFAULT_OBJECT_QUATERNION = [0.0, 0.0, 0.0, 1.0]
 
 # Path to Franka Panda URDF shipped with robosuite (used by EAIK solver)
 def _get_panda_urdf_path() -> Path:
+    """Return the path to robosuite's bundled ``panda_arm.urdf``.
+
+    Returns:
+        Path to the Panda arm URDF inside the installed robosuite package.
+    """
     return Path(robosuite.__file__).parent / "models" / "assets" / "bullet_data" / "panda_description" / "urdf" / "panda_arm.urdf"
 
 PANDA_URDF_PATH = _get_panda_urdf_path()

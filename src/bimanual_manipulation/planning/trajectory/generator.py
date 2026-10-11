@@ -35,30 +35,34 @@ def generate_object_trajectory(
     env_lock=None,
     pos_bounds: Optional[np.ndarray] = None,
 ) -> List[StampedPose]:
-    """Generate a collision-free trajectory for the object from start to target pose.
+    """Generate a trajectory for the object from start to target pose.
 
-    When *env* and *object_name* are provided, an RRT-Connect planner is used
-    to find a collision-free path (ignoring contacts with robot arms/grippers).
+    Both poses are first converted to the world frame. When *env* and
+    *object_name* are both provided, :func:`plan_object_trajectory`
+    (RRT-Connect, ignoring contacts with robot arms/grippers) is used to
+    find a collision-free path. Otherwise falls back to direct
+    interpolation with ``interpolate_pose`` (no collision checking).
 
-    If *env* is not provided, falls back to simple SE(3) interpolation.
+    Args:
+        start_pose: Start pose as StampedPose.
+        target_pose: Target pose as StampedPose.
+        tf_manager: TransformManager for frame conversion.
+        num_steps: Number of interpolation intervals; the output has
+            ``num_steps + 1`` poses.
+        env: (Optional) DualArmEnvironment for collision-aware planning.
+        object_name: (Optional) Name of the object in MuJoCo (required
+            for collision-aware planning).
+        env_lock: (Optional) Threading lock for environment access.
+        pos_bounds: (Optional) Workspace bounds as (2, 3) numpy array
+            ``[[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]``.
+            Overrides auto-computed bounds when provided (RRT path only).
+
+    Returns:
+        List of ``num_steps + 1`` StampedPose objects representing the
+        trajectory.
 
     Raises:
         RuntimeError: If the RRT planner fails to find a collision-free path.
-
-    Args:
-        start_pose: Start pose as StampedPose
-        target_pose: Target pose as StampedPose
-        tf_manager: TransformManager for frame conversion
-        num_steps: Number of interpolation steps
-        env: (Optional) DualArmEnvironment for collision-aware planning
-        object_name: (Optional) Name of the object in MuJoCo (required when env is given)
-        env_lock: (Optional) Threading lock for environment access
-        pos_bounds: (Optional) Workspace bounds as (2, 3) numpy array
-            ``[[lo_x, lo_y, lo_z], [hi_x, hi_y, hi_z]]``.
-            Overrides auto-computed bounds when provided.
-
-    Returns:
-        List of StampedPose objects representing the trajectory
     """
     # Normalize frames to world
     if start_pose.frame_id != constants.WORLD_FRAME:
@@ -115,6 +119,8 @@ def generate_end_effector_trajectory(
 
     The grasp pose is assumed to already be at the robot's grip_site frame
     (i.e., the grasp service has already applied any necessary offsets).
+    The object-relative grasp transform is computed from the **first**
+    object pose and then applied rigidly to every object pose.
 
     Args:
         object_trajectory: List of object poses (StampedPose).
@@ -122,7 +128,9 @@ def generate_end_effector_trajectory(
         tf_manager: TransformManager to handle frame conversions.
 
     Returns:
-        List of StampedPose objects representing end effector poses in world frame.
+        List of StampedPose objects representing end effector poses in
+        world frame, one per object pose (empty if *object_trajectory* is
+        empty).
     """
     if not object_trajectory:
         return []

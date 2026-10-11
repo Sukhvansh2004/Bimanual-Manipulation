@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Comprehensive analysis and visualization of experiment results.
 
-Generates a detailed Markdown report and a suite of plots aggregating
-results across multiple iterations.
+Generates a detailed Markdown report (``comprehensive_report.md``) and a
+suite of plots (``figures/*.png``) aggregating results across multiple
+iterations, and prints a per-experiment console summary.
+
+Usage::
+
+    python scripts/evaluation/analyze.py
+    python scripts/evaluation/analyze.py --results-dir results --iterations 1 2 3 --pdf
+    python scripts/evaluation/analyze.py --experiments mug_inversion --output-dir results/mug
 """
 
 from __future__ import annotations
@@ -31,6 +38,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [ANALYZE] %(levelnam
 logger = logging.getLogger(__name__)
 
 def _fmt(val, fmt=".3f"):
+    """Format a value for report tables.
+
+    Args:
+        val: Value to format.
+        fmt: Format spec applied to floats.
+
+    Returns:
+        ``"N/A"`` for ``None``/NaN, ``"Inf"`` for infinities, ``"Yes"``/``"No"``
+        for bools, the formatted float, or ``str(val)`` otherwise.
+    """
     if val is None: return "N/A"
     if isinstance(val, bool): return "Yes" if val else "No"
     if isinstance(val, (float, np.floating)):
@@ -40,7 +57,14 @@ def _fmt(val, fmt=".3f"):
     return str(val)
 
 class ResultAggregator:
+    """Group results by (experiment, config label) and compute statistics."""
+
     def __init__(self, results: List[ExperimentResult]):
+        """Index results by ``(experiment, config_label)``.
+
+        Args:
+            results: All loaded experiment results (any number of iterations).
+        """
         self.raw_results = results
         self.groups = defaultdict(list)
         for r in results:
@@ -50,6 +74,22 @@ class ResultAggregator:
         self.configs = sorted(list(set(r.config_label for r in results)))
 
     def get_stats(self, exp: str, config: str):
+        """Compute statistics for one experiment × config over all its runs.
+
+        An assignment counts as successful when ``total_cost < 1e10``.
+        ``success_rate`` is over all runs and ``exec_rate`` over successful
+        assignments (both in percent). Handover success excludes records
+        with reason ``object_lost_before_handover``.
+
+        Args:
+            exp: Experiment name.
+            config: Config label.
+
+        Returns:
+            Dict of counts, rates (percent), means/stds, raw value lists and
+            per-gripper / per-direction breakdowns, or ``None`` if there are
+            no runs for this pair.
+        """
         rs = self.groups.get((exp, config), [])
         if not rs: return None
         
@@ -147,7 +187,17 @@ class ResultAggregator:
         }
 
     def get_global_stats(self, config: str):
-        """Aggregate stats for a configuration across ALL experiments."""
+        """Aggregate stats for a configuration across all experiments.
+
+        Uses the same definitions as ``get_stats`` but pools the runs of every
+        experiment; the result omits the ``raw_*`` lists and most stds.
+
+        Args:
+            config: Config label.
+
+        Returns:
+            Stats dict, or ``None`` if the config has no runs.
+        """
         rs_all = []
         for exp in self.exps:
             rs_all.extend(self.groups.get((exp, config), []))
@@ -239,6 +289,15 @@ class ResultAggregator:
         }
 
 def generate_visualizations(agg: ResultAggregator, out_dir: Path):
+    """Write the global summary figures as PNGs.
+
+    Also stores the handovers-vs-success table on ``agg._ho_vs_success`` for
+    use by ``write_markdown_report``, so it should be called first.
+
+    Args:
+        agg: Result aggregator.
+        out_dir: Figure output directory (created if missing).
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # 1. Global Success Rate Heatmap (Manual Impl)
@@ -579,6 +638,14 @@ def generate_visualizations(agg: ResultAggregator, out_dir: Path):
                               for nh in sorted_nh]
 
 def write_markdown_report(agg: ResultAggregator, out_path: Path):
+    """Write the comprehensive Markdown report.
+
+    The report references figures in ``figures/`` relative to ``out_path``.
+
+    Args:
+        agg: Result aggregator.
+        out_path: Output ``.md`` path.
+    """
     lines = [
         "# Comprehensive Dual-Arm Franka Control Evaluation Report",
         f"\n**Scope:** {len(agg.exps)} Experiments, {len(agg.configs)} Configurations, {len(agg.raw_results)} Total Runs.",
@@ -804,6 +871,11 @@ def write_markdown_report(agg: ResultAggregator, out_path: Path):
     logger.info(f"Markdown report generated: {out_path}")
 
 def main():
+    """Load results, then generate figures, the report and optionally a PDF.
+
+    With ``--pdf``, ``scripts/utils/md_to_pdf.py`` is run on the report.
+    Returns early (logging an error) if no results match the filters.
+    """
     parser = argparse.ArgumentParser(description="Detailed result analysis")
     parser.add_argument("--results-dir", type=str, default=str(RESULTS_ROOT))
     parser.add_argument("--output-dir", type=str, default=None)

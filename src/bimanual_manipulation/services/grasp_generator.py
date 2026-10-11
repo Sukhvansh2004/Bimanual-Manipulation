@@ -19,23 +19,29 @@ from bimanual_manipulation.environments.dual_arm import DualArmEnvironment
 logger = logging.getLogger(__name__)
 
 class GraspGenerator:
-    """
-    Generates grasp poses for objects in the environment using the Grasp Service.
-    """
+    """Generates grasp poses for objects in the environment using the Grasp Service."""
     
     def __init__(self, env: DualArmEnvironment, service_client: Optional[ServiceClient] = None):
-        """
-        Initialize with the environment.
-        
+        """Initialize with the environment.
+
         Args:
             env: The DualArmEnvironment instance.
-            service_client: Optional existing ServiceClient instance.
+            service_client: Optional existing ServiceClient instance; a new
+                one is created if ``None``.
         """
         self.env = env
         self.service_client = service_client if service_client is not None else ServiceClient()
 
     def _get_object_pose_stamped(self, object_name: str, env_lock=None) -> Optional[StampedPose]:
-        """Get object pose as StampedPose."""
+        """Get an object's world pose as a StampedPose.
+
+        Args:
+            object_name: Name of the object in the environment.
+            env_lock: Optional lock held while reading the pose.
+
+        Returns:
+            Pose in ``constants.WORLD_FRAME``, or ``None`` if unavailable.
+        """
         ctx = env_lock if env_lock is not None else nullcontext()
         with ctx:
             # env.get_object_pose returns a 4x4 matrix
@@ -54,18 +60,24 @@ class GraspGenerator:
         num_grasps: int = constants.DEFAULT_NUM_GRASPS,
         env_lock=None
     ) -> List[GraspSchema]:
-        """
-        Generate grasps for a specific object and gripper type(s) using the Grasp Service.
-        
+        """Generate grasps for an object and gripper type(s) using the Grasp Service.
+
         Args:
             object_name: Name of the object in the environment.
-            gripper_types: Type of gripper(s) ('parallel_jaw', 'suction', 'franka_panda', etc.).
+            gripper_types: Gripper type key(s) from ``constants.GRIPPER_TYPES``
+                (``'finger'``, ``'suction'``).
+            collision_check: Type of collision checking (``'Inter'``,
+                ``'Intra'``, ``None``).
             num_grasps: Number of grasps to generate.
-            collision_check: Type of collision checking ('Inter', 'Intra', None).
             env_lock: Optional lock for environment access.
-            
+
         Returns:
-            List of GraspSchema objects.
+            List of GraspSchema objects; empty if the pose is unavailable, the
+            call fails, or the response cannot be parsed.
+
+        Raises:
+            pydantic.ValidationError: If ``gripper_types`` or
+                ``collision_check`` are invalid for ``GraspRequest``.
         """
         # 1. Resolve Object Data
         pose = self._get_object_pose_stamped(object_name, env_lock=env_lock)
@@ -108,4 +120,5 @@ class GraspGenerator:
             return []
 
     def __del__(self):
+        """Close the service client on garbage collection."""
         self.service_client.close()

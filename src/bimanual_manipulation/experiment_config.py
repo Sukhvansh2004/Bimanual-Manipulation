@@ -34,6 +34,14 @@ class PoseConfig:
     quaternion: np.ndarray
 
     def to_stamped_pose(self, frame_id: str = constants.WORLD_FRAME) -> StampedPose:
+        """Convert to a StampedPose.
+
+        Args:
+            frame_id: Frame of the pose.
+
+        Returns:
+            StampedPose with this position and quaternion.
+        """
         return StampedPose(position=self.position, quaternion=self.quaternion, frame_id=frame_id)
 
 
@@ -144,7 +152,17 @@ class ExperimentConfig:
 # ---------------------------------------------------------------------------
 
 def _parse_pose(data: Optional[Dict]) -> Optional[PoseConfig]:
-    """Parse a pose dict ``{"position": [...], "quaternion": [...]}``."""
+    """Parse a pose dict ``{"position": [...], "quaternion": [...]}``.
+
+    Args:
+        data: Pose dict, or ``None``.
+
+    Returns:
+        Parsed PoseConfig, or ``None`` if ``data`` is ``None``.
+
+    Raises:
+        KeyError: If ``position`` or ``quaternion`` is missing.
+    """
     if data is None:
         return None
     return PoseConfig(
@@ -154,7 +172,18 @@ def _parse_pose(data: Optional[Dict]) -> Optional[PoseConfig]:
 
 
 def _build_ycb_objects(items: List[Dict]) -> List[Dict[str, Any]]:
-    """Convert JSON ycb_objects list to env-ready dicts via ``create_ycb_object``."""
+    """Convert JSON ycb_objects list to env-ready dicts via ``create_ycb_object``.
+
+    Args:
+        items: JSON entries with ``ycb_name`` and optional ``instance_name``,
+            ``position``, ``quaternion``, ``is_static``.
+
+    Returns:
+        Env-ready YCB object spec dicts.
+
+    Raises:
+        KeyError: If an entry lacks ``ycb_name``.
+    """
     result = []
     for item in items:
         obj = create_ycb_object(
@@ -169,7 +198,19 @@ def _build_ycb_objects(items: List[Dict]) -> List[Dict[str, Any]]:
 
 
 def _build_custom_objects(items: List[Dict]) -> List[Dict[str, Any]]:
-    """Convert JSON custom_objects list to env-ready dicts via ``create_primitive_object``."""
+    """Convert JSON custom_objects list to env-ready dicts via ``create_primitive_object``.
+
+    Args:
+        items: JSON entries with ``type``, ``name``, ``size`` and optional
+            ``position``, ``quaternion``, ``rgba``, ``density``, ``friction``,
+            ``is_static``.
+
+    Returns:
+        Env-ready primitive object spec dicts (``is_static`` forwarded).
+
+    Raises:
+        KeyError: If an entry lacks ``type``, ``name`` or ``size``.
+    """
     result = []
     for item in items:
         obj = create_primitive_object(
@@ -195,8 +236,11 @@ def _build_custom_objects(items: List[Dict]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def load_experiment(path: str) -> ExperimentConfig:
-    """
-    Load an experiment configuration from a JSON file.
+    """Load an experiment configuration from a JSON file.
+
+    Side effect: entries in ``gripper_grasp_offsets`` overwrite
+    ``constants.GRIPPER_GRASP_OFFSETS`` globally. An ``rrt_bounds`` not of
+    shape ``(2, 3)`` is ignored with a warning.
 
     Args:
         path: Path to the JSON experiment file (absolute or relative to project root).
@@ -206,7 +250,8 @@ def load_experiment(path: str) -> ExperimentConfig:
 
     Raises:
         FileNotFoundError: If the JSON file does not exist.
-        KeyError / ValueError: On invalid or missing fields.
+        KeyError: On missing required fields (e.g. ``task``).
+        ValueError: On invalid field values.
     """
     resolved = Path(path)
     if not resolved.is_absolute():
@@ -262,6 +307,7 @@ def load_experiment(path: str) -> ExperimentConfig:
     planning = PlanningConfig(
         num_grasps=plan_raw.get("num_grasps", 200),
         num_entropy_grasps=plan_raw.get("num_entropy_grasps", 20),
+        use_dpp=bool(plan_raw.get("use_dpp", True)),
         gripper_types=plan_raw.get("gripper_types", ["finger", "suction"]),
         collision_check=plan_raw.get("collision_check", "Inter"),
         num_steps=plan_raw.get("num_steps", constants.OBJECT_TRAJ_NUM_STEPS),
@@ -368,10 +414,15 @@ def load_experiment(path: str) -> ExperimentConfig:
 
 
 def detect_start_pose(env, object_name: str) -> Optional[PoseConfig]:
-    """
-    Query the simulation environment for the current pose of *object_name*.
+    """Query the simulation environment for the current pose of *object_name*.
 
-    Returns ``None`` if the object cannot be found.
+    Args:
+        env: Environment providing ``get_object_pose``.
+        object_name: Object instance name.
+
+    Returns:
+        World-frame PoseConfig (quaternion xyzw), or ``None`` if the object
+        cannot be found.
     """
     try:
         mat = env.get_object_pose(object_name)
@@ -385,15 +436,22 @@ def detect_start_pose(env, object_name: str) -> Optional[PoseConfig]:
 
 
 def get_collision_filter_fn(collision_filter: CollisionFilterConfig):
-    """
-    Return a callable ``(geom_name: str) -> bool`` that returns *True* when the
-    geom should be **kept** in collision checking (i.e. it is a robot geom or
-    a task-relevant object such as the manipulated object or its support
-    surfaces).
+    """Build a geom filter for collision checking.
+
+    Args:
+        collision_filter: Config whose ``relevant_patterns`` are matched as
+            substrings of geom names.
+
+    Returns:
+        Callable ``(geom_name: str) -> bool`` that returns ``True`` when the
+        geom should be **kept** (its name starts with ``robot0``,
+        ``gripper0``, ``robot1`` or ``gripper1``, or contains a relevant
+        pattern).
     """
     patterns = collision_filter.relevant_patterns
 
     def _is_relevant(name: str) -> bool:
+        """Return ``True`` if ``name`` is a robot/gripper geom or matches a pattern."""
         is_robot = any(name.startswith(p) for p in ("robot0", "gripper0", "robot1", "gripper1"))
         is_task_object = any(pat in name for pat in patterns)
         return is_robot or is_task_object
@@ -402,7 +460,15 @@ def get_collision_filter_fn(collision_filter: CollisionFilterConfig):
 
 
 def list_experiments(experiments_dir: Optional[str] = None) -> List[str]:
-    """Return a sorted list of experiment JSON files in *experiments_dir*."""
+    """Return a sorted list of experiment JSON files in *experiments_dir*.
+
+    Args:
+        experiments_dir: Directory to search; defaults to
+            ``<project_root>/experiments``.
+
+    Returns:
+        Sorted ``*.json`` paths, or ``[]`` if the directory does not exist.
+    """
     if experiments_dir is None:
         experiments_dir = str(Path(constants.get_project_root()) / "experiments")
     p = Path(experiments_dir)

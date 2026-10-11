@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
-"""
-Full Pipeline Iterative Runner.
+"""Full pipeline iterative runner.
 
 Orchestrates multiple iterations of:
-  1. Trajectory Generation (with different seeds)
-  2. Segment Assignment (ALL CONFIGS)
-  3. Execution
+  1. Trajectory generation (standard and ``--no-dpp``; seed ``base_seed + i``)
+  2. Segment assignment for the selected configs (via ``run_all.py``)
+  3. Execution (via ``run_all.py --execute``)
 
-Collects metrics across all iterations to evaluate robustness.
+Results for iteration ``i`` go to ``results/iter_<i>/``. Between iterations,
+generated robot trajectories and ``configs/`` sub-directories are deleted
+from the data directories (object trajectories are kept).
 
-Supports ``--resume`` for crash recovery: completed iterations are
-auto-detected and skipped, partially-completed iterations pick up
-where they left off (both trajectory generation and assignment/execution).
+Supports ``--resume`` for crash recovery: completed iterations are detected
+from existing result JSONs and skipped, and partially-completed iterations
+pick up where they left off (both trajectory generation and
+assignment/execution). Progress is also written to
+``results/.pipeline_checkpoint.json``, though resume does not read it.
+
+Usage::
+
+    python scripts/evaluation/pipeline_iterative.py --paper --iterations 5
+    python scripts/evaluation/pipeline_iterative.py --experiments mug_inversion --resume
 """
 
 import argparse
@@ -49,6 +57,12 @@ _shutdown_requested = False
 
 
 def _signal_handler(signum, frame):
+    """Request a graceful shutdown after the current job (SIGINT/SIGTERM).
+
+    Args:
+        signum: Received signal number.
+        frame: Current stack frame (unused).
+    """
     global _shutdown_requested
     logger = logging.getLogger(__name__)
     logger.warning("Signal %s received — finishing current job then exiting.", signum)
@@ -56,6 +70,12 @@ def _signal_handler(signum, frame):
 
 
 def setup_logging(log_file: Optional[str] = None):
+    """Configure INFO-level logging to stdout and, optionally, a file.
+
+    Args:
+        log_file: Optional path of a log file to append to; its parent
+            directory is created.
+    """
     handlers = [logging.StreamHandler(sys.stdout)]
     if log_file:
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
@@ -70,6 +90,15 @@ def setup_logging(log_file: Optional[str] = None):
 
 
 def run_command(cmd, description):
+    """Run a subprocess from the project root and log failures.
+
+    Args:
+        cmd: Command and arguments.
+        description: Human-readable name used in log messages.
+
+    Returns:
+        ``True`` if the command exited with code 0, ``False`` otherwise.
+    """
     logger = logging.getLogger(__name__)
     logger.info(f"Running {description}: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=_PROJECT_ROOT)
@@ -84,12 +113,18 @@ def run_command(cmd, description):
 # ---------------------------------------------------------------------------
 
 def trajectories_complete(data_dir: str) -> bool:
-    """Check that trajectory generation finished for *data_dir*.
+    """Check that trajectory generation finished for ``data_dir``.
 
     Verifies that the directory contains:
       * ``object_trajectory.npz``
       * At least one ``robot0_trajectory_*.npz``
       * At least one ``robot1_trajectory_*.npz``
+
+    Args:
+        data_dir: Data directory relative to the project root.
+
+    Returns:
+        ``True`` if all three are present.
     """
     path = Path(_PROJECT_ROOT) / data_dir
     if not path.exists():
@@ -101,6 +136,17 @@ def trajectories_complete(data_dir: str) -> bool:
 
 
 def is_experiment_finished(results_dir: Path, exp_name: str, configs: List[dict]) -> bool:
+    """Check whether every config has a result JSON for an experiment.
+
+    Args:
+        results_dir: Results directory of one iteration.
+        exp_name: Experiment name.
+        configs: Ablation configs that must be present.
+
+    Returns:
+        ``True`` if ``<results_dir>/<exp_name>/<config_id>.json`` exists for
+        every config.
+    """
     exp_results = results_dir / exp_name
     if not exp_results.exists():
         return False
@@ -113,7 +159,18 @@ def is_experiment_finished(results_dir: Path, exp_name: str, configs: List[dict]
 
 def find_resume_iteration(results_base: Path, total_iters: int,
                           experiments: List[str], configs: List[dict]) -> int:
-    """Return the 0-based index of the first incomplete iteration."""
+    """Return the 0-based index of the first incomplete iteration.
+
+    Args:
+        results_base: Directory containing ``iter_<n>`` sub-directories.
+        total_iters: Total number of iterations requested.
+        experiments: Experiment names to check.
+        configs: Ablation configs to check.
+
+    Returns:
+        Index of the first iteration with a missing result, or
+        ``total_iters`` if everything is complete.
+    """
     for i in range(total_iters):
         iter_dir = results_base / f"iter_{i+1}"
         if not iter_dir.exists():
@@ -128,13 +185,24 @@ def find_resume_iteration(results_base: Path, total_iters: int,
 # ---------------------------------------------------------------------------
 
 def save_checkpoint(iteration: int, phase: str, experiment: str = ""):
-    """Write a small JSON checkpoint so progress survives crashes."""
+    """Write a small JSON checkpoint to ``results/.pipeline_checkpoint.json``.
+
+    Args:
+        iteration: 1-based iteration number.
+        phase: Current phase name (e.g. ``"traj_gen"``).
+        experiment: Current experiment name, if any.
+    """
     _CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
     data = {"iteration": iteration, "phase": phase, "experiment": experiment}
     _CHECKPOINT_FILE.write_text(json.dumps(data))
 
 
 def load_checkpoint() -> Optional[dict]:
+    """Read the pipeline checkpoint.
+
+    Returns:
+        The checkpoint dict, or ``None`` if missing or unreadable.
+    """
     if _CHECKPOINT_FILE.is_file():
         try:
             return json.loads(_CHECKPOINT_FILE.read_text())
@@ -144,11 +212,13 @@ def load_checkpoint() -> Optional[dict]:
 
 
 def clear_checkpoint():
+    """Delete the pipeline checkpoint file if it exists."""
     if _CHECKPOINT_FILE.is_file():
         _CHECKPOINT_FILE.unlink()
 
 
 def main():
+    """Parse CLI arguments and run the iterative generation/assignment/execution loop."""
     parser = argparse.ArgumentParser(
         description="Iterative pipeline runner with crash-resilient resume",
     )

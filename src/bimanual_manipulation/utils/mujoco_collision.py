@@ -17,7 +17,15 @@ _prefix_to_ids = {}     # Cache for name prefix -> list of geom IDs
 _cached_model_id = None # id() of the model object used to build the caches
 
 def ensure_geom_caches(model):
-    """Ensure global caches for geom names and robot memberships are initialized."""
+    """Ensure global caches for geom names and robot memberships are initialized.
+
+    Caches are rebuilt when ``id(model)`` changes. Robot geoms are those
+    whose names start with ``robot0_``, ``gripper0_``, ``robot1_`` or
+    ``gripper1_``.
+
+    Args:
+        model: MuJoCo model (robosuite wrapper with ``geom_id2name``).
+    """
     global _robot_mask, _geom_names, _prefix_to_ids, _cached_model_id
     if _robot_mask is None or _cached_model_id != id(model):
         _geom_names = [model.geom_id2name(i) or "" for i in range(model.ngeom)]
@@ -31,9 +39,17 @@ def ensure_geom_caches(model):
 def get_geom_ids_for_patterns(prefixes):
     """Get union of geom IDs whose names contain any of the given patterns.
 
-    Supports both prefix-style (e.g. ``"robot0"``) and substring-style
-    (e.g. ``"geo_snout"``) matching so that individual geoms can be
-    targeted regardless of the runtime naming prefix added by robosuite.
+    Matching is plain substring containment (``pattern in name``), so it
+    covers prefix-style (e.g. ``"robot0"``) and substring-style
+    (e.g. ``"geo_snout"``) patterns regardless of the runtime naming prefix
+    added by robosuite. Requires :func:`ensure_geom_caches` to have been
+    called; results are cached per pattern.
+
+    Args:
+        prefixes: Iterable of name patterns.
+
+    Returns:
+        List of unique matching geom IDs (unordered).
     """
     ids = set()
     for pref in prefixes:
@@ -48,9 +64,18 @@ def get_geom_ids_for_patterns(prefixes):
 # geom caches without duplicating the iteration/prefix-matching logic.
 
 def get_geom_ids_by_prefix(model, prefix: str) -> np.ndarray:
-    """Return an array of geom IDs whose names start with *prefix*.
+    """Return an array of geom IDs whose names contain *prefix*.
 
-    Initialises the internal geom caches on first call for a given model.
+    Despite the name, matching is substring containment (see
+    :func:`get_geom_ids_for_patterns`). Initialises the internal geom caches
+    on first call for a given model.
+
+    Args:
+        model: MuJoCo model.
+        prefix: Name pattern.
+
+    Returns:
+        Integer array of geom IDs.
     """
     ensure_geom_caches(model)
     return np.array(get_geom_ids_for_patterns([prefix]), dtype=int)
@@ -60,6 +85,12 @@ def get_robot_geom_mask(model) -> np.ndarray:
     """Return a boolean mask of shape ``(ngeom,)`` that is True for robot/gripper geoms.
 
     Initialises the internal geom caches on first call for a given model.
+
+    Args:
+        model: MuJoCo model.
+
+    Returns:
+        The cached global mask (not a copy).
     """
     ensure_geom_caches(model)
     return _robot_mask
@@ -73,18 +104,25 @@ def in_collision(
     ignore_names: Optional[List[str]] = None,
     ignore_pairs: Optional[List[Tuple[str, str]]] = None,
 ) -> bool:
-    """Return True if either robot has any contacts below the threshold.
+    """Return True if any robot/gripper geom has a contact within the threshold.
+
+    Uses the current ``data.contact`` buffer (no ``mj_forward`` is called).
+    Name filters use substring matching (see
+    :func:`get_geom_ids_for_patterns`).
 
     Args:
         env: The simulation environment.
-        contact_dist_threshold: Distance threshold for considering a contact.
+        contact_dist_threshold: Contacts with ``dist <= threshold`` count.
         env_lock: Optional lock for thread safety.
-        ignore_names: List of geom name prefixes to ignore entirely
+        ignore_names: List of geom name patterns to ignore entirely
             (contacts where *either* geom matches are discarded).
         ignore_pairs: List of ``(prefix_a, prefix_b)`` tuples.  A contact is
             discarded when one geom matches *prefix_a* AND the other matches
             *prefix_b*.  This allows selectively ignoring object-gripper
             contacts while still detecting object-arm contacts.
+
+    Returns:
+        ``True`` if at least one remaining contact involves a robot geom.
     """
 
     ctx = env_lock if env_lock is not None else nullcontext()
@@ -157,6 +195,13 @@ def check_inter_arm_collision(
     Unlike :func:`in_collision`, this checks **only** inter-arm contacts and
     ignores all robot-environment and robot-object contacts.  Intended for
     verifying that a dual-arm configuration is free of arm-arm interference.
+
+    Args:
+        env: The simulation environment.
+        contact_dist_threshold: Contacts with ``dist <= threshold`` count.
+
+    Returns:
+        ``True`` if an inter-arm contact is found.
 
     Note:
         Assumes ``mj_forward`` has already been called with the desired qpos.

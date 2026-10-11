@@ -1,8 +1,8 @@
 """
 High-level collision-aware object trajectory planner.
 
-Orchestrates the RRT-Connect planner (:mod:`rrt.se3_planner`) and path
-post-processing (:mod:`rrt.path_smoothing`) to produce a collision-free
+Orchestrates the RRT-Connect planner (:mod:`rrt.se3.planner`) and path
+post-processing (:mod:`rrt.se3.smoothing`) to produce a collision-free
 object trajectory through the workspace.
 """
 
@@ -49,26 +49,36 @@ def plan_object_trajectory(
     Uses RRT-Connect in SE(3) with MuJoCo collision checking.
     Ignores collisions with robot arms/grippers.
 
-    If the direct path is collision-free, returns the simple interpolated
-    trajectory (fast path).
+    If the direct path is collision-free, the two-waypoint RRT result is
+    simply densified, giving an interpolated trajectory (fast path).
+    Otherwise the RRT path is smoothed (:func:`smooth_path`) and densified
+    (:func:`densify_path`).
 
     Args:
         env: The simulation environment.
         object_name: Name of the object to plan for.
-        start_pose: Start pose (StampedPose, will be converted to world frame).
-        target_pose: Target pose (StampedPose).
-        tf_manager: TransformManager for frame conversion.
-        num_steps: Number of output trajectory waypoints.
+        start_pose: Start pose (StampedPose); converted to world frame
+            when *tf_manager* is given.
+        target_pose: Target pose (StampedPose); converted to world frame
+            when *tf_manager* is given.
+        tf_manager: Optional TransformManager for frame conversion.
+        num_steps: Number of trajectory intervals; the output has
+            ``num_steps + 1`` waypoints.
         env_lock: Optional threading lock.
         max_iterations: Max RRT iterations (default from constants).
         step_size: RRT step size (default from constants).
         goal_bias: RRT goal bias (default from constants).
-        pos_bounds: Workspace bounds ``(2, 3)`` array (default from constants).
+        pos_bounds: Workspace bounds ``(2, 3)`` array. When ``None``,
+            computed as the start/goal bounding box padded by
+            :data:`constants.RRT_BOUNDS_MARGIN`, with the lower z clamped
+            to at least :data:`constants.RRT_MIN_Z`.
         smoothing_iterations: Path smoothing iterations (default from constants).
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
 
     Returns:
-        Tuple of (trajectory as list of StampedPose, planning_success bool).
+        Tuple of (trajectory as list of ``num_steps + 1`` StampedPose in
+        the start pose's frame, planning_success bool). The success flag
+        is always ``True`` because failure raises.
 
     Raises:
         RuntimeError: If RRT planning fails to find a collision-free path.

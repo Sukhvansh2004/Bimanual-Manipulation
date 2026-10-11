@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 
 
 class TrajectoryVisualizer:
-    """Manages MeshCat visualization for a single arm's trajectories."""
+    """Manages MeshCat visualization for a single arm's trajectories.
+
+    Draws under the MeshCat path ``trajectory_robot<robot_id>_<arm_id>``.
+    """
 
     def __init__(
         self,
@@ -34,6 +37,14 @@ class TrajectoryVisualizer:
         tf_manager: TransformManager,
         base_frame: str,
     ) -> None:
+        """Initialize the visualizer; the MeshCat connection is created lazily.
+
+        Args:
+            robot_id: Robot index.
+            arm_id: Arm name (e.g. ``"right"``).
+            tf_manager: Used to map ``base_frame`` poses into the world frame.
+            base_frame: Frame the trajectory waypoints are expressed in.
+        """
         self.robot_id = robot_id
         self.arm_id = arm_id
         self.tf_manager = tf_manager
@@ -41,6 +52,11 @@ class TrajectoryVisualizer:
         self._meshcat_vis: Optional[meshcat.Visualizer] = None
 
     def _ensure_visualizer(self) -> meshcat.Visualizer:
+        """Connect to MeshCat at ``constants.MESHCAT_ZMQ_URL`` on first use.
+
+        Returns:
+            The cached ``meshcat.Visualizer``.
+        """
         if self._meshcat_vis is None:
             self._meshcat_vis = meshcat.Visualizer(
                 zmq_url=str(constants.MESHCAT_ZMQ_URL)
@@ -65,7 +81,11 @@ class TrajectoryVisualizer:
         """Visualize SE(3) trajectory frames in MeshCat.
 
         Shows coordinate frames along the trajectory path to visualize the
-        coupled rotation-translation motion in SE(3) space.
+        coupled rotation-translation motion in SE(3) space, plus a polyline
+        colored green → blue → red from start to end. Replaces any previous
+        trajectory for this arm. No-op for fewer than 2 waypoints or if
+        ``make_frame`` is unavailable; falls back to identity (base frame
+        drawn as world) if the base-to-world transform cannot be resolved.
 
         Args:
             positions: Waypoint positions ``(N, 3)`` in robot base frame.

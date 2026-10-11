@@ -57,7 +57,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class JointRRTResult:
-    """Result of joint-space RRT-Connect planning."""
+    """Result of joint-space RRT-Connect planning.
+
+    Attributes:
+        success: Whether a collision-free path was found.
+        path: List of ``(7,)`` joint configurations from start to goal;
+            empty on failure.
+        iterations: Number of RRT iterations run (``0`` for a direct path).
+        tree_a_size: Size of the internal tree_a at termination.
+        tree_b_size: Size of the internal tree_b at termination.
+    """
 
     success: bool
     path: List[np.ndarray] = field(default_factory=list)
@@ -98,6 +107,12 @@ def rrt_connect_joint_space(
     (temporal collision checking).  This prevents arm B from colliding
     with arm A at intermediate positions along its trajectory.
 
+    The direct start-to-goal segment (including endpoints) is tried
+    first; if clear, a two-waypoint path is returned without running
+    RRT. Random samples are drawn within arm B's joint limits shrunk by
+    :data:`constants.ARM_RRT_JOINT_MARGIN`. The simulator ``qpos``/``qvel``
+    are restored (followed by ``mj_forward``) before returning.
+
     Args:
         env: Simulation environment.
         robot_id_b: Robot ID of the arm to plan for.
@@ -106,9 +121,9 @@ def rrt_connect_joint_space(
         q_other_arm: Fixed joint configuration of the other arm.
             Used when *q_other_arm_trajectory* is not provided.
         robot_id_a: Robot ID of the other arm.
-        env_lock: Optional threading lock.
+        env_lock: Optional threading lock held for the planning call.
         max_iterations: Maximum RRT-Connect iterations.
-        step_size: Step size for tree extension (radians).
+        step_size: Step size (joint-space L2, radians) for tree extension.
         goal_bias: Probability of sampling the goal.
         rrt_vis: Optional :class:`RRTVisualizer` for Meshcat debugging.
             Tree edges and paths are projected to 3-D end-effector
@@ -121,14 +136,17 @@ def rrt_connect_joint_space(
             sampled from *q_other_arm_trajectory* for temporal
             collision checking.  Defaults to
             ``constants.ARM_RRT_TEMPORAL_SAMPLES``.
-        manipulated_object: Name of the object arm A is carrying.
+        manipulated_object: Name of the object arm A is carrying; only
+            used (to find its free-joint qpos indices) when
+            *object_qpos_trajectory* is given.
         object_qpos_trajectory: Optional ``(N, 7)`` free-joint qpos
             trajectory of the object **arm A is carrying**, aligned
             with *q_other_arm_trajectory*.  Keeps the carried object
             an obstacle at every sampled instant.
 
     Returns:
-        :class:`JointRRTResult` with success flag and path.
+        :class:`JointRRTResult` with success flag and path. ``success``
+        is ``False`` (empty path) if no geoms are found for arm B.
     """
     # ── Build (arm A config, object pose) snapshots ────────────────
     #    When a trajectory is provided, sample representative configs
@@ -227,6 +245,14 @@ def rrt_connect_joint_space(
 
             # ── Domain callbacks for generic RRT-Connect ─────────────
             def _collision(q):
+                """Check arm B at *q* against every temporal snapshot.
+
+                Args:
+                    q: Arm B joint configuration.
+
+                Returns:
+                    ``True`` if any snapshot is in collision.
+                """
                 return any(
                     check_arm_config_collision(
                         env, q, qpos_idx_b,
@@ -238,6 +264,16 @@ def rrt_connect_joint_space(
                 )
 
             def _seg_free(q1, q2):
+                """Check a segment's interior against every temporal snapshot.
+
+                Args:
+                    q1: Segment start configuration.
+                    q2: Segment end configuration.
+
+                Returns:
+                    ``True`` if the segment is collision-free for all
+                    snapshots.
+                """
                 return all(
                     collision_free_joint_segment(
                         env, q1, q2,
@@ -250,6 +286,11 @@ def rrt_connect_joint_space(
                 )
 
             def _sample():
+                """Sample a random arm B configuration within the margined limits.
+
+                Returns:
+                    Joint configuration.
+                """
                 return sample_random_config(jnt_lo, jnt_hi)
 
             # ── Visualisation hooks (FK to 3-D EE position) ──────────
@@ -273,6 +314,14 @@ def rrt_connect_joint_space(
                     )
 
                     def _on_extend(parent_q, new_q, is_start):
+                        """Draw a new tree edge projected to EE positions.
+
+                        Args:
+                            parent_q: Parent joint configuration.
+                            new_q: New joint configuration.
+                            is_start: ``True`` if the edge belongs to the
+                                start tree (drawn as tree_a).
+                        """
                         rrt_vis.draw_tree_edge(
                             _ee_pos_fn(parent_q),
                             _ee_pos_fn(new_q),
@@ -280,6 +329,11 @@ def rrt_connect_joint_space(
                         )
 
                     def _on_collision(q):
+                        """Draw a rejected configuration at its EE position.
+
+                        Args:
+                            q: Rejected joint configuration.
+                        """
                         rrt_vis.draw_collision_sample(_ee_pos_fn(q))
                 else:
                     logger.warning(
@@ -289,6 +343,13 @@ def rrt_connect_joint_space(
                     )
 
                 def _on_iteration(it, ta_size, tb_size):
+                    """Forward iteration progress to the visualizer logger.
+
+                    Args:
+                        it: Iteration index.
+                        ta_size: Size of tree_a.
+                        tb_size: Size of tree_b.
+                    """
                     rrt_vis.log_iteration(it, ta_size, tb_size)
 
             success, path, iters, ta, tb = rrt_connect_generic(

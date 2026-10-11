@@ -1,3 +1,9 @@
+"""Contact-driven suction gripper emulation via MuJoCo weld equality constraints.
+
+Quaternions read from / written to MuJoCo are ``[w, x, y, z]``; scipy
+computations use ``[x, y, z, w]``.
+"""
+
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -16,6 +22,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SuctionWeldHandles:
+    """Resolved MuJoCo IDs for one suction gripper's weld constraint.
+
+    Attributes:
+        valid: Whether all IDs were resolved.
+        eq_id: Weld equality constraint ID.
+        snout_geom_id: Suction-cup (``geo_snout``) geom ID.
+        eef_body_id: EEF body the weld's body1 is set to.
+        welded_body_id: Body currently welded (body2), or ``None`` if released.
+    """
     valid: bool
     eq_id: int = -1
     snout_geom_id: int = -1
@@ -23,6 +38,11 @@ class SuctionWeldHandles:
     welded_body_id: Optional[int] = None
 
     def __repr__(self):
+        """Return a multi-line string listing all handle fields.
+
+        Returns:
+            String representation.
+        """
         return (
             f"""SuctionWeldHandles(
                     valid={self.valid}, 
@@ -41,7 +61,11 @@ _OBJECT_BODY_CACHE: Dict[int, Set[int]] = {}
 
 
 def clear_suction_cache() -> None:
-    """Clear all suction weld caches. Call this after env.reset() if needed."""
+    """Clear all suction weld caches. Call this after env.reset() if needed.
+
+    Clears both the per-model handle cache (including ``welded_body_id``
+    state) and the valid-object body cache.
+    """
     _SUCTION_CACHE.clear()
     _OBJECT_BODY_CACHE.clear()
     logger.debug("Cleared suction weld caches")
@@ -53,6 +77,14 @@ def is_object_grasped(env: DualArmEnvironment, robot_id: int, arm: str = "right"
     Checks the cached ``SuctionWeldHandles.welded_body_id`` — if it is not
     ``None``, the gripper has an active MuJoCo weld equality constraint
     attaching it to an object.
+
+    Args:
+        env: The simulation environment.
+        robot_id: Robot index.
+        arm: Arm name.
+
+    Returns:
+        ``False`` if no valid handles are cached for this gripper.
     """
     model_key = id(env.sim.model)
     per_model = _SUCTION_CACHE.get(model_key, {})
@@ -64,7 +96,24 @@ def is_object_grasped(env: DualArmEnvironment, robot_id: int, arm: str = "right"
 
 
 def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
-    """Get MuJoCo element ID from name using wrapper's public API."""
+    """Get a MuJoCo element ID from its name.
+
+    Bodies and geoms use the robosuite wrapper's ``*_name2id`` methods;
+    equality constraints use native ``mj_name2id``.
+
+    Args:
+        sim: Simulation.
+        obj_type: ``"body"``, ``"geom"`` or ``"equality"``; any other type is
+            treated like ``"equality"``.
+        name: Element name.
+
+    Returns:
+        Element ID; ``-1`` if an equality constraint is not found.
+
+    Raises:
+        ValueError: If a body or geom name is not found (raised by the
+            robosuite wrapper).
+    """
     model = sim.model
 
     type_map = {
@@ -88,7 +137,17 @@ def _name2id(sim: MjSim, obj_type: str, name: str) -> int:
 
 
 def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
-    """Get MuJoCo element name from ID using wrapper's public API."""
+    """Get a MuJoCo element name from its ID.
+
+    Args:
+        sim: Simulation.
+        obj_type: ``"body"``, ``"geom"`` or ``"equality"``.
+        idx: Element ID.
+
+    Returns:
+        Element name, or ``None`` for an unknown ``obj_type`` or unnamed
+        equality.
+    """
     model = sim.model
     
     if obj_type == "body":
@@ -102,7 +161,14 @@ def _id2name(sim: MjSim, obj_type: str, idx: int) -> Optional[str]:
 
 
 def _get_contact_arrays(sim: MjSim) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return vectorized contact info (geom1, geom2, dist)."""
+    """Return vectorized contact info for the active contacts.
+
+    Args:
+        sim: Simulation.
+
+    Returns:
+        ``(geom1, geom2, dist)`` arrays of length ``ncon`` (empty if none).
+    """
     data = sim.data
     ncon = int(data.ncon)
     if ncon <= 0:
@@ -118,7 +184,15 @@ def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
     """Get the set of body IDs that belong to manipulable objects in the environment.
     
     Uses robosuite's object tracking (object_body_ids) to identify valid targets.
-    Only these bodies can be welded to - everything else is rejected.
+    Only these bodies can be welded to - everything else is rejected. Static
+    objects (``env.static_object_body_ids``) are excluded. Cached per model.
+
+    Args:
+        env: The simulation environment.
+        sim: Simulation (its model's ``id`` is the cache key).
+
+    Returns:
+        Set of valid body IDs.
     """
     model_key = id(sim.model)
     if model_key in _OBJECT_BODY_CACHE:
@@ -140,7 +214,16 @@ def _get_valid_object_body_ids(env: DualArmEnvironment, sim: MjSim) -> Set[int]:
 
 
 def _is_valid_suction_target(env: DualArmEnvironment, sim: MjSim, body_id: int) -> bool:
-    """Check if a body is a valid suction target (i.e., a manipulable object)."""
+    """Check if a body is a valid suction target (i.e., a manipulable object).
+
+    Args:
+        env: The simulation environment.
+        sim: Simulation.
+        body_id: Body ID.
+
+    Returns:
+        ``True`` if ``body_id > 0`` and it is a non-static tracked object.
+    """
     if body_id <= 0:
         return False
     valid_ids = _get_valid_object_body_ids(env, sim)
@@ -148,7 +231,13 @@ def _is_valid_suction_target(env: DualArmEnvironment, sim: MjSim, body_id: int) 
 
 
 def _set_equality_active(sim: MjSim, eq_id: int, active: bool) -> None:
-    """Set weld constraint active state using wrapper's public API."""
+    """Set a weld constraint's ``data.eq_active`` flag.
+
+    Args:
+        sim: Simulation.
+        eq_id: Equality constraint ID.
+        active: Whether to enable the constraint.
+    """
     data = sim.data
     data.eq_active[eq_id] = 1 if active else 0
 
@@ -158,6 +247,15 @@ def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bo
     
     After robosuite merges XML, body IDs change. We must set BOTH
     eq_obj1id and eq_obj2id to ensure the weld connects the correct bodies.
+
+    Args:
+        sim: Simulation.
+        eq_id: Equality constraint ID.
+        body1_id: EEF body ID.
+        body2_id: Object body ID.
+
+    Returns:
+        ``False`` if the constraint is not a weld, else ``True``.
     """
     model = sim.model
     success = True
@@ -184,7 +282,12 @@ def _set_weld_bodies(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bo
 
 
 def _debug_weld_state(sim: MjSim, eq_id: int) -> None:
-    """Log the current state of a weld constraint for debugging using wrapper's public API."""
+    """Log a weld constraint's bodies, active flag, relpose, and solver params at DEBUG.
+
+    Args:
+        sim: Simulation.
+        eq_id: Equality constraint ID.
+    """
     model = sim.model
     data = sim.data
     
@@ -215,9 +318,15 @@ def _debug_weld_state(sim: MjSim, eq_id: int) -> None:
 
 
 def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
-    """Verify weld constraint is properly configured.
-    
-    Returns True if the constraint appears valid and active.
+    """Verify a weld constraint is properly configured.
+
+    Args:
+        sim: Simulation.
+        eq_id: Equality constraint ID.
+
+    Returns:
+        True if the constraint is an active weld between two distinct
+        non-world bodies; False otherwise (with an error/warning logged).
     """
     model = sim.model
     data = sim.data
@@ -245,9 +354,16 @@ def _verify_weld_constraint(sim: MjSim, eq_id: int) -> bool:
 
 
 def _get_body_pose_wxyz(sim: MjSim, body_id: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (pos, quat) for a body in world coordinates using wrapper's public API.
+    """Return (pos, quat) for a body in world coordinates.
 
     Quaternion is MuJoCo's convention (w, x, y, z).
+
+    Args:
+        sim: Simulation.
+        body_id: Body ID.
+
+    Returns:
+        ``(pos, quat_wxyz)`` arrays of shape ``(3,)`` and ``(4,)``.
     """
     data = sim.data
     
@@ -263,13 +379,13 @@ def _compute_relative_pose_wxyz(
     """Compute relative pose of body2 in body1's frame using scipy Rotation.
     
     Args:
-        p1: Position of body1 in world frame
-        q1_wxyz: Quaternion of body1 in MuJoCo (w,x,y,z) convention
-        p2: Position of body2 in world frame  
-        q2_wxyz: Quaternion of body2 in MuJoCo (w,x,y,z) convention
-        
+        p1: Position of body1 in world frame.
+        q1_wxyz: Quaternion of body1 in MuJoCo (w,x,y,z) convention.
+        p2: Position of body2 in world frame.
+        q2_wxyz: Quaternion of body2 in MuJoCo (w,x,y,z) convention.
+
     Returns:
-        (p_rel, q_rel_wxyz): Relative position and quaternion (MuJoCo convention)
+        (p_rel, q_rel_wxyz): Relative position and quaternion (MuJoCo convention).
     """
     # Convert to scipy convention (x,y,z,w)
     q1_xyzw = T.convert_quat(q1_wxyz, to="xyzw")
@@ -294,8 +410,18 @@ def _compute_relative_pose_wxyz(
 def _set_weld_relpose_current(sim: MjSim, eq_id: int, body1_id: int, body2_id: int) -> bool:
     """Set weld relpose to current relative pose (body2 in body1 frame).
 
-    This prevents objects from snapping when the weld activates.
-    Uses wrapper's public API for reliable modification.
+    This prevents objects from snapping when the weld activates. Writes
+    ``model.eq_data[eq_id, 0:10]`` (anchor zeroed, relpose position and
+    ``wxyz`` quaternion).
+
+    Args:
+        sim: Simulation.
+        eq_id: Weld constraint ID.
+        body1_id: EEF body ID.
+        body2_id: Object body ID.
+
+    Returns:
+        Always ``True``.
     """
     model = sim.model
     
@@ -327,6 +453,21 @@ def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: 
     
     Uses the gripper's correct_naming() to get properly prefixed element names,
     which is the canonical way robosuite handles XML element naming after merge.
+    Looks up ``suction_constraint`` (equality), ``geo_snout`` (geom) and
+    ``eef`` (body). Results are cached per ``(model, robot_id, arm)``.
+
+    Args:
+        env: The simulation environment.
+        robot_id: Robot index.
+        arm: Arm name.
+        gripper: robosuite gripper model providing ``correct_naming``.
+
+    Returns:
+        Cached or newly resolved handles (``valid=False`` if the equality
+        constraint is missing).
+
+    Raises:
+        ValueError: If the snout geom or EEF body name is not found.
     """
 
     sim = env.sim
@@ -369,12 +510,23 @@ def _resolve_handles(env: DualArmEnvironment, robot_id: int, arm: str, gripper: 
 def apply_suction_weld(env: DualArmEnvironment, action: Any) -> None:
     """Contact-driven suction weld.
 
-    - If suction is ON (gripper action > 0) and suction cup is in contact with a 
-      VALID OBJECT (from env.object_body_ids), activate the MuJoCo weld equality.
-    - If suction is OFF, deactivate the weld.
-    - Does NOTHING if not in contact with a valid object (prevents self-welding).
+    For each suction/vacuum gripper, the gripper command is the last entry of
+    its robot's action block:
 
-    Uses robosuite's object tracking to identify valid suction targets.
+    - ``0.0``: neutral, weld state unchanged.
+    - exactly ``-1.0``: suction OFF, deactivate the weld.
+    - any other value: suction ON. Keep an existing weld active; otherwise,
+      if the snout's closest contact (``dist < constants.SUCTION_DISTANCE``)
+      is with a VALID OBJECT (from env.object_body_ids), retarget the weld
+      to that body at the current relative pose and activate it. With no
+      valid contact the weld is kept inactive (prevents self-welding).
+
+    Calls ``sim.forward()`` if a weld was activated or released. All
+    exceptions are logged and swallowed.
+
+    Args:
+        env: The simulation environment.
+        action: Full environment action vector (size ``env.action_dim``).
     """
     try:
         robots = env.robots

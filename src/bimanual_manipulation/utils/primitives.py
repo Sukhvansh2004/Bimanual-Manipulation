@@ -1,4 +1,9 @@
 # TODO: Switch from linear translation → minimum jerk trajectories.
+"""Pose-level manipulation primitives: handover, grasp approach, and release retreat.
+
+Quaternions are ``[x, y, z, w]`` (scipy convention). Grasp transforms are
+the object pose in the EE frame (``ee <- object``).
+"""
 
 import numpy as np
 from dataclasses import dataclass, field
@@ -12,7 +17,16 @@ from bimanual_manipulation import constants
 class HandoverTrajectory:
     """Typed container for the output of :meth:`DualArmHandoverPlanner.generate_trajectory`.
 
-    All poses are in world frame.
+    All poses are in the frame of the handover object pose (normally world).
+
+    Attributes:
+        receiver_pre: Single-element list with the receiver standoff pose.
+        transfer_hold: Single-element list with the transfer arm hold pose.
+        receiver_approach: Receiver poses from standoff to grasp.
+        force_ramp_transfer: Transfer arm poses (constant) during force ramp.
+        force_ramp_receiver: Receiver poses (constant) during force ramp.
+        force_schedule: Per-step dicts with ``"F_transfer"`` and ``"F_receiver"``.
+        transfer_retreat: Transfer arm poses from hold to retreat.
     """
 
     receiver_pre: List[StampedPose] = field(default_factory=list)
@@ -26,13 +40,23 @@ class HandoverTrajectory:
 
 # Utilities
 def resolve_axis(axis: Union[str, np.ndarray, Callable[[np.ndarray], np.ndarray]], quaternion: np.ndarray) -> np.ndarray:
-    """
-    Resolve a motion axis.
+    """Resolve a motion axis to a unit vector in the pose's parent frame.
 
     axis options:
-        'x','y','z','-x','-y','-z'  -> EE frame
-        np.ndarray(3,)              -> world frame
-        callable(quaternion)->axis  -> custom
+        'x','y','z','-x','-y','-z'  -> EE frame axis (case-insensitive)
+        np.ndarray(3,)              -> already in the parent (world) frame
+        callable(rotation)->axis    -> custom; receives the ``(3, 3)``
+                                       rotation matrix, not the quaternion
+
+    Args:
+        axis: Axis specification as above.
+        quaternion: EE orientation ``[x, y, z, w]``.
+
+    Returns:
+        Unit vector of shape ``(3,)``.
+
+    Raises:
+        ValueError: If the axis string is invalid or the vector is ~zero.
     """
     # Convert quaternion to rotation matrix for axis resolution
     rot = R.from_quat(quaternion)
@@ -68,9 +92,15 @@ def resolve_axis(axis: Union[str, np.ndarray, Callable[[np.ndarray], np.ndarray]
 
 
 def slerp_quat(q1: np.ndarray, q2: np.ndarray, alpha: float) -> np.ndarray:
-    """
-    Proper spherical interpolation between quaternions.
-    Produces constant angular velocity.
+    """Spherically interpolate between two quaternions (constant angular velocity).
+
+    Args:
+        q1: Start quaternion ``[x, y, z, w]``.
+        q2: End quaternion ``[x, y, z, w]``.
+        alpha: Interpolation parameter in ``[0, 1]``.
+
+    Returns:
+        Interpolated quaternion ``[x, y, z, w]`` of shape ``(4,)``.
     """
     key_times = [0, 1]
     rotations = R.from_quat([q1, q2])
@@ -80,8 +110,16 @@ def slerp_quat(q1: np.ndarray, q2: np.ndarray, alpha: float) -> np.ndarray:
 
 
 def interpolate_pose(p1: StampedPose, p2: StampedPose, steps: int) -> List[StampedPose]:
-    """
-    Interpolate SE(3) using linear translation + SLERP rotation.
+    """Interpolate poses using linear translation + SLERP rotation.
+
+    Args:
+        p1: Start pose.
+        p2: End pose (assumed to be in ``p1.frame_id``; not checked).
+        steps: Number of poses, endpoints included. ``steps == 1`` yields
+            only ``p1``; ``steps <= 0`` yields an empty list.
+
+    Returns:
+        List of ``steps`` poses in ``p1.frame_id``.
     """
     traj = []
 
@@ -104,11 +142,11 @@ def compute_ee_pose(obj_pose: StampedPose, grasp: StampedPose) -> StampedPose:
     where G represents the object pose in the EE frame (ee <- object).
 
     Args:
-        obj_pose: Object pose in world frame (world <- object)
-        grasp: Grasp transform — object pose relative to EE (ee <- object)
+        obj_pose: Object pose in world frame (world <- object).
+        grasp: Grasp transform — object pose relative to EE (ee <- object).
 
     Returns:
-        EE pose in the same frame as obj_pose (world <- ee)
+        EE pose in the same frame as obj_pose (world <- ee).
     """
     T_obj = Transform(
         translation=obj_pose.position,
@@ -138,11 +176,16 @@ def extract_grasp_transform(ee_pose: StampedPose, obj_pose: StampedPose) -> Stam
     Computes G = inv(T_ee) @ T_obj, i.e. the object pose in the EE frame.
 
     Args:
-        ee_pose: End-effector pose in world frame (world <- ee)
-        obj_pose: Object pose in world frame (world <- object)
+        ee_pose: End-effector pose in world frame (world <- ee).
+        obj_pose: Object pose in world frame (world <- object). Must share
+            ``ee_pose.frame_id``.
 
     Returns:
-        Grasp as StampedPose representing object-in-EE (ee <- object)
+        Grasp as StampedPose representing object-in-EE (ee <- object), with
+        ``frame_id="ee"``.
+
+    Raises:
+        ValueError: If ``ee_pose`` and ``obj_pose`` have different frames.
     """
     T_ee = Transform(
         translation=ee_pose.position,
@@ -166,6 +209,14 @@ def extract_grasp_transform(ee_pose: StampedPose, obj_pose: StampedPose) -> Stam
 
 
 def sigmoid_ramp(steps: int) -> np.ndarray:
+    """Sigmoid ramp from 0 to 1, sampled on ``x`` in ``[-6, 6]``.
+
+    Args:
+        steps: Number of samples (must be ``>= 2``; ``1`` divides by zero).
+
+    Returns:
+        Array of shape ``(steps,)`` min-max normalized to ``[0, 1]``.
+    """
     x = np.linspace(-6, 6, steps)
     s = 1 / (1 + np.exp(-x))
     return (s - s.min()) / (s.max() - s.min())
@@ -178,8 +229,9 @@ class DualArmHandoverPlanner:
     All poses are expected in the world frame. Grasp transforms (G1, G2) represent
     the object pose in each EE's frame (ee <- object).
 
-    The planner produces five phases:
-        1. Pre-alignment  — receiver moves to a standoff pose offset from the object.
+    The planner produces four phases:
+        1. Pre-alignment  — receiver moves to a standoff pose offset from its
+           grasp pose; transfer arm holds its grasp pose.
         2. Approach        — receiver interpolates from standoff to the grasp pose.
         3. Force ramp      — both arms hold; grip force transfers via sigmoid ramp.
         4. Retreat          — transfer arm backs away along its retreat axis.
@@ -194,6 +246,7 @@ class DualArmHandoverPlanner:
         approach_steps: Number of interpolation steps for receiver approach.
         ramp_steps: Number of steps for the force transfer sigmoid ramp.
         transfer_retreat_axis: EE-frame axis for transfer arm retreat.
+        retreat_steps: Number of interpolation steps for the retreat.
     """
 
     def __init__(
@@ -209,6 +262,10 @@ class DualArmHandoverPlanner:
         transfer_retreat_axis: str = constants.HANDOVER_RETREAT_AXIS,
         retreat_steps: int = constants.HANDOVER_RETREAT_STEPS,
     ):
+        """Store grasp transforms, handover pose, and phase parameters.
+
+        See the class docstring for argument descriptions.
+        """
 
         self.G1 = grasp_transfer
         self.G2 = grasp_receiver
@@ -289,8 +346,10 @@ class DualArmHandoverPlanner:
             receiver_final: Receiver's final grasp pose in world frame.
 
         Returns:
-            (transfer_traj, receiver_traj, force_schedule) — pose lists and
-            per-step force weights {"F_transfer", "F_receiver"}.
+            (transfer_traj, receiver_traj, force_schedule) — pose lists of
+            length ``ramp_steps`` and per-step force weights with
+            ``F_transfer`` going 1 → 0 and ``F_receiver`` going 0.2 → 1.
+            Three empty lists if ``ramp_steps <= 0``.
         """
 
         transfer_pose = compute_ee_pose(
@@ -324,7 +383,8 @@ class DualArmHandoverPlanner:
         by ``retreat_distance`` metres.
 
         Returns:
-            List of world-frame poses from the hold pose to the retreated pose.
+            ``retreat_steps`` world-frame poses from the hold pose to the
+            retreated pose.
         """
 
         transfer_pose = compute_ee_pose(
@@ -415,6 +475,10 @@ class ObjectGraspPrimitive:
         approach_steps: int = constants.HANDOVER_APPROACH_STEPS,
         grasp_steps: int = constants.HANDOVER_GRASP_STEPS
     ):
+        """Store the object pose, grasp transform, and approach parameters.
+
+        See the class docstring for argument descriptions.
+        """
 
         self.obj_pose = object_pose
         self.G = grasp_transform
@@ -506,6 +570,10 @@ class ReleaseRetreatPrimitive:
         retreat_steps: int = constants.HANDOVER_RETREAT_STEPS,
         settle_time: float = constants.HANDOVER_SETTLE_TIME
     ):
+        """Store retreat parameters.
+
+        See the class docstring for argument descriptions.
+        """
 
         self.retreat_distance = retreat_distance
         self.retreat_axis = retreat_axis

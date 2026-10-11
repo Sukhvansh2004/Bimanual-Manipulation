@@ -1,6 +1,11 @@
-"""
-Teleoperate robot with keyboard.
-This script uses the modular teleop module from the src code.
+"""Teleoperate the dual-arm environment with the keyboard.
+
+Wraps the environment in robosuite's ``VisualizationWrapper`` and runs
+``bimanual_manipulation.teleop.KeyboardTeleop``.
+
+Usage:
+    python scripts/demos/teleop_dual_arm.py
+    python scripts/demos/teleop_dual_arm.py --pos-sensitivity 1.5 --rot-sensitivity 0.5
 """
 
 import argparse

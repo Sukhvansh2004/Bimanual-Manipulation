@@ -42,7 +42,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class _RobotIKCache:
-    """Cached MuJoCo model data and EEF offset for a single robot."""
+    """Cached MuJoCo model data and EEF offset for a single robot.
+
+    Attributes:
+        joint_qpos_idx: ``(7,)`` qpos indices of the arm joints.
+        joint_dof_idx: ``(7,)`` DOF indices of the arm joints.
+        joint_lo: ``(7,)`` lower joint limits.
+        joint_hi: ``(7,)`` upper joint limits.
+        site_id: MuJoCo ID of the EEF site.
+        site_name: Name of the EEF site.
+        model_native: Native MuJoCo model.
+        base_body_name: Name of the robot's root body.
+        T_eaik_to_site: ``(4, 4)`` fixed transform from the EAIK EEF
+            frame to the MuJoCo site frame.
+        T_eaik_to_site_inv: Inverse of :attr:`T_eaik_to_site`.
+    """
     joint_qpos_idx: np.ndarray
     joint_dof_idx: np.ndarray
     joint_lo: np.ndarray
@@ -67,7 +81,24 @@ def _get_robot_cache(
     """Get or build per-robot cached data.
 
     Queries MuJoCo model once for joint indices, limits, site IDs,
-    and computes the fixed EAIK-to-MuJoCo EEF offset.
+    and computes the fixed EAIK-to-MuJoCo EEF offset by comparing EAIK
+    FK with the MuJoCo site pose (relative to the robot base) at the
+    current ``data.qpos``.  The cache is keyed by *robot_id* only, so
+    *arm* and *site_name* are honoured only on the first call per robot.
+
+    Args:
+        env: The dual-arm simulation environment.
+        robot_id: Robot index.
+        arm: Arm side used to derive the default site name.
+        site_name: Override for the MuJoCo EEF site name.
+
+    Returns:
+        The cached :class:`_RobotIKCache` for *robot_id*.
+
+    Raises:
+        RuntimeError: If the arm does not have 7 joints, the site is not
+            found, or the FK robot cannot be built.
+        FileNotFoundError: If the Panda URDF is missing.
     """
     if robot_id in _robot_cache:
         return _robot_cache[robot_id]
@@ -144,7 +175,14 @@ def clear_robot_cache() -> None:
 
 
 def _get_urdf_path() -> str:
-    """Return the Franka Panda URDF path from constants."""
+    """Return the Franka Panda URDF path from constants.
+
+    Returns:
+        :data:`constants.PANDA_URDF_PATH` as a string.
+
+    Raises:
+        FileNotFoundError: If the URDF does not exist.
+    """
     urdf = constants.PANDA_URDF_PATH
     if not urdf.exists():
         raise FileNotFoundError(
@@ -160,6 +198,16 @@ def _build_eaik_robot(locked_joint: int, locked_value: float) -> Optional[UrdfRo
 
     Results are cached so repeated sweeps with the same joint/value
     reuse the C++ robot object.
+
+    Args:
+        locked_joint: Index of the joint to lock (0-based).
+        locked_value: Joint value (rad) at which it is locked.
+
+    Returns:
+        The EAIK ``UrdfRobot``, or ``None`` if EAIK cannot build it.
+
+    Raises:
+        FileNotFoundError: If the Panda URDF is missing.
     """
     urdf_path = _get_urdf_path()
     try:
@@ -182,7 +230,20 @@ def _sweep_values_for_joint(
     ``q_reference[joint_idx]`` within a ``±EAIK_WARM_START_WINDOW``
     window (clipped to joint limits), and the reference value itself
     is always included.  Otherwise a uniform sweep across the full
-    joint range is used.
+    joint range is used.  Values are then snapped to a
+    ``EAIK_GRID_STEP`` grid, clipped to limits and de-duplicated, so the
+    result may contain fewer than *num_sweep* values.
+
+    Args:
+        joint_idx: Index of the joint to sweep.
+        joint_limits_lo: Lower joint limits.
+        joint_limits_hi: Upper joint limits.
+        num_sweep: Number of linearly spaced values before snapping.
+        q_reference: Optional reference configuration.
+
+    Returns:
+        Sorted sweep values; empty if the joint's limits are non-finite
+        or degenerate.
     """
     lo = float(joint_limits_lo[joint_idx])
     hi = float(joint_limits_hi[joint_idx])
@@ -228,6 +289,10 @@ def solve_ik_eaik(
     concentrated near the reference value, biasing solutions toward
     the previous configuration and maintaining trajectory continuity.
 
+    Exact solutions are collected first; least-squares (approximate)
+    solutions are only used if no exact solution was found.  Solutions
+    outside the joint limits (beyond ``1e-6``) are discarded.
+
     Args:
         target_pos: Desired EEF position in robot base frame ``(3,)``.
         target_quat: Desired EEF quaternion ``(x, y, z, w)`` in robot base frame.
@@ -239,7 +304,8 @@ def solve_ik_eaik(
             value within a ``±EAIK_WARM_START_WINDOW`` window.
 
     Returns:
-        List of valid joint configurations ``(7,)``, unsorted.
+        List of valid joint configurations ``(7,)``, unsorted and possibly
+        containing duplicates.
     """
     # Build 4×4 homogeneous target
     rot_mat = R.from_quat(target_quat).as_matrix()
@@ -366,8 +432,13 @@ def _filter_and_rank_solutions(
         fk_pos_tol: Max allowed position error (m).
         fk_rot_tol: Max allowed orientation error (rad).
 
+    Candidates are processed in lexicographic order and scoring stops
+    once ``2 * max_solutions`` candidates have passed, so the ranking is
+    over that subset rather than over all candidates.
+
     Returns:
-        Ranked list of joint configurations, best manipulability first.
+        Ranked list of at most *max_solutions* joint configurations, best
+        manipulability first.
     """
     if not solutions:
         return []
@@ -457,7 +528,8 @@ def enumerate_ik_solutions_eaik(
     Args:
         env: The dual-arm simulation environment.
         robot_id: Robot index (0 or 1).
-        target_pose: Desired EEF pose (any frame).
+        target_pose: Desired EEF site pose (any frame known to
+            *tf_manager*).
         tf_manager: For frame conversions.
         arm: Which arm (``"right"`` or ``"left"``).
         site_name: Override for the MuJoCo site name.
@@ -472,7 +544,12 @@ def enumerate_ik_solutions_eaik(
 
     Returns:
         List of joint configurations ``(7,)``, ranked by proximity to
-        *q_reference* if given, otherwise by manipulability.
+        *q_reference* if given, otherwise by manipulability.  Simulation
+        qpos/qvel are restored afterwards.
+
+    Raises:
+        RuntimeError: If the per-robot cache cannot be built (see
+            :func:`_get_robot_cache`).
     """
 
     ctx = env_lock if env_lock is not None else nullcontext()

@@ -28,28 +28,35 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 class ActionPersistenceManager:
-    """
-    Manages action persistence for different controller types.
-    
+    """Manages action persistence for different controller types.
+
     For delta controllers: No arm action persistence needed (zero = no movement)
     For absolute controllers: Persist arm actions to prevent abrupt movements on zero input
-    
+
     Follows the same pattern as gripper action persistence but for arm actions.
+
+    Attributes:
+        previous_gripper_actions: Last gripper action per key
+            ``"robot_<i>_<arm>_gripper"``.
+        previous_arm_actions: Last arm action per key ``"robot_<i>_<arm>_arm"``.
     """
     
     def __init__(self):
+        """Initialize empty arm and gripper action stores."""
         self.previous_gripper_actions: Dict[str, np.ndarray] = {}
         self.previous_arm_actions: Dict[str, np.ndarray] = {}
     
     def get_controller_info(self, robot) -> tuple:
-        """
-        Extract controller name and input type from robot's part_controllers.
-        
+        """Extract controller name and input type from robot's part_controllers.
+
+        Only the first part controller is inspected; values fall back to
+        ``constants.DEFAULT_CONTROLLER_NAME`` / ``constants.DEFAULT_INPUT_TYPE``.
+
         Args:
-            robot: The robot instance
-            
+            robot: The robot instance.
+
         Returns:
-            (controller_name, input_type): Tuple of controller configuration
+            ``(controller_name, input_type)`` tuple.
         """
         controller_name = constants.DEFAULT_CONTROLLER_NAME
         input_type = constants.DEFAULT_INPUT_TYPE
@@ -69,20 +76,29 @@ class ActionPersistenceManager:
         return controller_name, input_type
     
     def is_absolute_mode(self, robot) -> bool:
-        """Check if robot is using absolute input mode."""
+        """Check if robot is using absolute input mode.
+
+        Args:
+            robot: The robot instance.
+
+        Returns:
+            ``True`` if the input type is ``constants.InputType.ABSOLUTE``.
+        """
         _, input_type = self.get_controller_info(robot)
         return input_type == constants.InputType.ABSOLUTE
     
     def get_arm_action_dim(self, robot, arm_name: str) -> int:
-        """
-        Get the action dimension for arm control (excluding gripper).
-        
+        """Get the per-arm action dimension (excluding gripper) for the controller.
+
+        Looks up ``constants.CONTROLLER_ACTION_DIMS`` by controller name,
+        defaulting to the OSC_POSE dimension.
+
         Args:
-            robot: The robot instance
-            arm_name: Name of the arm
-            
+            robot: The robot instance.
+            arm_name: Name of the arm (currently unused).
+
         Returns:
-            Action dimension for arm control
+            Action dimension for arm control.
         """
         controller_name, _ = self.get_controller_info(robot)
         return constants.CONTROLLER_ACTION_DIMS.get(
@@ -91,19 +107,19 @@ class ActionPersistenceManager:
         )
     
     def read_current_arm_state(self, env: DualArmEnvironment, robot_id: int, arm_name: str) -> np.ndarray:
-        """
-        Read current arm state from environment for absolute mode persistence.
-        
-        For OSC_POSE: Returns [x, y, z, rx, ry, rz] in robot base frame
-        For JOINT_POSITION: Returns joint positions
-        
+        """Read current arm state from environment for absolute mode persistence.
+
+        For JOINT_POSITION: Returns joint positions.
+        Otherwise (OSC_POSE): Returns ``[x, y, z, rx, ry, rz]`` (position +
+        rotation vector) in the robot base frame.
+
         Args:
-            env: The robosuite environment
-            robot_id: ID of the robot
-            arm_name: Name of the arm
-            
+            env: The robosuite environment.
+            robot_id: Index of the robot in ``env.robots``.
+            arm_name: Name of the arm.
+
         Returns:
-            Current arm state as action format
+            Current arm state in action format.
         """
         robot = env.robots[robot_id]
         controller_name, _ = self.get_controller_info(robot)
@@ -116,7 +132,20 @@ class ActionPersistenceManager:
             return self._read_eef_pose(env, robot, arm_name)
     
     def _read_joint_positions(self, env: DualArmEnvironment, robot, arm_name: str) -> np.ndarray:
-        """Read current joint positions for an arm."""
+        """Read current joint positions for an arm.
+
+        Uses ``<arm>_arm_joint_indexes``, then ``arm_joint_indexes``, then
+        ``joint_indexes`` as index source.
+
+        Args:
+            env: The robosuite environment.
+            robot: The robot instance.
+            arm_name: Name of the arm.
+
+        Returns:
+            Copy of the arm's ``qpos``; ``constants.FRANKA_HOME_JOINT_POSITION``
+            on failure.
+        """
         try:
             # Get joint indices for this arm
             if hasattr(robot, f'{arm_name}_arm_joint_indexes'):
@@ -132,7 +161,17 @@ class ActionPersistenceManager:
             return constants.FRANKA_HOME_JOINT_POSITION.copy()
     
     def _read_eef_pose(self, env: DualArmEnvironment, robot, arm_name: str) -> np.ndarray:
-        """Read current EEF pose as [x, y, z, rx, ry, rz] in base frame."""
+        """Read current EEF site pose as ``[x, y, z, rx, ry, rz]`` in the base frame.
+
+        Args:
+            env: The robosuite environment.
+            robot: The robot instance.
+            arm_name: Name of the arm (falls back to the ``'right'`` EEF site).
+
+        Returns:
+            Array of shape ``(6,)``: base-frame position and rotation vector
+            (axis-angle, radians); ``[0.3, 0, 0.3, 0, 0, 0]`` on failure.
+        """
         try:
             
             # Get EEF pose in world frame from robot internals
@@ -161,7 +200,15 @@ class ActionPersistenceManager:
             return np.array([0.3, 0.0, 0.3, 0.0, 0.0, 0.0])
     
     def is_zero_action(self, action: np.ndarray, tolerance: float = 1e-8) -> bool:
-        """Check if an action is effectively zero."""
+        """Check if an action is effectively zero.
+
+        Args:
+            action: Action vector.
+            tolerance: Absolute tolerance.
+
+        Returns:
+            ``True`` if all entries are within ``tolerance`` of zero.
+        """
         return np.allclose(action, 0.0, atol=tolerance)
 
 
@@ -170,21 +217,38 @@ _action_manager = ActionPersistenceManager()
 
 
 def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int] = None, arm: Union[str, List[str], None] = None):
-    """Handles full action construction with gripper and arm action persistence.
-    
+    """Build the full action with arm/gripper persistence and step the environment.
+
     This function manages action persistence for different controller modes:
     - For delta controllers: No arm persistence needed (zero = no movement)
     - For absolute controllers: Persists arm actions to prevent abrupt movements on zero input
     - For grippers: Always persists state (both delta and absolute modes)
-    
+
+    After ``env.step``, applies suction welds, mirrors the action to the real
+    robot bridge (if enabled and ``env`` is the designated real-robot env),
+    and runs the collision and object monitors.
+
     Args:
-        env: The robosuite environment (MjSim)
-        action: The action vector. Can be:
-                - Full environment action vector (size env.action_dim)
-                - Single robot action vector (size robot.action_dim), if robot_id is provided
-        robot_id: ID of the robot currently being controlled. Required if passing single robot action.
-        arm: Name(s) of the arm(s) currently being controlled. Required if robot_id is provided.
-             Can be a single string (e.g. "right") or a list of strings (e.g. ["right", "left"]).
+        env: The robosuite environment.
+        action: The action vector, or ``None`` to step with only persisted
+            actions. Can be:
+            - Full environment action vector (size ``env.action_dim``)
+            - Single robot action vector (size ``robot.action_dim``), if
+              ``robot_id`` is provided
+        robot_id: Index of the robot currently being controlled. Required if
+            passing a single-robot action.
+        arm: Name(s) of the arm(s) currently being controlled. Required if
+            ``robot_id`` is provided. Can be a single string (e.g. ``"right"``)
+            or a list of strings (e.g. ``["right", "left"]``).
+
+    Returns:
+        The return value of ``env.step(full_action)`` (robosuite:
+        ``(obs, reward, done, info)``).
+
+    Raises:
+        ValueError: If ``robot_id`` is given without ``arm``, if a
+            single-robot action has the wrong length, or if a partial action
+            is given without ``robot_id``.
     """
     global _action_manager
     
@@ -341,7 +405,11 @@ def env_step(env: DualArmEnvironment, action: Any = None, robot_id: Optional[int
 
 
 def reset_action_persistence():
-    """Reset the action persistence manager state. Call after env.reset()."""
+    """Reset the action persistence manager state. Call after env.reset().
+
+    Also resets the real-robot bridge so the hardware eases into the new
+    configuration on the next mirrored command.
+    """
     global _action_manager
     _action_manager = ActionPersistenceManager()
     # After a reset the sim teleports to its start config; force the real arms to ease in to
@@ -350,19 +418,30 @@ def reset_action_persistence():
 
 
 def get_action_persistence_manager() -> ActionPersistenceManager:
-    """Get the global action persistence manager for inspection/debugging."""
+    """Get the global action persistence manager for inspection/debugging.
+
+    Returns:
+        The module-level :class:`ActionPersistenceManager`.
+    """
     return _action_manager
 
 
 def set_robot_config(env: DualArmEnvironment, robot_id: int, arm_id: str, joint_config: Union[np.ndarray, List[float]]):
-    """
-    Sets the robot to a specific joint configuration in MuJoCo.
-    
+    """Set a robot arm's joint positions in MuJoCo and call ``sim.forward()``.
+
+    Only ``qpos`` is written; velocities and controller targets are unchanged.
+
     Args:
         env: The robosuite environment.
         robot_id: ID of the robot (index in env.robots).
-        arm_id: ID of the arm ('right' or 'left').
+        arm_id: ID of the arm ('right' or 'left'). For single-arm robots an
+            unknown arm only logs a warning and the robot's arm joints are used.
         joint_config: Joint configuration (list or numpy array).
+
+    Raises:
+        ValueError: If ``robot_id`` is out of range, ``arm_id`` is not an arm
+            of a multi-arm robot, or ``joint_config`` length does not match
+            the arm DOF.
     """
     if robot_id >= len(env.robots):
         raise ValueError(f"Robot ID {robot_id} out of range (total robots: {len(env.robots)})")

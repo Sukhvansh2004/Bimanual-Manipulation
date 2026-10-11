@@ -26,11 +26,18 @@ import time
 logger = logging.getLogger(__name__)
 
 class KeyboardOverride(Keyboard):
-    """
-    A subclass of robosuite's Keyboard that explicitly ignores the Space key
-    and extends get_arm_action to handle JOINT_POSITION controllers.
+    """A robosuite Keyboard that ignores the Space key and supports JOINT_POSITION.
+
+    Space is handled by :class:`KeyboardTeleop` (gripper toggle) instead of
+    robosuite's default handler; ``get_arm_action`` is extended to handle
+    non-OSC controllers.
     """
     def on_press(self, key):
+        """Forward key presses to robosuite's handler, ignoring Space.
+
+        Args:
+            key: pynput key that was pressed.
+        """
         if key == Key.space:
             return  # Do nothing if space is pressed
         
@@ -43,6 +50,16 @@ class KeyboardOverride(Keyboard):
         Robosuite's default implementation only supports OSC and whole-body IK.
         For JOINT_POSITION controllers we return the normalised EEF delta as-is;
         the teleop run-loop converts it to joint space via the Jacobian.
+
+        Args:
+            robot: Robosuite robot.
+            arm: Arm name.
+            norm_delta: Normalised 6-D EEF delta.
+            goal_update_mode: Passed to robosuite for OSC controllers.
+
+        Returns:
+            Dict with ``"delta"`` and ``"abs"`` actions (both copies of
+            ``norm_delta`` for non-OSC controllers).
         """
         if isinstance(robot.part_controllers[arm], OperationalSpaceController):
             return super().get_arm_action(robot, arm, norm_delta, goal_update_mode)
@@ -55,10 +72,20 @@ class KeyboardOverride(Keyboard):
         }
 
 class KeyboardTeleop:
-    """
-    Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
+    """Keyboard teleoperation for dual-arm manipulation using robosuite's Keyboard device.
+
+    ``q`` exits and Space toggles the active robot's gripper; all other keys
+    follow robosuite's keyboard controls.
     """
     def __init__(self, env: DualArmEnvironment, pos_sensitivity: Optional[float] = constants.DEFAULT_POS_SENSITIVITY, rot_sensitivity: Optional[float] = constants.DEFAULT_ROT_SENSITIVITY, env_lock: threading.RLock = None) -> None:
+        """Create the keyboard device, detect controllers, start the key listener.
+
+        Args:
+            env: The dual-arm environment.
+            pos_sensitivity: Keyboard position sensitivity.
+            rot_sensitivity: Keyboard rotation sensitivity.
+            env_lock: Optional lock guarding environment access.
+        """
         self.env = env
         self.env_lock = env_lock
         self.device = KeyboardOverride(
@@ -93,45 +120,46 @@ class KeyboardTeleop:
         self.listener.start()
 
     def _on_key_press(self, key: Any) -> None:
-        """
-        Callback for keyboard listener to detect exit key and trigger step.
+        """Set the exit flag on ``q`` and the gripper-toggle event on Space.
+
+        Args:
+            key: pynput key that was pressed.
         """
         try:
             if hasattr(key, 'char') and key.char == 'q':
                 self.exit_pressed = True
             elif key == Key.space:
-                # Trigger a single environment step when spacebar is pressed
+                # Request a gripper toggle when spacebar is pressed
                 self.gripper_toggle.set()
 
         except AttributeError:
             pass
 
     def _render_loop(self) -> None:
-        """Continuously render the environment."""
+        """Continuously step the env with persisted actions and render it."""
         while self.running:
             with self.env_lock if self.env_lock else nullcontext():
                 env_step(self.env)
                 self.env.render()
 
     def _eef_delta_to_joint_delta(self, robot, arm_name: str, eef_delta: np.ndarray) -> np.ndarray:
-        """
-        Convert a 6D EEF delta (pos + ori) to a 7-DOF joint delta via the
-        damped Jacobian pseudo-inverse.
+        """Convert a 6D EEF delta to a 7-DOF joint delta via damped Jacobian pseudo-inverse.
 
         The Jacobian from mink is expressed in the site's **body (local)
         frame**.  The keyboard delta is in world frame.  The only
-        correction needed is the fixed ~90° Z-axis offset between the
+        correction applied is the fixed -90° Z-axis rotation between the
         EEF body frame (robosuite convention) and the ``ft_frame`` site
         (IK / Jacobian convention).  This is the same rotation applied
         by ``apply_ik_orientation_correction``.
 
         Args:
-            robot: Robot instance from env.robots
-            arm_name: Name of the arm (e.g. "right")
-            eef_delta: 6-element array [dx, dy, dz, drx, dry, drz] in world frame
+            robot: Robot instance from env.robots.
+            arm_name: Name of the arm (e.g. ``"right"``).
+            eef_delta: 6-element array ``[dx, dy, dz, drx, dry, drz]`` in
+                world frame.
 
         Returns:
-            7-element joint delta array
+            Joint delta ``(7,)``.
         """
         robot_id = self.env.robots.index(robot)
 
@@ -160,7 +188,16 @@ class KeyboardTeleop:
         return J_pinv @ delta
 
     def _get_joint_positions(self, robot, arm_name: str) -> np.ndarray:
-        """Read current joint positions for a specific arm."""
+        """Read current joint positions for a specific arm.
+
+        Args:
+            robot: Robot instance from env.robots.
+            arm_name: ``"right"`` (joints before the split index) or any
+                other value (joints after it).
+
+        Returns:
+            Joint positions for that arm.
+        """
         sim = self.env.sim
         split = robot._joint_split_idx
         start, end = (None, split) if arm_name == "right" else (split, None)
@@ -168,7 +205,14 @@ class KeyboardTeleop:
         return np.array(sim.data.qpos[idx]).copy()
 
     def run(self) -> None:
-        """Run teleoperation loop. If env_lock is provided, guard env access with it."""
+        """Run the blocking teleoperation loop at ``DEFAULT_TELEOP_FREQ``.
+
+        Resets the env, then repeatedly reads keyboard input for the active
+        robot and steps the env. For JOINT_POSITION controllers the EEF
+        delta is mapped to joint space (absolute mode sends current joints
+        plus delta). Exits on ``q`` or when the device returns ``None``.
+        Env access is guarded by ``env_lock`` if provided.
+        """
         self.running = True
         logger.info("Starting teleoperation with robosuite Keyboard device.")
         logger.info("Controls: Follow robosuite's keyboard controls.")

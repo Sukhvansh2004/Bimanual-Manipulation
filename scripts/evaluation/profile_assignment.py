@@ -53,6 +53,17 @@ CONFIG_MAP = {
 
 
 def main():
+    """Resolve the experiment and config, then run the profiled assignment.
+
+    Builds a ``segment_assignment.py --profile`` command for the selected
+    ablation config (using ``data/<experiment>_no_dpp`` when the config has
+    ``use_dpp=False``) and runs it as a subprocess. The ``.prof`` file is
+    written to ``--output`` or ``results/profile_<exp>_<config_id>.prof``.
+
+    Raises:
+        SystemExit: If the experiment JSON, config label or data directory is
+            not found, or the subprocess exits with a non-zero code.
+    """
     parser = argparse.ArgumentParser(description="Profile assignment solver with cProfile")
     parser.add_argument("--experiment", type=str, default="ycb_plate_table_to_shelf",
                         help="Experiment name (default: ycb_plate_table_to_shelf)")

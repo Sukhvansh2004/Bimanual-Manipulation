@@ -12,6 +12,9 @@ be compared directly.  The mink hot-path per QP iteration is:
 Additionally, per seed the solver must:
   ● Construct mink.Configuration + 3–4 tasks + limits   (setup overhead)
   ● Post-solve: Jacobian + SVD for manipulability        (same as scipy)
+
+Usage:
+    python scripts/utils/mink_stress_test.py
 """
 
 import time
@@ -43,7 +46,7 @@ POSES_PER_HANDOVER = POSES_PER_TRANSFER + POSES_PER_RECEIVER  # 10
 N_ALIVE = 20
 
 # Mink parameters
-NUM_SEEDS = constants.MINK_IK_NUM_SEEDS               # 48
+NUM_SEEDS = constants.MINK_IK_NUM_SEEDS               # 12
 MAX_ITERS = constants.MINK_IK_MAX_ITERS               # 300
 POS_TOL = constants.MINK_IK_POS_TOLERANCE             # 5e-3
 ROT_TOL = constants.MINK_IK_ROT_TOLERANCE             # 5e-3
@@ -53,7 +56,17 @@ STALL_TOL = constants.MINK_IK_STALL_TOL               # 1e-6
 
 
 def _setup_env():
-    """Create env and extract all the raw MuJoCo handles needed for profiling."""
+    """Create a headless env and extract the raw MuJoCo handles used for profiling.
+
+    Uses robot 0's arm; the target pose is the EEF site pose after reset.
+
+    Returns:
+        dict: Context with keys ``env``, ``model_native``, ``data_native``,
+        ``site_id``, ``site_name``, ``joint_qpos_idx``, ``joint_dof_idx``,
+        ``joint_lo``, ``joint_hi``, ``full_qpos``, ``target_pos``
+        (world, ``(3,)``), ``target_quat`` (``(x, y, z, w)``),
+        ``frozen_dofs``, and ``nv``.
+    """
     env = make_dual_arm_env(
         has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False,
     )
@@ -105,7 +118,19 @@ def _setup_env():
 
 
 def _random_reachable_target(ctx, rng):
-    """FK a random joint config to get a guaranteed-reachable target."""
+    """Run FK on a random joint config to get a guaranteed-reachable target.
+
+    Joints are sampled 0.15 rad inside their limits. Overwrites
+    ``ctx["data_native"].qpos`` as a side effect.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        rng: NumPy random generator.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: World-frame EEF position ``(3,)``
+        and quaternion ``(x, y, z, w)``.
+    """
     q = rng.uniform(ctx["joint_lo"] + 0.15, ctx["joint_hi"] - 0.15)
     q_full = ctx["full_qpos"].copy()
     q_full[ctx["joint_qpos_idx"]] = q
@@ -118,7 +143,19 @@ def _random_reachable_target(ctx, rng):
 
 
 def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
-    """Small perturbation — mimics consecutive waypoints."""
+    """Apply a small random perturbation, mimicking consecutive waypoints.
+
+    Args:
+        pos: Base position ``(3,)``.
+        quat: Base quaternion ``(x, y, z, w)``.
+        rng: NumPy random generator.
+        pos_noise: Max uniform position offset per axis (m).
+        rot_noise: Max uniform rotation-vector offset per axis (rad).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Perturbed position ``(3,)`` and
+        quaternion ``(4,)``.
+    """
     new_pos = pos + rng.uniform(-pos_noise, pos_noise, 3)
     rotvec = R.from_quat(quat).as_rotvec() + rng.uniform(-rot_noise, rot_noise, 3)
     new_quat = R.from_rotvec(rotvec).as_quat()
@@ -130,7 +167,15 @@ def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
 # =====================================================================
 
 def bench_configuration_creation(ctx, n=500):
-    """mink.Configuration creation cost (done once per seed)."""
+    """Time ``mink.Configuration`` creation (done once per seed).
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     times = np.empty(n)
@@ -142,7 +187,17 @@ def bench_configuration_creation(ctx, n=500):
 
 
 def bench_task_setup(ctx, n=500):
-    """Cost of creating FrameTask + PostureTask + DampingTask + FreezingTask + limits."""
+    """Time creating FrameTask, PostureTask, DampingTask, DofFreezingTask and limits.
+
+    Configuration creation is excluded from the timed region.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     sn = ctx["site_name"]
@@ -176,7 +231,17 @@ def bench_task_setup(ctx, n=500):
 
 
 def bench_qp_solve(ctx, n=500):
-    """Cost of a single mink.solve_ik QP step."""
+    """Time a single ``mink.solve_ik`` QP step.
+
+    The configuration is not integrated, so every call solves the same QP.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     sn = ctx["site_name"]
@@ -210,7 +275,15 @@ def bench_qp_solve(ctx, n=500):
 
 
 def bench_integrate(ctx, n=2000):
-    """Cost of config.integrate_inplace(vel, dt)."""
+    """Time ``config.integrate_inplace(vel, DT)`` with a constant arm velocity.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     config = mink.Configuration(m, q=fp.copy())
@@ -228,7 +301,15 @@ def bench_integrate(ctx, n=2000):
 
 
 def bench_convergence_check(ctx, n=2000):
-    """Cost of get_transform + rotation error check (done each iteration)."""
+    """Time the per-iteration convergence check (site transform plus pose error).
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     sn = ctx["site_name"]
@@ -253,7 +334,15 @@ def bench_convergence_check(ctx, n=2000):
 
 
 def bench_build_target_se3(ctx, n=5000):
-    """Cost of _build_target_se3."""
+    """Time ``_build_target_se3`` on the context target pose.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     tp = ctx["target_pos"]
     tq = ctx["target_quat"]
     times = np.empty(n)
@@ -265,7 +354,15 @@ def bench_build_target_se3(ctx, n=5000):
 
 
 def bench_manipulability(ctx, n=5000):
-    """SVD-based manipulability (post-solve scoring) — same as scipy."""
+    """Time SVD-based manipulability scoring on random ``(6, 7)`` Jacobians.
+
+    Args:
+        ctx: Context dict from ``_setup_env`` (unused).
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     rng = np.random.default_rng(0)
     Js = [rng.standard_normal((6, 7)) for _ in range(200)]
     times = np.empty(n)
@@ -281,7 +378,19 @@ def bench_manipulability(ctx, n=5000):
 # =====================================================================
 
 def bench_single_seed(ctx, n=50):
-    """Single solve_ik_mink call — one seed, up to MAX_ITERS QP steps."""
+    """Time single-seed ``solve_ik_mink`` calls from random initial configs.
+
+    Each call uses the solver's default iteration limit and tolerances
+    (``constants.MINK_IK_*``) toward the context target pose.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of solves.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Durations ``(n,)`` in seconds and a
+        boolean convergence mask ``(n,)``.
+    """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
     sn = ctx["site_name"]
@@ -308,11 +417,23 @@ def bench_single_seed(ctx, n=50):
 
 
 # =====================================================================
-#  Macro benchmark — full multi-seed solve (48 seeds)
+#  Macro benchmark — full multi-seed solve (NUM_SEEDS seeds)
 # =====================================================================
 
 def bench_full_multiseed(ctx, n_targets=20):
-    """Full 48-seed mink IK for n random reachable targets."""
+    """Time a full ``NUM_SEEDS``-seed mink IK solve for random reachable targets.
+
+    Seeds come from ``_generate_seeds`` around the Franka home config;
+    every seed is solved (no early exit).
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n_targets: Number of targets to solve.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Durations ``(n_targets,)`` in seconds
+        and converged-seed counts ``(n_targets,)``.
+    """
     rng = np.random.default_rng(42)
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
@@ -349,7 +470,21 @@ def bench_full_multiseed(ctx, n_targets=20):
 # =====================================================================
 
 def bench_handover_workload(ctx, n_handovers=50):
-    """Simulate n handover evaluations — each with 10 IK solves."""
+    """Simulate handover evaluations, each with ``POSES_PER_HANDOVER`` multi-seed IK solves.
+
+    Poses are perturbations of one random reachable target per handover;
+    the first converged solution warm-starts the next solve's seeds.
+    Prints progress every 10 handovers.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n_handovers: Number of handovers to simulate.
+
+    Returns:
+        tuple: ``(handover_times, ik_call_times, total_solutions,
+        total_ik_calls)`` where the first two are arrays of durations in
+        seconds and ``total_solutions`` counts converged seeds over all calls.
+    """
     rng = np.random.default_rng(42)
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
@@ -398,9 +533,20 @@ def bench_handover_workload(ctx, n_handovers=50):
 # =====================================================================
 
 def bench_iteration_breakdown(ctx, n_seeds=5):
-    """Instrument a few mink IK solves to report per-iteration timing breakdown.
+    """Instrument a few mink IK solves to report a per-iteration timing breakdown.
 
-    Manually replicates solve_ik_mink with per-phase timing.
+    Manually replicates ``solve_ik_mink`` (convergence and stall checks
+    included) with per-phase timing, from random initial configs toward the
+    context target pose.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n_seeds: Number of seeds to solve.
+
+    Returns:
+        dict: Arrays of durations in seconds under ``"setup"`` (per seed),
+        ``"qp_solve"``, ``"integrate"``, ``"fk_check"`` and ``"rot_err"``
+        (per iteration), plus ``"total_iters"`` and ``"n_seeds"``.
     """
     m = ctx["model_native"]
     fp = ctx["full_qpos"]
@@ -505,7 +651,15 @@ def bench_iteration_breakdown(ctx, n_seeds=5):
 # =====================================================================
 
 def _fmt_times(times_s, unit="us"):
-    """Format timing array as mean/median/p95."""
+    """Format a timing array as a mean/median/p95 summary string.
+
+    Args:
+        times_s: Durations in seconds.
+        unit: Display unit, ``"us"``, ``"ms"``, or anything else for seconds.
+
+    Returns:
+        str: ``"mean=..., med=..., p95=..."`` with the unit suffix.
+    """
     if unit == "us":
         t = times_s * 1e6
         u = "us"
@@ -521,6 +675,7 @@ def _fmt_times(times_s, unit="us"):
 
 
 def main():
+    """Run all mink IK benchmarks, print results and projections, then close the env."""
     print("=" * 70)
     print("Mink QP IK Stress Test")
     print(f"  Seeds per IK call    : {NUM_SEEDS}")
@@ -614,7 +769,7 @@ def main():
     if len(fail_times) > 0:
         print(f"  Failed wall time    : {_fmt_times(fail_times, 'ms')}")
 
-    # ── 4. Full multi-seed (48 seeds) ──
+    # ── 4. Full multi-seed (NUM_SEEDS seeds) ──
     print("\n" + "─" * 70)
     print(f"4. FULL MULTI-SEED ({NUM_SEEDS} seeds, 20 targets)")
     print("─" * 70)

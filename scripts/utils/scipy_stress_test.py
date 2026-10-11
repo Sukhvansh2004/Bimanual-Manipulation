@@ -5,7 +5,8 @@ each alive state at each segment boundary.  From the production logs:
   - Segment 17: 114s for 20 IK calls → ~5.7s per IK call
   - Segment 27: 183s for 38 IK calls → ~4.8s per IK call
 
-Each IK call runs 48 seeds × up to 200 L-BFGS-B iterations.
+Each IK call runs ``SCIPY_IK_NUM_SEEDS`` seeds (currently 16) × up to
+``SCIPY_IK_MAX_ITERS`` (200) L-BFGS-B iterations.
 Per iteration the hot path does:
   1. full_qpos copy + write                         (numpy)
   2. mujoco.mj_fwdPosition                          (MuJoCo FK)
@@ -17,6 +18,9 @@ Per iteration the hot path does:
 
 This script measures each sub-operation independently, then runs
 realistic IK batches to project full-pipeline timing.
+
+Usage:
+    python scripts/utils/scipy_stress_test.py
 """
 
 import time
@@ -49,14 +53,23 @@ N_HANDOVERS = 5700
 N_ALIVE = 20                                          # typical alive states
 
 # Scipy parameters
-NUM_SEEDS = constants.SCIPY_IK_NUM_SEEDS               # 48
+NUM_SEEDS = constants.SCIPY_IK_NUM_SEEDS               # 16
 MAX_ITERS = constants.SCIPY_IK_MAX_ITERS               # 200
 POS_TOL = constants.SCIPY_IK_POS_TOLERANCE
 ROT_TOL = constants.SCIPY_IK_ROT_TOLERANCE
 
 
 def _setup_env():
-    """Create env and extract all the raw MuJoCo handles needed for profiling."""
+    """Create a headless env and extract the raw MuJoCo handles used for profiling.
+
+    Uses robot 0's arm; the target pose is the EEF site pose after reset.
+
+    Returns:
+        dict: Context with keys ``env``, ``model_native``, ``data_native``,
+        ``site_id``, ``joint_qpos_idx``, ``joint_dof_idx``,
+        ``joint_lo``, ``joint_hi``, ``full_qpos``, ``target_pos``
+        (world, ``(3,)``), ``target_quat`` (``(x, y, z, w)``), and ``nv``.
+    """
     env = make_dual_arm_env(
         has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False,
     )
@@ -103,7 +116,19 @@ def _setup_env():
 
 
 def _random_reachable_target(ctx, rng):
-    """FK a random joint config to get a guaranteed-reachable target."""
+    """Run FK on a random joint config to get a guaranteed-reachable target.
+
+    Joints are sampled 0.15 rad inside their limits. Overwrites
+    ``ctx["data_native"].qpos`` as a side effect.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        rng: NumPy random generator.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: World-frame EEF position ``(3,)``
+        and quaternion ``(x, y, z, w)``.
+    """
     q = rng.uniform(ctx["joint_lo"] + 0.15, ctx["joint_hi"] - 0.15)
     q_full = ctx["full_qpos"].copy()
     q_full[ctx["joint_qpos_idx"]] = q
@@ -116,7 +141,19 @@ def _random_reachable_target(ctx, rng):
 
 
 def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
-    """Small perturbation — mimics consecutive waypoints."""
+    """Apply a small random perturbation, mimicking consecutive waypoints.
+
+    Args:
+        pos: Base position ``(3,)``.
+        quat: Base quaternion ``(x, y, z, w)``.
+        rng: NumPy random generator.
+        pos_noise: Max uniform position offset per axis (m).
+        rot_noise: Max uniform rotation-vector offset per axis (rad).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Perturbed position ``(3,)`` and
+        quaternion ``(4,)``.
+    """
     new_pos = pos + rng.uniform(-pos_noise, pos_noise, 3)
     rotvec = R.from_quat(quat).as_rotvec() + rng.uniform(-rot_noise, rot_noise, 3)
     new_quat = R.from_rotvec(rotvec).as_quat()
@@ -128,7 +165,15 @@ def _perturbed_pose(pos, quat, rng, pos_noise=0.02, rot_noise=0.05):
 # =====================================================================
 
 def bench_mj_fwdPosition(ctx, n=10_000):
-    """Pure mj_fwdPosition cost (no data copy, just FK)."""
+    """Time pure ``mj_fwdPosition`` (no qpos copy, just FK).
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m, d = ctx["model_native"], ctx["data_native"]
     times = np.empty(n)
     for i in range(n):
@@ -139,7 +184,17 @@ def bench_mj_fwdPosition(ctx, n=10_000):
 
 
 def bench_qpos_copy_and_fk(ctx, n=10_000):
-    """full_qpos copy + qpos write + mj_fwdPosition (as done per iter)."""
+    """Time ``full_qpos`` copy, qpos write and ``mj_fwdPosition`` (as done per iteration).
+
+    Cycles through up to 1000 random arm configs.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m, d = ctx["model_native"], ctx["data_native"]
     fp = ctx["full_qpos"]
     idx = ctx["joint_qpos_idx"]
@@ -159,7 +214,18 @@ def bench_qpos_copy_and_fk(ctx, n=10_000):
 
 
 def bench_rotation_error(ctx, n=10_000):
-    """R.from_matrix + (R_target * cur.inv()).as_rotvec() — the scipy.Rotation cost."""
+    """Time the site pose-error computation using ``scipy.spatial.transform.Rotation``.
+
+    Measures ``R.from_matrix`` plus ``(R_target * cur.inv()).as_rotvec()``
+    and the position difference, on a fixed FK state.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     d = ctx["data_native"]
     sid = ctx["site_id"]
     R_target = R.from_quat(ctx["target_quat"])
@@ -181,7 +247,15 @@ def bench_rotation_error(ctx, n=10_000):
 
 
 def bench_jacobian(ctx, n=10_000):
-    """mj_jacSite + column slicing."""
+    """Time ``mj_jacSite`` with fresh buffers, arm-column slicing and ``vstack``.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m, d = ctx["model_native"], ctx["data_native"]
     sid = ctx["site_id"]
     dof_idx = ctx["joint_dof_idx"]
@@ -201,7 +275,15 @@ def bench_jacobian(ctx, n=10_000):
 
 
 def bench_gradient(ctx, n=10_000):
-    """J.T @ err  (6→7 matmul)."""
+    """Time the gradient product ``-2.0 * J.T @ err`` for random ``(6, 7)`` ``J``.
+
+    Args:
+        ctx: Context dict from ``_setup_env`` (unused).
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     rng = np.random.default_rng(0)
     J = rng.standard_normal((6, 7))
     err = rng.standard_normal(6)
@@ -215,7 +297,17 @@ def bench_gradient(ctx, n=10_000):
 
 
 def bench_full_fk_obj_and_grad(ctx, n=2_000):
-    """Full _fk_objective_and_grad call (as called by L-BFGS-B each iteration)."""
+    """Time full ``_fk_objective_and_grad`` calls (as made by L-BFGS-B each iteration).
+
+    Cycles through 200 random arm configs.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     m, d = ctx["model_native"], ctx["data_native"]
     sid = ctx["site_id"]
     idx_q = ctx["joint_qpos_idx"]
@@ -236,7 +328,15 @@ def bench_full_fk_obj_and_grad(ctx, n=2_000):
 
 
 def bench_manipulability(ctx, n=5_000):
-    """SVD-based manipulability (post-solve scoring)."""
+    """Time SVD-based manipulability scoring on random ``(6, 7)`` Jacobians.
+
+    Args:
+        ctx: Context dict from ``_setup_env`` (unused).
+        n: Number of timed repetitions.
+
+    Returns:
+        np.ndarray: Per-call durations ``(n,)`` in seconds.
+    """
     rng = np.random.default_rng(0)
     Js = [rng.standard_normal((6, 7)) for _ in range(200)]
 
@@ -249,7 +349,17 @@ def bench_manipulability(ctx, n=5_000):
 
 
 def bench_minimize_single_seed(ctx, n=50):
-    """Single L-BFGS-B minimize call (1 seed, up to MAX_ITERS iterations)."""
+    """Time single-seed L-BFGS-B ``minimize`` calls from random initial configs.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n: Number of solves (up to ``MAX_ITERS`` iterations each).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: Durations in
+        seconds, iteration counts, function-evaluation counts and
+        ``result.success`` flags, each of shape ``(n,)``.
+    """
     m, d = ctx["model_native"], ctx["data_native"]
     sid = ctx["site_id"]
     idx_q = ctx["joint_qpos_idx"]
@@ -288,11 +398,22 @@ def bench_minimize_single_seed(ctx, n=50):
 
 
 # =====================================================================
-#  Macro benchmark — full solve_ik_scipy (48 seeds)
+#  Macro benchmark — full solve_ik_scipy (NUM_SEEDS seeds)
 # =====================================================================
 
 def bench_solve_ik_scipy(ctx, n_targets=20):
-    """Full solve_ik_scipy for n random reachable targets."""
+    """Time full ``solve_ik_scipy`` calls for random reachable targets.
+
+    Seeds come from ``_generate_seeds`` around the Franka home config.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n_targets: Number of targets to solve.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Durations ``(n_targets,)`` in seconds
+        and solution counts ``(n_targets,)``.
+    """
     rng = np.random.default_rng(42)
     m, d = ctx["model_native"], ctx["data_native"]
     sid = ctx["site_id"]
@@ -330,7 +451,21 @@ def bench_solve_ik_scipy(ctx, n_targets=20):
 # =====================================================================
 
 def bench_handover_workload(ctx, n_handovers=100):
-    """Simulate n handover evaluations — each with 10 IK solves."""
+    """Simulate handover evaluations, each with ``POSES_PER_HANDOVER`` ``solve_ik_scipy`` calls.
+
+    Poses are perturbations of one random reachable target per handover;
+    the first returned solution warm-starts the next solve's seeds.
+    Prints progress every 20 handovers.
+
+    Args:
+        ctx: Context dict from ``_setup_env``.
+        n_handovers: Number of handovers to simulate.
+
+    Returns:
+        tuple: ``(handover_times, ik_call_times, total_solutions,
+        total_ik_calls)`` where the first two are arrays of durations in
+        seconds.
+    """
     rng = np.random.default_rng(42)
     m, d = ctx["model_native"], ctx["data_native"]
     sid = ctx["site_id"]
@@ -379,7 +514,15 @@ def bench_handover_workload(ctx, n_handovers=100):
 # =====================================================================
 
 def _fmt_times(times_s, unit="us"):
-    """Format timing array as mean/median/p95."""
+    """Format a timing array as a mean/median/p95 summary string.
+
+    Args:
+        times_s: Durations in seconds.
+        unit: Display unit, ``"us"``, ``"ms"``, or anything else for seconds.
+
+    Returns:
+        str: ``"mean=..., med=..., p95=..."`` with the unit suffix.
+    """
     if unit == "us":
         t = times_s * 1e6
         u = "us"
@@ -395,6 +538,7 @@ def _fmt_times(times_s, unit="us"):
 
 
 def main():
+    """Run all scipy IK benchmarks, print results and projections, then close the env."""
     print("=" * 70)
     print("Scipy L-BFGS-B IK Stress Test")
     print(f"  Seeds per IK call    : {NUM_SEEDS}")
@@ -460,7 +604,7 @@ def main():
     overhead_pct = (1 - total_obj_time / np.mean(times)) * 100
     print(f"  L-BFGS-B overhead (beyond obj+grad calls): {overhead_pct:.0f}%")
 
-    # ── 3. Full solve_ik_scipy (48 seeds) ──
+    # ── 3. Full solve_ik_scipy (NUM_SEEDS seeds) ──
     print("\n" + "─" * 70)
     print(f"3. FULL solve_ik_scipy ({NUM_SEEDS} seeds, 20 targets)")
     print("─" * 70)

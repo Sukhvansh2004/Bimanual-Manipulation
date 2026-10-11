@@ -15,13 +15,19 @@ ArrayInput = Union[np.ndarray, Sequence[float], List[float]]
 
 
 class StampedPose(BaseModel):
-    """
-    A pose (position + orientation) with an associated coordinate frame.
+    """A pose (position + orientation) with an associated coordinate frame.
+
+    ``pos`` and ``quat`` are stored as read-only ``float64`` arrays; the
+    quaternion is normalized on validation (unless its norm is ~0). The
+    constructor also accepts ``position`` / ``quaternion`` as aliases.
+
     Attributes:
-        pos: 3D position as numpy array [x, y, z]
-        quat: Orientation as quaternion [x, y, z, w] (scipy convention)
-        frame_id: The coordinate frame this pose is expressed in
-        timestamp: Optional timestamp for the pose
+        pos: Position ``[x, y, z]``, shape ``(3,)``.
+        quat: Orientation quaternion ``[x, y, z, w]`` (scipy convention),
+            shape ``(4,)``.
+        frame_id: Frame the pose is expressed in (default
+            ``constants.WORLD_FRAME``).
+        timestamp: Creation time from ``time.time()`` unless given.
     """
     model_config = ConfigDict(
         arbitrary_types_allowed=True, 
@@ -36,24 +42,52 @@ class StampedPose(BaseModel):
 
     @property
     def position(self) -> np.ndarray:
+        """Alias for :attr:`pos`.
+
+        Returns:
+            Position array of shape ``(3,)``.
+        """
         return self.pos
     
     @position.setter
     def position(self, value: Any):
+        """Set :attr:`pos` (validated on assignment).
+
+        Args:
+            value: Array-like of shape ``(3,)``.
+        """
         self.pos = value
 
     @property
     def quaternion(self) -> np.ndarray:
+        """Alias for :attr:`quat`.
+
+        Returns:
+            Quaternion ``[x, y, z, w]`` of shape ``(4,)``.
+        """
         return self.quat
     
     @quaternion.setter
     def quaternion(self, value: Any):
+        """Set :attr:`quat` (validated and normalized on assignment).
+
+        Args:
+            value: Array-like quaternion ``[x, y, z, w]``.
+        """
         self.quat = value
 
     # --- Validators ---
     @field_validator("pos", "quat", mode="before")
     @classmethod
     def convert_to_numpy(cls, v: Any) -> np.ndarray:
+        """Convert ``pos`` / ``quat`` input to a read-only ``float64`` array.
+
+        Args:
+            v: Array-like input.
+
+        Returns:
+            Non-writeable ``float64`` array.
+        """
         arr = np.asarray(v, dtype=np.float64)
         arr.flags.writeable = False
         return arr
@@ -61,6 +95,17 @@ class StampedPose(BaseModel):
     @field_validator("pos")
     @classmethod
     def validate_position_shape(cls, v: np.ndarray) -> np.ndarray:
+        """Check that the position has shape ``(3,)``.
+
+        Args:
+            v: Position array.
+
+        Returns:
+            The unchanged array.
+
+        Raises:
+            ValueError: If ``v.shape != (3,)``.
+        """
         if v.shape != (3,):
             raise ValueError(f"Position must be 3D, got shape {v.shape}")
         return v
@@ -68,6 +113,19 @@ class StampedPose(BaseModel):
     @field_validator("quat")
     @classmethod
     def validate_quaternion(cls, v: np.ndarray) -> np.ndarray:
+        """Check quaternion shape and normalize it.
+
+        Quaternions with norm ``<= 1e-10`` are returned unnormalized.
+
+        Args:
+            v: Quaternion array ``[x, y, z, w]``.
+
+        Returns:
+            Read-only unit quaternion of shape ``(4,)``.
+
+        Raises:
+            ValueError: If ``v.shape != (4,)``.
+        """
         if v.shape != (4,):
             raise ValueError(f"Quaternion must be 4D, got shape {v.shape}")
         
@@ -81,14 +139,40 @@ class StampedPose(BaseModel):
     # --- Serializers ---
     @field_serializer("pos", "quat")
     def serialize_numpy(self, v: np.ndarray, _info) -> list:
+        """Serialize ``pos`` / ``quat`` arrays to flat Python lists.
+
+        Args:
+            v: Array to serialize.
+            _info: Pydantic serialization info (unused).
+
+        Returns:
+            Flattened list of floats.
+        """
         return v.flatten().tolist()
     
     # --- Helpers ---
     def to_dict(self) -> dict:
+        """Dump the pose to a dict (arrays serialized as lists).
+
+        Returns:
+            Dict with keys ``pos``, ``quat``, ``frame_id``, ``timestamp``.
+        """
         return self.model_dump()
     
     @classmethod
     def from_matrix(cls, matrix: np.ndarray, frame_id: str) -> "StampedPose":
+        """Create a pose from a 4x4 homogeneous matrix.
+
+        Args:
+            matrix: Homogeneous transform of shape ``(4, 4)``.
+            frame_id: Frame the pose is expressed in.
+
+        Returns:
+            New :class:`StampedPose` with an ``[x, y, z, w]`` quaternion.
+
+        Raises:
+            ValueError: If ``matrix.shape != (4, 4)``.
+        """
         if matrix.shape != (4, 4):
             raise ValueError(f"Matrix must be 4x4, got shape {matrix.shape}")
         
@@ -99,15 +183,30 @@ class StampedPose(BaseModel):
         )
     
     def to_matrix(self) -> np.ndarray:
+        """Convert the pose to a 4x4 homogeneous matrix.
+
+        Returns:
+            Array of shape ``(4, 4)``.
+        """
         matrix = np.eye(4)
         matrix[:3, :3] = R.from_quat(self.quat).as_matrix()
         matrix[:3, 3] = self.pos
         return matrix
     
     def copy(self) -> "StampedPose":
+        """Return a deep copy of the pose.
+
+        Returns:
+            New :class:`StampedPose` with the same fields.
+        """
         return self.model_copy(deep=True)
 
     def __repr__(self) -> str:
+        """Return a compact string with position, quaternion, and frame.
+
+        Returns:
+            String representation (timestamp omitted).
+        """
         # np.array2string makes the output cleaner than tolist() for debugging
         pos_str = np.array2string(self.pos, precision=4, separator=',', suppress_small=True)
         quat_str = np.array2string(self.quat, precision=4, separator=',', suppress_small=True)
@@ -115,21 +214,25 @@ class StampedPose(BaseModel):
 
 @dataclass
 class Transform:
-    """
-    A transformation between two coordinate frames.
-    
-    Similar to geometry_msgs/TransformStamped in ROS.
-    
+    """A transformation between two coordinate frames.
+
+    Similar to ``geometry_msgs/TransformStamped`` in ROS. Maps points
+    expressed in ``child_frame`` into ``parent_frame``.
+
     Attributes:
-        translation: 3D translation [x, y, z]
-        rotation: Rotation as quaternion [x, y, z, w] (scipy convention)
-        parent_frame: The parent (reference) frame
-        child_frame: The child frame being described relative to parent
-        timestamp: Optional timestamp
-        is_static: Whether this transform is static (doesn't change over time)
-        
-    Note: translation and rotation accept lists or arrays but are converted
-    to np.ndarray in __post_init__.
+        translation: Translation ``[x, y, z]`` of the child origin in the
+            parent frame, shape ``(3,)``.
+        rotation: Rotation quaternion ``[x, y, z, w]`` (scipy convention),
+            shape ``(4,)``.
+        parent_frame: The parent (reference) frame.
+        child_frame: The child frame being described relative to parent.
+        timestamp: Creation time; set to ``time.time()`` if ``None``.
+        is_static: Whether this transform is static (doesn't change over time).
+
+    Note:
+        ``translation`` and ``rotation`` accept lists or arrays but are
+        converted to ``float64`` arrays (and the quaternion normalized) in
+        ``__post_init__``.
     """
     translation: ArrayInput
     rotation: ArrayInput
@@ -139,7 +242,12 @@ class Transform:
     is_static: bool = False
     
     def __post_init__(self):
-        """Ensure numpy arrays and validate."""
+        """Convert fields to arrays, validate shapes, and normalize the quaternion.
+
+        Raises:
+            ValueError: If ``translation`` is not shape ``(3,)`` or
+                ``rotation`` is not shape ``(4,)``.
+        """
         self.translation = np.asarray(self.translation, dtype=np.float64)
         self.rotation = np.asarray(self.rotation, dtype=np.float64)
         
@@ -158,7 +266,16 @@ class Transform:
     
     @classmethod
     def identity(cls, parent_frame: str, child_frame: str, is_static: bool = True) -> "Transform":
-        """Create an identity transform between two frames."""
+        """Create an identity transform between two frames.
+
+        Args:
+            parent_frame: Parent frame name.
+            child_frame: Child frame name.
+            is_static: Whether the transform is static.
+
+        Returns:
+            Transform with zero translation and quaternion ``[0, 0, 0, 1]``.
+        """
         return cls(
             translation=np.zeros(3),
             rotation=np.array([0, 0, 0, 1]),
@@ -170,7 +287,20 @@ class Transform:
     @classmethod
     def from_matrix(cls, matrix: np.ndarray, parent_frame: str, child_frame: str, 
                     is_static: bool = False) -> "Transform":
-        """Create Transform from a 4x4 transformation matrix."""
+        """Create a Transform from a 4x4 transformation matrix.
+
+        Args:
+            matrix: Homogeneous transform ``T_parent_child`` of shape ``(4, 4)``.
+            parent_frame: Parent frame name.
+            child_frame: Child frame name.
+            is_static: Whether the transform is static.
+
+        Returns:
+            New :class:`Transform`.
+
+        Raises:
+            ValueError: If ``matrix.shape != (4, 4)``.
+        """
         if matrix.shape != (4, 4):
             raise ValueError(f"Matrix must be 4x4, got shape {matrix.shape}")
         
@@ -186,7 +316,11 @@ class Transform:
         )
     
     def to_matrix(self) -> np.ndarray:
-        """Convert to 4x4 homogeneous transformation matrix."""
+        """Convert to a 4x4 homogeneous transformation matrix.
+
+        Returns:
+            Array ``T_parent_child`` of shape ``(4, 4)``.
+        """
         rot = np.asarray(self.rotation)
         trans = np.asarray(self.translation)
         matrix = np.eye(4)
@@ -195,11 +329,12 @@ class Transform:
         return matrix
     
     def inverse(self) -> "Transform":
-        """
-        Get the inverse transform (child -> parent).
-        
+        """Get the inverse transform (frames swapped).
+
         Returns:
-            New Transform with frames swapped and inverse transformation
+            New :class:`Transform` with ``parent_frame``/``child_frame``
+            swapped and the inverse rotation/translation. ``is_static`` is
+            preserved; ``timestamp`` is reset to the current time.
         """
         rot = R.from_quat(np.asarray(self.rotation))
         inv_rot = rot.inv()
@@ -214,16 +349,18 @@ class Transform:
         )
     
     def compose(self, other: "Transform") -> "Transform":
-        """
-        Compose this transform with another: self * other.
-        
-        The other transform's parent_frame should match this transform's child_frame.
-        
+        """Compose this transform with another: ``self * other``.
+
         Args:
-            other: The transform to compose with
-            
+            other: Transform whose ``parent_frame`` equals this transform's
+                ``child_frame``.
+
         Returns:
-            New Transform from self.parent_frame to other.child_frame
+            New :class:`Transform` from ``self.parent_frame`` to
+            ``other.child_frame``; static only if both inputs are static.
+
+        Raises:
+            ValueError: If ``self.child_frame != other.parent_frame``.
         """
         if self.child_frame != other.parent_frame:
             raise ValueError(
@@ -248,16 +385,16 @@ class Transform:
         )
     
     def apply_to_pose(self, pose: StampedPose) -> StampedPose:
-        """
-        Apply this transform to a pose.
-        
-        The pose must be in the child_frame. Result will be in parent_frame.
-        
+        """Apply this transform to a pose.
+
         Args:
-            pose: The pose to transform (must be in self.child_frame)
-            
+            pose: Pose expressed in ``self.child_frame``.
+
         Returns:
-            Transformed pose in self.parent_frame
+            Transformed pose in ``self.parent_frame`` (new timestamp).
+
+        Raises:
+            ValueError: If ``pose.frame_id != self.child_frame``.
         """
         if pose.frame_id != self.child_frame:
             raise ValueError(
@@ -280,6 +417,11 @@ class Transform:
         )
     
     def __repr__(self) -> str:
+        """Return a compact string with frames, translation, and rotation.
+
+        Returns:
+            String representation.
+        """
         trans = np.asarray(self.translation)
         rot = np.asarray(self.rotation)
         static_str = " (static)" if self.is_static else ""

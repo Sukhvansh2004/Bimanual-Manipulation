@@ -23,24 +23,26 @@ logger = logging.getLogger(__name__)
 
 
 class TransformManager:
-    """
-    Central manager for coordinate frame transformations.
-    
+    """Central manager for coordinate frame transformations.
+
     - Maintains a tree of static transforms
-    - Queries dynamic transforms from the simulation
+    - Queries dynamic transforms from the simulation (cached for 10 ms)
     - Provides transform_pose() to convert between any two connected frames
-    - Tracks frame relationships for path finding
-    
+    - Tracks frame relationships for path finding (BFS)
+
+    All quaternions are ``[x, y, z, w]`` (scipy convention).
+
     Standard frame hierarchy for dual-arm robosuite:
         world (root)
-        ├── robot0_base (robot's base frame, may have offset from world)
+        ├── robot0_base (robot root body, dynamic)
         │   ├── robot0_left_eef
         │   └── robot0_right_eef
         ├── robot1_base (for second robot if present)
         │   ├── robot1_left_eef
         │   └── robot1_right_eef
-        ├── agentview (camera)
-        ├── frontview (camera)
+        ├── <cam>_mj (MuJoCo camera frame; child of an EEF for eye-in-hand)
+        │   ├── <cam> (camera_link convention, static)
+        │   └── <cam>_optical (optical convention, static)
         └── object_* (detected objects)
     
     Usage:
@@ -60,13 +62,15 @@ class TransformManager:
     WORLD_FRAME = constants.WORLD_FRAME
     
     def __init__(self, env: DualArmEnvironment, auto_discover: bool = True, env_lock: Optional[threading.RLock] = None):
-        """
-        Initialize TransformManager.
-        
+        """Initialize TransformManager.
+
         Args:
-            env: Robosuite environment instance (optional, can be set later)
-            auto_discover: Whether to automatically discover frames from environment
-            env_lock: Optional threading.RLock used to guard access to MuJoCo sim.data
+            env: Dual-arm robosuite environment. May be ``None``, in which
+                case frame discovery is skipped.
+            auto_discover: Whether to discover robot, EEF, and camera frames
+                from ``env`` immediately.
+            env_lock: Optional ``threading.RLock`` used to guard access to
+                MuJoCo ``sim.data``.
         """
         self.env: DualArmEnvironment = env
         # Optional lock to guard simulation access when multiple threads use the env
@@ -93,10 +97,22 @@ class TransformManager:
 
     @property
     def env_lock(self) -> Optional[threading.RLock]:
+        """Lock guarding simulation access, or ``None``.
+
+        Returns:
+            The ``threading.RLock`` passed at construction, if any.
+        """
         return self._env_lock
     
     def _discover_frames(self) -> None:
-        """Discover available frames from the robosuite environment."""
+        """Discover robot base, EEF, and camera frames from the environment.
+
+        Registers ``robot{i}_base`` and ``robot{i}_{arm}_eef`` dynamic
+        providers, then ``<cam>_mj``, ``<cam>`` and ``<cam>_optical`` for
+        every MuJoCo camera. Eye-in-hand cameras are parented to the first
+        arm's EEF of the robot named in the camera. No-op if ``env`` is
+        ``None``.
+        """
         if self.env is None:
             return
         
@@ -159,8 +175,25 @@ class TransformManager:
         logger.info(f"Discovered frames: {sorted(self._known_frames)}")
     
     def _register_robot_base_provider(self, robot_idx: int, frame_id: str) -> None:
-        """Register a dynamic transform provider for a robot's base frame."""
+        """Register a dynamic ``world <- robot base`` transform provider.
+
+        Args:
+            robot_idx: Index into ``env.robots``.
+            frame_id: Frame name to register (e.g. ``"robot0_base"``).
+        """
         def get_base_transform() -> Transform:
+            """Read the robot root body pose from MuJoCo.
+
+            Falls back to bodies named ``frame_id`` or ``<robot.name>_base``
+            if ``robot_model.root_body`` is unavailable.
+
+            Returns:
+                Dynamic transform ``world <- frame_id``.
+
+            Raises:
+                Exception: The last lookup error (or ``RuntimeError``) if no
+                    fallback body name resolves.
+            """
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             
             # Get robot base position and orientation from simulation
@@ -212,8 +245,22 @@ class TransformManager:
         logger.debug(f"Registered robot base frame: {frame_id}")
     
     def _register_eef_provider(self, robot_idx: int, arm_id: str, frame_id: str) -> None:
-        """Register a dynamic transform provider for an end-effector."""
+        """Register a dynamic ``robot base <- EEF`` transform provider.
+
+        Only the provider is registered here; the caller sets the frame
+        parent and known-frames entry.
+
+        Args:
+            robot_idx: Index into ``env.robots``.
+            arm_id: Arm key in ``robot_model.eef_name`` (e.g. ``"left"``).
+            frame_id: Frame name (e.g. ``"robot0_left_eef"``).
+        """
         def get_eef_transform() -> Transform:
+            """Query the EEF pose in the robot base frame via robosuite.
+
+            Returns:
+                Dynamic transform ``robot{i}_base <- frame_id``.
+            """
             robot = self.env.robots[robot_idx]  # type: ignore[union-attr, index]
             # robosuite provides hand pose in the ROBOT BASE frame.
             # We therefore publish base <- eef directly.
@@ -242,10 +289,17 @@ class TransformManager:
         self._dynamic_frame_providers[frame_id] = get_eef_transform
     
     def _register_camera_provider(self, camera_name: str, parent_frame: str) -> None:
-        """
-        Register a provider for a camera.
-        If parent_frame is 'world', the camera is dynamic (fixed to world).
-        If parent_frame is another frame (e.g. an EEF), the transform is static.
+        """Register transforms for a camera's ``_mj``, link, and optical frames.
+
+        If ``parent_frame`` is the world frame, a dynamic ``world <- <cam>_mj``
+        provider is registered. Otherwise (eye-in-hand) a static
+        ``parent_frame <- <cam>_mj`` transform is computed once from the
+        current simulation state. In both cases static rotations
+        ``<cam>_mj <- <cam>`` and ``<cam>_mj <- <cam>_optical`` are added.
+
+        Args:
+            camera_name: MuJoCo camera name.
+            parent_frame: Frame the camera is attached to.
         """
         cam_mj = f"{camera_name}_mj"
 
@@ -279,6 +333,11 @@ class TransformManager:
         # Dynamic transform provider for fixed-to-world cameras
         else:
             def get_camera_transform() -> Transform:
+                """Read the camera pose from MuJoCo.
+
+                Returns:
+                    Dynamic transform ``world <- <cam>_mj``.
+                """
                 if self._env_lock:
                     with self._env_lock:
                         pos = self.env.sim.data.get_camera_xpos(camera_name)
@@ -321,11 +380,13 @@ class TransformManager:
         )
     
     def add_static_transform(self, transform: Transform) -> None:
-        """
-        Add a static transform to the tree.
-        
+        """Add (or overwrite) a static transform in the tree.
+
+        Sets ``transform.child_frame``'s parent to ``transform.parent_frame``
+        and registers both frames as known.
+
         Args:
-            transform: The transform to add
+            transform: Transform ``parent_frame <- child_frame`` to add.
         """
         key = (transform.parent_frame, transform.child_frame)
         self._static_transforms[key] = transform
@@ -337,8 +398,7 @@ class TransformManager:
 
     def add_dynamic_transform(self, frame_id: str, parent_frame: str,
                               provider: Callable[[], Transform]) -> None:
-        """
-        Register a dynamic transform provider for *frame_id*.
+        """Register a dynamic transform provider for *frame_id*.
 
         The *provider* callable is invoked every time the frame's transform is
         queried (subject to the cache duration).  This is appropriate for frames
@@ -348,7 +408,7 @@ class TransformManager:
             frame_id: The child frame to register.
             parent_frame: The parent frame.
             provider: A zero-argument callable that returns a ``Transform``
-                      (parent_frame -> frame_id).
+                with ``parent_frame=parent_frame`` and ``child_frame=frame_id``.
         """
         self._dynamic_frame_providers[frame_id] = provider
         self._frame_parents[frame_id] = parent_frame
@@ -357,9 +417,16 @@ class TransformManager:
         logger.debug(f"Added dynamic transform provider: {parent_frame} -> {frame_id}")
 
     def remove_frame(self, frame_id: str) -> None:
-        """
-        Remove a frame and its associated static transform.
-        Note: This does not remove children of the frame.
+        """Remove a frame and its static transform to its parent.
+
+        No-op if the frame is unknown.
+
+        Note:
+            This does not remove children of the frame, any dynamic provider
+            registered for it, or its cached transform.
+
+        Args:
+            frame_id: Frame to remove.
         """
         if frame_id not in self._known_frames:
             return
@@ -378,16 +445,19 @@ class TransformManager:
     
     def add_object_frame(self, object_id: str, pose: StampedPose, 
                         parent_frame: Optional[str] = None) -> str:
-        """
-        Add a frame for a detected object.
-        
+        """Add a frame ``object_<object_id>`` for a detected object.
+
+        The pose's position/quaternion are used directly as the
+        ``parent_frame <- object`` transform (no frame conversion), and stored
+        alongside the static transforms until updated.
+
         Args:
-            object_id: Unique identifier for the object
-            pose: The object's pose
-            parent_frame: Parent frame (default: pose's frame_id)
-            
+            object_id: Unique identifier for the object.
+            pose: The object's pose.
+            parent_frame: Parent frame (default: ``pose.frame_id``).
+
         Returns:
-            The created frame name
+            The created frame name, ``"object_<object_id>"``.
         """
         if parent_frame is None:
             parent_frame = pose.frame_id
@@ -410,12 +480,15 @@ class TransformManager:
         return frame_name
     
     def update_object_frame(self, object_id: str, pose: StampedPose) -> None:
-        """
-        Update an object frame.
-        
+        """Update an object frame, creating it if it does not exist.
+
+        For an existing frame, ``pose.position``/``pose.quaternion`` are
+        stored as the transform from the frame's existing parent;
+        ``pose.frame_id`` is ignored.
+
         Args:
-            object_id: Object identifier
-            pose: New pose for the object
+            object_id: Object identifier.
+            pose: New pose for the object, expressed in the frame's parent.
         """
         frame_name = f"object_{object_id}"
         if frame_name not in self._known_frames:
@@ -435,8 +508,7 @@ class TransformManager:
         self._static_transforms[(parent_frame, frame_name)] = transform
     
     def get_transform(self, target_frame: str, source_frame: str) -> Transform:
-        """
-        Get the transform that maps coordinates from source_frame into target_frame.
+        """Get the transform that maps coordinates from source_frame into target_frame.
 
         In other words, this returns a Transform with:
         - parent_frame = target_frame
@@ -444,16 +516,18 @@ class TransformManager:
 
         so that applying it yields:
         pose_in_target = T(target<-source) * pose_in_source
-        
+
         Args:
-            target_frame: The frame to transform TO
-            source_frame: The frame to transform FROM
-            
+            target_frame: The frame to transform TO.
+            source_frame: The frame to transform FROM.
+
         Returns:
-            Transform from source_frame to target_frame
-            
+            Transform ``target_frame <- source_frame`` (identity if the frames
+            are equal).
+
         Raises:
-            ValueError: If no path exists between the frames
+            ValueError: If no path exists between the frames, or an edge on
+                the path has no resolvable transform.
         """
         if source_frame == target_frame:
             return Transform.identity(target_frame, source_frame)
@@ -479,7 +553,21 @@ class TransformManager:
         return result
     
     def _get_direct_transform(self, from_frame: str, to_frame: str) -> Transform:
-        """Get a direct transform between adjacent frames."""
+        """Get the transform between two adjacent frames.
+
+        Checks static transforms (and their inverses), then dynamic providers
+        of ``to_frame`` and ``from_frame`` (using the cache when fresh).
+
+        Args:
+            from_frame: Frame the result maps INTO (result's parent).
+            to_frame: Frame the result maps FROM (result's child).
+
+        Returns:
+            Transform ``from_frame <- to_frame``.
+
+        Raises:
+            ValueError: If no direct transform exists between the frames.
+        """
         # Check static transforms
         key = (from_frame, to_frame)
         if key in self._static_transforms:
@@ -531,10 +619,18 @@ class TransformManager:
         raise ValueError(f"No direct transform from '{from_frame}' to '{to_frame}'")
     
     def _find_path(self, source: str, target: str) -> Optional[List[str]]:
-        """
-        Find a path between two frames using BFS.
-        
-        Returns list of frames from source to target, or None if no path exists.
+        """Find the shortest path between two frames using BFS.
+
+        Edges come from static transforms and the frame-parent map, treated
+        as undirected.
+
+        Args:
+            source: Start frame.
+            target: End frame.
+
+        Returns:
+            List of frames from ``source`` to ``target`` (inclusive), or
+            ``None`` if no path exists.
         """
         if source == target:
             return [source]
@@ -573,15 +669,17 @@ class TransformManager:
         return None
     
     def transform_pose(self, pose: StampedPose, target_frame: str) -> StampedPose:
-        """
-        Transform a pose to a different frame.
-        
+        """Transform a pose to a different frame.
+
         Args:
-            pose: The pose to transform
-            target_frame: The target frame
-            
+            pose: The pose to transform.
+            target_frame: The target frame.
+
         Returns:
-            The pose expressed in the target frame
+            The pose expressed in ``target_frame`` (a copy if already there).
+
+        Raises:
+            ValueError: If no transform path exists.
         """
         if pose.frame_id == target_frame:
             return pose.copy()
@@ -591,7 +689,18 @@ class TransformManager:
         return transform.apply_to_pose(pose)
     
     def _compute_transform_matrix(self, source_frame: str, target_frame: str) -> np.ndarray:
-        """Compute the 4x4 matrix that maps source_frame coordinates into target_frame."""
+        """Compute the 4x4 matrix that maps source_frame coordinates into target_frame.
+
+        Args:
+            source_frame: Frame to transform FROM.
+            target_frame: Frame to transform TO.
+
+        Returns:
+            Homogeneous matrix ``T_target_source`` of shape ``(4, 4)``.
+
+        Raises:
+            ValueError: If no path exists between the frames.
+        """
         path = self._find_path(source_frame, target_frame)
         
         if path is None:
@@ -608,15 +717,17 @@ class TransformManager:
         return result
     
     def get_frame_pose(self, frame_id: str, reference_frame: Optional[str] = None) -> StampedPose:
-        """
-        Get the pose of a frame relative to another frame.
-        
+        """Get the pose of a frame relative to another frame.
+
         Args:
-            frame_id: The frame to get the pose of
-            reference_frame: The reference frame (default: world)
-            
+            frame_id: The frame to get the pose of.
+            reference_frame: The reference frame (default: world).
+
         Returns:
-            StampedPose of frame_id in reference_frame
+            StampedPose of ``frame_id``'s origin in ``reference_frame``.
+
+        Raises:
+            ValueError: If no transform path exists.
         """
         if reference_frame is None:
             reference_frame = self.WORLD_FRAME
@@ -634,11 +745,22 @@ class TransformManager:
         )
     
     def get_known_frames(self) -> List[str]:
-        """Get list of all known frame names."""
+        """Get all known frame names.
+
+        Returns:
+            Sorted list of frame names.
+        """
         return sorted(list(self._known_frames))
     
     def frame_exists(self, frame_id: str) -> bool:
-        """Check if a frame exists."""
+        """Check if a frame is known.
+
+        Args:
+            frame_id: Frame name.
+
+        Returns:
+            ``True`` if the frame is registered.
+        """
         return frame_id in self._known_frames
     
     def clear_cache(self) -> None:
@@ -646,7 +768,12 @@ class TransformManager:
         self._transform_cache.clear()
     
     def print_frame_tree(self, root: Optional[str] = None, indent: int = 0) -> None:
-        """Print the frame tree structure."""
+        """Print the frame tree (from the frame-parent map) to stdout.
+
+        Args:
+            root: Frame to start from (default: world).
+            indent: Indentation level for ``root``.
+        """
         if root is None:
             root = self.WORLD_FRAME
         
@@ -659,4 +786,9 @@ class TransformManager:
             self.print_frame_tree(child, indent + 1)
     
     def __repr__(self) -> str:
+        """Return a summary with the number of frames and whether env is set.
+
+        Returns:
+            String representation.
+        """
         return f"TransformManager(frames={len(self._known_frames)}, env={'set' if self.env else 'None'})"

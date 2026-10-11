@@ -26,6 +26,24 @@ class AssignmentResult:
     The execution fields store per-waypoint trajectory data for the
     assigned path so that execution can proceed without loading the
     individual trajectory NPZ files.
+
+    Attributes:
+        sequence: Robot id (0 or 1) assigned to each segment.
+        trajectory_paths: NPZ filename of the assigned trajectory per
+            segment (e.g. ``"robot0_trajectory_6.npz"``).
+        total_cost: Optimal DP cost (task + switching).
+        task_costs: ``(n_segments,)`` task cost per segment.
+        switching_costs: ``(n_segments,)`` switching cost incurred on
+            entering each segment (``0`` for segment 0).
+        handover_points: Segment indices ``i`` where
+            ``sequence[i] != sequence[i - 1]``.
+        cost_matrix: ``(n_segments, 2)`` best task cost per robot over all
+            of its trajectories (``inf`` when none is feasible).
+        trajectory_matrix: ``(n_segments, 2)`` trajectory index achieving
+            :attr:`cost_matrix` (``-1`` when none is feasible).
+
+    The remaining fields are documented inline below; joint-config arrays
+    contain ``NaN`` rows where no normalised config was available.
     """
 
     # --- Core assignment outputs ---

@@ -10,6 +10,7 @@ Prereqs:
 
 Usage:
   python scripts/utils/transform_visualizer_meshcat.py
+  python scripts/utils/transform_visualizer_meshcat.py --fps 30 --no-labels --no-clear
 
 Stop:
   Ctrl+C
@@ -23,6 +24,15 @@ from bimanual_manipulation.transforms import MeshcatTFVisualizerConfig, stream_t
 
 
 def main() -> None:
+    """Parse CLI args, create a Panda/Panda env, and stream its TF tree to MeshCat.
+
+    Blocks until interrupted and always closes the environment.
+
+    Note:
+        The call passes ``auto_discover=True`` and omits ``tf_manager``,
+        which does not match the current ``stream_transforms_to_meshcat``
+        signature and raises ``TypeError``.
+    """
     parser = argparse.ArgumentParser(description="Visualize TransformManager frames in MeshCat")
     parser.add_argument("--fps", type=float, default=20.0, help="Update rate (Hz)")
     parser.add_argument(

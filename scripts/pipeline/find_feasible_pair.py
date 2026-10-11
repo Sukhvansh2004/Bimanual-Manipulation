@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""
-Find Feasible Arm Trajectory Pair.
+"""Find feasible dual-arm trajectory pairs from pre-generated data.
 
-Given a data directory containing pre-generated trajectories
-(object_trajectory.npz, robot0_trajectory_*.npz, robot1_trajectory_*.npz),
-this script finds pairs where BOTH robot trajectories are feasible at every
-waypoint, using only the pre-computed feasibility data stored in the .npz files.
+Given a data directory containing pre-generated robot trajectories
+(``robot0_trajectory_*.npz``, ``robot1_trajectory_*.npz``), this script finds
+``(robot0_i, robot1_j)`` pairs that together cover the object trajectory, using
+only the per-waypoint ``is_feasible`` arrays stored in the ``.npz`` files.
 
-No environment or experiment config is needed — everything comes from the data.
+No environment or experiment config is needed; everything comes from the data.
 
 The script:
-1. Loads the per-waypoint `is_feasible` arrays from all robot trajectory files.
-2. For each (robot0_i, robot1_j) pair, computes the logical AND of their
-   feasibility arrays to find jointly feasible waypoints.
-3. Reports all fully feasible pairs and the best partial pairs.
+1. Loads the per-waypoint ``is_feasible`` arrays from all robot trajectory files.
+2. Unless ``--skip-prefilter`` is given, keeps only trajectories that are
+   individually feasible at every waypoint.
+3. For each remaining pair, computes coverage as the logical OR of the two
+   feasibility arrays and checks handover validity: every switch between a
+   robot0-only and a robot1-only region must pass through at least one waypoint
+   feasible for both arms.
+4. Prints all fully feasible pairs (full coverage and valid handovers), the top
+   10 partial pairs ranked by covered waypoints, and the first feasible pair.
 
 Usage:
-    python find_feasible_pair.py <data_dir>
+    python find_feasible_pair.py <data_dir> [--skip-prefilter]
 
 Examples:
-    python find_feasible_pair.py data/shelf_to_box
+    python find_feasible_pair.py data/flatPlate_shelf_to_box
     python find_feasible_pair.py data/ycb_mug_table_to_rack
     python find_feasible_pair.py data/ycb_mug_table_to_rack --skip-prefilter
 """
@@ -39,17 +43,31 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 def _parse_index(filename: str, prefix: str) -> Optional[int]:
-    """Extract the integer index from e.g. 'robot0_trajectory_7.npz'."""
+    """Extract the integer index from a trajectory filename.
+
+    Args:
+        filename: Basename such as ``robot0_trajectory_7.npz``.
+        prefix: Expected prefix before ``_<idx>.npz``, e.g. ``robot0_trajectory``.
+
+    Returns:
+        The parsed index, or ``None`` if ``filename`` does not match
+        ``<prefix>_<int>.npz``.
+    """
     m = re.match(rf"{prefix}_(\d+)\.npz$", filename)
     return int(m.group(1)) if m else None
 
 
 def load_feasibility_arrays(data_dir: str):
-    """Load is_feasible arrays from all robot trajectory files.
+    """Load ``is_feasible`` arrays from all robot trajectory files.
+
+    Files without an ``is_feasible`` field are skipped with a printed warning.
+
+    Args:
+        data_dir: Directory containing ``robot{0,1}_trajectory_<idx>.npz`` files.
 
     Returns:
-        robot0: dict[int -> np.ndarray(bool)]  – per-waypoint feasibility
-        robot1: dict[int -> np.ndarray(bool)]
+        Tuple ``(robot0, robot1)``, each a dict mapping trajectory index to a
+        boolean per-waypoint feasibility array of shape ``(N,)``.
     """
     robot0: Dict[int, np.ndarray] = {}
     robot1: Dict[int, np.ndarray] = {}
@@ -74,6 +92,12 @@ def load_feasibility_arrays(data_dir: str):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """Parse CLI arguments, evaluate all trajectory pairs and print a report.
+
+    Raises:
+        SystemExit: If ``data_dir`` does not exist, either robot has no
+            trajectories, or no trajectories survive the pre-filter.
+    """
     parser = argparse.ArgumentParser(
         description="Find feasible dual-arm trajectory pairs from pre-generated data."
     )

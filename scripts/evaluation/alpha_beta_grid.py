@@ -6,10 +6,22 @@ values, then writes aggregate summaries focused on execution success and error
 metrics.
 
 By default the script evaluates the selected experiments once per (alpha, beta)
-pair and computes aggregates across experiments:
-  - success_rate = mean(task_success)
+pair (each pair is ``BASELINE`` with ``alpha``/``beta`` overridden) and
+computes aggregates across experiments:
+  - assignment_success_rate = mean(assignment total_cost < inf)
+  - task_success_rate = mean(task_success)
   - mean_position_tracking_error_m = mean(object_mean_tracking_error)
   - mean_orientation_error_deg = mean(placement_orientation_error)
+
+Means ignore missing / non-finite values. Outputs are written to
+``--results-dir`` (default ``results/alpha_beta_grid``):
+``alpha_beta_grid_details.csv``, ``alpha_beta_grid_summary.csv`` and
+``alpha_beta_grid_summary.json``, plus per-run result JSONs.
+
+Usage::
+
+    python scripts/evaluation/alpha_beta_grid.py --paper --workers 4
+    python scripts/evaluation/alpha_beta_grid.py --alpha-values 10 40 --beta-values 0 0.5 --resume
 
 Notes:
   - Position tracking error is the existing trajectory-wide object tracking
@@ -51,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 def _setup_logging() -> None:
+    """Configure INFO-level logging with an ``[ALPHA-BETA]`` tag."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [ALPHA-BETA] %(levelname)s  %(message)s",
@@ -59,6 +72,15 @@ def _setup_logging() -> None:
 
 
 def _make_cfg(alpha: float, beta: float) -> AblationConfig:
+    """Return a copy of ``BASELINE`` with the given weights and a matching label.
+
+    Args:
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+
+    Returns:
+        Ablation config labelled ``"Alpha=<alpha>, Beta=<beta>"``.
+    """
     cfg = dict(BASELINE)
     cfg["label"] = f"Alpha={alpha:g}, Beta={beta:g}"
     cfg["alpha"] = alpha
@@ -67,6 +89,14 @@ def _make_cfg(alpha: float, beta: float) -> AblationConfig:
 
 
 def _safe_mean(values: Iterable[float]) -> float:
+    """Mean of the finite, non-``None`` values.
+
+    Args:
+        values: Values to average.
+
+    Returns:
+        The mean, or NaN if no valid values remain.
+    """
     vals = [float(v) for v in values if v is not None and math.isfinite(float(v))]
     if not vals:
         return float("nan")
@@ -74,6 +104,18 @@ def _safe_mean(values: Iterable[float]) -> float:
 
 
 def _aggregate_pair(alpha: float, beta: float, rows: List[Dict]) -> Dict:
+    """Aggregate detail rows of one (alpha, beta) pair across experiments.
+
+    Args:
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        rows: Detail rows for this pair (see ``_to_detail_row``).
+
+    Returns:
+        Dict with ``alpha``, ``beta``, ``n_runs``, ``assignment_success_rate``,
+        ``task_success_rate``, ``mean_position_tracking_error_m`` and
+        ``mean_orientation_error_deg``.
+    """
     success_values = [1.0 if row["task_success"] else 0.0 for row in rows if row["task_success"] is not None]
     pos_values = [row["object_mean_tracking_error"] for row in rows]
     ori_values = [row["placement_orientation_error"] for row in rows]
@@ -91,6 +133,14 @@ def _aggregate_pair(alpha: float, beta: float, rows: List[Dict]) -> Dict:
 
 
 def _write_csv(path: Path, rows: List[Dict]) -> None:
+    """Write dict rows to CSV, using the first row's keys as the header.
+
+    An empty file is written if ``rows`` is empty.
+
+    Args:
+        path: Output CSV path; parent directories are created.
+        rows: Rows to write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else [])
@@ -100,10 +150,31 @@ def _write_csv(path: Path, rows: List[Dict]) -> None:
 
 
 def _result_path(results_dir: Path, exp_name: str, cfg: AblationConfig) -> Path:
+    """Return ``<results_dir>/<exp_name>/<config_id>.json``.
+
+    Args:
+        results_dir: Root results directory.
+        exp_name: Experiment name.
+        cfg: Ablation config.
+
+    Returns:
+        Path of the per-run result JSON.
+    """
     return results_dir / exp_name / f"{config_id(cfg)}.json"
 
 
 def _is_completed_job(result_path: Path, require_execution: bool) -> bool:
+    """Check whether a job's result JSON is complete enough to skip on resume.
+
+    Args:
+        result_path: Per-run result JSON path.
+        require_execution: If ``True``, a run with a finite planning cost must
+            also have execution metrics.
+
+    Returns:
+        ``True`` if the file loads, has planning metrics and (if required)
+        execution metrics. Failed-planning runs count as complete.
+    """
     if not result_path.is_file():
         return False
     try:
@@ -129,6 +200,21 @@ def _to_detail_row(
     cfg: AblationConfig,
     result,
 ) -> Dict:
+    """Build a detail row from an ``ExperimentResult``.
+
+    Args:
+        exp_name: Experiment name.
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        cfg: Ablation config.
+        result: ``ExperimentResult`` or ``None``.
+
+    Returns:
+        Dict with ``experiment``, ``alpha``, ``beta``, ``config_id``,
+        ``assignment_succeeded``, ``task_success`` (``None`` without
+        execution), ``object_mean_tracking_error`` and
+        ``placement_orientation_error`` (NaN when unavailable).
+    """
     return {
         "experiment": exp_name,
         "alpha": alpha,
@@ -160,6 +246,19 @@ def _to_detail_row_from_dict(
     cfg: AblationConfig,
     result_dict: Dict | None,
 ) -> Dict:
+    """Build a detail row from a result dict returned by a worker.
+
+    Args:
+        exp_name: Experiment name.
+        alpha: Smoothness weight.
+        beta: Manipulability weight.
+        cfg: Ablation config.
+        result_dict: ``ExperimentResult.to_dict()`` output, or ``None`` if the
+            job failed.
+
+    Returns:
+        Detail row with the same keys as ``_to_detail_row``.
+    """
     if not result_dict:
         return {
             "experiment": exp_name,
@@ -198,6 +297,11 @@ def _to_detail_row_from_dict(
 
 
 def main() -> None:
+    """Run the alpha/beta sweep and write detail and summary files.
+
+    Raises:
+        SystemExit: If no experiments are selected.
+    """
     parser = argparse.ArgumentParser(description="Grid search alpha/beta for assignment solver")
     parser.add_argument("--alpha-values", nargs="+", type=float,
                         default=[2.5, 5.0, 10.0, 20.0, 40.0, 50.0],
