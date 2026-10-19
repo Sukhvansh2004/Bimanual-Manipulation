@@ -27,10 +27,8 @@ method steps and their LaTeX, task descriptions, both result tables, ablations a
 entry. The components under `src/components/` only render it. `src/types.ts` types every content
 structure, so a mistyped field fails `npm run typecheck` rather than the page.
 
-Things still marked TODO in `content.tsx`:
-
-- `paper.links.arxiv` — set once the preprint is posted; the arXiv button appears automatically.
-- `paper.venue` and `bibtex` — switch to the arXiv entry (`eprint`, `archivePrefix`) once the ID exists.
+`paper.links.arxiv` points to the arXiv preprint ([2610.23551](https://arxiv.org/abs/2610.23551));
+the header and footer show an arXiv link whenever it is set.
 
 ## Assets
 
@@ -38,7 +36,7 @@ Things still marked TODO in `content.tsx`:
 
 | File | Source |
 |---|---|
-| `paper.pdf` | the submitted manuscript |
+| `paper.pdf` | the arXiv preprint (2610.23551v1) |
 | `supplementary_video.mp4` + `video_poster.jpg` | the submission video (720p, 4:02) |
 | `fig1_teaser.jpg`, `fig2_framework.jpg`, `fig3_tasks.jpg` | figures extracted from the PDF |
 | `tasks/task{A–D}_{1–5}.jpg` | per-task frames cropped out of Figure 3 |

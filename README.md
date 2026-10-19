@@ -6,7 +6,7 @@ A comprehensive framework for dual-arm Franka robot manipulation with advanced p
 [![Project page](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Sukhvansh2004/Bimanual-Manipulation/actions/workflows/deploy-pages.yml)
 
 > **Paper:** *Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation*
-> 📄 [Project page, paper and video](https://sukhvansh2004.github.io/Bimanual-Manipulation/) · site source in [`web/`](web/)
+> 📄 [arXiv:2610.23551](https://arxiv.org/abs/2610.23551) · [Project page, paper and video](https://sukhvansh2004.github.io/Bimanual-Manipulation/) · site source in [`web/`](web/)
 
 ## Features
 

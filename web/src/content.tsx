@@ -43,7 +43,7 @@ export const paper: Paper = {
     pdf: asset('assets/paper.pdf'),
     video: asset('assets/supplementary_video.mp4'),
     code: 'https://github.com/Sukhvansh2004/Bimanual-Manipulation',
-    arxiv: null, // TODO: add the arXiv URL once the preprint is posted.
+    arxiv: 'https://arxiv.org/abs/2610.23551',
   },
 
   abstract: `Many manipulation tasks that are effortless for dexterous human hands remain challenging for robotic systems equipped with simple, task-specialized grippers. Industrial platforms commonly rely on end-effectors such as suction cups or parallel-jaw grippers, yet no single mode can reliably satisfy the diverse constraints encountered across different phases of complex manipulation tasks, including pickup, reorientation, insertion, and constrained placement. In this work, we investigate whether complementary simple grippers within a heterogeneous bimanual setup can collectively realize tasks that exceed the capability of any individual gripper alone. Given a single human demonstration specifying the desired object motion, we formulate embodiment-aware execution as a finite-horizon optimization over arm–trajectory assignments. At each segment, the planner determines whether single-arm manipulation or a coordinated dual-arm handover is required, jointly reasoning over heterogeneous grasp feasibility, motion constraints, manipulability, and cross-gripper compatibility. Exploiting this formulation, we compute globally consistent assignments with explicit switching regularization. Experiments on a dual Franka FR3 platform equipped with suction and parallel-jaw grippers demonstrate improved feasibility and reliability in tasks that are infeasible under single-gripper execution.`,
@@ -505,7 +505,10 @@ export const bibtex: string = `@misc{jain2026embodiment,
   title  = {Embodiment-Aware Planning for Heterogeneous Bimanual Manipulation},
   author = {Jain, Sukhvansh and Maurya, Anurag and Vats, Shivam and
             Dhar, Narendra Kumar and Prakash, Ravi},
-  year   = {2026}
+  year          = {2026},
+  eprint        = {2610.23551},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2610.23551}
 }`
 
 export const acknowledgements: { builtOn: { name: string; url: string; what: string }[] } = {
