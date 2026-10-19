@@ -63,6 +63,11 @@ export default function Hero() {
           <a className="btn btn-primary" href={paper.links.pdf} target="_blank" rel="noreferrer">
             <IconPdf /> Paper (PDF)
           </a>
+          {paper.links.arxiv && (
+            <a className="btn" href={paper.links.arxiv} target="_blank" rel="noreferrer">
+              <IconPdf /> arXiv
+            </a>
+          )}
           <a className="btn" href="#video">
             <IconPlay /> Video
           </a>

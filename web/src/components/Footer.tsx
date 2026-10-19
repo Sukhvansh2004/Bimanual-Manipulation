@@ -11,6 +11,11 @@ export default function Footer() {
           <a href={paper.links.pdf} target="_blank" rel="noreferrer">
             Paper
           </a>
+          {paper.links.arxiv && (
+            <a href={paper.links.arxiv} target="_blank" rel="noreferrer">
+              arXiv
+            </a>
+          )}
           <a href={paper.links.video} target="_blank" rel="noreferrer">
             Video
           </a>
