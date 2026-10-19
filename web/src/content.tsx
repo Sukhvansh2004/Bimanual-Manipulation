@@ -29,15 +29,18 @@ export const paper: Paper = {
   // Same order as the paper. `url` is optional — add homepages / Scholar
   // profiles as they become available.
   authors: [
-    { name: 'Sukhvansh Jain', url: 'https://github.com/Sukhvansh2004' },
-    { name: 'Anurag Maurya' },
-    { name: 'Shivam Vats' },
-    { name: 'Narendra Kumar Dhar' },
-    { name: 'Ravi Prakash' },
+    { name: 'Sukhvansh Jain', affiliation: 1, url: 'https://github.com/Sukhvansh2004' },
+    { name: 'Anurag Maurya', affiliation: 2 },
+    { name: 'Shivam Vats', affiliation: 3 },
+    { name: 'Narendra Kumar Dhar', affiliation: 1 },
+    { name: 'Ravi Prakash', affiliation: 2 },
   ],
-  // Optional. To list institutions, give each author an `affiliation` id and add
-  // { id, name } entries here; superscripts only render with more than one.
-  affiliations: [],
+  // As listed in the arXiv paper; superscripts only render with more than one.
+  affiliations: [
+    { id: 1, name: 'Indian Institute of Technology Mandi' },
+    { id: 2, name: 'Indian Institute of Science, Bengaluru' },
+    { id: 3, name: 'Brown University' },
+  ],
 
   links: {
     pdf: asset('assets/paper.pdf'),
