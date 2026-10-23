@@ -1,0 +1,9 @@
+# Applied to every pip install in the CPU test job (via PIP_CONSTRAINT).
+#
+# GraspGen pins timm==1.0.15, which requires an unpinned torch/torchvision.
+# Without these pins pip "upgrades" the CPU build installed earlier to the
+# latest CUDA wheel plus several GB of nvidia-* packages, and the runner
+# runs out of disk. torch 2.1 is also built against NumPy 1.x.
+torch==2.1.0
+torchvision==0.16.0
+numpy<2.0.0

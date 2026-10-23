@@ -116,6 +116,9 @@ jobs:
       # ROS 2, if ever present on a runner image, registers launch_testing
       # plugins that are incompatible with this pytest version.
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+      # Keep every install on the CPU torch build and NumPy 1.x
+      # (see .github/ci/constraints.txt).
+      PIP_CONSTRAINT: ${{ github.workspace }}/.github/ci/constraints.txt
     steps:
       # `submodules: recursive` cannot be used here: deps/GraspGenModels is a
       # gitlink in the index with no matching entry in .gitmodules (install.sh
